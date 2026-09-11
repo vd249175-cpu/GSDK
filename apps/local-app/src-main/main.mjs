@@ -3,7 +3,6 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNativeGraphHost } from './native-graph-host.mjs'
-import { createDemoController } from './demo-controller.mjs'
 import { NodeGenerationAdapter } from './effects/node-generation-adapter.js'
 import studioPlugin from '../plugins/graphvideo.studio/backend.js'
 import {
@@ -137,8 +136,6 @@ const host = createNativeGraphHost({
   plugins: [studioPlugin],
 })
 
-const demoController = createDemoController(host)
-
 async function openProjectAtPath(projectPath) {
   loadEnvFile(join(projectPath, '.env'))
   const project = await openLocalProject(projectPath)
@@ -229,12 +226,6 @@ function registerIpcHandlers() {
           nodes,
         }
       }
-      case 'graph.demo.step':
-        return demoController.step()
-      case 'graph.demo.reset':
-        return demoController.reset()
-      case 'graph.demo.read':
-        return demoController.readDemo()
       case 'graph.cancel':
         return { cancelled: false }
       default:

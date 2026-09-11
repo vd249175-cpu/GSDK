@@ -25,10 +25,8 @@
     "@graphvideo/kernel": "*",
     "@graphvideo/sdk": "*",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@types/three": "^0.185.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "three": "^0.186.0",
     "yaml": "^2.9.0",
     "zod": "^4.6.2"
   },
