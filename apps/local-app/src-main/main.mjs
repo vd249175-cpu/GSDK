@@ -1,14 +1,14 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createGraphHost } from './graph-host.mjs'
+import { createNativeGraphHost } from './native-graph-host.mjs'
 import plugin from '../plugins/hello-counter/backend.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
 // 主进程是唯一 Runtime 所有者；renderer 通道只暴露固定命令，
 // 不接受任意 targetNodeId/Info（授权见插件 rendererRoots）。
-const host = createGraphHost({ plugins: [plugin] })
+const host = createNativeGraphHost({ plugins: [plugin] })
 host.mount(plugin.createNodes({}))
 ipcMain.handle('counter/increment', () => host.injectCounter())
 ipcMain.handle('counter/state', () => host.readCounter())
@@ -43,6 +43,6 @@ async function createWindow() {
 
 void app.whenReady().then(createWindow)
 app.on('window-all-closed', () => {
-  host.dispose()
+  void host.dispose()
   if (process.platform !== 'darwin') app.quit()
 })

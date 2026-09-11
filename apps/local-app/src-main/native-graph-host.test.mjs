@@ -18,8 +18,12 @@ describe.skipIf(!binary)('native-graph-host hot reload', () => {
       await expect(host.injectCounter()).resolves.toEqual({ count: 1 })
       await expect(host.injectCounter()).resolves.toEqual({ count: 2 })
       expect(host.generation('example.counter')).toBe(0)
+      const projection = host.readProjection()
+      expect(projection.nodes).toHaveLength(1)
+      expect(projection.nodes[0]).toMatchObject({ nodeId: 'example.counter', version: 2 })
+      expect(projection.revision).toBeGreaterThan(0)
     } finally {
-      host.dispose()
+      await host.dispose()
     }
   })
 
@@ -39,7 +43,7 @@ describe.skipIf(!binary)('native-graph-host hot reload', () => {
       await expect(host.injectCounter()).resolves.toEqual({ count: 10 })
       expect(host.generation('example.counter')).toBe(1)
     } finally {
-      host.dispose()
+      await host.dispose()
     }
   })
 })

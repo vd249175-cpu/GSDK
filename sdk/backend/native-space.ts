@@ -139,13 +139,21 @@ export function locateNativeBinding(): string | null {
     return process.env.GRAPHVIDEO_NATIVE_NODE;
   }
   const here = dirname(fileURLToPath(import.meta.url));
+  const platformTag = process.platform === 'win32'
+    ? `win32-${process.arch}-msvc`
+    : process.platform === 'linux'
+      ? `linux-${process.arch}-gnu`
+      : process.platform === 'darwin'
+        ? `darwin-${process.arch}`
+        : null;
+  if (!platformTag) return null;
   const candidate = resolve(
     here,
     '..',
     '..',
     'crates',
     'kernel-node',
-    'graphvideo-kernel-node.win32-x64-msvc.node',
+    `graphvideo-kernel-node.${platformTag}.node`,
   );
   return existsSync(candidate) ? candidate : null;
 }

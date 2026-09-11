@@ -5,9 +5,10 @@ import { NativeRuleSpace, assertRendererRoot, mountDomainNode, replaceDomainNode
  * injectCounter → 读数），调度由 Rust 微内核承担，业务 change 逻辑仍是
  * 插件的 `Node` 实例（经 `describeDomainNode` 桥接，领域方法零改动）。
  *
- * 差异（有意为之，非兼容承诺）：
- * - 读数直接来自规则空间状态拷贝，不经 Projection/EncodedValue；
- * - 只支持领域 Node，WorldNode 在 `mountDomainNode` 即拒绝；
+ * 对外读取只走 Projection/EncodedValue，WorldNode EffectAdapter 由原生门面
+ * 注入 Clock 与 submission AbortSignal。
+ *
+ * 热替换约束：
  * - `hotSwap` 用新代码实例原子替换同 ID 实体：单飞间隙内 backlog 按
  *   Evicted 丢弃，代次 +1。新实体从自身纯净初值启动，State 绝不隐式
  *   继承——状态迁移只能是替换后注入的普通 Info（调用方显式恢复）。
@@ -31,6 +32,9 @@ export function createNativeGraphHost({ plugins = [] } = {}) {
     readCounter() {
       return readCounterState()
     },
+    readProjection() {
+      return space.readProjection()
+    },
     generation(nodeId) {
       return space.generation(nodeId)
     },
@@ -43,8 +47,8 @@ export function createNativeGraphHost({ plugins = [] } = {}) {
     },
   }
   function readCounterState() {
-    const state = space.getState('example.counter')
-    if (!state) throw new Error('计数器节点未装配')
-    return { count: state.count }
+    const node = space.readProjection().nodes.find((entry) => entry.nodeId === 'example.counter')
+    if (!node) throw new Error('计数器节点未装配')
+    return { count: space.valueCodec.decode(node.state).count }
   }
 }

@@ -11,8 +11,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.renderer.json && tsc --noEmit -p tsconfig.main.json",
     "test": "vitest run",
     "dev": "vite --config renderer/vite.config.ts",
-    "build": "vite build --config renderer/vite.config.ts && node --check src-main/main.mjs && node --check src-main/preload.cjs && node --check src-main/graph-host.mjs",
-    "verify": "npm run check:renderer-boundary && npm run typecheck && npm run test && npm run diagnose -- validate && npm run build"
+    "build": "vite build --config renderer/vite.config.ts && node --check src-main/main.mjs && node --check src-main/preload.cjs && node --check src-main/graph-host.mjs && node --check src-main/native-graph-host.mjs",
+    "verify:native-load": "node ../../scripts/verify-electron-native.mjs",
+    "verify": "npm run check:renderer-boundary && npm run typecheck && npm run test && npm run diagnose -- validate && npm run verify:native-load && npm run build"
   },
   "dependencies": {
     "@graphvideo/backend-sdk": "*",
