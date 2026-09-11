@@ -91,7 +91,29 @@ Node change 异常 ──► 自动捕获 ──► 封装为 Error Info ──�
 
 ### 单飞与任务并行
 
-single-flight 只约束同一 Node 同时最多执行一个 change，用于防止 Owner State 并发变迁；它不是业务任务或外部物理任务的并发度限制。一次 change 可以接收并处理多组数据，也可以并行发起多组 Effect 请求。WorldNode 还可以只提交任务并取得 handle 后结束 change，由其他负责物理轮询或回调接收的 WorldNode 继续观察任务，再通过 Info 将 Observation 交回 State Owner。
+必须区分 change 调度、change 内异步并发和外部任务并行：
+
+| 范围 | 当前语义 |
+| :--- | :--- |
+| 同一 Node 的多个 change | 严格 single-flight，前一个结束后才处理下一条 Info |
+| 单个 change 内的独立异步 Effect | 可以用 `Promise.all` 并发等待；仍属于同一 change/submission |
+| 已提交到物理系统的多个外部任务 | 可以同时在途，不受单个 Node 实例数量限制 |
+| 不同 Node 的 JS change | Rust 调度事实彼此独立；当前 `NativeRuleSpace` JS pump 逐个 `await handler`，尚不表示 JS handler 同时执行 |
+
+change 内并发只适用于互不依赖的物理请求：
+
+```ts
+const [left, right] = await Promise.all([
+  ctx.effectAdapter(leftAdapter, leftRequest),
+  ctx.effectAdapter(rightAdapter, rightRequest),
+])
+
+ctx.patchState({ left, right })
+```
+
+推荐先并发取得全部 Observation，再由当前 change 集中写 State。不要让多个完成顺序不确定的回调分别竞争写 State；有先后依赖的 Effect 应显式串行。Promise 并发也不等于 JS CPU 多线程，CPU 密集工作应下沉到 Adapter 所管理的物理执行环境。
+
+single-flight 保护的是 Owner State 的变迁，不是业务任务或物理任务的并发度。WorldNode 还可以只提交任务并取得 handle 后结束 change，由负责轮询或回调接收的 ObservationWorldNode 继续观察，再通过 Info 将 Observation 交回 State Owner。
 
 因此，一个 Node 实例并不意味着只能存在一个外部在途任务。无论外部任务如何并行，Owner State 仍只能由 Owner Node 在后续单飞 change 中更新。
 
@@ -173,7 +195,7 @@ Node 的 contains/owns 是归属，不是路径捷径。分析工具接收普通
 1. 一个业务执行面、一个主进程 RuleSpace。
 2. 每个 State 字段只有一个 Owner。
 3. Node 间只通过实际 `ctx.send` 通信。
-4. 同一 Node 的 change 严格 single-flight；该约束不限制外部任务并行。
+4. 同一 Node 的 change 严格 single-flight；单个 change 可并发等待独立 Effect，该约束不限制外部任务同时在途。
 5. State 和 send 只能经过当前 change ctx。
 6. 纯领域 Node 零物理副作用；WorldNode 严格分为执行类（`ExecutionWorldNode`）与观察类（`ObservationWorldNode`），观察与执行职责必须物理分离。
 7. renderer 只注入根 Info、只读取 Projection。

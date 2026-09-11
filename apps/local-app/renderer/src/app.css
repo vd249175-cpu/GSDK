@@ -1,4 +1,4 @@
-/* 模板自有样式：只消费 @graphvideo/workbench 发布的语义 Token，不自建主题。 */
+/* 达芬奇式多分页联动与星辰预言绘本：严格消费 @graphvideo/workbench 语义 Token */
 html,
 body,
 #root {
@@ -11,15 +11,19 @@ body {
   color: var(--content-primary);
   font-family: var(--font-family-ui);
   overflow: hidden;
+  user-select: none;
 }
 
 .app-shell {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  background: var(--surface-app);
 }
 
-/* 顶栏：拖拽区 + 标题 + 主题切换 + 窗口三键 */
+/* ==========================================================================
+   顶栏：拖拽区 + 标题 + 全局因果推演快捷集群 + 主题切换 + 窗口控制
+   ========================================================================== */
 .app-topbar {
   display: flex;
   align-items: center;
@@ -30,23 +34,98 @@ body {
   background: var(--surface-header);
   border-bottom: 1px solid var(--border-subtle);
   -webkit-app-region: drag;
-  user-select: none;
 }
 
 .app-topbar.is-mac {
   padding-left: 78px;
 }
 
+.brand-cluster {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-glyph {
+  font-size: 16px;
+  filter: drop-shadow(0 0 4px var(--action-primary-bg));
+}
+
 .app-title {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--content-secondary);
-  letter-spacing: 0.02em;
+  color: var(--content-primary);
+  letter-spacing: 0.04em;
   white-space: nowrap;
+}
+
+.topbar-phase-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--font-size-xs);
+  color: var(--content-secondary);
+}
+
+.topbar-phase-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--action-primary-bg);
+  box-shadow: 0 0 6px var(--action-primary-bg);
 }
 
 .topbar-spacer {
   flex: 1;
+}
+
+/* 顶部快速步进控制集群 */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-panel);
+  color: var(--content-primary);
+  transition: all 0.15s ease;
+}
+
+.action-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-default);
+}
+
+.action-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.action-btn.is-primary {
+  background: var(--action-primary-bg);
+  color: var(--content-on-action);
+  border-color: var(--action-primary-border);
+  box-shadow: 0 0 10px rgba(122, 91, 0, 0.2);
+}
+
+.action-btn.is-primary:hover:not(:disabled) {
+  background: var(--action-primary-bg-hover);
 }
 
 .theme-switch {
@@ -106,23 +185,715 @@ body {
   background: var(--state-danger-fg);
 }
 
-/* 内容：居中计数卡片 */
+/* ==========================================================================
+   页面容器
+   ========================================================================== */
 .app-content {
   flex: 1;
   display: flex;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-canvas);
+}
+
+.page-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px 28px;
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   达芬奇风格底部页面导航坞 (DaVinci Dock)
+   ========================================================================== */
+.davinci-dock {
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px;
+  gap: 4px;
+  height: 52px;
+  flex: none;
+  background: var(--surface-header);
+  border-top: 1px solid var(--border-default);
+  padding: 0 16px;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+.dock-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 42px;
+  min-width: 120px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--content-secondary);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.dock-item:hover {
+  color: var(--content-primary);
+  background: var(--surface-hover);
+}
+
+.dock-item.is-active {
+  color: var(--content-primary);
+  background: var(--surface-selected);
+  border-color: var(--border-default);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.dock-item.is-active::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 20%;
+  right: 20%;
+  height: 3px;
+  border-radius: 0 0 4px 4px;
+  background: var(--action-primary-bg);
+  box-shadow: 0 0 8px var(--action-primary-bg);
+}
+
+.dock-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.dock-label {
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.dock-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--surface-input);
+  color: var(--content-tertiary);
+  border: 1px solid var(--border-subtle);
+  margin-left: 4px;
+}
+
+/* ==========================================================================
+   底栏极客监控条
+   ========================================================================== */
+.app-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 24px;
+  flex: none;
+  padding: 0 16px;
+  background: var(--surface-panel);
+  border-top: 1px solid var(--border-subtle);
+  font-size: 11px;
+  color: var(--content-tertiary);
+  user-select: none;
+}
+
+.connection-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--state-success-fg);
+  box-shadow: 0 0 6px var(--state-success-fg);
+  vertical-align: 1px;
+}
+
+.connection-dot.is-offline {
+  background: var(--state-warning-fg);
+  box-shadow: none;
+}
+
+.footer-meta-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--content-secondary);
+}
+
+.footer-meta-tag code {
+  font-family: var(--font-family-mono);
+  color: var(--content-primary);
+}
+
+.footer-spacer {
+  flex: 1;
+}
+
+/* ==========================================================================
+   分页 1：【预言编织 (Prophecy View)】
+   ========================================================================== */
+.prophecy-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 20px;
+  height: 100%;
   min-height: 0;
 }
 
-.counter-card {
-  width: 380px;
-  max-width: 100%;
-  padding: 32px;
+/* 预言篇章翻页器 (Chapter Pagination Stepper) */
+.chapter-stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 6px 12px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+.chapter-step-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--content-tertiary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.chapter-step-btn:hover {
+  color: var(--content-primary);
+  background: var(--surface-hover);
+}
+
+.chapter-step-btn.is-active {
+  color: var(--content-primary);
+  background: var(--surface-selected);
+  border-color: var(--border-default);
+  font-weight: var(--font-weight-semibold);
+}
+
+.chapter-step-btn.is-fulfilled {
+  color: var(--content-secondary);
+}
+
+.chapter-step-btn.is-fulfilled::before {
+  content: '✓';
+  color: var(--state-success-fg);
+  font-size: 11px;
+}
+
+.chapter-step-num {
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* 预言古卷核心卡 */
+.prophecy-scroll {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  box-shadow: var(--shadow-floating);
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.prophecy-scroll::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #ffd76a, #7a5b00, #4a5878);
+}
+
+.scroll-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.scroll-act-tag {
+  font-size: var(--font-size-xs);
+  color: var(--content-secondary);
+  font-family: var(--font-family-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.scroll-title {
+  margin: 4px 0 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--content-primary);
+}
+
+.scroll-content-box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 12px 0 20px;
+}
+
+/* 谶语预示框 */
+.foretold-card {
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--surface-input);
+  border-left: 3px solid #ffd76a;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.foretold-label {
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  color: #ffd76a;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.foretold-text {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
+  color: var(--content-primary);
+  font-style: italic;
+}
+
+/* 现实应验框 */
+.fulfillment-card {
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--surface-panel-subtle);
+  border: 1px solid var(--border-subtle);
+}
+
+.fulfillment-label {
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  color: var(--content-secondary);
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fulfillment-text {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  color: var(--content-primary);
+}
+
+.kernel-insight {
+  font-size: 11px;
+  color: var(--content-tertiary);
+  margin-top: 6px;
+  line-height: 1.5;
+  border-top: 1px dashed var(--border-subtle);
+  padding-top: 6px;
+}
+
+/* 仪式推演行动栏 */
+.ritual-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ritual-primary-btn {
+  flex: 1;
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid var(--action-primary-border);
+  background: var(--action-primary-bg);
+  color: var(--content-on-action);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+.ritual-primary-btn:hover:not(:disabled) {
+  background: var(--action-primary-bg-hover);
+  transform: translateY(-1px);
+}
+
+.ritual-primary-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+/* 侧边登场角色卡片组 */
+.prophecy-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.sidebar-title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--content-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 4px;
+}
+
+.character-card {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.character-card:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-default);
+  transform: translateX(2px);
+}
+
+.character-card.is-selected {
+  border-color: var(--action-primary-bg);
+  background: var(--surface-selected);
+  box-shadow: 0 0 10px rgba(122, 91, 0, 0.15);
+}
+
+.char-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.char-name-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.char-glyph {
+  font-size: 16px;
+}
+
+.char-name {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--content-primary);
+}
+
+.char-gen-badge {
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-input);
+  color: var(--content-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.char-gen-badge.is-elevated {
+  background: #7a5b00;
+  color: #ffd76a;
+  border-color: #ffd76a;
+  font-weight: bold;
+}
+
+.char-title {
+  font-size: 11px;
+  color: var(--content-tertiary);
+}
+
+.char-stat-summary {
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  color: var(--content-secondary);
+  background: var(--surface-input);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+/* ==========================================================================
+   分页 2：【因果星盘 (Astrolabe View - Fusion Style)】
+   ========================================================================== */
+.astrolabe-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 16px;
+}
+
+.astrolabe-canvas-box {
+  flex: 1;
+  background: #080a12;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.6);
+  min-height: 420px;
+}
+
+.astrolabe-canvas-box svg {
+  width: 100%;
+  height: 100%;
+}
+
+.astrolabe-inspector-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+}
+
+/* ==========================================================================
+   分页 3：【神格示波 (Pantheon & State - Color Style)】
+   ========================================================================== */
+.pantheon-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+  height: 100%;
+  min-height: 0;
+}
+
+.pantheon-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.pantheon-scope {
   background: var(--surface-panel);
   border: 1px solid var(--border-default);
   border-radius: 12px;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.scope-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 16px;
+}
+
+.scope-main-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.scope-char-symbol {
+  font-size: 32px;
+  background: var(--surface-input);
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+}
+
+.scope-title-text h2 {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--content-primary);
+}
+
+.scope-title-text p {
+  margin: 2px 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--content-secondary);
+}
+
+.scope-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.metric-card {
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+}
+
+.metric-card-label {
+  font-size: 11px;
+  color: var(--content-tertiary);
+  margin-bottom: 6px;
+}
+
+.metric-card-val {
+  font-size: 20px;
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+  color: var(--content-primary);
+}
+
+.scope-json-box {
+  background: var(--surface-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 14px;
+  font-family: var(--font-family-mono);
+  font-size: 12px;
+  color: var(--content-secondary);
+  overflow-x: auto;
+}
+
+/* ==========================================================================
+   分页 4：【万象编年 (Chronicle & Ledger)】
+   ========================================================================== */
+.chronicle-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.chronicle-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.ledger-feed-box {
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ledger-feed-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+  color: var(--content-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ledger-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.ledger-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  font-size: 12px;
+}
+
+.ledger-type-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.ledger-type-badge.receipt {
+  background: rgba(255, 215, 106, 0.15);
+  color: #ffd76a;
+  border: 1px solid rgba(255, 215, 106, 0.3);
+}
+
+.ledger-type-badge.reservation {
+  background: rgba(100, 180, 255, 0.15);
+  color: #64b4ff;
+  border: 1px solid rgba(100, 180, 255, 0.3);
+}
+
+.ledger-type-badge.verdict {
+  background: rgba(180, 140, 255, 0.15);
+  color: #b48cff;
+  border: 1px solid rgba(180, 140, 255, 0.3);
+}
+
+/* ==========================================================================
+   分页 5：【内核基石 (Core Sandbox)】
+   ========================================================================== */
+.counter-sandbox-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.counter-card {
+  width: 420px;
+  max-width: 100%;
+  padding: 36px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
   box-shadow: var(--shadow-floating);
   text-align: center;
 }
@@ -135,15 +906,16 @@ body {
 
 .count-value {
   margin: 0 0 24px;
-  font-size: 56px;
+  font-size: 64px;
   line-height: 1;
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
+  color: var(--content-primary);
 }
 
 .primary-button {
   width: 100%;
-  height: 38px;
+  height: 42px;
   border: 1px solid var(--action-primary-border);
   border-radius: 8px;
   background: var(--action-primary-bg);
@@ -151,9 +923,10 @@ body {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.primary-button:hover {
+.primary-button:hover:not(:disabled) {
   background: var(--action-primary-bg-hover);
 }
 
@@ -172,37 +945,4 @@ body {
 .hint code {
   font-family: var(--font-family-mono);
   color: var(--content-secondary);
-}
-
-/* 底栏：连接状态 */
-.app-footer {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  height: 28px;
-  flex: none;
-  padding: 0 16px;
-  background: var(--surface-header);
-  border-top: 1px solid var(--border-subtle);
-  font-size: var(--font-size-xs);
-  color: var(--content-tertiary);
-  user-select: none;
-}
-
-.connection-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-right: 6px;
-  border-radius: 50%;
-  background: var(--state-success-fg);
-  vertical-align: 1px;
-}
-
-.connection-dot.is-offline {
-  background: var(--state-warning-fg);
-}
-
-.footer-spacer {
-  flex: 1;
 }

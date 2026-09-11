@@ -148,6 +148,20 @@ interface EffectAdapter<Request, Observation> {
 
 Adapter 必须响应 `context.signal`，并返回可被领域解释的 Observation。它不能直接写其他 Node State。
 
+### change 内并发
+
+同一 Node 的不同 change 永不并发，但一个 WorldNode change 可以并发等待多个互不依赖的 Adapter：
+
+```ts
+const observations = await Promise.all(requests.map((request) => (
+  ctx.effectAdapter(adapter, request)
+)))
+
+ctx.patchState({ completed: observations.length })
+```
+
+这些调用共享当前 change 的生命周期与 submission 取消信号。并发请求的物理完成顺序不确定，因此应在全部 Observation 返回后集中推进 State；需要顺序保证时不要使用 `Promise.all`。JS Promise 并发不是 CPU 多线程并行。
+
 ## 3. 图装配与热替换
 
 具体 Node 由插件的 `createNodes` 创建，再由主进程宿主装配：

@@ -47,11 +47,15 @@ npm --prefix apps/local-app run diagnose -- expand state:example.counter::count
 npm --prefix apps/local-app run diagnose -- path entry:counter.increment ui:counter.count
 npm --prefix apps/local-app run diagnose -- select example.counter
 npm --prefix apps/local-app run diagnose -- frontend
+npm --prefix apps/local-app run diagnose -- health
+npm --prefix apps/local-app run diagnose -- reach example.counter
 ```
 
 `path` 按参数顺序逐段执行有向最短路径查询。每段独立返回 `found`、`depth-limited` 或 `unreachable`；前向失败时会附带反向证据与 frontier。Node 地址只在路径端点展开为其 change/State，contains/owns 不是因果捷径。
 
 `select` 返回选中 Node 的内部实体与边，并分别列出 `boundaryIn`、`boundaryOut`、无 SEND/INJECT 来源的 `rootInfos`、`entryPoints` 和 `exitPoints`。边界外的 Owner 不会被塞进子图成员。
+
+`health` 与 `reach` 先通过 `buildAllNodesView` 把当前实例索引投影为 Node 级视角；前者报告静态耦合与孤立点，后者报告指定 Node 的上下游距离。它们不代表运行频率。
 
 ## 4. 运行时检查
 

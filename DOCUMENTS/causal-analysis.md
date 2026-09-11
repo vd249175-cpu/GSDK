@@ -69,6 +69,7 @@ const report = validateCausalIndex(index)
 
 SDK 提供 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 和 `AnalysisView` 契约，并提供以下纯算法：
 
+- `buildAllNodesView`
 - `analyzeViewHealth`
 - `analyzeViewReachability`
 - `analyzeViewCentrality`
@@ -76,7 +77,7 @@ SDK 提供 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 和 `A
 - `discoverGranularCommunities`
 - `compareCommunityPartitions` / `compareCommunitiesToView`
 
-当前 SDK 不负责从磁盘读取 folds/views，也不提供根级视角 CLI；消费方构造 `AnalysisView` 后调用这些算法。折叠只改变当前观察粒度，不修改基础因果事实或生产 Graph。
+`buildAllNodesView` 将索引中的每个基础 Node 投影为一个视角 Node，并把 send 按来源、目标和 Info 类型聚合为保留 witness 的 route。SDK 不负责从磁盘读取或解析自定义 folds/views；其他视角仍由消费方构造。折叠只改变当前观察粒度，不修改基础因果事实或生产 Graph。
 
 健康、中心性和 Louvain 社区结果只描述当前静态视角：
 
@@ -87,6 +88,6 @@ SDK 提供 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 和 `A
 
 ## 6. 当前应用入口
 
-`apps/local-app/scripts/diagnose.mjs` 暴露基础索引命令：`node/change/info/state/expand/path/select/frontend/validate`。当前 `analysis/config.json` 只是消费方配置占位，不会被该脚本自动解析为折叠视角。
+`apps/local-app/scripts/diagnose.mjs` 暴露基础索引命令 `node/change/info/state/expand/path/select/frontend/validate`，并通过 `buildAllNodesView` 提供 `health/reach`。当前 `analysis/config.json` 只是消费方配置占位，不会被该脚本自动解析为自定义折叠视角。
 
 完整使用方式见 [Node 实例因果调试指南](./debug-guide.md)。

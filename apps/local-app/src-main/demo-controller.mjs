@@ -59,7 +59,24 @@ export function createDemoController(host) {
         state: space.valueCodec.decode(entry.state),
       }))
       .sort((a, b) => a.nodeId.localeCompare(b.nodeId))
-    return { phase, phaseLabel: note ?? PHASE_LABELS[phase], revision: projection.revision, nodes }
+    const live = new Set(nodes.map((entry) => entry.nodeId))
+    const edges = []
+    const link = (from, to) => {
+      if (live.has(from) && live.has(to)) edges.push({ from, to })
+    }
+    link('demo.orders', 'demo.router')
+    const screening = nodes.find((entry) => entry.nodeId === 'demo.router')?.state.screening ?? []
+    for (const id of screening) {
+      if (typeof id === 'string') {
+        link('demo.router', id)
+        link(id, 'demo.ledger')
+      }
+    }
+    link('demo.router', 'demo.billing')
+    link('demo.router', 'demo.inventory')
+    link('demo.billing', 'demo.ledger')
+    link('demo.inventory', 'demo.ledger')
+    return { phase, phaseLabel: note ?? PHASE_LABELS[phase], revision: projection.revision, nodes, edges }
   }
 
   async function admitNode(id) {

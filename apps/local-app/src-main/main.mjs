@@ -54,6 +54,7 @@ async function handleDemoArgv(argv) {
   for (const arg of argv) {
     try {
       if (arg === '--demo-reset') console.log(await demo.applyOp('reset'))
+      else if (arg === '--demo-state') console.log(JSON.stringify(demo.readDemo()))
       else if (arg.startsWith('--demo-admit=')) console.log(await demo.applyOp('admit', arg.slice('--demo-admit='.length)))
       else if (arg.startsWith('--demo-evict=')) console.log(await demo.applyOp('evict', arg.slice('--demo-evict='.length)))
     } catch (error) {

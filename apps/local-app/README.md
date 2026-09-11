@@ -17,6 +17,8 @@ npm run diagnose -- state example.counter::count
 npm run diagnose -- path state:example.counter::count change:example.counter::IncrementInfo
 npm run diagnose -- select example.counter
 npm run diagnose -- frontend
+npm run diagnose -- health
+npm run diagnose -- reach example.counter
 ```
 
 `diagnose` 使用 `@graphvideo/sdk/analysis` 对自身插件建索引，
@@ -25,10 +27,12 @@ Adapter 的演示见 `backend.test.mjs` 测试夹具（SaverNode），不进生�
 
 ## 并发语义（本模板的演示边界）
 
-- 跨节点并行：一次 `inject` 触发的 `send` 扇出后，各目标 Node 的 change 可并发推进。
 - 单节点串行：同一 Node 的 change 严格 single-flight；并发 `IncrementInfo` 在 `example.counter` 排队，State 不撕裂。
-- 依据见 `DOCUMENTS/mental-model.md` §9 公理 4；因果用 `npm run diagnose -- change example.counter::IncrementInfo` 查看。
-- 本模板只演示最小链路（counter 自增 + 前后端读写）；多节点扇出/扇入按上述公理自行扩展。
+- change 内并发：一个 WorldNode change 可以通过 `Promise.all` 并发等待多个互不依赖的 EffectAdapter，再集中写入 State。
+- 外部任务并行：一个 Node 可提交多个同时在途的物理任务；Node 数量不等于外部任务并发度。
+- 当前原生桥边界：Rust 可独立调度不同实体，但 `NativeRuleSpace` 的 JS pump 当前逐个等待 handler；本模板不宣称多个 JS change 回调同时执行。
+- 依据见 `DOCUMENTS/mental-model.md` §8 公理 4；因果用 `npm run diagnose -- change example.counter::IncrementInfo` 查看。
+- 本模板只演示最小链路（counter 自增 + 前后端读写）；多节点扇出/扇入仍通过定向 Info 表达。
 
 ## 目录职责
 - `src-main/`：宿主入口与唯一 Runtime 所有者。`main.mjs` 使用 `native-graph-host.mjs`；`graph-host.mjs` 保留为 TypeScript KernelRuntime 的对照与测试宿主。写入经插件 `rendererRoots` 授权，读取走 Projection/EncodedValue；renderer 不得指定任意 Node/Info。窗口三键是图外桌面服务，直接调用 BrowserWindow。
