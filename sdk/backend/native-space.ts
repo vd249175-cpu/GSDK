@@ -111,6 +111,59 @@ interface RegisteredNode {
   dispose?: () => void | Promise<void>;
 }
 
+export type CausalTelemetryEvent =
+  | {
+      readonly type: 'root_injected';
+      readonly targetNodeId: string;
+      readonly info: NativeInfo;
+      readonly submissionId: string;
+      readonly timestamp: number;
+    }
+  | {
+      readonly type: 'info_sent';
+      readonly fromNodeId: string;
+      readonly toNodeId: string;
+      readonly info: NativeInfo;
+      readonly submissionId?: string;
+      readonly changeId: number;
+      readonly status: 'enqueued' | 'dropped';
+      readonly timestamp: number;
+    }
+  | {
+      readonly type: 'change_start';
+      readonly nodeId: string;
+      readonly info: NativeInfo;
+      readonly submissionId?: string;
+      readonly changeId: number;
+      readonly timestamp: number;
+    }
+  | {
+      readonly type: 'change_end';
+      readonly nodeId: string;
+      readonly submissionId?: string;
+      readonly changeId: number;
+      readonly durationMs: number;
+      readonly timestamp: number;
+    }
+  | {
+      readonly type: 'state_mutated';
+      readonly nodeId: string;
+      readonly version: number;
+      readonly state: Record<string, unknown>;
+      readonly timestamp: number;
+    }
+  | {
+      readonly type: 'node_admitted';
+      readonly nodeId: string;
+      readonly generation: number;
+      readonly timestamp: number;
+    }
+  | {
+      readonly type: 'node_evicted';
+      readonly nodeId: string;
+      readonly timestamp: number;
+    };
+
 const ERROR_INFO_TYPE = '@error/NodeFailed';
 
 export interface NativeRuleSpaceOptions {
@@ -206,6 +259,7 @@ export class NativeRuleSpace {
   private readonly nodes = new Map<string, RegisteredNode>();
   private readonly submissionControllers = new Map<string, AbortController>();
   private readonly projectionListeners = new Set<(projection: GraphProjection) => void>();
+  private readonly telemetryListeners = new Set<(event: CausalTelemetryEvent) => void>();
   private readonly activeEntities = new Set<string>();
   private readonly replacements = new Set<string>();
   private readonly pendingDisposals = new Set<Promise<void>>();
@@ -244,6 +298,12 @@ export class NativeRuleSpace {
       dispose: options.dispose,
     });
     this.publishProjection();
+    this.emitTelemetry({
+      type: 'node_admitted',
+      nodeId: id,
+      generation,
+      timestamp: this.clock.monotonicNow(),
+    });
     return generation;
   }
 
@@ -255,6 +315,11 @@ export class NativeRuleSpace {
     this.nodes.delete(id);
     this.queueDisposal(node);
     this.publishProjection();
+    this.emitTelemetry({
+      type: 'node_evicted',
+      nodeId: id,
+      timestamp: this.clock.monotonicNow(),
+    });
     return true;
   }
 
@@ -329,6 +394,22 @@ export class NativeRuleSpace {
     return () => this.projectionListeners.delete(listener);
   }
 
+  subscribeCausalEvents(listener: (event: CausalTelemetryEvent) => void): () => void {
+    this.telemetryListeners.add(listener);
+    return () => this.telemetryListeners.delete(listener);
+  }
+
+  private emitTelemetry(event: CausalTelemetryEvent): void {
+    if (this.telemetryListeners.size === 0) return;
+    for (const listener of this.telemetryListeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        console.error('[NativeRuleSpace] Telemetry listener failed:', error);
+      }
+    }
+  }
+
   private publishProjection(): void {
     this.projectionRevision += 1;
     const projection = this.readProjection();
@@ -380,6 +461,13 @@ export class NativeRuleSpace {
     }
     this.binding.injectRoot(targetNodeId, info.type, splitPayload(info), submission);
     this.publishProjection();
+    this.emitTelemetry({
+      type: 'root_injected',
+      targetNodeId,
+      info,
+      submissionId: submission,
+      timestamp: this.clock.monotonicNow(),
+    });
     return submission;
   }
 
@@ -458,12 +546,26 @@ export class NativeRuleSpace {
         node.state[key as string] = value;
         node.version += 1;
         space.publishProjection();
+        space.emitTelemetry({
+          type: 'state_mutated',
+          nodeId: entity,
+          version: node.version,
+          state: space.cloneState(node.state),
+          timestamp: space.clock.monotonicNow(),
+        });
       },
       patchState(patch: Partial<S>): void {
         assertCurrent();
         Object.assign(node.state, patch);
         node.version += 1;
         space.publishProjection();
+        space.emitTelemetry({
+          type: 'state_mutated',
+          nodeId: entity,
+          version: node.version,
+          state: space.cloneState(node.state),
+          timestamp: space.clock.monotonicNow(),
+        });
       },
       send(info: NativeInfo, targetNodeId: string): NativeDeliveryFeedback {
         assertCurrent();
@@ -478,6 +580,16 @@ export class NativeRuleSpace {
           ),
         );
         space.publishProjection();
+        space.emitTelemetry({
+          type: 'info_sent',
+          fromNodeId: entity,
+          toNodeId: targetNodeId,
+          info,
+          submissionId: submission,
+          changeId,
+          status: feedback.status,
+          timestamp: space.clock.monotonicNow(),
+        });
         return feedback;
       },
       async effectAdapter<Request, Observation>(
@@ -520,6 +632,15 @@ export class NativeRuleSpace {
     const info = joinInfo(polled.view.infoType, polled.view.payloadJson);
     this.activeEntities.add(polled.view.entity);
     this.publishProjection();
+    const startTime = this.clock.monotonicNow();
+    this.emitTelemetry({
+      type: 'change_start',
+      nodeId: polled.view.entity,
+      info,
+      submissionId: polled.view.submission,
+      changeId: polled.view.changeId,
+      timestamp: startTime,
+    });
     const ctx = this.makeContext(
       polled.view.entity,
       polled.view.generation,
@@ -543,6 +664,15 @@ export class NativeRuleSpace {
       this.binding.settleChange(polled.token, null);
       return;
     } finally {
+      const endTime = this.clock.monotonicNow();
+      this.emitTelemetry({
+        type: 'change_end',
+        nodeId: polled.view.entity,
+        submissionId: polled.view.submission,
+        changeId: polled.view.changeId,
+        durationMs: Math.max(0, endTime - startTime),
+        timestamp: endTime,
+      });
       this.activeEntities.delete(polled.view.entity);
       this.publishProjection();
     }
@@ -554,6 +684,7 @@ export class NativeRuleSpace {
     for (const id of [...this.nodes.keys()]) this.unregister(id);
     await Promise.allSettled([...this.pendingDisposals]);
     this.projectionListeners.clear();
+    this.telemetryListeners.clear();
   }
 
   private cloneState<S extends Record<string, unknown>>(state: S): S {

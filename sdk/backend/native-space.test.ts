@@ -275,4 +275,34 @@ describe.skipIf(!binary)('Native rule space (JS entities on Rust scheduling)', (
     expect(space.getState('worker')).toEqual({ done: false });
     await expect(space.waitForSubmission(submission)).rejects.toMatchObject({ name: 'AbortError' });
   });
+
+  it('emits live causal telemetry events for root injection, ctx.send, and state mutations', async () => {
+    const space = new NativeRuleSpace();
+    const events: any[] = [];
+    const unsubscribe = space.subscribeCausalEvents((event) => {
+      events.push(event);
+    });
+
+    space.register('producer', {}, (_info, ctx) => {
+      ctx.send({ type: 'ComputeJob', payload: 'task-1' }, 'consumer');
+    });
+    space.register<{ count: number }>('consumer', { count: 0 }, (info, ctx) => {
+      ctx.write('count', ctx.read('count') + 1);
+    });
+
+    const sub = space.injectRoot('producer', { type: 'StartJob' });
+    await space.waitForSubmission(sub);
+
+    expect(events.some((e) => e.type === 'node_admitted' && e.nodeId === 'producer')).toBe(true);
+    expect(events.some((e) => e.type === 'node_admitted' && e.nodeId === 'consumer')).toBe(true);
+    expect(events.some((e) => e.type === 'root_injected' && e.targetNodeId === 'producer')).toBe(true);
+    expect(events.some((e) => e.type === 'change_start' && e.nodeId === 'producer')).toBe(true);
+    expect(events.some((e) => e.type === 'info_sent' && e.fromNodeId === 'producer' && e.toNodeId === 'consumer' && e.info.type === 'ComputeJob')).toBe(true);
+    expect(events.some((e) => e.type === 'change_end' && e.nodeId === 'producer')).toBe(true);
+    expect(events.some((e) => e.type === 'change_start' && e.nodeId === 'consumer')).toBe(true);
+    expect(events.some((e) => e.type === 'state_mutated' && e.nodeId === 'consumer' && e.state.count === 1)).toBe(true);
+    expect(events.some((e) => e.type === 'change_end' && e.nodeId === 'consumer')).toBe(true);
+
+    unsubscribe();
+  });
 });

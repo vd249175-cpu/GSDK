@@ -121,6 +121,7 @@ export {
 } from './plugin-manifest.mjs'
 export { NativeRuleSpace, locateNativeBinding } from './native-space'
 export type {
+  CausalTelemetryEvent,
   NativeChangeContext, NativeDeliveryFeedback, NativeDeliveryStatus, NativeHandler, NativeInfo,
 } from './native-space'
 export { describeDomainNode, mountDomainNode, replaceDomainNode } from './native-node'
