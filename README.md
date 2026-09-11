@@ -12,7 +12,7 @@
   - `sdk/testing/`：测试运行时（`createTestRuntime`）。
   - `sdk/analysis/`：因果索引与静态拓扑健康诊断。
   - `sdk/contract/` & `tokens/` & `ui/`：设计规范与共享组件。
-- `templates/local-app/` — 最小可跑本地应用模板。
+- `apps/local-app/` — 本地应用落地工程（Electron 壳 + Vite/React renderer，纯源码直连微内核与 SDK）。
 - `scripts/` — 核心工程工具：`refactor.mjs`（基于 TS LanguageService 的全局 AST 符号重构与重命名）。
 - `DOCUMENTS/` — SDK 核心心智模型与设计文档。
 
@@ -25,6 +25,8 @@ npm test                 # vitest run（core + unit + ui 全套单测）
 npm run test:core        # 微内核针对性单测
 npm run test:unit        # SDK 单元测试
 npm run test:ui          # Workbench UI 前端测试
+npm run test:app         # 本地应用单元测试
+npm run verify:app       # 本地应用边界、类型、单测、因果诊断与构建全体验收
 npm run refactor -- find-refs <file> <symbol>    # AST 符号全局引用定位
 npm run refactor -- rename <file> <symbol> <new>  # AST 跨文件安全重命名
 ```

@@ -3,12 +3,20 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "core",
+    "sdk",
+    "sdk/backend",
+    "apps/*"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --project core --project unit --project ui",
     "test:core": "vitest run --project core",
     "test:unit": "vitest run --project unit",
     "test:ui": "vitest run --project ui",
+    "test:app": "npm --prefix apps/local-app test",
+    "verify:app": "npm --prefix apps/local-app run verify",
     "refactor": "node scripts/refactor.mjs"
   },
   "devDependencies": {

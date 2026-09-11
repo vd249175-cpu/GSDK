@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import '@graphvideo/workbench/styles.css'
+import '@graphvideo/sdk/workbench/styles.css'
 import './app.css'
 
 declare global {

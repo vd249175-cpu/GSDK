@@ -14,13 +14,10 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs"
+      "types": "./index.ts",
+      "default": "./index.ts"
     }
   },
-  "files": [
-    "dist"
-  ],
   "peerDependencies": {
     "@graphvideo/kernel": "^1.0.0"
   }
