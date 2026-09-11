@@ -36,7 +36,6 @@ description: 针对运行时与程序混淆问题的微内核范式转移方案�
   │   - 作用力唯一媒介：ctx.send(info, targetNodeId)                 │
   │   - 状态质量守恒：仅 Owner 节点在 change 中可写入 State          │
   │   - 惯性单飞定律：单节点严格排队 single-flight                  │
-  │   - 能量耗散定理：无外力注入时必定因果收敛 (Quiescence)         │
   │                                                                 │
   │   空间内的实体（Entities）：                                    │
   │      [ Node A ]  ◄── Info ──►  [ Node B ]                       │
