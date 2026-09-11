@@ -7,10 +7,12 @@
     "core",
     "sdk",
     "sdk/backend",
+    "tools/*",
     "apps/*"
   ],
   "scripts": {
     "dev": "npm --prefix apps/local-app run dev",
+    "visualizer": "npm --prefix tools/causal-visualizer run dev",
     "start": "npm --prefix apps/local-app run start",
     "check:syntax": "node scripts/check-syntax.mjs",
     "typecheck": "tsc --noEmit",

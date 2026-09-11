@@ -1,0 +1,28 @@
+{
+  "name": "@graphvideo/causal-visualizer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GSDK 独立 3D 因果数据流全息观测工具（图无关内核可视化展开）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@graphvideo/backend-sdk": "*",
+    "@graphvideo/kernel": "*",
+    "@graphvideo/sdk": "*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.185.4",
+    "@vitejs/plugin-react": "^4.0.0",
+    "typescript": "^5.4.5",
+    "vite": "^6.0.0"
+  }
+}
