@@ -350,6 +350,10 @@ async function createWindow() {
     },
   })
 
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    console.log(`[Renderer L${level}] ${message} (${sourceId}:${line})`)
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
