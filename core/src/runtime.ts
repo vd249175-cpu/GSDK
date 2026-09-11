@@ -1,8 +1,10 @@
 import type { Node } from './node';
 import type {
+  DeliveryFeedback,
   Info,
   InfoEnvelope,
   ChangeRecord,
+  NodeErrorInfo,
   Probe,
   GraphProjection,
   GraphProjectionNode,
@@ -54,6 +56,8 @@ export interface KernelRuntimeOptions {
   valueCodec?: ValueCodec;
   valueCodecOptions?: ValueCodecOptions;
   traceStore?: TraceStore;
+  errorTargetNodeId?: string;
+  replaceWaitTimeoutMs?: number;
   stateSnapshots?: {
     captureInitial?: boolean;
     everyChanges?: number;
@@ -96,6 +100,8 @@ export class KernelRuntime {
   public readonly valueCodec: ValueCodec;
   public readonly valueCodecOptions: ValueCodecOptions;
   public readonly traceStore?: TraceStore;
+  public errorTargetNodeId?: string;
+  public replaceWaitTimeoutMs: number;
 
   public readonly traceSession: TraceSession;
   public logicalClock = 0;
@@ -108,6 +114,7 @@ export class KernelRuntime {
   public projectionListeners: Set<(projection: GraphProjection) => void> = new Set();
   public projectionRevision = 0;
   private readonly submissions = new Map<string, SubmissionRecord>();
+  private readonly generations = new Map<string, number>();
 
   public captureInitialStateSnapshot = true;
   public initialStateSnapshotCaptured = false;
@@ -121,9 +128,10 @@ export class KernelRuntime {
     this.valueCodec = options.valueCodec ?? defaultValueCodec;
     this.valueCodecOptions = options.valueCodecOptions ?? {};
     this.traceStore = options.traceStore;
+    this.errorTargetNodeId = options.errorTargetNodeId;
+    this.replaceWaitTimeoutMs = options.replaceWaitTimeoutMs ?? 5000;
     this.captureInitialStateSnapshot =
       options.stateSnapshots?.captureInitial ?? true;
-
     const traceId = this.idProvider.nextId('trace');
     const runId = this.idProvider.nextId('run');
     this.traceSession = new TraceSession(
@@ -174,12 +182,121 @@ export class KernelRuntime {
     for (const nodeId of nodeIds) {
       const node = this.nodes.get(nodeId);
       if (node) {
+        node._discardMailbox(nodeRuntimeCapability, `unmount:${nodeId}`);
         node._unmountKernel(nodeRuntimeCapability, this);
         node.onUnmount();
         this.nodes.delete(nodeId);
       }
     }
     return this;
+  }
+
+  public admit(...nodes: Node<any>[]): void {
+    for (const node of nodes) {
+      if (!node.id) throw new Error('准入节点必须具有非空 id');
+      if (this.nodes.has(node.id)) {
+        throw new Error(`不能准入重复的 Node ID: ${node.id}`);
+      }
+      node.generation = this.generations.get(node.id) ?? 0;
+      this.nodes.set(node.id, node);
+      node._sealedForReplace = false;
+      node._mountKernel(nodeRuntimeCapability, this);
+      node.onMount();
+    }
+    this.traceSession.record({
+      type: 'GraphMounted',
+      nodeIds: nodes.map((n) => n.id),
+      nodeFactories: Object.fromEntries(nodes.map((n) => [n.id, n.factoryKey])),
+    });
+    this.publishSchedulerState();
+  }
+
+  public evict(nodeId: string): boolean {
+    const node = this.nodes.get(nodeId);
+    if (!node) return false;
+    node._sealedForReplace = true;
+    node._discardMailbox(nodeRuntimeCapability, `evict:${nodeId}`);
+    node._unmountKernel(nodeRuntimeCapability, this);
+    this.nodes.delete(nodeId);
+    this.generations.set(nodeId, (this.generations.get(nodeId) ?? node.generation) + 1);
+    try {
+      node.onUnmount();
+    } catch (err) {
+      console.error(`[KernelRuntime]: Failed to unmount node ${nodeId}:`, err);
+    }
+    void node.dispose().catch((err: unknown) => {
+      console.error(`[KernelRuntime]: Failed to dispose evicted node ${nodeId}:`, err);
+    });
+    node._sealedForReplace = false;
+    this.publishSchedulerState();
+    return true;
+  }
+
+  public async replace(newNode: Node<any>, options: { timeoutMs?: number } = {}): Promise<void> {
+    const nodeId = newNode.id;
+    if (!nodeId) throw new Error('替换节点必须具有非空 id');
+    const old = this.nodes.get(nodeId);
+    if (!old) throw new Error(`Cannot replace missing node: ${nodeId}`);
+    if (old === newNode) throw new Error(`Cannot replace node with itself: ${nodeId}`);
+    old._sealedForReplace = true;
+    try {
+      await this.waitForNodeIdle(old, options.timeoutMs ?? this.replaceWaitTimeoutMs);
+      old._discardMailbox(nodeRuntimeCapability, `replace:${nodeId}`);
+      old._unmountKernel(nodeRuntimeCapability, this);
+      this.nodes.delete(nodeId);
+      try {
+        old.onUnmount();
+      } catch (err) {
+        console.error(`[KernelRuntime]: Failed to unmount replaced node ${nodeId}:`, err);
+      }
+      await old.dispose().catch((err: unknown) => {
+        console.error(`[KernelRuntime]: Failed to dispose replaced node ${nodeId}:`, err);
+      });
+      const generation = (this.generations.get(nodeId) ?? old.generation) + 1;
+      this.generations.set(nodeId, generation);
+      newNode.generation = generation;
+      newNode._sealedForReplace = false;
+      this.nodes.set(nodeId, newNode);
+      newNode._mountKernel(nodeRuntimeCapability, this);
+      newNode.onMount();
+    } finally {
+      old._sealedForReplace = false;
+    }
+    this.traceSession.record({
+      type: 'GraphMounted',
+      nodeIds: [nodeId],
+      nodeFactories: { [nodeId]: newNode.factoryKey },
+    });
+    this.publishSchedulerState();
+  }
+
+  public readState(nodeId: string): unknown {
+    return this.nodes.get(nodeId)?.getState();
+  }
+
+  public getGeneration(nodeId: string): number | undefined {
+    const node = this.nodes.get(nodeId);
+    if (node) return node.generation;
+    return this.generations.get(nodeId);
+  }
+
+  private waitForNodeIdle(node: Node<any>, timeoutMs: number): Promise<void> {
+    if (!node.getActiveChangeId()) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      const deadline = Date.now() + timeoutMs;
+      const poll = (): void => {
+        if (!node.getActiveChangeId()) {
+          resolve();
+          return;
+        }
+        if (Date.now() >= deadline) {
+          reject(new Error(`Replace timed out waiting for node idle: ${node.id}`));
+          return;
+        }
+        setTimeout(poll, 0);
+      };
+      poll();
+    });
   }
 
   public getNode<T extends Node<any> = Node<any>>(id: string): T | undefined {
@@ -196,19 +313,66 @@ export class KernelRuntime {
     info: Info,
     target: Node<any> | string,
     options?: KernelDeliveryOptions,
-  ): void {
-    deliverSendNowHelper(this, source, info, target, options);
+  ): DeliveryFeedback {
+    return deliverSendNowHelper(this, source, info, target, options);
   }
 
+  /** @internal Routes a captured change failure as a causal error Info. */
+  public _routeNodeError(
+    source: Node<any>,
+    errorInfo: NodeErrorInfo,
+    submissionId?: string,
+  ): void {
+    this.traceSession.record({
+      type: 'NodeErrorRecorded',
+      nodeId: errorInfo.nodeId,
+      generation: errorInfo.generation,
+      changeId: errorInfo.changeId,
+      submissionId: errorInfo.submissionId,
+      causeInfoId: errorInfo.causeInfoId ?? '',
+      causeInfoType: errorInfo.causeInfoType ?? '',
+      message: errorInfo.message,
+    });
+    const targetId = this.errorTargetNodeId;
+    if (!targetId || targetId === source.id) return;
+    const target = this.nodes.get(targetId);
+    if (!target) return;
+    deliverSendNowHelper(this, source, errorInfo, target, {
+      causedByChangeId: undefined,
+      causeInfoId: errorInfo.causeInfoId,
+      submissionId,
+    });
+  }
   public injectRootInfo(
-    target: Node<any>,
+    target: Node<any> | string,
     info: Info,
     options: { signal?: AbortSignal; submissionId?: string } = {},
   ): string {
+    const resolved = typeof target === 'string' ? this.nodes.get(target) : target;
     const submissionId = options.submissionId ?? this.nextId('submission');
     const submission = this.createSubmission(submissionId, options.signal);
+    if (!resolved) {
+      this.traceSession.record({
+        type: 'InfoDropped',
+        nodeId: typeof target === 'string' ? target : target.id,
+        reason: 'injectRootInfo target not admitted',
+        count: 1,
+      });
+      this.settleSubmissionIfComplete(submission);
+      return submissionId;
+    }
+    if (resolved._sealedForReplace === true) {
+      this.traceSession.record({
+        type: 'InfoDropped',
+        nodeId: resolved.id,
+        reason: 'injectRootInfo target sealed for replace',
+        count: 1,
+      });
+      this.settleSubmissionIfComplete(submission);
+      return submissionId;
+    }
     try {
-      injectRootInfoNowHelper(this, target, info, {
+      injectRootInfoNowHelper(this, resolved, info, {
         signal: submission.controller.signal,
         submissionId,
       });

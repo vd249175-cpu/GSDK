@@ -1,8 +1,7 @@
 import type { Node } from './node';
-import type { Info, InfoEnvelope, Probe } from './types';
+import type { DeliveryFeedback, Info, InfoEnvelope, Probe } from './types';
 import type { TraceSession, RuntimeIdKind } from './observation';
 import { nodeRuntimeCapability } from './internal-access';
-
 export interface KernelDeliveryOptions {
   infoId?: string;
   causedByChangeId?: string;
@@ -34,14 +33,18 @@ export function deliverSendNowHelper(
   info: Info,
   target: Node<any> | string,
   options?: KernelDeliveryOptions,
-): void {
+): DeliveryFeedback {
   ctx.ensureInitialStateSnapshot();
   const targetNode = typeof target === 'string' ? ctx.nodes.get(target) : target;
+  const targetId = typeof target === 'string' ? target : target.id;
   if (!targetNode) {
     console.warn(
-      `[Kernel]: Target node "${String(target)}" not found for send from "${source.name}" (${source.id})`,
+      `[Kernel]: Target node "${targetId}" not found for send from "${source.name}" (${source.id}); delivery dropped`,
     );
-    return;
+    return { status: 'dropped', reason: `Target node not found: ${targetId}` };
+  }
+  if ('_sealedForReplace' in targetNode && targetNode._sealedForReplace === true) {
+    return { status: 'dropped', reason: `Target node sealed for replace: ${targetNode.id}` };
   }
   const now = ctx.now();
   const infoId = options?.infoId ?? ctx.nextId('info');
@@ -70,6 +73,7 @@ export function deliverSendNowHelper(
   ctx.traceSession.record({ type: 'InfoDelivered', envelope });
 
   enqueueMailboxDeliveryHelper(ctx, targetNode, info, envelope, { signal: options?.signal });
+  return { status: 'enqueued' };
 }
 
 export function injectRootInfoNowHelper(
@@ -130,7 +134,7 @@ export function scheduleMailboxDrainHelper(
       await target._drainMailbox(nodeRuntimeCapability);
     } finally {
       ctx.scheduledMailboxNodeIds.delete(target.id);
-      if (target.getMailboxSize() > 0) scheduleMailboxDrainHelper(ctx, target);
+      if (target.getMailboxSize() > 0 && !target._sealedForReplace) scheduleMailboxDrainHelper(ctx, target);
     }
   });
 }

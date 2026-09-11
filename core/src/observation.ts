@@ -238,6 +238,8 @@ export type TraceEventPayload =
   | { type: 'StateSnapshotRestored'; snapshotId: string; nodeIds: string[] }
   | { type: 'InfoEmitted'; envelope: InfoEnvelope }
   | { type: 'InfoDelivered'; envelope: InfoEnvelope }
+  | { type: 'InfoDropped'; nodeId: string; reason: string; count: number }
+  | { type: 'NodeErrorRecorded'; nodeId: string; generation: number; changeId: string; submissionId?: string; causeInfoId: string; causeInfoType: string; message: string }
   | { type: 'BoundaryOutputCaptured'; fragmentId: string; envelope: InfoEnvelope }
   | { type: 'FragmentBoundaryViolation'; fragmentId: string; sourceNodeId: string; targetNodeId: string; infoType: string }
   | { type: 'ChangeStarted'; changeId: string; nodeId: string; causeInfoId: string; causeInfoType: string; stateVersionBefore: number }

@@ -178,3 +178,17 @@ npm --prefix apps/local-app run verify
 3. 用固定 Clock/ID、可控 Promise 和 mock Adapter 编写最小测试夹具，覆盖正常、失败、取消及迟到结果。
 4. 完成 Node-API 最小验证，记录支持边界与初始性能数据。
 5. 按 M0 退出条件审查后开始 Rust 核心实现。
+
+### 执行记录（2026-09-11）
+
+- 任务 2 已在 TypeScript 参考实现中收口：`ctx.send` 返回
+  `enqueued | dropped`（`empty` 不作为即时反馈，已从契约删除）；业务异常转为
+  `@error/NodeFailed` 定向投递（可配 `errorTargetNodeId`，无接收方仅留痕，
+  错误再失败单跳截断），不再默认取消同 submission 兄弟分支；替换按
+  密封→等单飞间隙→丢弃旧队列→纯净挂载→代次+1 线性化，迟到结果不污染新实体。
+- 任务 3 部分完成：`core/src/rule-space.test.ts` 覆盖投递丢弃、错误隔离与
+  单跳截断、驱逐/重准入代次、间隙替换丢弃积压与 revision 单调；
+  `npx tsc --noEmit` 通过，core 36 + unit/ui 71 用例通过。
+  固定 Clock/ID 夹具、取消协作与迟到 Adapter 结果的专项用例仍待补。
+- 任务 1、4、5 未开始：Rust `crates/kernel` / `crates/kernel-node`、
+  Node-API 验证与性能基线仍是 M1–M2 入口条件，不在本轮交付内。

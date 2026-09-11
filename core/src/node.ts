@@ -1,8 +1,10 @@
 import type {
+  DeliveryFeedback,
   Info,
   InfoEnvelope,
   ChangeRecord,
   DomainChangeContext,
+  NodeErrorInfo,
   WorldChangeContext,
 } from './types';
 import type { NodeStateSnapshot, EncodedValue, RuntimeIdKind } from './observation';
@@ -60,7 +62,8 @@ export abstract class Node<
   public executionCount: number = 0;
   public lastActiveTime: number = 0;
   public lastErrorMessage: string | null = null;
-
+  public generation = 0;
+  public _sealedForReplace = false;
   protected state: S;
   private regionVersions: Map<string, number> = new Map();
   private globalVersion: number = 0;
@@ -73,7 +76,6 @@ export abstract class Node<
   private abortController: AbortController = new AbortController();
 
   private kernel: any = null;
-
   constructor(
     public readonly id: string,
     public name: string,
@@ -150,9 +152,8 @@ export abstract class Node<
   public async _drainMailbox(capability: typeof nodeRuntimeCapability): Promise<void> {
     if (capability !== nodeRuntimeCapability) throw new Error('[Kernel]: Invalid runtime capability');
     if (this.drainingMailbox) return;
-    this.drainingMailbox = true;
     try {
-      while (this.mailbox.length > 0) {
+      while (this.mailbox.length > 0 && !this._sealedForReplace) {
         const item = this.mailbox.shift()!;
         try {
           if (item.options.signal?.aborted) {
@@ -234,13 +235,15 @@ export abstract class Node<
         timestamp: startWall,
       };
       this.recordChange(record);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      const errName = err instanceof Error ? err.name : undefined;
       const isAbort =
         options.signal?.aborted ||
-        err?.name === 'AbortError' ||
-        (typeof err?.message === 'string' && err.message.toLowerCase().includes('abort'));
+        errName === 'AbortError' ||
+        message.toLowerCase().includes('abort');
       this.status = isAbort ? 'ABORTED' : 'ERROR';
-      this.lastErrorMessage = err?.message || String(err);
+      this.lastErrorMessage = message;
       const record: ChangeRecord = {
         changeId,
         nodeId: this.id,
@@ -258,7 +261,16 @@ export abstract class Node<
         error: this.lastErrorMessage || undefined,
       };
       this.recordChange(record);
-      throw err;
+      if (isAbort) throw err;
+      this.routeNodeErrorAsInfo({
+        changeId,
+        causeInfoId,
+        causeInfoType,
+        submissionId: envelope?.submissionId,
+        triggerInfoType: info.type,
+        message,
+        stack: err instanceof Error ? err.stack : undefined,
+      });
     } finally {
       this.kernel?.endChangeExecution?.(changeId);
       this.activeChangeId = undefined;
@@ -307,7 +319,7 @@ export abstract class Node<
       submissionId?: string;
       signal?: AbortSignal;
     },
-  ): void {
+  ): DeliveryFeedback {
     if (capability !== changeContextCapability) {
       throw new Error(`[Send Violation]: Node ${this.id} 拒绝非 ChangeContext 发信`);
     }
@@ -317,7 +329,59 @@ export abstract class Node<
     if (!this.kernel) {
       throw new Error(`[Kernel]: Node "${this.name}" (${this.id}) 尚未挂载，无法发信`);
     }
-    this.kernel._deliverSendFromChange(this, info, target, options);
+    return this.kernel._deliverSendFromChange(this, info, target, options);
+  }
+
+  private routeNodeErrorAsInfo(input: {
+    changeId: string;
+    causeInfoId: string;
+    causeInfoType: string;
+    submissionId?: string;
+    triggerInfoType: string;
+    message: string;
+    stack?: string;
+  }): void {
+    if (!this.kernel || typeof this.kernel._routeNodeError !== 'function') return;
+    if (input.triggerInfoType === '@error/NodeFailed') return;
+    const errorInfo: NodeErrorInfo = {
+      type: '@error/NodeFailed',
+      nodeId: this.id,
+      generation: this.generation,
+      changeId: input.changeId,
+      submissionId: input.submissionId,
+      causeInfoId: input.causeInfoId,
+      causeInfoType: input.causeInfoType,
+      message: input.message,
+      stack: input.stack,
+    };
+    try {
+      this.kernel._routeNodeError(this, errorInfo, input.submissionId);
+    } catch {
+    }
+  }
+
+  public _discardMailbox(
+    capability: typeof nodeRuntimeCapability,
+    reason: string,
+  ): number {
+    if (capability !== nodeRuntimeCapability) throw new Error('[Kernel]: Invalid runtime capability');
+    const discarded = this.mailbox.length;
+    while (this.mailbox.length > 0) {
+      const item = this.mailbox.shift()!;
+      try {
+        item.resolve();
+      } catch {
+      }
+    }
+    if (discarded > 0) {
+      this.kernel?.traceSession?.record?.({
+        type: 'InfoDropped',
+        nodeId: this.id,
+        reason,
+        count: discarded,
+      });
+    }
+    return discarded;
   }
 
   protected change(_info: Info, _ctx: C): void | Promise<void> {}

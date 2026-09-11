@@ -1,4 +1,5 @@
 import type {
+  DeliveryFeedback,
   Info,
   InfoEnvelope,
   SpanRecord,
@@ -99,12 +100,11 @@ export class ChangeContextImpl<S = any> implements WorldChangeContext<S> {
     }
   }
 
-  public send(info: Info, target: string): void {
+  public send(info: Info, target: string): DeliveryFeedback {
     this.signal?.throwIfAborted();
-    if (!target) return;
-    const targetId = target;
+    if (!target) return { status: 'dropped', reason: 'Empty target node id' };
     const infoId = this.node.runtimeId('info');
-    this.node._sendFromChange(changeContextCapability, info, target, {
+    return this.node._sendFromChange(changeContextCapability, info, target, {
       infoId,
       causedByChangeId: this.changeId,
       causeInfoId: this.envelope?.infoId,

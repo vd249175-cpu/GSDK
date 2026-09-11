@@ -43,11 +43,30 @@ export interface ChangeRecord {
   readonly error?: string;
 }
 
+export type DeliveryStatus = 'enqueued' | 'dropped';
+
+export interface DeliveryFeedback {
+  readonly status: DeliveryStatus;
+  readonly reason?: string;
+}
+
+export interface NodeErrorInfo extends Info {
+  readonly type: '@error/NodeFailed';
+  readonly nodeId: string;
+  readonly generation: number;
+  readonly changeId: string;
+  readonly submissionId?: string;
+  readonly causeInfoId?: string;
+  readonly causeInfoType?: string;
+  readonly message: string;
+  readonly stack?: string;
+}
+
 export interface DomainChangeContext<S = any> {
   read<K extends keyof S>(key: K): S[K];
   write<K extends keyof S>(key: K, value: S[K]): void;
   patchState(patch: Partial<S>): void;
-  send(info: Info, targetNodeId: string): void;
+  send(info: Info, targetNodeId: string): DeliveryFeedback;
   span<T>(name: string, action: () => Promise<T> | T): Promise<T>;
 }
 
