@@ -47,6 +47,7 @@ export function createApplicationClient(transport: ApplicationTransport) {
     project: {
       open: (path?: string) => transport.request('project.open', { path }),
       listRecent: () => transport.request('project.list-recent', undefined),
+      removeRecent: (path: string) => transport.request('project.remove-recent', { path }),
       listSnapshots: () => transport.request('project.snapshot.list', undefined),
       createSnapshot: (label?: string) => transport.request('project.snapshot.create', { label }),
       branchFromSnapshot: (snapshotId: string, branchName: string) => (

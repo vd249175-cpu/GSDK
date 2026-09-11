@@ -11,7 +11,8 @@ const WORKSPACE_ICONS: Record<string, typeof Film> = {
   agent: Bot,
 }
 import { desktopElementSource } from './elementSource'
-import { FloatingScrollbars, InlineSelect, Workspace } from '@graphvideo/workbench'
+import { FloatingScrollbars, Workspace } from '@graphvideo/workbench'
+import { RecentProjectsDropdown } from './RecentProjectsDropdown'
 import {
   useAppState, useClientState, useProjectSelectionSync, useSelectedNodeId, useServices,
 } from './AppContext'
@@ -245,23 +246,16 @@ export function App() {
           <FolderOpen size={14} />
           <span>{openingProject ? '打开中…' : '打开项目'}</span>
         </button>
-        <div className="topbar-project-history" title="选择最近打开过的项目">
-          <InlineSelect
-            ariaLabel="选择最近项目"
-            disabled={openingProject || pending > 0 || recentProjects.length === 0}
-            className="topbar-project-inline-select"
-            menuClassName="topbar-project-menu"
-            options={[
-              { value: '', label: recentProjects.length ? '最近项目' : '无最近项目' },
-              ...recentProjects.map((project) => ({
-                value: project.path,
-                label: `${project.name} — ${project.path}${project.path === projectPath ? '（当前）' : ''}`,
-              })),
-            ]}
-            value=""
-            onChange={(value) => { if (value) void openProject(value) }}
-          />
-        </div>
+        <RecentProjectsDropdown
+          disabled={openingProject || pending > 0}
+          projects={recentProjects}
+          currentProjectPath={projectPath}
+          onOpen={(path) => void openProject(path)}
+          onRemove={async (path) => {
+            const updated = await applicationClient.project.removeRecent(path)
+            setRecentProjects(updated)
+          }}
+        />
         {projectPath && (
           <div className="topbar-project-info" title={`${projectName}\n路径: ${projectPath}`}>
             <span className="topbar-project-name">{projectName}</span>

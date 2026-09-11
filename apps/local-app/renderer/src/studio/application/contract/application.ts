@@ -25,6 +25,7 @@ export interface ApplicationRequestMap {
   'snapshot.read': { input: undefined; output: ApplicationSnapshot }
   'project.open': { input: { path?: string }; output: { opened: boolean } }
   'project.list-recent': { input: undefined; output: RecentProjectDto[] }
+  'project.remove-recent': { input: { path: string }; output: RecentProjectDto[] }
   'project.snapshot.list': { input: undefined; output: ProjectSnapshotGraphDto }
   'project.snapshot.create': { input: { label?: string }; output: ProjectSnapshotGraphDto }
   'project.snapshot.branch': {

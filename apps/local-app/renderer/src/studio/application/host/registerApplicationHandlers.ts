@@ -112,6 +112,7 @@ export function registerApplicationHandlers({
       return { opened: true }
     }),
     register('project.list-recent', () => localProjects.listRecent()),
+    register('project.remove-recent', ({ path }) => localProjects.removeRecent(path)),
     register('project.snapshot.list', () => projectSnapshots.list()),
     register('project.snapshot.create', ({ label }) => projectSnapshots.create(label)),
     register('project.snapshot.branch', async ({ snapshotId, branchName }, { signal }) => {

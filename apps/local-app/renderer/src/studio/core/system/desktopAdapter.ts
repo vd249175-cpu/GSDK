@@ -28,6 +28,10 @@ export function listRecentLocalProjects(): Promise<RecentLocalProject[]> {
   return getDesktop()?.project?.listRecent?.() ?? Promise.resolve([])
 }
 
+export function removeRecentLocalProject(projectPath: string): Promise<RecentLocalProject[]> {
+  return getDesktop()?.project?.removeRecent?.(projectPath) ?? Promise.resolve([])
+}
+
 export function onExternalProjectUpdate(listener: (project: LocalProjectSource) => void) {
   return getDesktop()?.project?.onExternalUpdate?.(listener) ?? (() => undefined)
 }

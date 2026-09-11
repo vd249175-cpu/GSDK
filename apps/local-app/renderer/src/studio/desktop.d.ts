@@ -40,6 +40,11 @@ interface Window {
         path: string
         openedAt: number
       }>>
+      removeRecent(projectPath: string): Promise<Array<{
+        name: string
+        path: string
+        openedAt: number
+      }>>
       listSnapshots(): Promise<import('./application/contract/domain').ProjectSnapshotGraphDto>
       createSnapshot(label?: string): Promise<import('./application/contract/domain').ProjectSnapshotGraphDto>
       branchFromSnapshot(snapshotId: string, branchName: string): Promise<{

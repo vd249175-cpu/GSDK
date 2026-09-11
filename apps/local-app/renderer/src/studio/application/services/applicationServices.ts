@@ -17,6 +17,7 @@ import type { ProjectAssetsService } from './projectAssetsService'
 
 export interface LocalProjectsService {
   listRecent(): Promise<RecentProjectDto[]>
+  removeRecent(projectPath: string): Promise<RecentProjectDto[]>
   open(projectPath?: string): Promise<LocalProjectSourceDto | null>
 }
 
@@ -85,6 +86,9 @@ export function createDesktopApplicationServices(
     localProjects: {
       async listRecent() {
         return requireDesktop().project.listRecent()
+      },
+      async removeRecent(projectPath) {
+        return requireDesktop().project.removeRecent(projectPath)
       },
       async open(projectPath) {
         const result = await requireDesktop().project.openLocal(projectPath)

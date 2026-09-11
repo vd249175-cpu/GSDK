@@ -215,6 +215,7 @@ function registerIpcHandlers() {
   })
 
   ipcMain.handle('project:list-recent', async () => getProjectHistory().list())
+  ipcMain.handle('project:remove-recent', async (_event, projectPath) => getProjectHistory().remove(projectPath))
   ipcMain.handle('project:snapshots-list', async () => (activeProjectRoot ? listProjectSnapshots(activeProjectRoot) : []))
   ipcMain.handle('project:snapshots-create', async (_event, label) => {
     if (!activeProjectRoot) throw new Error('未打开项目')

@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('graphvideoDesktop', {
   project: Object.freeze({
     openLocal: (projectPath) => ipcRenderer.invoke('project:open-local', projectPath),
     listRecent: () => ipcRenderer.invoke('project:list-recent'),
+    removeRecent: (projectPath) => ipcRenderer.invoke('project:remove-recent', projectPath),
     restoreLast: () => ipcRenderer.invoke('project:restore-last'),
     listSnapshots: () => ipcRenderer.invoke('project:snapshots-list'),
     createSnapshot: (label) => ipcRenderer.invoke('project:snapshots-create', label),
