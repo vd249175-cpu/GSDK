@@ -150,10 +150,10 @@ Adapter 必须响应 `context.signal`，并返回可被领域解释的 Observati
 
 ## 3. 图装配与热替换
 
-具体 Node 由 `app/src/nodes/studio-factories.ts` 创建：
+具体 Node 由插件的 `createNodes` 创建，再由主进程宿主装配：
 
 ```ts
-const nodes = createStudioNodes({ sqlitePersistAdapter })
+const nodes = createPluginNodes(plugins, dependencies)
 const kernel = new KernelRuntime({ errorTargetNodeId: 'supervisor-node' })
 kernel.mount(...nodes)
 ```
@@ -223,17 +223,18 @@ npm --prefix apps/local-app run diagnose -- validate
 
 `@graphvideo/backend-sdk` 的 `NativeRuleSpace` 把调度事实（实体登记、mailbox、
 单飞、submission 结算、丢弃台账）交 Rust `crates/kernel` 持有，业务 State 与
-change 代码仍在 JS（跨语言职责见开发规划 §4.6：Rust 与 JS 不各存一份权威业务
-State）。同一插件 `Node` 经 `mountDomainNode`/`describeDomainNode` 桥接挂载，
+change 代码仍在 JS，Rust 与 JS 不各存一份权威业务 State。同一插件 `Node` 经 `mountDomainNode`/`describeDomainNode` 桥接挂载，
 `change` 签名零改动：`read/write/patchState/send` 直通（投递反馈结构与
 `DeliveryFeedback` 一致），`span` 内联执行（原生路径不记录 trace span），
-`WorldNode` 挂载即拒（没有可接线的 EffectAdapter 宿主）。
+`WorldNode` 通过构造注入的 EffectAdapter 执行，并接收宿主 Clock 与 submission AbortSignal。
 
 热替换走与 TS 参考同一线性化语义：`space.replace(id)` 在单飞间隙内丢弃旧
 backlog（按 `Evicted` 结算）、代次 +1、干净槽启动；遇 Busy 有界重试（默认
-5000ms）。宿主侧必须显式传入新实例初值，State 绝不隐式继承。原生路径没有
-Projection/EncodedValue 与 revision：读数是规则空间状态拷贝（`getState`）。
-构建见 `npm run build:native`；端到端演示见
+5000ms）。宿主侧必须显式传入新实例初值，State 绝不隐式继承。`readProjection`
+返回 EncodedValue、Node version/status、调度计数和单调 revision；`getState` 只返回
+状态副本，不能绕过 change 修改权威 State。构建见 `npm run build:native` 与
+`npm run build:runtime`；端到端演示见
 `apps/local-app/src-main/native-graph-host.mjs` 与同目录单测。
-`space.replace` 必须在 pump 之外调用（泵运转中直接抛错，不排队等待）；
-`cancel` 只跳过排队投递，不中断正在运行的 JS change（门面不派发 AbortSignal）。
+`space.replace` 可以在 JS change 运行期间提出：目标会立即密封，宿主等待单飞间隙
+完成替换。`cancel` 会跳过排队投递，并中止该 submission 正在等待的 EffectAdapter；
+已经写入的 State 和已经完成的物理副作用不回滚。

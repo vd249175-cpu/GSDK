@@ -30,7 +30,7 @@ type: reference
 
 `@graphvideo/sdk/analysis` 是 Node.js 开发期条目（实例因果分析），不进浏览器包。
 
-源码直连：各包 `package.json` 的 `exports` 直接指向 `.ts` 源码（无 `dist` 构建步骤）；发布形态以 `exports`/`peerDependencies` 为准。`@graphvideo/backend-sdk` 无 React 依赖，后端消费者不装 React。原生模块经根 `npm run build:native` 构建（`cargo build -p graphvideo-kernel-node` + 产物摆放到 `crates/kernel-node/`），仓外安装 tarball 后的消费验收仍是剩余事项（见开发规划 §8）。
+本仓库采用 npm workspace 源码构建。TypeScript 类型与大部分 SDK 入口直接指向源码；Electron 主进程不能直接加载 `.ts`，因此 `npm run build:runtime` 会把 backend 入口构建到 `sdk/backend/dist/`，并把当前平台的原生绑定放入该运行时目录。`npm run build:native` 构建 Rust/N-API 调度内核。本仓库不提供 tarball 导出、发包或仓外脚手架流程。
 
 ## 2. 后端心智模型：事实只进 Owner
 
@@ -112,12 +112,14 @@ UI 写入口 → 命令适配 → 根 Info（插件 frontend/application）
 npx tsc --noEmit                        # 类型（含 sdk/type-tests 精确断言）
 npx vitest run --project unit <目标> --silent
 npm run build:native                     # 动原生绑定后跑（cargo 构建 + 摆放 .node）
+npm run build:runtime                    # 动 Electron/backend 运行时入口后跑
+npm run verify:app                       # 构建 native/runtime 并完成本地应用验收
 npm --prefix apps/local-app run diagnose -- validate   # 改 Node/Info/State/投影/联动后必跑
 npm --prefix apps/local-app run diagnose -- node <nodeId>  # 单实体切片，先看局部不看全图
 npm --prefix apps/local-app run build    # 动生产装配/Electron 后跑
 ```
 
-源码直连，无 `dist` 构建步骤；根 `package.json` 里没有 `build:sdk` / `export:sdk` / `trace` 脚本，旧文照抄者以本节为准。
+`sdk/backend/dist/` 是源码仓库的本地构建产物，不是发布包；其他 SDK 入口仍由 workspace 直接使用源码。
 
 `core/src/determinism-source.test.ts` 是架构门禁：业务 Node 触碰 I/O/系统 API 即失败。
 

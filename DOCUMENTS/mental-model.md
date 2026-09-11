@@ -4,7 +4,7 @@ type: reference
 
 # GraphFramework 当前心智模型
 
-GraphFramework 是运行在应用主进程内的独立开放因果图微内核框架。源码与针对性测试高于本文。
+GraphFramework 是运行在应用主进程内的开放因果图微内核框架。当前仓库以源码工作区方式构建；源码与针对性测试高于本文。
 
 ## 1. 设计目标
 
@@ -26,14 +26,15 @@ Electron renderer
        ▼
 Electron main
   ├─ RendererGraphBridge
-  ├─ StudioRuntime
-  │  ├─ KernelRuntime
-  │  ├─ 扁平 Node 集合
-  │  └─ EffectAdapter
+  ├─ NativeRuleSpace（当前本地应用生产宿主）
+  │  ├─ Rust mailbox/change/submission 调度
+  │  ├─ JS 业务 Node、State 与 change
+  │  └─ 构造注入的 EffectAdapter
   └─ 文件、数据库、进程与窗口宿主
 
 开发期旁路
-  └─ tools/causal：构造 Node 实例，由分析工具读取实例描述 DTO，不启动 Runtime
+  ├─ KernelRuntime：TypeScript 参考实现与测试运行时
+  └─ @graphvideo/sdk/analysis：读取 Node 实例描述，不启动 Runtime
 ```
 
 Kernel 不是独立进程，没有 Socket、握手、远程挂载或第二套执行器。renderer/main 的 IPC 是桌面安全边界。
@@ -43,8 +44,8 @@ Kernel 不是独立进程，没有 Socket、握手、远程挂载或第二套执
 | 层 | 目录 | 权限 |
 | :--- | :--- | :--- |
 | 微内核 | `core/src` | 调度 mailbox/change、State、Info、submission、Projection；零业务语义 |
-| 业务插件与物理宿主 | `plugins/`、`app/src/nodes`、`app/src/effects`、`app/electron` | 定义业务 Node，通过 EffectAdapter 接触物理世界 |
-| UI 工作台与投影 | `sdk/workbench/src`、`app/src/application`、`app/src/client` | 发送应用命令，读取 ApplicationState，不执行 Node |
+| 业务插件与物理宿主 | `apps/local-app/plugins`、`apps/local-app/src-main` | 定义业务 Node，通过 EffectAdapter 接触物理世界 |
+| UI 工作台与投影 | `sdk/workbench/src`、`sdk/client`、`apps/local-app/renderer` | 发送固定命令，读取投影 DTO，不执行 Node |
 
 ## 4. 六个运行本体
 
@@ -139,37 +140,11 @@ renderer 图协议只有：
 
 ## 6. 应用边界
 
-ApplicationClient 提供前端稳定方法；ApplicationHost 将方法翻译为根 Info，或调用明确的图外桌面服务。图外服务不会被伪装成 Kernel 字段或边。
+主进程宿主把 renderer 方法翻译为经过 `rendererRoots` 校验的根 Info，或调用明确的图外桌面服务。图外服务不会被伪装成 Kernel 字段或边。当前本地应用只暴露 counter 读写与窗口控制白名单；renderer 不能指定任意 Node、Info 或 submission。
 
-唯一人工维护的关系表是 `app/src/application/frontend-links.ts`，描述：
+## 7. 实例驱动分析
 
-```text
-Application 方法 → 根 Node/Info → Owner State → ApplicationState → UI 消费者
-```
-
-Node 内部关系仍只从已构造实例的方法 DTO 中实际的 `ctx.send/read/write` 推导。
-
-## 7. 本地资源
- 
-本地物理资源保存在项目目录，UI 只接收协议封装的可重建 URL 或 DTO：
- 
-```text
-assets.url(nodeId, versionId)
-  → custom-asset://node/<nodeId>/<versionId>
-  → 宿主安全解析与响应
-```
-
-磁盘绝对路径不进入 ApplicationState。
-
-### 项目 SQLite 快照
-
-项目快照是用户手动触发的图外项目生命周期能力。Electron 物理宿主使用 SQLite backup 将活动 `.graphvideo/nodes.sqlite` 保存到 `.graphvideo/snapshots/`，并维护快照父子关系与逻辑分支。快照目录不复制进 Node State 或 ApplicationState；图形化页面打开时经 Application Service 按需读取。
-
-从旧快照建立分支会先创建切换前保护快照，再将选中的 SQLite 快照恢复为活动数据库。恢复后的项目仍通过既有 `ProjectOpenedInfo` 进入 `src-fs-source`，由原有项目与 SQLite Owner 重新投影；项目快照不属于 `n-hist` 编辑器撤回栈。
-
-## 8. 实例驱动分析
-
-`tools/causal` 调用 GraphFactory 得到真实 Node 实例，由 `inspectNodeObjects` 读取属性和方法描述 DTO，并结合前端联动表建立：
+`@graphvideo/sdk/analysis` 对真实 Node 实例调用 `inspectNodeObjects`，读取属性和方法描述 DTO，并建立：
 
 ```text
 entry  --inject--> info@Target
@@ -180,11 +155,9 @@ state  --read-by-> change
 state  --project-> ui
 ```
 
-Node 的 contains/owns 是归属，不是路径捷径。分析工具调用 GraphFactory 得到普通 Node，但不创建或运行 Runtime。实例反射完全属于 `tools/causal/inspect-nodes.ts`：它读取数据属性与业务方法，不调用 getter、change 或实例上的 State 查询覆盖方法。Kernel Node 不继承分析类，也不持有图标、描述、分类或副标题等展示字段；关系解析只针对这些真实实例。
+Node 的 contains/owns 是归属，不是路径捷径。分析工具接收普通 Node，但不创建或运行 Runtime。`inspect-nodes.ts` 读取数据属性与业务方法，不调用 getter 或 change。Kernel Node 不继承分析类，也不持有图标、描述、分类或副标题等展示字段。
 
-分析侧允许通过 `analysis/folds.json` 将一组基础 Node 折叠并命名为当前视角中的 Node。折叠 Node 的 State、change、Info 与 Effect 从成员基础事实自动无损合并，不声明运行时边。`analysis/views/*.json` 只保存折叠项的展开情况。
-
-自定义折叠视角与内置 `all-nodes` 使用相同的 Node 链路、健康和社区算法；内置 `all-granular` 将 change、State、Info 等作为原子顶点，只用于细颗粒社区发现。完整规则见 [causal-analysis.md](./causal-analysis.md)。
+分析契约支持 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 与 `AnalysisView`。折叠视角只改变分析粒度，不增加运行时边；`all-nodes` 与 `all-granular` 分别提供 Node 级和细颗粒分析视角。
 
 ### 外部世界不例外
 
@@ -192,12 +165,12 @@ Node 的 contains/owns 是归属，不是路径捷径。分析工具调用 Graph
 
 - 物理世界只以 Observation 进图：`WorldNode` 经构造注入的 `EffectAdapter` 执行 I/O，返回的 Observation 经 Info 交回 State Owner（§4）。磁盘、网络、SQLite、窗口宿主不是图外的例外，只是尚未被框进来的 Node。
 - 框定即定边界：`selectInducedSubgraph` 把任意 Node 集合划进来，被切断的 send/read 就是它与世界的交换面；`analyzeViewHealth` 检查这个边界是否被凿穿。内外之分是视角，不是本体。
-- 折叠即世界切分：`analysis/folds.json` 把一组基础 Node 折叠命名为当前视角中的 Node，成员事实无损合并；`analysis/views/*.json` 只保存展开情况。折叠前后的 Node 链路、健康和社区算法完全相同——折叠不改变因果，只改变粒度。
-- 契约在 SDK，实现在外：`FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog`、`AnalysisView` 定义在 `@graphvideo/sdk/analysis`（`sdk/analysis/model.ts`）；命名 view 的存储（`analysis/*.json`）与解算（`tools/causal/views.ts`）留在仓内工具。第三方工作台共享世界切分时只依赖契约，各自决定存储。
+- 折叠即世界切分：一组基础 Node 可以折叠为当前视角中的 Node，成员事实仍来自原始因果索引；折叠不改变因果，只改变粒度。
+- 契约在 SDK，存储在消费方：`FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog`、`AnalysisView` 定义在 `@graphvideo/sdk/analysis`；消费方自行决定命名视角的存储与装配。
 
-## 9. 不可破坏的验收公理
+## 8. 不可破坏的验收公理
 
-1. 一个业务执行面、一个 StudioRuntime。
+1. 一个业务执行面、一个主进程 RuleSpace。
 2. 每个 State 字段只有一个 Owner。
 3. Node 间只通过实际 `ctx.send` 通信。
 4. 同一 Node 的 change 严格 single-flight；该约束不限制外部任务并行。

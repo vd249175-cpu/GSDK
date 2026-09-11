@@ -21,16 +21,15 @@ Markdown 链接关联。上游权威：<https://openknowledgeformat.com>（v0.2�
 ## 2. 本包采用的字段
 
 - `type`：本包使用的值为 `reference`（心智/约束/结构/调试）、`guide`（SDK
-  指南/领域/约定）、`plan`（收口方案）、`index`（导航）。
+  指南/领域/约定）、`index`（导航）。
 - 可选：`title`、`description`。其余 OKF 可选键（`resource`、`tags`、
   `generated`、`sources`、`verified`、`status`、`stale_after`）按需使用，
   不强制。
-- `type` 之后如需扩展取值，先在 `development-constraints.md` 回答归属问题，
-  不得先加再整理。
+- `type` 之后如需扩展取值，应先明确文档归属与用途。
 
 ## 3. 保留文件名与入口
 
-- `README.md`（`type: index`）是包入口，供人与 Agent 扫描全貌。
+- `mental-model.md` 是事实入口，供人与 Agent 扫描当前架构。
 - 概念文件一概念一文件；报告类派生物（如架构报告）不在包内，
   由事实源重新生成。
 

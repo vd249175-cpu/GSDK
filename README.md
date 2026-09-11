@@ -1,6 +1,10 @@
+---
+type: guide
+---
+
 # GraphVideo SDK
 
-独立 SDK 开发仓：纯计算微内核（`core/`）、大一统开发者套件（`sdk/`，含工作台底座 `sdk/workbench/`）、最小可跑模板（`templates/local-app/`）。事实顺序：源码与针对性测试 > `DOCUMENTS/mental-model.md` > 其他文档。
+GraphFramework 的源码工作区：纯计算微内核（`core/`）、开发者套件（`sdk/`，含工作台底座 `sdk/workbench/`）和本地 Electron 示例（`apps/local-app/`）。本仓库采用源码构建，不包含发包、tarball 导出或脚手架交付流程。事实顺序：源码与针对性测试 > `DOCUMENTS/mental-model.md` > 其他文档。
 
 ## 目录（双子星体系）
 
@@ -22,6 +26,8 @@
 npm install
 npm run typecheck        # tsc --noEmit（源码直连穿透检查，0 秒等待）
 npm test                 # vitest run（core + unit + ui 全套单测）
+npm run build:native     # 构建 Rust/N-API 调度内核并摆放本机原生产物
+npm run build:runtime    # 生成 Electron 可加载的 backend 本地运行时
 npm run test:core        # 微内核针对性单测
 npm run test:unit        # SDK 单元测试
 npm run test:ui          # Workbench UI 前端测试
