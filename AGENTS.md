@@ -40,6 +40,7 @@
    - 物理动作只经构造注入的 `EffectAdapter` 执行。
 7. Projection state 是 `EncodedValue`，读取必须经 `valueCodec.decode`；UI 业务事实只来自投影，不得在前端伪造第二份业务状态。
 8. 所有业务均为平等插件；内置插件与第三方插件采用同一 Manifest、SDK、装载器和生命周期。
+9. Node 执行异常必须在代码层面被安全捕获为一条特殊的 Info，具备同等因果流通权并可随意发送，严禁让未捕获异常击穿规则空间。
 
 ## 4. 标准排障流程
 

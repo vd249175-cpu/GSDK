@@ -76,6 +76,18 @@ Info → mailbox → single-flight change
 
 Node 不暴露直接 `setState`、直接 send、Transition Registry 或 Runtime 旁路。
 
+### 错误即特殊 Info（Error as Causal Info）
+
+Node 执行过程中的报错在代码层面**永远被安全捕获为一条特殊的 Info**，绝不击穿或宕掉微内核环境：
+
+```text
+Node change 异常 ──► 自动捕获 ──► 封装为 Error Info ──► 作为普通 Info 发送/流转
+```
+
+- **报错即因果事实**：物理世界与业务逻辑中的“失败”不是让进程崩溃的 Panic，而是图中的一个客观因果事实。
+- **可随意定向发送**：错误 Info 与常规业务 Info 享有完全平等的流通权利。它既可由当前 Node 写入自身私有状态，也可通过 `ctx.send` 定向发送给下游消费者、错误收集器或专门的监督节点（Supervisor Node）进行告警、重试或熔断。
+- **空间恒定不灭**：这一机制确保了即使业务节点代码出现未捕获异常，规则空间依然恒常稳定运转，并能将失败事实精确追踪到具体的因果链路中。
+
 ### 单飞与任务并行
 
 single-flight 只约束同一 Node 同时最多执行一个 change，用于防止 Owner State 并发变迁；它不是业务任务或外部物理任务的并发度限制。一次 change 可以接收并处理多组数据，也可以并行发起多组 Effect 请求。WorldNode 还可以只提交任务并取得 handle 后结束 change，由其他负责物理轮询或回调接收的 WorldNode 继续观察任务，再通过 Info 将 Observation 交回 State Owner。
@@ -195,3 +207,4 @@ Node 的 contains/owns 是归属，不是路径捷径。分析工具调用 Graph
 8. 应用命令等待自身 submission，不等待全图。
 9. 媒体 URL 是可丢弃 DTO，磁盘路径不进入 UI。
 10. 实例分析不创建 Runtime，也不参与生产运行。
+11. 节点报错即因果事实：Node 执行异常永远被捕获为特殊 Info，绝不击穿环境，可在图中自由发送与流转。
