@@ -106,7 +106,7 @@ export class NodeGenerationAdapter implements EffectAdapter<
           extra_data: {
             api_key_comfy_org: apiKey,
             workflow_type: spec.workflowType,
-            ...(spec.extraData || {}),
+            ...( (spec as any).extraData || {} ),
           },
         }),
         signal: context.signal,

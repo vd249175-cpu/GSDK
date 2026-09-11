@@ -34,7 +34,10 @@ describe('ComfyUI Cloud API 真实图像生成单元测试', () => {
     })
 
     const abortController = new AbortController()
-    const context = { signal: abortController.signal }
+    const context = {
+      signal: abortController.signal,
+      clock: { now: () => Date.now(), monotonicNow: () => Date.now() },
+    }
 
     // 1. 截取核心生图与保存节点 (Prompt Graph)
     const prompt = {
@@ -69,11 +72,13 @@ describe('ComfyUI Cloud API 真实图像生成单元测试', () => {
         provider: 'comfy',
         prompt,
         workflowType: 'comfy-image',
+        expectedOutputKind: 'image',
       },
     }, context)
 
     expect(submitObs.operation).toBe('submit')
     expect(submitObs.status).toBe('submitted')
+    if (submitObs.status !== 'submitted') throw new Error('Expected submitted status')
     expect(submitObs.handle).toBeDefined()
     expect(submitObs.handle.taskId).toBeDefined()
     console.log('✅ Comfy Cloud 作业提交成功，Prompt ID:', submitObs.handle.taskId)
@@ -91,24 +96,27 @@ describe('ComfyUI Cloud API 真实图像生成单元测试', () => {
         operation: 'poll',
         handle: submitObs.handle,
       }, context)
-      console.log(`⏳ 轮询中... [${pollObs.remoteStatus || 'executing'}] 耗时: ${Math.round((Date.now() - startTime) / 1000)}s`)
+      const remoteStatus = (pollObs as any).remoteStatus || 'executing'
+      console.log(`⏳ 轮询中... [${remoteStatus}] 耗时: ${Math.round((Date.now() - startTime) / 1000)}s`)
     }
 
     expect(pollObs.status).toBe('ready')
+    if (pollObs.status !== 'ready') throw new Error('Expected ready status')
     expect(pollObs.artifact).toBeDefined()
-    expect(pollObs.artifact?.url).toBeDefined()
+    expect(pollObs.artifact.url).toBeDefined()
     console.log('✅ Comfy Cloud 渲染完成，产物信息:', pollObs.artifact)
 
     // 4. 下载真实渲染图片并流式写入目标路径
     const destination = 'media/gem_crystal.png'
     const downloadObs = await adapter.execute({
       operation: 'download',
-      artifact: pollObs.artifact!,
+      artifact: pollObs.artifact,
       destinationRelativePath: destination,
     }, context)
 
     expect(downloadObs.operation).toBe('download')
     expect(downloadObs.status).toBe('downloaded')
+    if (downloadObs.status !== 'downloaded') throw new Error('Expected downloaded status')
     expect(downloadObs.bytesWritten).toBeGreaterThan(1000)
 
     const savedFile = join(tempDir, destination)

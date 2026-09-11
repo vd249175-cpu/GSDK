@@ -6,7 +6,7 @@ import type { RecentLocalProject } from '@graphvideo/client-sdk'
 interface RecentProjectsDropdownProps {
   disabled?: boolean
   projects: RecentLocalProject[]
-  currentProjectPath?: string
+  currentProjectPath?: string | null
   onOpen(path: string): void
   onRemove(path: string): void | Promise<void>
 }
