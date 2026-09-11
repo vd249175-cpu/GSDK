@@ -58,6 +58,7 @@ export function mountDomainNode<S extends Record<string, unknown>>(
   const generation = space.register(described.id, described.initialState, described.handler, {
     isWorldNode: described.isWorldNode,
     dispose: described.dispose,
+    nodeInstance: node,
   });
   try {
     node.onMount();
@@ -82,7 +83,7 @@ export async function replaceDomainNode<S extends Record<string, unknown>>(
       described.initialState,
       described.handler,
       options,
-      { isWorldNode: described.isWorldNode, dispose: described.dispose },
+      { isWorldNode: described.isWorldNode, dispose: described.dispose, nodeInstance: node },
     );
   } catch (error) {
     await node.dispose();

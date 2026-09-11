@@ -56,6 +56,10 @@ export function createNativeGraphHost({ dependencies = {}, plugins = [studioPlug
       return space.readProjection()
     },
 
+    readStaticTopology() {
+      return space.readStaticTopology()
+    },
+
     subscribeCausalTelemetry(callback) {
       return space.subscribeCausalEvents(callback)
     },

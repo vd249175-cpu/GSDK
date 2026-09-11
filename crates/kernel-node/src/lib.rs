@@ -324,6 +324,13 @@ impl RuleSpace {
             })
             .collect())
     }
+
+    /// All currently admitted entity IDs in deterministic order.
+    #[napi]
+    pub fn admitted_entities(&self) -> Result<Vec<String>> {
+        let kernel = self.inner.lock().map_err(lock_error)?;
+        Ok(kernel.admitted_entities())
+    }
 }
 
 fn lock_error(_: std::sync::PoisonError<std::sync::MutexGuard<'_, Kernel>>) -> napi::Error {

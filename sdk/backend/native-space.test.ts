@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { Node } from '@graphvideo/kernel';
 import { locateNativeBinding, NativeRuleSpace } from './native-space';
+import { mountDomainNode } from './native-node';
 import type { NativeChangeContext, NativeInfo } from './native-space';
 
 const binary = locateNativeBinding();
@@ -305,4 +307,63 @@ describe.skipIf(!binary)('Native rule space (JS entities on Rust scheduling)', (
 
     unsubscribe();
   });
+
+  it('automatically derives static causal routes and exposes admitted entities directly from Rust kernel', () => {
+    const space = new NativeRuleSpace();
+
+    class AlphaNode extends Node<{ count: number }> {
+      constructor(private readonly targetId: string = 'beta-node') {
+        super('alpha-node', 'Alpha', { count: 0 });
+      }
+      protected override change(info: any, ctx: any) {
+        if (info.type === 'Ping') {
+          ctx.send({ type: 'PongInfo', value: 1 }, this.targetId);
+        }
+      }
+    }
+
+    class BetaNode extends Node<{ received: number }> {
+      constructor() {
+        super('beta-node', 'Beta', { received: 0 });
+      }
+      protected override change(info: any, ctx: any) {
+        if (info.type === 'PongInfo') {
+          ctx.send({ type: 'AckInfo' }, 'gamma-node');
+        }
+      }
+    }
+
+    class GammaNode extends Node<{}> {
+      constructor() {
+        super('gamma-node', 'Gamma', {});
+      }
+      protected override change() {}
+    }
+
+    mountDomainNode(space, new AlphaNode());
+    mountDomainNode(space, new BetaNode());
+    mountDomainNode(space, new GammaNode());
+
+    // 1. Rust kernel admitted entities check
+    expect(space.admittedEntities().sort()).toEqual(['alpha-node', 'beta-node', 'gamma-node']);
+
+    // 2. Static topology direct derivation
+    const topo1 = space.readStaticTopology();
+    expect(topo1.nodes.length).toBe(3);
+    expect(topo1.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 'alpha-node', to: 'beta-node', infoType: 'PongInfo' }),
+        expect.objectContaining({ from: 'beta-node', to: 'gamma-node', infoType: 'AckInfo' }),
+      ]),
+    );
+
+    // 3. Dynamic evict: Gamma is evicted, route beta -> gamma is pruned
+    space.unregister('gamma-node');
+    expect(space.admittedEntities().sort()).toEqual(['alpha-node', 'beta-node']);
+    const topo2 = space.readStaticTopology();
+    expect(topo2.nodes.length).toBe(2);
+    expect(topo2.routes.some((r) => r.to === 'gamma-node')).toBe(false);
+    expect(topo2.revision).toBeGreaterThan(topo1.revision);
+  });
 });
+

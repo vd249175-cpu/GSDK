@@ -496,6 +496,11 @@ impl Kernel {
         self.submissions.values().map(|sub| sub.pending).sum()
     }
 
+    /// All currently admitted entity IDs in deterministic registry order.
+    pub fn admitted_entities(&self) -> Vec<EntityId> {
+        self.registry.ordered_ids()
+    }
+
     // -- internals -----------------------------------------------------------
 
     fn take_info_id(&mut self) -> u64 {

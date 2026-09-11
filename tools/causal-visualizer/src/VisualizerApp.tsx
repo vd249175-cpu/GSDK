@@ -232,24 +232,12 @@ export function VisualizerApp() {
         }
 
         case 'node_admitted': {
-          let node = nodesRef.current.find((n) => n.id === event.nodeId)
-          if (!node) {
-            syncTopology()
-          } else {
-            node.generation = event.generation
-            node.status = 'IDLE'
-            triggerThrottledNodeUpdate()
-          }
+          syncTopology()
           break
         }
 
         case 'node_evicted': {
-          const node = nodesRef.current.find((n) => n.id === event.nodeId)
-          if (node) {
-            node.generation = null
-            node.status = 'DROPPED'
-            triggerThrottledNodeUpdate()
-          }
+          syncTopology()
           break
         }
 

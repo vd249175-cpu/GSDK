@@ -123,6 +123,7 @@ export { NativeRuleSpace, locateNativeBinding } from './native-space'
 export type {
   CausalTelemetryEvent,
   NativeChangeContext, NativeDeliveryFeedback, NativeDeliveryStatus, NativeHandler, NativeInfo,
+  StaticTopology, StaticTopologyNode, StaticTopologyRoute,
 } from './native-space'
 export { describeDomainNode, mountDomainNode, replaceDomainNode } from './native-node'
 export type { DescribedDomainNode } from './native-node'

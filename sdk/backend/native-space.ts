@@ -13,8 +13,31 @@ import type {
   EffectAdapter,
   GraphProjection,
   IdProvider,
+  Node,
   ValueCodec,
 } from '@graphvideo/kernel';
+
+export interface StaticTopologyRoute {
+  readonly id: string;
+  readonly from: string;
+  readonly to: string;
+  readonly infoType: string;
+  readonly routeCount: number;
+}
+
+export interface StaticTopologyNode {
+  readonly nodeId: string;
+  readonly generation: number | null;
+  readonly version: number;
+  readonly status: string;
+  readonly state: Record<string, unknown>;
+}
+
+export interface StaticTopology {
+  readonly revision: number;
+  readonly nodes: StaticTopologyNode[];
+  readonly routes: StaticTopologyRoute[];
+}
 
 export interface NativeInfo {
   readonly type: string;
@@ -101,6 +124,7 @@ interface BindingSpace {
   pendingTotal(): number;
   queuedDepths(): Array<{ entity: string; depth: number }>;
   drops(): Array<{ target: string; reason: string; submission?: string }>;
+  admittedEntities?(): string[];
 }
 
 interface RegisteredNode {
@@ -109,6 +133,7 @@ interface RegisteredNode {
   version: number;
   isWorldNode: boolean;
   dispose?: () => void | Promise<void>;
+  nodeInstance?: unknown;
 }
 
 export type CausalTelemetryEvent =
@@ -177,6 +202,7 @@ export interface NativeRuleSpaceOptions {
 export interface NativeRegisterOptions {
   readonly isWorldNode?: boolean;
   readonly dispose?: () => void | Promise<void>;
+  readonly nodeInstance?: unknown;
 }
 
 class StaleNativeChangeError extends Error {
@@ -265,6 +291,8 @@ export class NativeRuleSpace {
   private readonly pendingDisposals = new Set<Promise<void>>();
   private pumpPromise?: Promise<number>;
   private projectionRevision = 0;
+  private topologyRevision = 0;
+  private cachedTopology?: StaticTopology;
   private readonly clock: Clock;
   private readonly idProvider: IdProvider;
   private readonly replaceTimeoutMs: number;
@@ -296,7 +324,10 @@ export class NativeRuleSpace {
       version: 0,
       isWorldNode: options.isWorldNode ?? false,
       dispose: options.dispose,
+      nodeInstance: options.nodeInstance,
     });
+    this.cachedTopology = undefined;
+    this.topologyRevision += 1;
     this.publishProjection();
     this.emitTelemetry({
       type: 'node_admitted',
@@ -313,6 +344,8 @@ export class NativeRuleSpace {
     const removed = this.binding.evict(id);
     if (!removed) return false;
     this.nodes.delete(id);
+    this.cachedTopology = undefined;
+    this.topologyRevision += 1;
     this.queueDisposal(node);
     this.publishProjection();
     this.emitTelemetry({
@@ -349,7 +382,10 @@ export class NativeRuleSpace {
             version: 0,
             isWorldNode: registration.isWorldNode ?? false,
             dispose: registration.dispose,
+            nodeInstance: registration.nodeInstance,
           });
+          this.cachedTopology = undefined;
+          this.topologyRevision += 1;
           swapped = true;
           this.queueDisposal(old);
           this.publishProjection();
@@ -429,6 +465,50 @@ export class NativeRuleSpace {
 
   generation(id: string): number | null {
     return this.binding.generation(id);
+  }
+
+  admittedEntities(): string[] {
+    return this.binding.admittedEntities?.() ?? Array.from(this.nodes.keys());
+  }
+
+  readStaticTopology(): StaticTopology {
+    if (this.cachedTopology) return this.cachedTopology;
+    const admittedList = this.admittedEntities();
+    const admitted = new Set(admittedList);
+    const activeNodes = Array.from(this.nodes.entries())
+      .filter(([id]) => admitted.has(id));
+
+    const routes: StaticTopologyRoute[] = [];
+    const seen = new Set<string>();
+    for (const [, n] of activeNodes) {
+      if (n.nodeInstance) {
+        const nodeRoutes = inferNodeStaticRoutes(n.nodeInstance);
+        for (const r of nodeRoutes) {
+          if (admitted.has(r.from) && admitted.has(r.to)) {
+            const key = `${r.from}->${r.to}:${r.infoType}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              routes.push(r);
+            }
+          }
+        }
+      }
+    }
+
+    const topology: StaticTopology = {
+      revision: this.topologyRevision,
+      nodes: activeNodes.map(([nodeId, n]) => ({
+        nodeId,
+        generation: this.generation(nodeId),
+        version: n.version,
+        status: this.activeEntities.has(nodeId) ? 'RUNNING' : 'IDLE',
+        state: this.cloneState(n.state),
+      })),
+      routes,
+    };
+
+    this.cachedTopology = topology;
+    return topology;
   }
 
   pendingTotal(): number {
@@ -732,3 +812,101 @@ export class NativeRuleSpace {
     );
   }
 }
+
+/**
+ * 纯图无关的静态算符因果推导器：
+ * 在 Node 挂载到底座时，直接推导其 change 方法体内所有的内核 ctx.send 潜在出边。
+ * 业务开发者 0 声明负担、0 配置文件、无需额外 AST 编译器，直接推导出潜在管网。
+ */
+export function inferNodeStaticRoutes(node: unknown): StaticTopologyRoute[] {
+  if (!node || typeof node !== 'object') return [];
+  const fromNodeId = (node as { id?: unknown }).id;
+  if (!fromNodeId || typeof fromNodeId !== 'string') return [];
+
+  const changeFn = (node as { change?: unknown }).change;
+  if (typeof changeFn !== 'function') return [];
+  const fnSource = Function.prototype.toString.call(changeFn);
+
+  const routes: StaticTopologyRoute[] = [];
+  const seen = new Set<string>();
+
+  let idx = 0;
+  while ((idx = fnSource.indexOf('ctx.send(', idx)) !== -1) {
+    const startArgs = idx + 'ctx.send('.length;
+    let depth = 1;
+    let endArgs = startArgs;
+    while (endArgs < fnSource.length && depth > 0) {
+      const ch = fnSource[endArgs];
+      if (ch === '(' || ch === '{' || ch === '[') depth++;
+      else if (ch === ')' || ch === '}' || ch === ']') depth--;
+      endArgs++;
+    }
+    const fullCallArgs = fnSource.slice(startArgs, endArgs - 1);
+    idx = endArgs;
+
+    // 分割 info 表达式与 target 表达式（由最外层逗号分隔）
+    let argDepth = 0;
+    let splitComma = -1;
+    for (let i = fullCallArgs.length - 1; i >= 0; i--) {
+      const ch = fullCallArgs[i];
+      if (ch === ')' || ch === '}' || ch === ']') argDepth++;
+      else if (ch === '(' || ch === '{' || ch === '[') argDepth--;
+      else if (ch === ',' && argDepth === 0) {
+        splitComma = i;
+        break;
+      }
+    }
+    if (splitComma === -1) continue;
+
+    const infoPart = fullCallArgs.slice(0, splitComma).trim();
+    const targetPart = fullCallArgs.slice(splitComma + 1).trim();
+
+    // 1. 推导 targetNodeId：支持字面量 ('node-sqlite') 与实例属性 (this.taskTargetId)
+    let targetNodeId: string | null = null;
+    const litMatch = targetPart.match(/^['"`]([^'"`]+)['"`]$/);
+    if (litMatch) {
+      targetNodeId = litMatch[1];
+    } else {
+      const propMatch = targetPart.match(/^this\.([a-zA-Z0-9_$]+)$/);
+      if (propMatch && propMatch[1] in (node as Record<string, unknown>)) {
+        const val = (node as Record<string, unknown>)[propMatch[1]];
+        if (typeof val === 'string') targetNodeId = val;
+      }
+    }
+
+    // 2. 推导 infoType：支持字面量 type: '...' 与局部变量声明推导
+    let infoType = 'Info';
+    const typeMatch = infoPart.match(/type:\s*['"`]([^'"`]+)['"`]/);
+    if (typeMatch) {
+      infoType = typeMatch[1];
+    } else {
+      const varNameMatch = infoPart.match(/^([a-zA-Z0-9_$]+)$/);
+      if (varNameMatch) {
+        const varName = varNameMatch[1];
+        const varDeclMatch = fnSource.slice(0, startArgs).match(
+          new RegExp(`(?:const|let|var)\\s+${varName}\\b[\\s\\S]*?type:\\s*['"\`]([^'"\`]+)['"\`]`),
+        );
+        if (varDeclMatch) {
+          infoType = varDeclMatch[1];
+        }
+      }
+    }
+
+    if (targetNodeId) {
+      const key = `${fromNodeId}->${targetNodeId}:${infoType}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        routes.push({
+          id: `route-${fromNodeId}-${targetNodeId}-${infoType}`,
+          from: fromNodeId,
+          to: targetNodeId,
+          infoType,
+          routeCount: 1,
+        });
+      }
+    }
+  }
+
+  return routes;
+}
+

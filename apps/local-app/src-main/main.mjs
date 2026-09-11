@@ -233,21 +233,15 @@ function startTelemetryLoopbackServer(port = 51888) {
 
     if (parsedUrl.pathname === '/api/topology') {
       try {
+        const topo = host.readStaticTopology()
         const projection = host.readProjection()
-        const nodes = projection.nodes.map((n) => ({
-          nodeId: n.nodeId,
-          version: n.version,
-          status: n.status,
-          state: host.space.valueCodec.decode(n.state),
-          generation: host.generation(n.nodeId),
-        }))
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
         res.end(
           JSON.stringify({
-            revision: projection.revision,
+            revision: topo.revision,
             scheduler: projection.scheduler,
-            nodes,
-            routes: Array.from(discoveredRoutes.values()),
+            nodes: topo.nodes,
+            routes: topo.routes,
             recentEvents: telemetryBuffer.slice(0, 50),
           }),
         )
@@ -315,19 +309,13 @@ function registerIpcHandlers() {
       case 'graph.projection.read':
         return { projection: host.readProjection() }
       case 'graph.topology.read': {
+        const topo = host.readStaticTopology()
         const projection = host.readProjection()
-        const nodes = projection.nodes.map((n) => ({
-          nodeId: n.nodeId,
-          version: n.version,
-          status: n.status,
-          state: host.space.valueCodec.decode(n.state),
-          generation: host.generation(n.nodeId),
-        }))
         return {
-          revision: projection.revision,
+          revision: topo.revision,
           scheduler: projection.scheduler,
-          nodes,
-          routes: Array.from(discoveredRoutes.values()),
+          nodes: topo.nodes,
+          routes: topo.routes,
         }
       }
       case 'graph.cancel':
