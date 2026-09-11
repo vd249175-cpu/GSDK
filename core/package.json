@@ -14,15 +14,12 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs"
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
     },
     "./effect-harness": {
-      "types": "./dist/effect-harness.d.ts",
-      "import": "./dist/effect-harness.mjs"
+      "types": "./src/effect-harness.ts",
+      "default": "./src/effect-harness.ts"
     }
-  },
-  "files": [
-    "dist"
-  ]
+  }
 }

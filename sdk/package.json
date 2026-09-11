@@ -16,43 +16,43 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs"
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./backend": {
+      "types": "./backend/index.ts",
+      "default": "./backend/index.ts"
     },
     "./client": {
-      "types": "./dist/client/index.d.ts",
-      "import": "./dist/client/index.mjs"
+      "types": "./client/index.ts",
+      "default": "./client/index.ts"
     },
+    "./workbench": {
+      "types": "./workbench/src/index.ts",
+      "default": "./workbench/src/index.ts"
+    },
+    "./workbench/styles.css": "./workbench/src/styles/index.css",
     "./tokens": {
-      "types": "./dist/tokens/index.d.ts",
-      "import": "./dist/tokens/index.mjs"
+      "types": "./tokens/index.ts",
+      "default": "./tokens/index.ts"
     },
     "./ui": {
-      "types": "./dist/ui/index.d.ts",
-      "import": "./dist/ui/index.mjs"
+      "types": "./ui/index.ts",
+      "default": "./ui/index.ts"
     },
-    "./ui/styles.css": "./dist/sdk.css",
+    "./ui/styles.css": "./ui/styles.css",
     "./testing": {
-      "types": "./dist/testing/index.d.ts",
-      "import": "./dist/testing/index.mjs"
+      "types": "./testing/index.ts",
+      "default": "./testing/index.ts"
     },
     "./analysis": {
-      "types": "./dist/analysis/index.d.ts",
-      "import": "./dist/analysis/index.mjs"
+      "types": "./analysis/index.ts",
+      "default": "./analysis/index.ts"
     },
     "./contract": {
-      "types": "./dist/contract/index.d.ts",
-      "import": "./dist/contract/index.mjs"
+      "types": "./contract/index.ts",
+      "default": "./contract/index.ts"
     }
-  },
-  "files": [
-    "dist",
-    "bin",
-    "init-bundle"
-  ],
-  "dependencies": {
-    "@graphvideo/backend-sdk": "^1.0.0",
-    "@graphvideo/workbench": "^1.0.0"
   },
   "peerDependencies": {
     "@graphvideo/kernel": "^1.0.0",

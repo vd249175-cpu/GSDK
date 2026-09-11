@@ -29,7 +29,7 @@
 
 ## 3. 架构红线
 
-1. `core/src` 是零业务语义微内核；`workbench/` 是零业务语义的前端工作台底座，不得导入具体业务插件。
+1. `core/src` 是零业务语义微内核；`sdk/workbench/` 是零业务语义的前端工作台底座，不得导入具体业务插件。
 2. Node 间通信只使用 `ctx.send(info, targetNodeId)`；不得增加 flows、Edge、Wrapper 或全局广播总线。
 3. 每个 `ctx.send` 的 `Info.type` 必须能在当前 change 分支或发送点静态可证明。禁止把完整 Info 隐藏在不透明构造函数中；`unresolved-info-type` 是必须修复的校验错误。
 4. State 只能由 Owner Node 在当前 `change ctx` 中写入；外部节点只能通过发送 Info 请求变迁。
@@ -52,8 +52,7 @@
 
 - 针对性测试：只跑与修改直接相关的 Vitest，使用 `--silent`。
 - 类型检查：代码修改必须通过 `npx tsc --noEmit`。
-- 构建验证：修改涉及 package 源码或导出时执行 `npm run build:sdk`。
-- 交付验收：交付前执行 `npm run export:sdk`（构建/导出串行，必须通过仓外三项严格验收）。
+- 重构治理：跨文件重构或符号重命名使用 `node scripts/refactor.mjs`。
 - 不无意义运行全量测试，不使用 `node -e` 临时拼凑验证。
 
 ## 6. 文档维护

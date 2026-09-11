@@ -15,8 +15,10 @@ export default defineConfig({
       '@graphvideo/sdk/analysis': fileURLToPath(new URL('./sdk/analysis/index.ts', import.meta.url)),
       '@graphvideo/sdk/contract': fileURLToPath(new URL('./sdk/contract/index.ts', import.meta.url)),
       '@graphvideo/sdk': fileURLToPath(new URL('./sdk/index.ts', import.meta.url)),
-      '@graphvideo/workbench': fileURLToPath(new URL('./workbench/src/index.ts', import.meta.url)),
+      '@graphvideo/sdk/workbench': fileURLToPath(new URL('./sdk/workbench/src/index.ts', import.meta.url)),
+      '@graphvideo/workbench': fileURLToPath(new URL('./sdk/workbench/src/index.ts', import.meta.url)),
       '@graphvideo/backend-sdk': fileURLToPath(new URL('./sdk/backend/index.ts', import.meta.url)),
+      '@graphvideo/sdk/backend': fileURLToPath(new URL('./sdk/backend/index.ts', import.meta.url)),
     },
   },
   // @ts-ignore
@@ -44,6 +46,7 @@ export default defineConfig({
           name: 'unit',
           environment: 'node',
           include: ['sdk/**/*.test.{ts,mjs}'],
+          exclude: ['sdk/workbench/**'],
         },
       },
       {
@@ -51,7 +54,7 @@ export default defineConfig({
         test: {
           name: 'ui',
           environment: 'jsdom',
-          include: ['workbench/**/*.test.{ts,tsx}'],
+          include: ['sdk/workbench/**/*.test.{ts,tsx}'],
         },
       },
     ],

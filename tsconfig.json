@@ -18,6 +18,7 @@
     "useDefineForClassFields": true,
     "paths": {
       "@graphvideo/backend-sdk": ["./sdk/backend/index.ts"],
+      "@graphvideo/sdk/backend": ["./sdk/backend/index.ts"],
       "@graphvideo/kernel": ["./core/src/index.ts"],
       "@graphvideo/sdk": ["./sdk/index.ts"],
       "@graphvideo/sdk/analysis": ["./sdk/analysis/index.ts"],
@@ -26,10 +27,12 @@
       "@graphvideo/sdk/testing": ["./sdk/testing/index.ts"],
       "@graphvideo/sdk/tokens": ["./sdk/tokens/index.ts"],
       "@graphvideo/sdk/ui": ["./sdk/ui/index.ts"],
-      "@graphvideo/workbench": ["./workbench/src/index.ts"],
-      "@graphvideo/workbench/*": ["./workbench/src/*"]
+      "@graphvideo/sdk/workbench": ["./sdk/workbench/src/index.ts"],
+      "@graphvideo/sdk/workbench/*": ["./sdk/workbench/src/*"],
+      "@graphvideo/workbench": ["./sdk/workbench/src/index.ts"],
+      "@graphvideo/workbench/*": ["./sdk/workbench/src/*"]
     }
   },
   "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/dist/**"],
-  "include": ["core/src", "sdk", "workbench/src"]
+  "include": ["core/src", "sdk"]
 }

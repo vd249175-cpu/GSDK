@@ -44,7 +44,7 @@ Kernel 不是独立进程，没有 Socket、握手、远程挂载或第二套执
 | :--- | :--- | :--- |
 | 微内核 | `core/src` | 调度 mailbox/change、State、Info、submission、Projection；零业务语义 |
 | 业务插件与物理宿主 | `plugins/`、`app/src/nodes`、`app/src/effects`、`app/electron` | 定义业务 Node，通过 EffectAdapter 接触物理世界 |
-| UI 工作台与投影 | `workbench/src`、`app/src/application`、`app/src/client` | 发送应用命令，读取 ApplicationState，不执行 Node |
+| UI 工作台与投影 | `sdk/workbench/src`、`app/src/application`、`app/src/client` | 发送应用命令，读取 ApplicationState，不执行 Node |
 
 ## 4. 六个运行本体
 
