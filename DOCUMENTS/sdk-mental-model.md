@@ -128,4 +128,4 @@ npm --prefix apps/local-app run build    # 动生产装配/Electron 后跑
 - 单 Node 行为：`sdk/testing` 的 `createTestRuntime` 挂载最小 Node 集合，fake Adapter 覆盖成功/失败/延迟/取消；构造期不做 I/O。
 - 因果断点：沿 `Info → change → State → send/effect → Projection` 用 trace 切片定位，不猜。
 - 前端不同步：查 `entry → 根 Info → Owner State → 读模型 → consumer` 链，核对 revision。
-- 细则见 `kernel-sdk-guide.md` §4–§6（错误即 Info、根提交、投影与测试）。
+- 细则见 `kernel-sdk-guide.md` §4–§7（错误即 Info、根提交、投影与原生规则空间）；定位步骤见 [Node 实例因果调试指南](./debug-guide.md)。

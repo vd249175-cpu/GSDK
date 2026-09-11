@@ -18,7 +18,7 @@ GraphFramework 的源码工作区：纯计算微内核（`core/`）、开发者�
   - `sdk/contract/` & `tokens/` & `ui/`：设计规范与共享组件。
 - `apps/local-app/` — 本地应用落地工程（Electron 壳 + Vite/React renderer，纯源码直连微内核与 SDK）。
 - `scripts/` — 核心工程工具：`refactor.mjs`（基于 TS LanguageService 的全局 AST 符号重构与重命名）。
-- `DOCUMENTS/` — SDK 核心心智模型与设计文档。
+- `DOCUMENTS/` — SDK 心智模型、调试、测试、分析与设计文档；入口见 [文档导航](./DOCUMENTS/README.md)。
 
 ## 核心开发命令
 

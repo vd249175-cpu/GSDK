@@ -157,7 +157,7 @@ state  --project-> ui
 
 Node 的 contains/owns 是归属，不是路径捷径。分析工具接收普通 Node，但不创建或运行 Runtime。`inspect-nodes.ts` 读取数据属性与业务方法，不调用 getter 或 change。Kernel Node 不继承分析类，也不持有图标、描述、分类或副标题等展示字段。
 
-分析契约支持 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 与 `AnalysisView`。折叠视角只改变分析粒度，不增加运行时边；`all-nodes` 与 `all-granular` 分别提供 Node 级和细颗粒分析视角。
+分析契约支持 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 与 `AnalysisView`。折叠视角只改变分析粒度，不增加运行时边；`all-nodes` 与 `all-granular` 分别提供 Node 级和细颗粒分析视角。API 与证据边界见 [实例因果分析](./causal-analysis.md)。
 
 ### 外部世界不例外
 

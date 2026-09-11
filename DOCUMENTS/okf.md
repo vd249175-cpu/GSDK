@@ -29,7 +29,7 @@ Markdown 链接关联。上游权威：<https://openknowledgeformat.com>（v0.2�
 
 ## 3. 保留文件名与入口
 
-- `mental-model.md` 是事实入口，供人与 Agent 扫描当前架构。
+- `README.md`（`type: index`）是导航入口，`mental-model.md` 是架构事实入口。
 - 概念文件一概念一文件；报告类派生物（如架构报告）不在包内，
   由事实源重新生成。
 
