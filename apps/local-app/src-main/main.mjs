@@ -1,4 +1,5 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, protocol, shell } from 'electron'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNativeGraphHost } from './native-graph-host.mjs'
@@ -52,6 +53,31 @@ import {
 const here = dirname(fileURLToPath(import.meta.url))
 const appRoot = join(here, '..')
 
+function loadEnvFile(filePath) {
+  if (!existsSync(filePath)) return
+  try {
+    const content = readFileSync(filePath, 'utf8')
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const match = trimmed.match(/^([A-Za-z0-9_]+)\s*=\s*(.*)$/)
+      if (match) {
+        const key = match[1]
+        let value = match[2].trim()
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1)
+        }
+        if (!process.env[key]) {
+          process.env[key] = value
+        }
+      }
+    }
+  } catch {}
+}
+
+loadEnvFile(join(appRoot, '.env'))
+loadEnvFile(join(appRoot, '..', '.env'))
+
 // 注册特权资源协议（必须在 app ready 之前）
 protocol.registerSchemesAsPrivileged([
   {
@@ -85,7 +111,7 @@ const projectExternalSync = new ProjectExternalSync(
 // 纯 Node 原生流式生成适配器（彻底移除 Python，杜绝网络锁死）
 const generationAdapter = new NodeGenerationAdapter({
   getProjectRoot: () => activeProjectRoot,
-  comfyApiKey: process.env.COMFY_API_KEY,
+  comfyApiKey: process.env.COMFY_API_KEY || process.env.COMFY_CLOUD_API_KEY || '',
 })
 
 // 初始化基于 Rust 原生微内核 (NativeRuleSpace) 的 Studio 宿主
@@ -111,6 +137,7 @@ const host = createNativeGraphHost({
 })
 
 async function openProjectAtPath(projectPath) {
+  loadEnvFile(join(projectPath, '.env'))
   const project = await openLocalProject(projectPath)
   activeProjectRoot = projectPath
   await projectExternalSync.start(projectPath)

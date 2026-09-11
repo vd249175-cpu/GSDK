@@ -44,9 +44,16 @@ export class NodeGenerationAdapter implements EffectAdapter<
 
   constructor(options: NodeGenerationAdapterOptions = {}) {
     this.getProjectRoot = options.getProjectRoot ?? (() => null)
-    this.comfyApiKey = options.comfyApiKey ?? process.env.COMFY_API_KEY ?? ''
-    this.comfyBaseUrl = (options.comfyBaseUrl ?? 'https://api.comfy.org').replace(/\/+$/, '')
+    this.comfyApiKey = (options.comfyApiKey ?? process.env.COMFY_API_KEY ?? process.env.COMFY_CLOUD_API_KEY ?? '').trim()
+    this.comfyBaseUrl = (options.comfyBaseUrl ?? process.env.COMFY_BASE_URL ?? 'https://cloud.comfy.org').replace(/\/+$/, '')
     this.audioBaseUrl = (options.audioBaseUrl ?? 'http://127.0.0.1:8000').replace(/\/+$/, '')
+  }
+
+  private getEffectiveApiKey(): string {
+    if (this.comfyApiKey && this.comfyApiKey.trim()) return this.comfyApiKey.trim()
+    const envKey = process.env.COMFY_API_KEY || process.env.COMFY_CLOUD_API_KEY
+    if (envKey && envKey.trim()) return envKey.trim()
+    return ''
   }
 
   async execute(
@@ -82,19 +89,25 @@ export class NodeGenerationAdapter implements EffectAdapter<
     }
 
     if (spec.provider === 'comfy') {
-      if (!this.comfyApiKey) {
+      const apiKey = this.getEffectiveApiKey()
+      if (!apiKey) {
         throw new Error('未配置 COMFY_API_KEY，无法向 Comfy Cloud 发起真实生成')
       }
       const response = await fetch(`${this.comfyBaseUrl}/api/prompt`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.comfyApiKey}`,
+          'X-API-Key': apiKey,
+          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
           prompt: spec.prompt,
-          client_id: spec.clientId,
-          extra_data: { workflow_type: spec.workflowType },
+          client_id: spec.clientId || `gv-client-${randomUUID()}`,
+          extra_data: {
+            api_key_comfy_org: apiKey,
+            workflow_type: spec.workflowType,
+            ...(spec.extraData || {}),
+          },
         }),
         signal: context.signal,
       })
@@ -175,29 +188,53 @@ export class NodeGenerationAdapter implements EffectAdapter<
     }
 
     if (handle.provider === 'comfy') {
-      const response = await fetch(`${this.comfyBaseUrl}/api/history/${handle.taskId}`, {
-        headers: { Authorization: `Bearer ${this.comfyApiKey}` },
-        signal: context.signal,
-      })
-      if (!response.ok) {
-        return {
-          operation: 'poll',
-          status: 'pending',
-          progress: 50,
-          remoteStatus: `HTTP ${response.status}`,
+      const apiKey = this.getEffectiveApiKey()
+      const headers = {
+        ...(apiKey ? { 'X-API-Key': apiKey, Authorization: `Bearer ${apiKey}` } : {}),
+      }
+      let outputs: Record<string, any> = {}
+
+      // 1. 优先查询 Comfy Cloud 官方 /api/jobs/{taskId}
+      try {
+        const jobRes = await fetch(`${this.comfyBaseUrl}/api/jobs/${handle.taskId}`, {
+          headers,
+          signal: context.signal,
+        })
+        if (jobRes.ok) {
+          const job = (await jobRes.json()) as any
+          if (job?.status && ['error', 'non_retryable_error', 'lost', 'cancelled', 'failed'].includes(job.status)) {
+            return {
+              operation: 'poll',
+              status: 'failed',
+              progress: 0,
+              error: job.execution_error?.exception_message || job.error || `Comfy Cloud 执行失败 (${job.status})`,
+            }
+          }
+          if (job?.outputs && Object.keys(job.outputs).length > 0) {
+            outputs = job.outputs
+          } else if (job?.output && Object.keys(job.output).length > 0) {
+            outputs = job.output
+          }
+        }
+      } catch {
+        // 忽略网络瞬态，回退至 history
+      }
+
+      // 2. 备选轮询 /api/history/{taskId}
+      if (Object.keys(outputs).length === 0) {
+        const response = await fetch(`${this.comfyBaseUrl}/api/history/${handle.taskId}`, {
+          headers,
+          signal: context.signal,
+        })
+        if (response.ok) {
+          const history = (await response.json()) as Record<string, any>
+          const promptHistory = history[handle.taskId] || history
+          if (promptHistory?.outputs && Object.keys(promptHistory.outputs).length > 0) {
+            outputs = promptHistory.outputs
+          }
         }
       }
-      const history = (await response.json()) as Record<string, any>
-      const promptHistory = history[handle.taskId]
-      if (!promptHistory) {
-        return {
-          operation: 'poll',
-          status: 'pending',
-          progress: 25,
-          remoteStatus: 'queued',
-        }
-      }
-      const outputs = promptHistory.outputs || {}
+
       let foundFile: { filename: string; subfolder?: string; type?: string } | null = null
       for (const nodeOutput of Object.values(outputs)) {
         const files = (nodeOutput as any)?.images || (nodeOutput as any)?.videos || (nodeOutput as any)?.gifs
@@ -225,8 +262,8 @@ export class NodeGenerationAdapter implements EffectAdapter<
       return {
         operation: 'poll',
         status: 'pending',
-        progress: 75,
-        remoteStatus: 'generating',
+        progress: 50,
+        remoteStatus: 'executing',
       }
     }
 
@@ -273,8 +310,12 @@ export class NodeGenerationAdapter implements EffectAdapter<
         throw new Error('下载产物缺少 remote URL')
       }
 
+      const apiKey = this.getEffectiveApiKey()
       const response = await fetch(artifact.url, {
-        headers: this.comfyApiKey ? { Authorization: `Bearer ${this.comfyApiKey}` } : {},
+        headers: apiKey ? {
+          'X-API-Key': apiKey,
+          Authorization: `Bearer ${apiKey}`,
+        } : {},
         signal: context.signal,
         cache: 'no-store', // 杜绝 Chromium 磁盘缓存锁
       })
