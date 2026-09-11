@@ -12,3 +12,9 @@ coverage/
 
 # init 冷启动随包产物（export:sdk 组装，不进源码）
 sdk/init-bundle/
+
+# Rust 原生内核构建产物
+/target/
+crates/target/
+**/target/
+Cargo.lock

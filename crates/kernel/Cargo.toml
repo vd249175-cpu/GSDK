@@ -1,0 +1,10 @@
+[package]
+name = "graphvideo-kernel"
+version = "0.1.0"
+edition = "2021"
+description = "GraphVideo physical rule space: causal DAG, single-flight dispatch, entity admission"
+license = "Apache-2.0"
+
+[lib]
+name = "graphvideo_kernel"
+path = "src/lib.rs"
