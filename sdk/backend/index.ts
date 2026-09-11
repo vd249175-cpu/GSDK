@@ -123,3 +123,5 @@ export { NativeRuleSpace, locateNativeBinding } from './native-space'
 export type {
   NativeChangeContext, NativeDeliveryFeedback, NativeDeliveryStatus, NativeHandler, NativeInfo,
 } from './native-space'
+export { describeDomainNode, mountDomainNode } from './native-node'
+export type { DescribedDomainNode } from './native-node'
