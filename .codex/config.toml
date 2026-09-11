@@ -1,5 +1,0 @@
-[mcp_servers.comfy-cloud]
-url = "https://cloud.comfy.org/mcp"
-env_http_headers = { "X-API-Key" = "COMFY_API_KEY" }
-startup_timeout_sec = 30
-tool_timeout_sec = 180
