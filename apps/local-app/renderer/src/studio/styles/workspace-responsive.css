@@ -40,10 +40,13 @@
 
 @media (max-width: 960px) {
   .dock-subtle-tag { display: none; }
+  .davinci-workspace-dock { gap: 12px; }
+  .davinci-dock-item { min-width: 76px; padding: 0 10px; }
 }
 
 @media (max-width: 760px) {
   .dock-shortcut-hint { display: none; }
-  .davinci-dock-item { min-width: 52px; padding: 0 8px; }
+  .davinci-workspace-dock { gap: 6px; }
+  .davinci-dock-item { min-width: 58px; padding: 0 6px; }
 }
 
