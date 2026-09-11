@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { CausalScene3D } from './causal-scene'
-import { computeGraphAgnosticLayout } from './layout-engine'
+import { computeGraphAgnosticLayout, type LayoutMode } from './layout-engine'
 import { visualizerClient } from './visualizer-client'
-import type { CausalEdge3D, CausalNode3D, CausalTelemetryEvent } from './types'
+import type { CausalCommunity3D, CausalEdge3D, CausalNode3D, CausalTelemetryEvent } from './types'
 import './visualizer.css'
 
 export function VisualizerApp() {
@@ -11,17 +11,85 @@ export function VisualizerApp() {
 
   const [nodes, setNodes] = useState<CausalNode3D[]>([])
   const [edges, setEdges] = useState<CausalEdge3D[]>([])
+  const [communities, setCommunities] = useState<CausalCommunity3D[]>([])
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('community')
   const [logs, setLogs] = useState<CausalTelemetryEvent[]>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [autoRotate, setAutoRotate] = useState(false)
   const [revision, setRevision] = useState(0)
+  const [isConnected, setIsConnected] = useState(visualizerClient.connected)
 
   // 内部维护活跃节点与边的映射，确保图无关动态发现
   const nodesRef = useRef<CausalNode3D[]>([])
   const edgesRef = useRef<CausalEdge3D[]>([])
+  const communitiesRef = useRef<CausalCommunity3D[]>([])
   const edgeSetRef = useRef<Set<string>>(new Set())
+  const layoutModeRef = useRef<LayoutMode>('community')
 
-  const syncTopology = async () => {
+  // 保持 layoutModeRef 与 state 同步
+  layoutModeRef.current = layoutMode
+
+  // 高频遥测防抖防爆流队列
+  const pendingLogsRef = useRef<CausalTelemetryEvent[]>([])
+  const logFlushRafRef = useRef<number | null>(null)
+  const nodeUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const layoutDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 批量合并日志更新，避免高频 React 重新渲染
+  const enqueueLog = useCallback((event: CausalTelemetryEvent) => {
+    pendingLogsRef.current.push(event)
+    if (!logFlushRafRef.current) {
+      logFlushRafRef.current = requestAnimationFrame(() => {
+        logFlushRafRef.current = null
+        if (pendingLogsRef.current.length > 0) {
+          const batch = pendingLogsRef.current
+          pendingLogsRef.current = []
+          setLogs((prev) => [...batch.reverse(), ...prev].slice(0, 60))
+        }
+      })
+    }
+  }, [])
+
+  // 节流节点属性更新（版本、状态），最高 80ms 一次 React 重绘
+  const triggerThrottledNodeUpdate = useCallback(() => {
+    if (!nodeUpdateTimerRef.current) {
+      nodeUpdateTimerRef.current = setTimeout(() => {
+        nodeUpdateTimerRef.current = null
+        setNodes([...nodesRef.current])
+        sceneRef.current?.updateTopology(nodesRef.current, edgesRef.current, communitiesRef.current)
+      }, 80)
+    }
+  }, [])
+
+  // 防抖拓扑重新排布（新边动态发现时），120ms 防抖
+  const scheduleRelayout = useCallback(() => {
+    if (layoutDebounceTimerRef.current) clearTimeout(layoutDebounceTimerRef.current)
+    layoutDebounceTimerRef.current = setTimeout(() => {
+      layoutDebounceTimerRef.current = null
+      const rawNodes = nodesRef.current.map((n) => ({
+        nodeId: n.id,
+        generation: n.generation,
+        version: n.version,
+        status: n.status,
+        state: n.state,
+      }))
+      const rawEdges = edgesRef.current.map((e) => ({
+        from: e.from,
+        to: e.to,
+        infoType: e.lastInfoType,
+      }))
+      const layout = computeGraphAgnosticLayout(rawNodes, rawEdges, layoutModeRef.current)
+      nodesRef.current = layout.nodes
+      edgesRef.current = layout.edges
+      communitiesRef.current = layout.communities
+      setNodes([...layout.nodes])
+      setEdges([...layout.edges])
+      setCommunities([...layout.communities])
+      sceneRef.current?.updateTopology(layout.nodes, layout.edges, layout.communities)
+    }, 120)
+  }, [])
+
+  const syncTopology = useCallback(async () => {
     try {
       const snapshot = await visualizerClient.fetchLiveTopology()
       if (snapshot?.nodes && snapshot.nodes.length > 0) {
@@ -40,18 +108,52 @@ export function VisualizerApp() {
           }
         }
 
-        const layout = computeGraphAgnosticLayout(snapshot.nodes, rawEdges)
+        const layout = computeGraphAgnosticLayout(snapshot.nodes, rawEdges, layoutModeRef.current)
         nodesRef.current = layout.nodes
         edgesRef.current = layout.edges
+        communitiesRef.current = layout.communities
         edgeSetRef.current = new Set(layout.edges.map((e) => `${e.from}->${e.to}`))
 
         setNodes([...layout.nodes])
         setEdges([...layout.edges])
-        sceneRef.current?.updateTopology(layout.nodes, layout.edges)
+        setCommunities([...layout.communities])
+        sceneRef.current?.updateTopology(layout.nodes, layout.edges, layout.communities)
+
+        // 若初次拉取附带历史遥测且当前无日志，载入最近历史
+        if (snapshot.recentEvents && snapshot.recentEvents.length > 0) {
+          setLogs((prev) => (prev.length === 0 ? snapshot.recentEvents!.slice(0, 30) : prev))
+        }
       }
     } catch (err) {
       console.warn('[VisualizerApp] Sync live topology fallback:', err)
     }
+  }, [])
+
+  const toggleLayoutMode = () => {
+    const nextMode: LayoutMode = layoutMode === 'community' ? 'pipeline' : 'community'
+    setLayoutMode(nextMode)
+    layoutModeRef.current = nextMode
+
+    const rawNodes = nodesRef.current.map((n) => ({
+      nodeId: n.id,
+      generation: n.generation,
+      version: n.version,
+      status: n.status,
+      state: n.state,
+    }))
+    const rawEdges = edgesRef.current.map((e) => ({
+      from: e.from,
+      to: e.to,
+      infoType: e.lastInfoType,
+    }))
+    const layout = computeGraphAgnosticLayout(rawNodes, rawEdges, nextMode)
+    nodesRef.current = layout.nodes
+    edgesRef.current = layout.edges
+    communitiesRef.current = layout.communities
+    setNodes([...layout.nodes])
+    setEdges([...layout.edges])
+    setCommunities([...layout.communities])
+    sceneRef.current?.updateTopology(layout.nodes, layout.edges, layout.communities)
   }
 
   useEffect(() => {
@@ -62,15 +164,23 @@ export function VisualizerApp() {
     })
     sceneRef.current = scene
 
-    // 订阅微内核原生遥测流（纯被动监听，图无关）
+    // 监听连接状态变更
+    const unConn = visualizerClient.onConnectionChange((connected) => {
+      setIsConnected(connected)
+      if (connected) {
+        syncTopology()
+      }
+    })
+
+    // 订阅微内核原生遥测流（带防抖批处理）
     const unsubscribe = visualizerClient.subscribe((event) => {
-      setLogs((prev) => [event, ...prev.slice(0, 99)])
+      enqueueLog(event)
 
       switch (event.type) {
         case 'info_sent': {
           const edgeKey = `${event.fromNodeId}->${event.toNodeId}`
 
-          // 动态发现新边：若当前拓扑中尚无此光轨，立刻在 3D 空间动态建立！
+          // 动态发现新边：若当前拓扑中尚无此光轨，动态记录并防抖触发重排
           if (!edgeSetRef.current.has(edgeKey)) {
             const newEdge: CausalEdge3D = {
               id: edgeKey,
@@ -84,10 +194,10 @@ export function VisualizerApp() {
             edgesRef.current.push(newEdge)
             edgeSetRef.current.add(edgeKey)
             setEdges([...edgesRef.current])
-            scene.updateTopology(nodesRef.current, edgesRef.current)
+            scheduleRelayout()
           }
 
-          // 触发高能发光与光子飞驰
+          // 3D 视觉即时响应（由 Three.js 内部控频，不阻塞 React）
           const payloadSummary = event.info ? JSON.stringify(event.info).slice(0, 32) : undefined
           scene.triggerInfoTransmission(event.fromNodeId, event.toNodeId, event.info.type, payloadSummary)
           break
@@ -97,8 +207,7 @@ export function VisualizerApp() {
           const node = nodesRef.current.find((n) => n.id === event.nodeId)
           if (node) {
             node.status = 'RUNNING'
-            setNodes([...nodesRef.current])
-            scene.updateTopology(nodesRef.current, edgesRef.current)
+            triggerThrottledNodeUpdate()
           }
           break
         }
@@ -107,8 +216,7 @@ export function VisualizerApp() {
           const node = nodesRef.current.find((n) => n.id === event.nodeId)
           if (node) {
             node.status = 'IDLE'
-            setNodes([...nodesRef.current])
-            scene.updateTopology(nodesRef.current, edgesRef.current)
+            triggerThrottledNodeUpdate()
           }
           break
         }
@@ -118,8 +226,7 @@ export function VisualizerApp() {
           if (node) {
             node.version = event.version
             node.state = event.state
-            setNodes([...nodesRef.current])
-            scene.updateTopology(nodesRef.current, edgesRef.current)
+            triggerThrottledNodeUpdate()
           }
           break
         }
@@ -127,13 +234,11 @@ export function VisualizerApp() {
         case 'node_admitted': {
           let node = nodesRef.current.find((n) => n.id === event.nodeId)
           if (!node) {
-            // 动态准入新节点：触发全图自适应重排
             syncTopology()
           } else {
             node.generation = event.generation
             node.status = 'IDLE'
-            setNodes([...nodesRef.current])
-            scene.updateTopology(nodesRef.current, edgesRef.current)
+            triggerThrottledNodeUpdate()
           }
           break
         }
@@ -143,8 +248,7 @@ export function VisualizerApp() {
           if (node) {
             node.generation = null
             node.status = 'DROPPED'
-            setNodes([...nodesRef.current])
-            scene.updateTopology(nodesRef.current, edgesRef.current)
+            triggerThrottledNodeUpdate()
           }
           break
         }
@@ -154,14 +258,26 @@ export function VisualizerApp() {
       }
     })
 
-    // 初次拉取内核实时拓扑
+    // 初次尝试拉取拓扑
     syncTopology()
 
+    // 自动重试探活（如果初始节点数还是 0，每 2 秒静默探测一次）
+    const retryInterval = setInterval(() => {
+      if (nodesRef.current.length === 0) {
+        syncTopology()
+      }
+    }, 2000)
+
     return () => {
+      clearInterval(retryInterval)
+      unConn()
       unsubscribe()
+      if (logFlushRafRef.current) cancelAnimationFrame(logFlushRafRef.current)
+      if (nodeUpdateTimerRef.current) clearTimeout(nodeUpdateTimerRef.current)
+      if (layoutDebounceTimerRef.current) clearTimeout(layoutDebounceTimerRef.current)
       scene.dispose()
     }
-  }, [])
+  }, [enqueueLog, triggerThrottledNodeUpdate, scheduleRelayout, syncTopology])
 
   const handleToggleAutoRotate = () => {
     const next = !autoRotate
@@ -196,9 +312,22 @@ export function VisualizerApp() {
           <span className="logo-badge">🪐</span>
           <div>
             <h1>GSDK 3D 因果数据流全息观测器</h1>
-            <div className="subtitle">纯图无关 · 调度内核数字孪生</div>
+            <div className="subtitle">纯图无关 · LPA 社区聚类 · 调度内核数字孪生</div>
           </div>
-          <span className="kernel-tag">NativeRuleSpace Live</span>
+          {isConnected ? (
+            <span className="kernel-tag">NativeRuleSpace Live (127.0.0.1:51888)</span>
+          ) : (
+            <span
+              className="kernel-tag"
+              style={{
+                borderColor: '#f59e0b',
+                color: '#f59e0b',
+                background: 'rgba(245, 158, 11, 0.1)',
+              }}
+            >
+              等待桌面端连接 (127.0.0.1:51888)
+            </span>
+          )}
         </div>
 
         <div className="stats-group">
@@ -209,6 +338,10 @@ export function VisualizerApp() {
           <div className="stat-item">
             <span className="label">动态因果光轨</span>
             <span className="value">{edges.length} 条</span>
+          </div>
+          <div className="stat-item">
+            <span className="label">LPA 聚类群落</span>
+            <span className="value">{communities.length} 个</span>
           </div>
           <div className="stat-item">
             <span className="label">遥测事件帧</span>
@@ -235,6 +368,9 @@ export function VisualizerApp() {
           title="开启/停止 3D 空间缓慢自转"
         >
           {autoRotate ? '⏸️ 暂停自转' : '🔄 空间自转'}
+        </button>
+        <button className="btn-ctrl" onClick={toggleLayoutMode} title="切换 3D 拓扑群落聚类与因果流水线布局">
+          {layoutMode === 'community' ? '🪐 布局: LPA 群落聚类' : '🌊 布局: 因果流水线'}
         </button>
         {selectedNodeId && (
           <button className="btn-ctrl" onClick={handleFocusSelected} title="镜头推进聚焦到选中的节点">
@@ -281,12 +417,12 @@ export function VisualizerApp() {
         </div>
       </aside>
 
-      {/* 右侧节点详情抽屉（展示被选中节点的真实状态投影） */}
+      {/* 右侧节点详情抽屉（展示被选中节点的真实状态投影与群落图论指标） */}
       {selectedNode && (
         <section className="inspector-drawer">
           <div className="inspector-header">
             <div>
-              <h2>{selectedNode.name}</h2>
+              <h2>{selectedNode.isHub ? `👑 ${selectedNode.name}` : selectedNode.name}</h2>
               <div style={{ fontSize: 11, color: 'var(--vis-text-muted)', marginTop: 2 }}>
                 {selectedNode.id}
               </div>
@@ -304,14 +440,22 @@ export function VisualizerApp() {
               <div className="val">v{selectedNode.version}</div>
             </div>
             <div className="meta-card">
-              <div className="label">调度状态</div>
-              <div className="val" style={{ color: selectedNode.status === 'RUNNING' ? '#22c55e' : undefined }}>
-                {selectedNode.status}
+              <div className="label">群落角色</div>
+              <div className="val" style={{ color: selectedNode.isHub ? '#f59e0b' : '#38bdf8' }}>
+                {selectedNode.isHub ? '👑 核心中枢' : '普通节点'}
               </div>
             </div>
             <div className="meta-card">
-              <div className="label">因果层级 (Tier)</div>
-              <div className="val">{selectedNode.tier !== undefined ? `Level ${selectedNode.tier}` : '-'}</div>
+              <div className="label">网络度数</div>
+              <div className="val">
+                ↓{selectedNode.inDegree || 0} ↑{selectedNode.outDegree || 0}
+              </div>
+            </div>
+            <div className="meta-card" style={{ gridColumn: 'span 2' }}>
+              <div className="label">LPA 所属群落</div>
+              <div className="val" style={{ fontSize: 13, color: selectedNode.color }}>
+                {selectedNode.communityName || '未归类'}
+              </div>
             </div>
           </div>
 

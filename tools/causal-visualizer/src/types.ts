@@ -8,6 +8,21 @@ export interface CausalNode3D {
   status: 'IDLE' | 'RUNNING' | 'DROPPED'
   state: Record<string, unknown>
   tier?: number
+  communityId?: string
+  communityName?: string
+  inDegree?: number
+  outDegree?: number
+  isHub?: boolean
+}
+
+export interface CausalCommunity3D {
+  id: string
+  name: string
+  color: string
+  center: [number, number, number]
+  radius: number
+  nodeIds: string[]
+  hubNodeId: string
 }
 
 export interface CausalEdge3D {

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, protocol, shell } from 'electron'
 import { existsSync, readFileSync } from 'node:fs'
+import { createServer } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNativeGraphHost } from './native-graph-host.mjs'
@@ -182,6 +183,108 @@ async function handleAssetRequest(request) {
   }
 }
 
+// 独立观测器开发工具环回接口 (Loopback Telemetry Server for tools/causal-visualizer)
+let telemetryServer = null
+const sseClients = new Set()
+const discoveredRoutes = new Map()
+const telemetryBuffer = []
+
+function recordAndBroadcastTelemetry(event) {
+  if (event?.type === 'info_sent' && event.fromNodeId && event.toNodeId) {
+    const edgeKey = `${event.fromNodeId}->${event.toNodeId}`
+    discoveredRoutes.set(edgeKey, {
+      from: event.fromNodeId,
+      to: event.toNodeId,
+      infoType: event.info?.type,
+    })
+  }
+
+  telemetryBuffer.unshift(event)
+  if (telemetryBuffer.length > 100) telemetryBuffer.length = 100
+
+  broadcast('graph:event', { event: 'causal:telemetry', payload: event })
+
+  if (sseClients.size > 0) {
+    const sseMessage = `data: ${JSON.stringify(event)}\n\n`
+    for (const client of sseClients) {
+      try {
+        client.write(sseMessage)
+      } catch {
+        sseClients.delete(client)
+      }
+    }
+  }
+}
+
+function startTelemetryLoopbackServer(port = 51888) {
+  if (telemetryServer) return
+  telemetryServer = createServer((req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204)
+      res.end()
+      return
+    }
+
+    const parsedUrl = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`)
+
+    if (parsedUrl.pathname === '/api/topology') {
+      try {
+        const projection = host.readProjection()
+        const nodes = projection.nodes.map((n) => ({
+          nodeId: n.nodeId,
+          version: n.version,
+          status: n.status,
+          state: host.space.valueCodec.decode(n.state),
+          generation: host.generation(n.nodeId),
+        }))
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+        res.end(
+          JSON.stringify({
+            revision: projection.revision,
+            scheduler: projection.scheduler,
+            nodes,
+            routes: Array.from(discoveredRoutes.values()),
+            recentEvents: telemetryBuffer.slice(0, 50),
+          }),
+        )
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: err?.message || String(err) }))
+      }
+      return
+    }
+
+    if (parsedUrl.pathname === '/api/events') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      })
+      res.write(': connected\n\n')
+      sseClients.add(res)
+      req.on('close', () => {
+        sseClients.delete(res)
+      })
+      return
+    }
+
+    res.writeHead(404, { 'Content-Type': 'text/plain' })
+    res.end('Not Found')
+  })
+
+  telemetryServer.on('error', (err) => {
+    console.warn('[GraphVideo] Telemetry loopback server warning:', err?.message || err)
+  })
+
+  telemetryServer.listen(port, '127.0.0.1', () => {
+    console.log(`[GraphVideo] Causal Telemetry loopback server active on http://127.0.0.1:${port}`)
+  })
+}
+
 // 注册 IPC 通道
 function registerIpcHandlers() {
   // 窗口基础控制
@@ -195,7 +298,7 @@ function registerIpcHandlers() {
 
   // 广播微内核原生因果遥测（供 3D 拓扑流看板与分析工具实时观察）
   host.subscribeCausalTelemetry((event) => {
-    broadcast('graph:event', { event: 'causal:telemetry', payload: event })
+    recordAndBroadcastTelemetry(event)
   })
 
   // 微内核因果通信接口
@@ -224,6 +327,7 @@ function registerIpcHandlers() {
           revision: projection.revision,
           scheduler: projection.scheduler,
           nodes,
+          routes: Array.from(discoveredRoutes.values()),
         }
       }
       case 'graph.cancel':
@@ -426,6 +530,7 @@ if (!gotLock) {
 
   app.whenReady().then(async () => {
     registerIpcHandlers()
+    startTelemetryLoopbackServer(51888)
     protocol.handle('graphvideo-asset', handleAssetRequest)
     await createWindow()
   })
@@ -433,6 +538,9 @@ if (!gotLock) {
 
 app.on('window-all-closed', () => {
   projectExternalSync.stop()
+  try {
+    telemetryServer?.close()
+  } catch {}
   void host.dispose()
   if (process.platform !== 'darwin') app.quit()
 })
