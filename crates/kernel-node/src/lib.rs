@@ -148,6 +148,19 @@ impl RuleSpace {
         kernel.unseal(&id).map_err(kernel_error_to_js)
     }
 
+    /// Hot-swap an entity in the single-flight gap: backlog drops, the
+    /// generation bumps, a clean slot starts. Returns the new generation.
+    /// Throws `UnknownEntity` when never admitted, `Busy` while a change
+    /// still runs (retry after the pump settles it).
+    #[napi]
+    pub fn replace(&self, id: String) -> Result<f64> {
+        let mut kernel = self.inner.lock().map_err(lock_error)?;
+        kernel
+            .replace(&id)
+            .map(|generation| generation as f64)
+            .map_err(kernel_error_to_js)
+    }
+
     /// Current generation, or the tombstone after evict.
     #[napi]
     pub fn generation(&self, id: String) -> Result<Option<f64>> {

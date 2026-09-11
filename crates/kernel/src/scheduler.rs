@@ -151,6 +151,17 @@ impl Kernel {
         }
         true
     }
+    /// Hot-swap an entity in the single-flight gap: its backlog settles as
+    /// dropped, the generation bumps, and a clean slot starts. One `&mut`
+    /// call, so no send or change can interleave mid-swap. Fails when the
+    /// id is unknown or a change is still running on it.
+    pub fn replace(&mut self, id: &str) -> Result<Generation, KernelError> {
+        let (generation, backlog) = self.registry.replace(id)?;
+        for info in backlog {
+            self.settle_dropped(info, DropReason::Evicted);
+        }
+        Ok(generation)
+    }
 
     /// Seal an admitted entity for replace: the queue freezes, new sends drop.
     pub fn seal(&mut self, id: &str) -> Result<(), KernelError> {

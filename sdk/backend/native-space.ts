@@ -59,6 +59,7 @@ interface BindingSpace {
   evict(id: string): boolean;
   seal(id: string): void;
   unseal(id: string): void;
+  replace(id: string): number;
   generation(id: string): number | null;
   send(
     sender: string,
@@ -126,6 +127,11 @@ function splitPayload(info: NativeInfo): string {
   const { type: _type, ...payload } = info;
   return JSON.stringify(payload);
 }
+function isBusyError(error: unknown): boolean {
+  // Coupled to `KernelError::Busy` Display in crates/kernel/src/error.rs.
+  const message = error instanceof Error ? error.message : String(error);
+  return /\bbusy\b/i.test(message);
+}
 
 function joinInfo(infoType: string, payloadJson?: string): NativeInfo {
   if (!payloadJson) return { type: infoType };
@@ -177,22 +183,31 @@ export class NativeRuleSpace {
     return this.binding.evict(id);
   }
 
-  replace<S extends Record<string, unknown>>(
+  async replace<S extends Record<string, unknown>>(
     id: string,
     initialState: S,
     handler: NativeHandler<S>,
-  ): number {
+    options: { timeoutMs?: number } = {},
+  ): Promise<number> {
     if (this.pumping) throw new Error(`Cannot replace while pumping: ${id}`);
-    const current = this.nodes.get(id);
-    if (!current) throw new Error(`Cannot replace missing entity: ${id}`);
-    this.binding.seal(id);
-    this.binding.evict(id);
-    const generation = this.binding.admit(id);
-    this.nodes.set(id, {
-      state: { ...initialState },
-      handler: handler as NativeHandler<any>,
-    });
-    return generation;
+    if (!this.nodes.has(id)) throw new Error(`Cannot replace missing entity: ${id}`);
+    // The kernel swaps the slot atomically in the single-flight gap. A Busy
+    // rejection means a directly-driven change is still open, so retry until
+    // the timeout (the TS reference waits for node idle the same way).
+    const deadline = Date.now() + (options.timeoutMs ?? 5000);
+    for (;;) {
+      try {
+        const generation = this.binding.replace(id);
+        this.nodes.set(id, {
+          state: { ...initialState },
+          handler: handler as NativeHandler<any>,
+        });
+        return generation;
+      } catch (error) {
+        if (!isBusyError(error) || Date.now() >= deadline) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1));
+      }
+    }
   }
 
   getState(id: string): Record<string, unknown> | undefined {

@@ -4,7 +4,7 @@
 //! single-flight, exact settlement, cancel) with deterministic stubs.
 
 use graphvideo_kernel::{
-    BeginError, ChangeOutcome, DeliveryFeedback, DropReason, Kernel, SubmissionState,
+    BeginError, ChangeOutcome, DeliveryFeedback, DropReason, Kernel, KernelError, SubmissionState,
 };
 
 fn enqueued(feedback: DeliveryFeedback) {
@@ -211,4 +211,86 @@ fn rejects_stale_tokens_and_double_settles() {
         Some(SubmissionState::Completed)
     );
     assert_eq!(kernel.pending_total(), 0);
+}
+
+#[test]
+fn replaces_idle_entity_dropping_backlog_and_bumping_generation() {
+    let mut kernel = Kernel::new();
+    kernel.admit("worker".to_owned()).unwrap();
+    kernel.admit("other".to_owned()).unwrap();
+    enqueued(kernel.inject_root("worker", "OldInfo".to_owned(), "sub/old".to_owned()));
+    enqueued(kernel.send(
+        "other".to_owned(),
+        "StaleInfo".to_owned(),
+        "worker",
+        None,
+        Some("sub/stale".to_owned()),
+    ));
+    enqueued(kernel.inject_root("other", "KeepInfo".to_owned(), "sub/keep".to_owned()));
+    assert_eq!(kernel.replace("worker"), Ok(1));
+    assert_eq!(kernel.generation("worker"), Some(1));
+    assert_eq!(kernel.drops().len(), 2);
+    assert!(kernel
+        .drops()
+        .iter()
+        .all(|drop| drop.reason == DropReason::Evicted));
+    assert_eq!(
+        kernel.submission_state("sub/old"),
+        Some(SubmissionState::Completed)
+    );
+    assert_eq!(
+        kernel.submission_state("sub/stale"),
+        Some(SubmissionState::Completed)
+    );
+    assert_eq!(kernel.pump_until_idle(|_| ChangeOutcome::Completed), 1);
+    assert_eq!(
+        kernel.submission_state("sub/keep"),
+        Some(SubmissionState::Completed)
+    );
+    enqueued(kernel.inject_root("worker", "NewInfo".to_owned(), "sub/new".to_owned()));
+    assert_eq!(kernel.pump_until_idle(|_| ChangeOutcome::Completed), 1);
+    assert_eq!(
+        kernel.submission_state("sub/new"),
+        Some(SubmissionState::Completed)
+    );
+    assert_eq!(kernel.pending_total(), 0);
+}
+
+#[test]
+fn refuses_replace_on_unknown_and_busy_entities() {
+    let mut kernel = Kernel::new();
+    assert_eq!(
+        kernel.replace("ghost"),
+        Err(KernelError::UnknownEntity("ghost".to_owned()))
+    );
+    kernel.admit("worker".to_owned()).unwrap();
+    enqueued(kernel.inject_root("worker", "WorkInfo".to_owned(), "sub/1".to_owned()));
+    let (token, _) = kernel.begin_change("worker").expect("opens");
+    assert_eq!(
+        kernel.replace("worker"),
+        Err(KernelError::Busy("worker".to_owned()))
+    );
+    assert!(kernel.settle_change(token, ChangeOutcome::Completed));
+    assert_eq!(kernel.replace("worker"), Ok(1));
+    assert_eq!(
+        kernel.submission_state("sub/1"),
+        Some(SubmissionState::Completed)
+    );
+}
+
+#[test]
+fn replace_keeps_generations_monotonic_across_turnover() {
+    let mut kernel = Kernel::new();
+    kernel.admit("worker".to_owned()).unwrap();
+    assert!(kernel.evict("worker"));
+    assert_eq!(kernel.admit("worker".to_owned()), Ok(1));
+    assert_eq!(kernel.replace("worker"), Ok(2));
+    assert_eq!(kernel.replace("worker"), Ok(3));
+    assert_eq!(kernel.generation("worker"), Some(3));
+    enqueued(kernel.inject_root("worker", "WorkInfo".to_owned(), "sub/1".to_owned()));
+    assert_eq!(kernel.pump_until_idle(|_| ChangeOutcome::Completed), 1);
+    assert_eq!(
+        kernel.submission_state("sub/1"),
+        Some(SubmissionState::Completed)
+    );
 }

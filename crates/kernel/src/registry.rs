@@ -125,6 +125,24 @@ impl Registry {
         );
         Some(slot.mailbox.into_iter().collect())
     }
+    /// Hot-swap a slot in the single-flight gap: the id must be admitted
+    /// and idle. Returns the new generation and the discarded backlog.
+    /// Leaves no tombstone: nothing is in flight and the id stays admitted,
+    /// so any stale token fails the live-slot generation check on settle.
+    pub fn replace(&mut self, id: &str) -> Result<(Generation, Vec<QueuedInfo>), KernelError> {
+        let generation = match self.slots.get(id) {
+            None => return Err(KernelError::UnknownEntity(id.to_owned())),
+            Some(slot) if slot.active_change.is_some() => {
+                return Err(KernelError::Busy(id.to_owned()));
+            }
+            Some(slot) => slot.generation + 1,
+        };
+        let slot = self.slots.remove(id).expect("slot checked above");
+        self.tombstones.remove(id);
+        self.slots
+            .insert(id.to_owned(), EntitySlot::fresh(generation));
+        Ok((generation, slot.mailbox.into_iter().collect()))
+    }
 
     /// Current generation of an admitted entity, or its tombstone.
     pub fn generation(&self, id: &str) -> Option<Generation> {

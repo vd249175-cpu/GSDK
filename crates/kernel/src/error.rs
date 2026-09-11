@@ -13,6 +13,10 @@ pub enum KernelError {
     UnknownEntity(EntityId),
     /// A new instance is already bound to this space.
     AlreadyBound(EntityId),
+    /// A change is still running on this entity; replace runs only in the
+    /// single-flight gap. The JS facade matches this message on `/\bbusy\b/i`
+    /// to retry until its replace timeout; keep the wording stable.
+    Busy(EntityId),
 }
 
 impl fmt::Display for KernelError {
@@ -21,6 +25,12 @@ impl fmt::Display for KernelError {
             KernelError::DuplicateEntity(id) => write!(f, "entity already admitted: {id}"),
             KernelError::UnknownEntity(id) => write!(f, "entity not admitted: {id}"),
             KernelError::AlreadyBound(id) => write!(f, "entity already bound: {id}"),
+            KernelError::Busy(id) => {
+                write!(
+                    f,
+                    "entity busy, replace runs only in the single-flight gap: {id}"
+                )
+            }
         }
     }
 }

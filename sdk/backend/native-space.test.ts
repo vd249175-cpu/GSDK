@@ -99,11 +99,36 @@ describe.skipIf(!binary)('Native rule space (JS entities on Rust scheduling)', (
     await pumping;
     await space.waitForSubmission(first);
     expect(space.getState('worker')).toEqual({ processed: ['first'] });
-    const generation = space.replace('worker', { processed: [] }, (info, ctx) => {
+    const generation = await space.replace('worker', { processed: [] }, (info, ctx) => {
       ctx.write('processed', [...(ctx.read('processed') as string[]), `v2:${String(info.value)}`]);
     });
     expect(generation).toBe(1);
     await space.waitForSubmission(space.injectRoot('worker', { type: 'WorkInfo', value: 'x' }));
     expect(space.getState('worker')).toEqual({ processed: ['v2:x'] });
+  });
+  it('drops the backlog on replace and starts the new handler clean', async () => {
+    const space = new NativeRuleSpace();
+    const seen: unknown[] = [];
+    space.register('worker', {}, (info) => {
+      seen.push(info.value);
+    });
+    const stale = space.injectRoot('worker', { type: 'WorkInfo', value: 'stale' });
+    const generation = await space.replace('worker', {}, (info) => {
+      seen.push(`v2:${String(info.value)}`);
+    });
+    expect(generation).toBe(1);
+    await space.waitForSubmission(stale);
+    expect(seen).toEqual([]);
+    await space.waitForSubmission(space.injectRoot('worker', { type: 'WorkInfo', value: 'fresh' }));
+    expect(seen).toEqual(['v2:fresh']);
+    expect(space.pendingTotal()).toBe(0);
+  });
+
+  it('rejects replace on missing entities without touching the space', async () => {
+    const space = new NativeRuleSpace();
+    space.register('worker', { n: 1 }, () => {});
+    await expect(space.replace('ghost', {}, () => {})).rejects.toThrow('Cannot replace missing entity');
+    expect(space.generation('worker')).toBe(0);
+    expect(space.getState('worker')).toEqual({ n: 1 });
   });
 });
