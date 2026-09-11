@@ -1,5 +1,5 @@
-import { createWriteStream, mkdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
-import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
+import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { Readable } from 'node:stream'
 import { randomUUID } from 'node:crypto'
@@ -93,6 +93,52 @@ export class NodeGenerationAdapter implements EffectAdapter<
       if (!apiKey) {
         throw new Error('未配置 COMFY_API_KEY，无法向 Comfy Cloud 发起真实生成')
       }
+
+      const promptGraph = structuredClone(spec.prompt)
+
+      // 处理多模态参考媒体文件上传 (图片、音频、视频等)
+      if (spec.uploads && spec.uploads.length > 0) {
+        const projectRoot = this.getProjectRoot()
+        for (const upload of spec.uploads) {
+          const sourcePath = projectRoot
+            ? resolveSafeProjectPath(projectRoot, upload.sourcePath)
+            : resolve(upload.sourcePath)
+
+          if (!existsSync(sourcePath)) {
+            throw new Error(`待上传参考媒体文件不存在: ${sourcePath}`)
+          }
+
+          const fileBuffer = readFileSync(sourcePath)
+          const fileName = basename(sourcePath)
+          const formData = new FormData()
+          formData.append('image', new Blob([fileBuffer]), fileName)
+          formData.append('overwrite', 'true')
+
+          const uploadRes = await fetch(`${this.comfyBaseUrl}/api/upload/image`, {
+            method: 'POST',
+            headers: {
+              'X-API-Key': apiKey,
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: formData,
+            signal: context.signal,
+          })
+
+          if (!uploadRes.ok) {
+            const errText = await uploadRes.text().catch(() => '')
+            throw new Error(`Comfy Cloud 参考资源上传失败 (${uploadRes.status}): ${errText}`)
+          }
+
+          const uploadResult = (await uploadRes.json()) as { name?: string }
+          const uploadedName = uploadResult.name || fileName
+
+          const targetNode = (promptGraph as Record<string, any>)[upload.nodeId]
+          if (targetNode?.inputs) {
+            targetNode.inputs[upload.inputName] = uploadedName
+          }
+        }
+      }
+
       const response = await fetch(`${this.comfyBaseUrl}/api/prompt`, {
         method: 'POST',
         headers: {
@@ -101,7 +147,7 @@ export class NodeGenerationAdapter implements EffectAdapter<
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          prompt: spec.prompt,
+          prompt: promptGraph,
           client_id: spec.clientId || `gv-client-${randomUUID()}`,
           extra_data: {
             api_key_comfy_org: apiKey,

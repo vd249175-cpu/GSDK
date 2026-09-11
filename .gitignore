@@ -26,4 +26,5 @@ crates/kernel-node/*.node
 apps/local-app/plugins/graphvideo.studio/backend.js
 apps/local-app/src-main/effects/node-generation-adapter.js
 **/.graphvideo-history.json
+apps/local-app/resources/sample-media/
 
