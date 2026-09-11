@@ -30,7 +30,7 @@ type: reference
 
 `@graphvideo/sdk/analysis` 是 Node.js 开发期条目（实例因果分析），不进浏览器包。
 
-构建产物：`npm run build:sdk` 生成各包 `dist/`（JS + `.d.ts`）；发布形态以各 `package.json` 的 `exports`/`files`/`peerDependencies` 为准。当前包为 `private`，以 tarball（`npm pack`）交付；`backend-sdk` 无 React 依赖，后端消费者不装 React。一键导出与仓外验收：`npm run export:sdk` 打包四包到 `dist/packages/`，并在仓外临时工程安装 tarball 后 smoke 公开子路径（manifest 校验、测试运行时注数、因果索引校验）。
+源码直连：各包 `package.json` 的 `exports` 直接指向 `.ts` 源码（无 `dist` 构建步骤）；发布形态以 `exports`/`peerDependencies` 为准。`@graphvideo/backend-sdk` 无 React 依赖，后端消费者不装 React。原生模块经根 `npm run build:native` 构建（`cargo build -p graphvideo-kernel-node` + 产物摆放到 `crates/kernel-node/`），仓外安装 tarball 后的消费验收仍是剩余事项（见开发规划 §8）。
 
 ## 2. 后端心智模型：事实只进 Owner
 
@@ -104,24 +104,26 @@ UI 写入口 → 命令适配 → 根 Info（插件 frontend/application）
 诊断视角 → analysis/（不进生产）
 ```
 
-拿不准时回答归属五问（见 `development-constraints.md` §1）：说不清唯一 Owner 与生命周期就不写。
+拿不准时回答归属三问：唯一 Owner 是谁、生命周期何时结束、跨 change 的事实放哪——说不清就不写。
 
 ## 5. 本地验证环
 
 ```bash
-npm run build:sdk                       # 构建全部 SDK dist
 npx tsc --noEmit                        # 类型（含 sdk/type-tests 精确断言）
 npx vitest run --project unit <目标> --silent
-npm run trace -- validate --json        # 改 Node/Info/State/投影/联动后必跑
-npm run trace -- node <nodeId> --json   # 单实体切片，先看局部不看全图
-npm run build                           # 动生产装配/Electron 后跑
+npm run build:native                     # 动原生绑定后跑（cargo 构建 + 摆放 .node）
+npm --prefix apps/local-app run diagnose -- validate   # 改 Node/Info/State/投影/联动后必跑
+npm --prefix apps/local-app run diagnose -- node <nodeId>  # 单实体切片，先看局部不看全图
+npm --prefix apps/local-app run build    # 动生产装配/Electron 后跑
 ```
 
-`tools/causal/plugin-boundary.test.ts` 是架构门禁：新增对宿主的反向引用即失败；迁移完成就删清单行，不要加行。
+源码直连，无 `dist` 构建步骤；根 `package.json` 里没有 `build:sdk` / `export:sdk` / `trace` 脚本，旧文照抄者以本节为准。
+
+`core/src/determinism-source.test.ts` 是架构门禁：业务 Node 触碰 I/O/系统 API 即失败。
 
 ## 6. 调试入口
 
 - 单 Node 行为：`sdk/testing` 的 `createTestRuntime` 挂载最小 Node 集合，fake Adapter 覆盖成功/失败/延迟/取消；构造期不做 I/O。
 - 因果断点：沿 `Info → change → State → send/effect → Projection` 用 trace 切片定位，不猜。
 - 前端不同步：查 `entry → 根 Info → Owner State → 读模型 → consumer` 链，核对 revision。
-- 细则见 `debug-guide.md` 插件调试节。
+- 细则见 `kernel-sdk-guide.md` §4–§6（错误即 Info、根提交、投影与测试）。

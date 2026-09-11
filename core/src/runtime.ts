@@ -225,11 +225,6 @@ export class KernelRuntime {
     node._unmountKernel(nodeRuntimeCapability, this);
     this.nodes.delete(nodeId);
     this.generations.set(nodeId, (this.generations.get(nodeId) ?? node.generation) + 1);
-    try {
-      node.onUnmount();
-    } catch (err) {
-      console.error(`[KernelRuntime]: Failed to unmount node ${nodeId}:`, err);
-    }
     void node.dispose().catch((err: unknown) => {
       console.error(`[KernelRuntime]: Failed to dispose evicted node ${nodeId}:`, err);
     });
@@ -245,17 +240,18 @@ export class KernelRuntime {
     if (!old) throw new Error(`Cannot replace missing node: ${nodeId}`);
     if (old === newNode) throw new Error(`Cannot replace node with itself: ${nodeId}`);
     newNode._mountKernel(nodeRuntimeCapability, this);
+    try {
+      newNode.onMount();
+    } catch (error) {
+      newNode._unmountKernel(nodeRuntimeCapability, this);
+      throw error;
+    }
     old._sealedForReplace = true;
     try {
       await this.waitForNodeIdle(old, options.timeoutMs ?? this.replaceWaitTimeoutMs);
       old._discardMailbox(nodeRuntimeCapability, `replace:${nodeId}`);
       old._unmountKernel(nodeRuntimeCapability, this);
       this.nodes.delete(nodeId);
-      try {
-        old.onUnmount();
-      } catch (err) {
-        console.error(`[KernelRuntime]: Failed to unmount replaced node ${nodeId}:`, err);
-      }
       await old.dispose().catch((err: unknown) => {
         console.error(`[KernelRuntime]: Failed to dispose replaced node ${nodeId}:`, err);
       });
@@ -264,13 +260,6 @@ export class KernelRuntime {
       newNode.generation = generation;
       newNode._sealedForReplace = false;
       this.nodes.set(nodeId, newNode);
-      try {
-        newNode.onMount();
-      } catch (error) {
-        this.nodes.delete(nodeId);
-        newNode._unmountKernel(nodeRuntimeCapability, this);
-        throw error;
-      }
     } catch (error) {
       if (this.nodes.get(nodeId) !== newNode) {
         newNode._unmountKernel(nodeRuntimeCapability, this);

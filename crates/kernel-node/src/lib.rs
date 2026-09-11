@@ -107,6 +107,12 @@ pub struct RuleSpace {
     inner: Mutex<Kernel>,
 }
 
+impl Default for RuleSpace {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[napi]
 impl RuleSpace {
     /// Create an empty rule space.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Node } from './node';
+import { Node, WorldNode } from './node';
 import { KernelRuntime } from './runtime';
 import type {
   ChangeRecord,
@@ -7,7 +7,9 @@ import type {
   DomainChangeContext,
   Info,
   NodeErrorInfo,
+  WorldChangeContext,
 } from './types';
+import type { EffectAdapter } from './effects';
 
 class ProbeSource extends Node<{ feedback: DeliveryFeedback | null }> {
   constructor(private readonly targetId: string) {
@@ -165,15 +167,57 @@ describe('RuleSpace delivery feedback and error-as-Info', () => {
     await expect(kernel.waitForQuiescence()).resolves.toMatchObject({ isQuiescent: true });
     await kernel.dispose();
   });
+
+  it('routes an async rejection to the error target and completes the submission', async () => {
+    class AsyncFailer extends Node<Record<string, never>> {
+      constructor() {
+        super('async-failer', 'AsyncFailer', {});
+      }
+
+      protected override async change(info: Info): Promise<void> {
+        if (info.type !== 'WorkInfo') return;
+        await Promise.resolve();
+        throw new Error('async boom');
+      }
+    }
+    const kernel = new KernelRuntime({ errorTargetNodeId: 'supervisor' });
+    const supervisor = new Supervisor();
+    kernel.mount(new AsyncFailer(), supervisor);
+    await expect(
+      kernel.waitForSubmission(kernel.injectRootInfo('async-failer', { type: 'WorkInfo' })),
+    ).resolves.toBeUndefined();
+    expect(supervisor.getState().errors).toMatchObject([
+      { type: '@error/NodeFailed', nodeId: 'async-failer', message: 'async boom' },
+    ]);
+    await kernel.dispose();
+  });
+
+  it('settles the submission when the error target is missing', async () => {
+    const kernel = new KernelRuntime({ errorTargetNodeId: 'ghost-supervisor' });
+    kernel.mount(new Failer('failer'));
+    await expect(
+      kernel.waitForSubmission(kernel.injectRootInfo('failer', { type: 'WorkInfo' })),
+    ).resolves.toBeUndefined();
+    await expect(kernel.waitForQuiescence()).resolves.toMatchObject({ isQuiescent: true });
+    await kernel.dispose();
+  });
 });
 
 describe('RuleSpace admit / evict / replace', () => {
   it('evicts an entity, drops its sends, and re-admits with a new generation', async () => {
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const kernel = new KernelRuntime();
-    kernel.admit(new Sink('ephemeral'), new ProbeSource('ephemeral'));
+    let unmounts = 0;
+    const ephemeral = new Sink('ephemeral');
+    const originalUnmount = ephemeral.onUnmount.bind(ephemeral);
+    ephemeral.onUnmount = () => {
+      unmounts++;
+      originalUnmount();
+    };
+    kernel.admit(ephemeral, new ProbeSource('ephemeral'));
     expect(kernel.getGeneration('ephemeral')).toBe(0);
     expect(kernel.evict('ephemeral')).toBe(true);
+    expect(unmounts).toBe(1);
     expect(kernel.evict('ephemeral')).toBe(false);
     const submissionId = kernel.injectRootInfo('probe-source', { type: 'GoInfo' });
     await kernel.waitForSubmission(submissionId);
@@ -246,6 +290,48 @@ describe('RuleSpace admit / evict / replace', () => {
     expect(other.getNode('worker')).toBe(foreign);
     await kernel.dispose();
     await other.dispose();
+  });
+
+  it('retains the old instance when the replacement onMount throws', async () => {
+    class BrokenMount extends Sink {
+      override onMount(): void {
+        throw new Error('mount boom');
+      }
+    }
+    const kernel = new KernelRuntime();
+    const worker = new Sink('worker');
+    kernel.mount(worker);
+    await expect(kernel.replace(new BrokenMount('worker'))).rejects.toThrow('mount boom');
+    expect(kernel.getNode('worker')).toBe(worker);
+    expect(kernel.getGeneration('worker')).toBe(0);
+    const submission = kernel.injectRootInfo(worker, { type: 'PingInfo' });
+    await kernel.waitForSubmission(submission);
+    expect(kernel.readState('worker')).toEqual({ received: ['PingInfo'] });
+    await kernel.dispose();
+  });
+
+  it('keeps the in-flight result on the old instance across replace', async () => {
+    const kernel = new KernelRuntime();
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    const oldWorker = new GatedWorker('worker', gate, (value) => value === 'first');
+    kernel.mount(oldWorker);
+    const first = kernel.injectRootInfo('worker', { type: 'WorkInfo', value: 'first' });
+    while (!oldWorker.getActiveChangeId()) {
+      await Promise.resolve();
+    }
+    const replacing = kernel.replace(new GatedWorker('worker', Promise.resolve(), () => false));
+    release();
+    await replacing;
+    await kernel.waitForSubmission(first);
+    expect(oldWorker.getState().processed).toEqual(['first']);
+    const fresh = kernel.getNode('worker');
+    expect(fresh).not.toBe(oldWorker);
+    expect(kernel.getGeneration('worker')).toBe(1);
+    const second = kernel.injectRootInfo('worker', { type: 'WorkInfo', value: 'second' });
+    await kernel.waitForSubmission(second);
+    expect(kernel.readState('worker')).toEqual({ processed: ['second'] });
+    expect(oldWorker.getState().processed).toEqual(['first']);
+    await kernel.dispose();
   });
 });
 
@@ -374,6 +460,67 @@ describe('RuleSpace lifecycle Info and late-result isolation', () => {
     await kernel.waitForSubmission(second);
     expect(fresh.getState().processed).toEqual(['second']);
     expect(oldWorker.getState().processed).toEqual(['first']);
+    await kernel.dispose();
+  });
+
+  it('routes a late EffectAdapter result to the detached instance, never the re-admitted one', async () => {
+    let resolveAdapter!: (value: { ok: true }) => void;
+    const adapter: EffectAdapter<{}, { ok: true }> = {
+      id: 'fixture/late-world',
+      execute: async () => new Promise<{ ok: true }>((resolve) => {
+        resolveAdapter = resolve;
+      }),
+    };
+    class LateWorld extends WorldNode<{ observed: string[] }> {
+      constructor(id: string) {
+        super(id, 'LateWorld', { observed: [] });
+      }
+
+      protected override async change(
+        info: Info,
+        ctx: WorldChangeContext<{ observed: string[] }>,
+      ): Promise<void> {
+        if (info.type !== 'WorkInfo') return;
+        await ctx.effectAdapter(adapter, {});
+        ctx.write('observed', [...ctx.read('observed'), String(info.value)]);
+      }
+    }
+    const kernel = new KernelRuntime();
+    const oldWorld = new LateWorld('world');
+    kernel.mount(oldWorld);
+    const first = kernel.injectRootInfo('world', { type: 'WorkInfo', value: 'first' });
+    while (!oldWorld.getActiveChangeId()) {
+      await Promise.resolve();
+    }
+    expect(kernel.evict('world')).toBe(true);
+    const fresh = new LateWorld('world');
+    kernel.admit(fresh);
+    resolveAdapter({ ok: true });
+    await kernel.waitForSubmission(first);
+    expect(oldWorld.getState().observed).toEqual(['first']);
+    expect(fresh.getState().observed).toEqual([]);
+    await kernel.dispose();
+  });
+
+  it('propagates lifecycle control through chained sends with no membership change', async () => {
+    class Relay extends Node<Record<string, never>> {
+      constructor() {
+        super('relay', 'Relay', {});
+      }
+
+      protected override change(info: Info, ctx: DomainChangeContext<Record<string, never>>): void {
+        if (info.type !== 'GoInfo') return;
+        ctx.send({ type: '@lifecycle/StartRequested' }, 'lifecycle-node');
+        ctx.send({ type: 'WorkInfo', value: 'one' }, 'lifecycle-node');
+      }
+    }
+    const kernel = new KernelRuntime();
+    const node = new LifecycleNode();
+    kernel.mount(node, new Relay());
+    await kernel.waitForSubmission(kernel.injectRootInfo('relay', { type: 'GoInfo' }));
+    expect(node.getState()).toEqual({ running: true, log: ['start', 'work:one'] });
+    expect(kernel.getNode('lifecycle-node')).toBe(node);
+    expect(kernel.getGeneration('lifecycle-node')).toBe(0);
     await kernel.dispose();
   });
 });

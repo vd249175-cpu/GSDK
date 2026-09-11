@@ -23,7 +23,7 @@ describe.skipIf(!binary)('native-graph-host hot reload', () => {
     }
   })
 
-  it('不重启进程热换 v2：未达消息丢弃、新步长立即生效', async () => {
+  it('不重启进程热换 v2：未达消息丢弃、新实体纯净启动、新步长立即生效', async () => {
     const host = createNativeGraphHost({ plugins: [plugin] })
     host.mount(plugin.createNodes({}))
     try {
@@ -33,9 +33,10 @@ describe.skipIf(!binary)('native-graph-host hot reload', () => {
       const generation = await host.hotSwap(new CounterNodeV2())
       expect(generation).toBe(1)
       await host.space.waitForSubmission(stale)
-      expect(host.readCounter()).toEqual({ count: 1 })
-      // 同一进程、同一空间：新代码立即生效（步长 +10）。
-      await expect(host.injectCounter()).resolves.toEqual({ count: 11 })
+      // 纯净重启：旧 State 不继承，新实体从自身初值启动。
+      expect(host.readCounter()).toEqual({ count: 0 })
+      // 状态迁移只能是普通 Info：显式重放用户意图，新代码立即生效（步长 +10）。
+      await expect(host.injectCounter()).resolves.toEqual({ count: 10 })
       expect(host.generation('example.counter')).toBe(1)
     } finally {
       host.dispose()

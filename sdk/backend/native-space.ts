@@ -80,6 +80,8 @@ interface BindingSpace {
   cancel(submission: string): boolean;
   submissionState(submission: string): string | null;
   pendingTotal(): number;
+  queuedDepths(): Array<{ entity: string; depth: number }>;
+  drops(): Array<{ target: string; reason: string; submission?: string }>;
 }
 
 interface RegisteredNode {
@@ -222,6 +224,14 @@ export class NativeRuleSpace {
     return this.binding.pendingTotal();
   }
 
+  queuedDepths(): Array<{ entity: string; depth: number }> {
+    return this.binding.queuedDepths();
+  }
+
+  drops(): Array<{ target: string; reason: string; submission?: string }> {
+    return this.binding.drops();
+  }
+
   submissionState(submissionId: string): string | null {
     return this.binding.submissionState(submissionId);
   }
@@ -314,7 +324,9 @@ export class NativeRuleSpace {
   private async runOne(polled: BindingPolled): Promise<void> {
     const node = this.nodes.get(polled.view.entity);
     if (!node) {
-      this.binding.settleChange(polled.token, 'entity unregistered mid-flight');
+      // Tombstone parity with the TS reference: an evicted in-flight change
+      // settles normally (it simply has no JS state left to write to).
+      this.binding.settleChange(polled.token, null);
       return;
     }
     const info = joinInfo(polled.view.infoType, polled.view.payloadJson);

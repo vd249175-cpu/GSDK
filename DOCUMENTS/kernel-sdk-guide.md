@@ -52,7 +52,7 @@ ctx.send({
 ctx.send(makeCounterChangedInfo(count), 'node-consumer')
 ```
 
-这条约束不限制 payload 的复杂度，只要求因果协议判别字段在发送点可证明。`npm run trace -- validate --json` 遇到无法证明的发送会报告 `unresolved-info-type`，且不会把函数名或 `UnknownInfo` 加入分析图。
+这条约束不限制 payload 的复杂度，只要求因果协议判别字段在发送点可证明。`@graphvideo/sdk/analysis` 的 `validateCausalIndex` 遇到无法证明的发送会报告 `unresolved-info-type`（本地应用内经 `npm --prefix apps/local-app run diagnose -- validate` 触发），且不会把函数名或 `UnknownInfo` 加入分析图。
 
 ## 2. WorldNode 与 EffectAdapter：观察与执行分离
 
@@ -216,5 +216,24 @@ const dispose = kernel.subscribeProjection((next) => {})
 ```bash
 npx vitest run <target-test> --silent
 npx tsc --noEmit
-npm run trace -- validate --json
+npm --prefix apps/local-app run diagnose -- validate
 ```
+
+## 7. 原生规则空间宿主（Rust 调度 + JS 业务）
+
+`@graphvideo/backend-sdk` 的 `NativeRuleSpace` 把调度事实（实体登记、mailbox、
+单飞、submission 结算、丢弃台账）交 Rust `crates/kernel` 持有，业务 State 与
+change 代码仍在 JS（跨语言职责见开发规划 §4.6：Rust 与 JS 不各存一份权威业务
+State）。同一插件 `Node` 经 `mountDomainNode`/`describeDomainNode` 桥接挂载，
+`change` 签名零改动：`read/write/patchState/send` 直通（投递反馈结构与
+`DeliveryFeedback` 一致），`span` 内联执行（原生路径不记录 trace span），
+`WorldNode` 挂载即拒（没有可接线的 EffectAdapter 宿主）。
+
+热替换走与 TS 参考同一线性化语义：`space.replace(id)` 在单飞间隙内丢弃旧
+backlog（按 `Evicted` 结算）、代次 +1、干净槽启动；遇 Busy 有界重试（默认
+5000ms）。宿主侧必须显式传入新实例初值，State 绝不隐式继承。原生路径没有
+Projection/EncodedValue 与 revision：读数是规则空间状态拷贝（`getState`）。
+构建见 `npm run build:native`；端到端演示见
+`apps/local-app/src-main/native-graph-host.mjs` 与同目录单测。
+`space.replace` 必须在 pump 之外调用（泵运转中直接抛错，不排队等待）；
+`cancel` 只跳过排队投递，不中断正在运行的 JS change（门面不派发 AbortSignal）。

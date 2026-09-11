@@ -106,7 +106,9 @@ pub enum SubmissionState {
     /// Cancel requested; remaining queued work is skipped.
     Cancelled,
     /// A delivery reported business failure (informational only;
-    /// siblings keep running).
+    /// siblings keep running). Terminal settlement marker for raw-binding
+    /// consumers; the TS-parity facade converts business failures into an
+    /// `@error/NodeFailed` Info and settles `Completed` instead.
     Failed(String),
 }
 

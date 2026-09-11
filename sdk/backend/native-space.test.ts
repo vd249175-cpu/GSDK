@@ -33,8 +33,12 @@ describe.skipIf(!binary)('Native rule space (JS entities on Rust scheduling)', (
     space.register('source', {}, (_info, ctx) => {
       feedback = ctx.send({ type: 'PingInfo' }, 'ghost');
     });
-    await space.waitForSubmission(space.injectRoot('source', { type: 'GoInfo' }));
+    const submission = space.injectRoot('source', { type: 'GoInfo' });
+    await space.waitForSubmission(submission);
     expect(feedback).toMatchObject({ status: 'dropped' });
+    expect(space.drops()).toContainEqual(
+      expect.objectContaining({ target: 'ghost', submission }),
+    );
     warning.mockRestore();
   });
 
@@ -63,6 +67,21 @@ describe.skipIf(!binary)('Native rule space (JS entities on Rust scheduling)', (
       message: 'native boom',
     });
     expect(space.submissionState(errors[0].submission as string)).toBe('completed');
+  });
+
+  it('cuts error recursion after a single hop when the error target also fails', async () => {
+    const space = new NativeRuleSpace({ errorTargetNodeId: 'failer-b' });
+    let runsB = 0;
+    space.register('failer-a', {}, (info) => {
+      if (info.type === 'WorkInfo') throw new Error('boom-a');
+    });
+    space.register('failer-b', {}, () => {
+      runsB++;
+      throw new Error('boom-b');
+    });
+    await space.waitForSubmission(space.injectRoot('failer-a', { type: 'WorkInfo' }));
+    expect(runsB).toBe(1);
+    expect(space.pendingTotal()).toBe(0);
   });
 
   it('skips cancelled submissions without running handlers', async () => {
@@ -130,5 +149,68 @@ describe.skipIf(!binary)('Native rule space (JS entities on Rust scheduling)', (
     await expect(space.replace('ghost', {}, () => {})).rejects.toThrow('Cannot replace missing entity');
     expect(space.generation('worker')).toBe(0);
     expect(space.getState('worker')).toEqual({ n: 1 });
+  });
+
+  it('settles an unregistered mid-flight change normally, never on the new entity', async () => {
+    const space = new NativeRuleSpace();
+    let release!: () => void;
+    let entered = false;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    space.register<{ processed: string[] }>('worker', { processed: [] }, (async (
+      info: NativeInfo,
+      ctx: NativeChangeContext<{ processed: string[] }>,
+    ) => {
+      entered = true;
+      await gate;
+      ctx.write('processed', [...ctx.read('processed'), String(info.value)]);
+    }) as (info: NativeInfo, ctx: NativeChangeContext<any>) => Promise<void>);
+    const first = space.injectRoot('worker', { type: 'WorkInfo', value: 'first' });
+    const pumping = space.pump();
+    while (!entered) {
+      await Promise.resolve();
+    }
+    expect(space.unregister('worker')).toBe(true);
+    release();
+    await pumping;
+    // Tombstone parity: the evicted in-flight change settles normally.
+    await space.waitForSubmission(first);
+    space.register('worker', { processed: [] }, (info, ctx) => {
+      ctx.write('processed', [...(ctx.read('processed') as string[]), String(info.value)]);
+    });
+    expect(space.generation('worker')).toBe(1);
+    expect(space.getState('worker')).toEqual({ processed: [] });
+    await space.waitForSubmission(space.injectRoot('worker', { type: 'WorkInfo', value: 'second' }));
+    expect(space.getState('worker')).toEqual({ processed: ['second'] });
+    expect(space.pendingTotal()).toBe(0);
+  });
+
+  it('lets an in-flight native handler run to completion after cancel', async () => {
+    const space = new NativeRuleSpace();
+    let release!: () => void;
+    let entered = false;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    space.register<{ done: boolean }>('worker', { done: false }, (async (
+      _info: NativeInfo,
+      ctx: NativeChangeContext<{ done: boolean }>,
+    ) => {
+      entered = true;
+      await gate;
+      // Native handlers receive no AbortSignal: cancel only skips queued
+      // work, it never interrupts a running JS change.
+      ctx.write('done', true);
+    }) as (info: NativeInfo, ctx: NativeChangeContext<any>) => Promise<void>);
+    const submission = space.injectRoot('worker', { type: 'WorkInfo' });
+    const pumping = space.pump();
+    while (!entered) {
+      await Promise.resolve();
+    }
+    expect(space.cancel(submission)).toBe(true);
+    release();
+    await pumping;
+    expect(space.getState('worker')).toEqual({ done: true });
   });
 });

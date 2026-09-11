@@ -85,9 +85,8 @@ description: 针对运行时与程序混淆问题的微内核范式转移方案�
 
 ### 1. 生命周期消息平权与链式流转（Lifecycle Flattening & Propagation）
 - 传统的 `init()`、`start()`、`stop()`、`destroy()` 钩子全部被消除。
-- 取而代之的是标准的物理脉冲：
-  - `{ type: 'NodeStartRequestedInfo', ... }`
-  - `{ type: 'NodeStopRequestedInfo', mode: 'drain' }`
+- 取而代之的是标准的物理脉冲（`@lifecycle/StartRequested` /
+  `@lifecycle/StopRequested`，类型定义见 §5.2）：
 - **指令来源的多元与拓扑现实**：
   - **绝非所有节点都直接面向外部系统**：因果图内的大多数领域节点（Domain Node）深嵌在网络中，根本没有向外部环境暴露控制端口的能力；
   - **沿链流转为主，外部注入为辅**：开启或关闭指令的大多数场景，是由**上游父节点、工作流调度节点或监督节点（Supervisor Node）通过标准 `ctx.send(info, targetNodeId)` 沿因果链向下传播**；只有图边界的根入口节点（Root Node），才由外部系统通过 `injectRootInfo` 触发；
@@ -119,8 +118,7 @@ description: 针对运行时与程序混淆问题的微内核范式转移方案�
   - 节点不等待返回值，彻底杜绝同步 RPC（请求-响应）的阻塞耦合，确保自身单飞因果推进的独立性与确定性。
 - **微内核提供轻量即时投递反馈（Delivery Feedback）**：
   - 尽管节点不关心下游业务情况，但物理空间在派发瞬间可提供极轻量的即时状态或回调，便于节点做一些局部物理判定：
-    - `dropped`：目标节点不在空间中、尚未准入或正处于置换间隙，消息被空间直接丢弃；
-    - `empty`：目标节点判定拒绝处理或产生空输出；
+    - `dropped`：目标节点不在空间中、尚未准入、处于置换间隙或已被密封/取消/驱逐，消息被空间直接丢弃；
     - `enqueued`：消息已成功进入目标 Mailbox。
   - **判定边界极其严格**：
     - 该反馈**仅反映空间投递层的物理事实**，绝不携带下游 Node 的业务数据或堆栈；
@@ -220,7 +218,7 @@ export class RuleSpace {
 ### 3. 发送反馈与投递契约（轻量物理判定，非 RPC 响应）
 
 ```ts
-export type DeliveryStatus = 'enqueued' | 'dropped' | 'empty';
+export type DeliveryStatus = 'enqueued' | 'dropped';
 
 export interface DeliveryFeedback {
   readonly status: DeliveryStatus;
@@ -258,6 +256,8 @@ export interface NodeStopRequestedInfo extends Info {
   readonly reason?: string
 }
 ```
+
+投影不暴露代次：`generation` 是调度成员事实，只经 `getGeneration` 与替换语义可见；投影只带 `version` + `revision` 供 UI 读模型比对。原生门面没有投影通道，读数走规则空间状态拷贝（见内核指南 §7）。
 
 ---
 

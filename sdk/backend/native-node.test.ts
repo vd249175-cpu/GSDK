@@ -48,4 +48,88 @@ describe.skipIf(!binary)('Native domain-node bridge', () => {
     (world as unknown as { isWorldNode: boolean }).isWorldNode = true;
     expect(() => mountDomainNode(space, world)).toThrow('WorldNodes cannot mount');
   });
+
+  it('treats Start/Stop as ordinary FIFO Infos with no membership change', async () => {
+    class LifecycleNode extends Node<{ running: boolean; log: string[] }> {
+      constructor() {
+        super('lifecycle-node', 'LifecycleNode', { running: false, log: [] });
+      }
+
+      protected override change(
+        info: Info,
+        ctx: DomainChangeContext<{ running: boolean; log: string[] }>,
+      ): void {
+        if (info.type === '@lifecycle/StartRequested') {
+          ctx.write('running', true);
+          ctx.write('log', [...ctx.read('log'), 'start']);
+          return;
+        }
+        if (info.type === '@lifecycle/StopRequested') {
+          ctx.write('running', false);
+          ctx.write('log', [...ctx.read('log'), 'stop']);
+          return;
+        }
+        if (info.type !== 'WorkInfo') return;
+        ctx.write('log', [
+          ...ctx.read('log'),
+          ctx.read('running') ? `work:${String((info as { value?: unknown }).value)}` : 'refused',
+        ]);
+      }
+    }
+    const space = new NativeRuleSpace();
+    mountDomainNode(space, new LifecycleNode());
+    const run = (info: Record<string, unknown>) =>
+      space.waitForSubmission(space.injectRoot('lifecycle-node', { type: 'x', ...info }));
+    await run({ type: 'WorkInfo', value: 'early' });
+    await run({ type: '@lifecycle/StartRequested' });
+    await run({ type: 'WorkInfo', value: 'one' });
+    await run({ type: '@lifecycle/StopRequested' });
+    await run({ type: 'WorkInfo', value: 'late' });
+    expect(space.getState('lifecycle-node')).toEqual({
+      running: false,
+      log: ['refused', 'start', 'work:one', 'stop', 'refused'],
+    });
+    expect(space.generation('lifecycle-node')).toBe(0);
+  });
+
+  it('propagates lifecycle control through chained sends with no membership change', async () => {
+    class LifecycleNode extends Node<{ running: boolean; log: string[] }> {
+      constructor() {
+        super('lifecycle-node', 'LifecycleNode', { running: false, log: [] });
+      }
+
+      protected override change(
+        info: Info,
+        ctx: DomainChangeContext<{ running: boolean; log: string[] }>,
+      ): void {
+        if (info.type === '@lifecycle/StartRequested') {
+          ctx.write('running', true);
+          ctx.write('log', [...ctx.read('log'), 'start']);
+          return;
+        }
+        if (info.type !== 'WorkInfo') return;
+        ctx.write('log', [
+          ...ctx.read('log'),
+          ctx.read('running') ? `work:${String((info as { value?: unknown }).value)}` : 'refused',
+        ]);
+      }
+    }
+    class RelayNode extends Node<Record<string, never>> {
+      constructor() {
+        super('relay', 'Relay', {});
+      }
+
+      protected override change(info: Info, ctx: DomainChangeContext<Record<string, never>>): void {
+        if (info.type !== 'GoInfo') return;
+        ctx.send({ type: '@lifecycle/StartRequested' }, 'lifecycle-node');
+        ctx.send({ type: 'WorkInfo', value: 'one' }, 'lifecycle-node');
+      }
+    }
+    const space = new NativeRuleSpace();
+    mountDomainNode(space, new LifecycleNode());
+    mountDomainNode(space, new RelayNode());
+    await space.waitForSubmission(space.injectRoot('relay', { type: 'GoInfo' }));
+    expect(space.getState('lifecycle-node')).toEqual({ running: true, log: ['start', 'work:one'] });
+    expect(space.generation('lifecycle-node')).toBe(0);
+  });
 });

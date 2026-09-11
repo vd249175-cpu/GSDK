@@ -9,8 +9,8 @@ import { NativeRuleSpace, assertRendererRoot, describeDomainNode, mountDomainNod
  * - 读数直接来自规则空间状态拷贝，不经 Projection/EncodedValue；
  * - 只支持领域 Node，WorldNode 在 `mountDomainNode` 即拒绝；
  * - `hotSwap` 用新代码实例原子替换同 ID 实体：单飞间隙内 backlog 按
- *   Evicted 丢弃，代次 +1。State 绝不隐式继承——调用方显式传入初值，
- *   本宿主默认显式结转当前规则空间状态。
+ *   Evicted 丢弃，代次 +1。新实体从自身纯净初值启动，State 绝不隐式
+ *   继承——状态迁移只能是替换后注入的普通 Info（调用方显式恢复）。
  */
 export function createNativeGraphHost({ plugins = [] } = {}) {
   const space = new NativeRuleSpace()
@@ -36,9 +36,8 @@ export function createNativeGraphHost({ plugins = [] } = {}) {
     },
     async hotSwap(node) {
       const described = describeDomainNode(node)
-      const current = space.getState(described.id)
-      if (!current) throw new Error(`热替换目标未装配: ${described.id}`)
-      return space.replace(described.id, { ...current }, described.handler)
+      if (!space.getState(described.id)) throw new Error(`热替换目标未装配: ${described.id}`)
+      return space.replace(described.id, described.initialState, described.handler)
     },
     dispose() {},
   }

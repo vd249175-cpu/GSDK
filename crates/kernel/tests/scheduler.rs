@@ -294,3 +294,36 @@ fn replace_keeps_generations_monotonic_across_turnover() {
         Some(SubmissionState::Completed)
     );
 }
+
+#[test]
+fn replace_under_flood_drops_backlog_and_settles_everything() {
+    let mut kernel = Kernel::new();
+    kernel.admit("worker".to_owned()).unwrap();
+    kernel.admit("sibling".to_owned()).unwrap();
+    const FLOOD: usize = 10_000;
+    for _ in 0..FLOOD {
+        enqueued(kernel.inject_root("worker", "FloodInfo".to_owned(), "sub/flood".to_owned()));
+    }
+    enqueued(kernel.inject_root("sibling", "WorkInfo".to_owned(), "sub/sibling".to_owned()));
+    assert_eq!(kernel.replace("worker"), Ok(1));
+    assert_eq!(kernel.drops().len(), FLOOD);
+    assert_eq!(kernel.pump_until_idle(|_| ChangeOutcome::Completed), 1);
+    assert_eq!(
+        kernel.submission_state("sub/flood"),
+        Some(SubmissionState::Completed)
+    );
+    assert_eq!(
+        kernel.submission_state("sub/sibling"),
+        Some(SubmissionState::Completed)
+    );
+    assert_eq!(kernel.pending_total(), 0);
+    for _ in 0..FLOOD {
+        enqueued(kernel.inject_root("worker", "NewInfo".to_owned(), "sub/new".to_owned()));
+    }
+    assert_eq!(kernel.pump_until_idle(|_| ChangeOutcome::Completed), FLOOD);
+    assert_eq!(
+        kernel.submission_state("sub/new"),
+        Some(SubmissionState::Completed)
+    );
+    assert_eq!(kernel.pending_total(), 0);
+}

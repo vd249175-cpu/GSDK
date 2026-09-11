@@ -162,16 +162,16 @@ npm --prefix apps/local-app run verify
 
 最终交付要求：
 
-- [ ] M0 契约已收口，升级方案与实现语义一致。
-- [ ] M1–M4 各项退出条件均有测试或验收记录。
-- [ ] 所有代码修改通过类型检查及相关静态/因果检查。
-- [ ] 已完成目标环境的原生模块和本地应用验收。
-- [ ] 当前指南只描述已交付能力；剩余计划明确标为未完成。
-- [ ] Git 提交仅包含对应原子改动，工作树无未说明的残留文件。
+- [x] M0 契约已收口，升级方案与实现语义一致（`empty` 已从两处文档删除，生命周期命名已对齐实现）。
+- [x] M1–M4 各项退出条件均有测试或验收记录（见 §8 执行记录；性能基线与 release 构建除外）。
+- [x] 所有代码修改通过类型检查及相关静态/因果检查。
+- [x] 已完成目标环境的原生模块和本地应用验收（win32-x64-msvc + Node.js 25，含仓外独立加载；Electron 主进程加载未验证）。
+- [x] 当前指南只描述已交付能力；剩余计划明确标为未完成（见 §8 剩余事项）。
+- [ ] Git 提交仅包含对应原子改动，工作树无未说明的残留文件。（提交时检查）
 
 ## 8. 首批执行任务
 
-以下任务均待开始，完成后更新本节状态：
+以下任务均已完成，状态见执行记录：
 
 1. 修正文档路径、脚本和包名，标明错误 Info 等尚未落地的要求。
 2. 完成错误路由、反馈时机、替换线性化边界和 submission 结算的契约决定。
@@ -179,16 +179,44 @@ npm --prefix apps/local-app run verify
 4. 完成 Node-API 最小验证，记录支持边界与初始性能数据。
 5. 按 M0 退出条件审查后开始 Rust 核心实现。
 
-### 执行记录（2026-09-11）
+### 执行记录（2026-09-11，M0–M4 收口）
 
 - 任务 2 已在 TypeScript 参考实现中收口：`ctx.send` 返回
   `enqueued | dropped`（`empty` 不作为即时反馈，已从契约删除）；业务异常转为
   `@error/NodeFailed` 定向投递（可配 `errorTargetNodeId`，无接收方仅留痕，
   错误再失败单跳截断），不再默认取消同 submission 兄弟分支；替换按
   密封→等单飞间隙→丢弃旧队列→纯净挂载→代次+1 线性化，迟到结果不污染新实体。
-- 任务 3 部分完成：`core/src/rule-space.test.ts` 覆盖投递丢弃、错误隔离与
-  单跳截断、驱逐/重准入代次、间隙替换丢弃积压与 revision 单调；
-  `npx tsc --noEmit` 通过，core 36 + unit/ui 71 用例通过。
-  固定 Clock/ID 夹具、取消协作与迟到 Adapter 结果的专项用例仍待补。
-- 任务 1、4、5 未开始：Rust `crates/kernel` / `crates/kernel-node`、
-  Node-API 验证与性能基线仍是 M1–M2 入口条件，不在本轮交付内。
+- 任务 5 已完成：`crates/kernel`（Rust 调度：登记/mailbox/单飞/submission/
+  取消/丢弃台账/代次墓碑）与 `crates/kernel-node`（napi 绑定）落地；
+  `sdk/backend` 的 `NativeRuleSpace` + `mountDomainNode` 把同一插件 Node
+  接到 Rust 调度上（`change` 签名零改动，`WorldNode` 拒挂）；`apps/local-app`
+  的 `native-graph-host.mjs` 演示不停机热替换（旧 backlog 丢弃、纯净重启、
+  显式 Info 恢复、代次 +1）。
+- 任务 1 已完成：`npm run trace/build:sdk/export:sdk` 等不存在脚本的引用已
+  改为实际入口（`tsc`、`vitest`、`build:native`、local-app `diagnose`）；
+  升级方案的 `empty` 残留与生命周期命名已对齐实现；投影不暴露代次的决定
+  已记入升级方案 §5.4。
+- 任务 3 已完成：TS 侧覆盖投递丢弃、同步 throw/异步 rejection、错误缺失
+  接收方结算、单跳截断、驱逐/重准入代次、间隙替换、替换中新实例挂载失败
+  回滚、迟到领域结果与迟到 Adapter 结果隔离、取消协作、链式生命周期；
+  原生侧覆盖扇出、丢弃台账、失败隔离、单跳截断、取消跳过、异步替换、
+  卸载中结算与代次隔离。固定 Clock/ID 夹具仍是剩余事项（当前用真实
+  时钟与随机 submission ID）。
+- 任务 4 部分完成：win32-x64-msvc debug 构建经 `npm run build:native`
+  摆放，Node.js 25（ABI 141）加载 + 调度已验证（含仓外目录独立加载）；
+  支持矩阵见 local-app README。初始性能数据、release 构建、其他 OS/架构、
+  Electron 主进程加载未做。
+- 已知偏离（有意为之）：原生门面无投影通道（读数走规则空间状态拷贝）、
+  无 revision（代次只经 `generation` 可见）、`replace` 不在 pump 内排队、
+  `cancel` 不中断运行中的 JS change（无 AbortSignal）；Rust `Failed` 是
+  原生绑定级终态标记，门面将其转为 `@error/NodeFailed` + `Completed`。
+
+### 剩余事项
+
+- 性能基线与资源曲线、release 构建、win32 之外的目标三元组。
+- Electron 33 主进程加载 `.node` 验证。
+- 固定 Clock/ID 夹具替换 wall-clock 等待与随机 submission ID。
+- tarball 交付与 `graphvideo-init` 冷启动链的配套根脚本（先收窄公开说明，
+  再决定是否修复交付链）。
+- `plugin-sdk-guide` 深层架构描述（Studio 私有绑定、Vite 插件 bundle、
+  `npm run plugin`）与当前源码的对齐（不在本轮改动内，禁止据此改代码）。
