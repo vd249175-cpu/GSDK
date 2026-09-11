@@ -26,14 +26,14 @@ Electron renderer
        ▼
 Electron main
   ├─ RendererGraphBridge
-  ├─ NativeRuleSpace（当前本地应用生产宿主）
-  │  ├─ Rust mailbox/change/submission 调度
+  ├─ NativeRuleSpace（生产与应用运行宿主）
+  │  ├─ Rust mailbox/change/submission 调度（crates/kernel）
   │  ├─ JS 业务 Node、State 与 change
   │  └─ 构造注入的 EffectAdapter
   └─ 文件、数据库、进程与窗口宿主
 
-开发期旁路
-  ├─ KernelRuntime：TypeScript 参考实现与测试运行时
+开发期与测试规约
+  ├─ KernelRuntime：TypeScript 参考规约与测试 Oracle（只读规约，不再作为生产内核维护）
   └─ @graphvideo/sdk/analysis：读取 Node 实例描述，不启动 Runtime
 ```
 
@@ -43,8 +43,9 @@ Kernel 不是独立进程，没有 Socket、握手、远程挂载或第二套执
 
 | 层 | 目录 | 权限 |
 | :--- | :--- | :--- |
-| 微内核 | `core/src` | 调度 mailbox/change、State、Info、submission、Projection；零业务语义 |
-| 业务插件与物理宿主 | `apps/local-app/plugins`、`apps/local-app/src-main` | 定义业务 Node，通过 EffectAdapter 接触物理世界 |
+| 原生调度微内核 | `crates/kernel`、`crates/kernel-node` | 生产持有 mailbox、generation、single-flight 调度、submission 结算、hot replace |
+| 核心规约与类型底座 | `core/src` | Node/WorldNode、Info、Context、State、Projection 编解码、参考规约；零业务语义 |
+| 业务插件与物理宿主 | `apps/local-app/plugins`、`apps/local-app/src-main` | 定义业务 Node，通过 EffectAdapter 接触物理世界，挂载至 NativeRuleSpace |
 | UI 工作台与投影 | `sdk/workbench/src`、`sdk/client`、`apps/local-app/renderer` | 发送固定命令，读取投影 DTO，不执行 Node |
 
 ## 4. 六个运行本体

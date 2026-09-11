@@ -162,27 +162,33 @@ ctx.patchState({ completed: observations.length })
 
 这些调用共享当前 change 的生命周期与 submission 取消信号。并发请求的物理完成顺序不确定，因此应在全部 Observation 返回后集中推进 State；需要顺序保证时不要使用 `Promise.all`。JS Promise 并发不是 CPU 多线程并行。
 
-## 3. 图装配与热替换
+## 3. 图装配与宿主（NativeRuleSpace 为生产标准）
 
-具体 Node 由插件的 `createNodes` 创建，再由主进程宿主装配：
+具体 Node 由插件的 `createNodes` 创建，生产主进程宿主统一使用 `@graphvideo/backend-sdk` 的 `NativeRuleSpace`（基于 Rust 原生微内核）：
 
 ```ts
+import { NativeRuleSpace, mountDomainNode } from '@graphvideo/backend-sdk'
+
 const nodes = createPluginNodes(plugins, dependencies)
-const kernel = new KernelRuntime({ errorTargetNodeId: 'supervisor-node' })
-kernel.mount(...nodes)
+const space = new NativeRuleSpace({ errorTargetNodeId: 'supervisor-node' })
+for (const node of nodes) {
+  mountDomainNode(space, node)
+}
 ```
 
-依赖通过构造显式传入 WorldNode。Kernel 零业务语义，不知道任何具体业务服务名称。
+> **注意**：旧有的纯 TypeScript `KernelRuntime` 已冻结为可执行规约与测试 Oracle（主要用于单节点无本地依赖的快速测试夹具 `createTestRuntime`），生产主线不再维护双内核并行演进。
 
-运行期实体管理（`mount` 保留作启动期装配兼容）：
+依赖通过构造显式传入 WorldNode。微内核零业务语义，不知道任何具体业务服务名称。
+
+运行期实体管理（原生空间与规约同构）：
 
 ```ts
-kernel.admit(newNode)          // 动态准入，generation 从 0 或墓碑代次续计
-kernel.evict(nodeId)          // 驱逐：密封新投递、丢弃残留队列、代次 +1
-await kernel.replace(newNode) // 间隙暴力替换：等待当前单飞 change 结算后
-                               // 丢弃旧队列、纯净挂载新实例（State 不继承）
-kernel.readState(nodeId)      // 读取指定 Node 当前 State
-kernel.getGeneration(nodeId)  // 查询实体代次（含已驱逐墓碑）
+space.admit(newNode)          // 动态准入，generation 从 0 或墓碑代次续计
+space.evict(nodeId)          // 驱逐：密封新投递、丢弃残留队列、代次 +1
+await space.replace(newNode) // 间隙暴力替换：等待当前单飞 change 结算后
+                             // 丢弃旧队列、纯净挂载新实例（State 不继承）
+space.getState(nodeId)       // 读取指定 Node 当前 State
+space.generation(nodeId)     // 查询实体代次（含已驱逐墓碑）
 ```
 
 替换语义：密封期间发往该 `nodeId` 的消息按 `dropped` 结算；旧队列逐条结算后
