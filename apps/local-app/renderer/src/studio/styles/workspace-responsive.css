@@ -37,3 +37,13 @@
   .topbar-settings-trigger > span { display: none; }
   .window-controls button { width: 34px; }
 }
+
+@media (max-width: 960px) {
+  .dock-subtle-tag { display: none; }
+}
+
+@media (max-width: 760px) {
+  .dock-shortcut-hint { display: none; }
+  .davinci-dock-item { min-width: 52px; padding: 0 8px; }
+}
+

@@ -264,25 +264,140 @@ body.is-resizing {
 .area-render-root .area-shell { height: 100%; }
 
 .app-footer {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 0 9px;
+  justify-content: space-between;
+  height: var(--footer-height);
+  padding: 0 14px;
   color: var(--content-tertiary);
-  background: var(--surface-panel-subtle);
+  background: linear-gradient(180deg, var(--palette-source-hex-181a20), var(--palette-source-hex-101216));
   border-top: 1px solid var(--border-subtle);
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.03) inset;
   font-size: var(--font-size-sm);
   user-select: none;
+  z-index: 20;
 }
 
-.app-footer span {
+[data-theme='light'] .app-footer {
+  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+  box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.04) inset;
+}
+
+.dock-status-group,
+.dock-meta-group {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 0%;
 }
 
-.footer-spacer {
-  flex: 1;
+.dock-meta-group {
+  justify-content: flex-end;
+}
+
+.dock-status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.dock-subtle-tag {
+  color: var(--content-tertiary);
+  font-size: 11px;
+}
+
+.dock-task-pill {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  color: var(--accent-strong);
+  font-size: 11px;
+}
+
+.davinci-workspace-dock {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  height: 100%;
+}
+
+.davinci-dock-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 68px;
+  height: 100%;
+  padding: 0 14px;
+  color: var(--content-tertiary);
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.davinci-dock-item:hover {
+  color: var(--content-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme='light'] .davinci-dock-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.davinci-dock-item.is-active {
+  color: #ffffff;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  border-bottom-color: #e5484d; /* 达芬奇标志性激活红线 */
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+[data-theme='light'] .davinci-dock-item.is-active {
+  color: #0f172a;
+  background: rgba(0, 0, 0, 0.04);
+  border-bottom-color: #e5484d;
+}
+
+.davinci-dock-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.davinci-dock-item.is-active .davinci-dock-icon {
+  filter: drop-shadow(0 0 6px rgba(229, 72, 77, 0.45));
+}
+
+.davinci-dock-label {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.dock-shortcut-hint {
+  color: var(--content-tertiary);
+  font-size: 11px;
+}
+
+.dock-version-badge {
+  color: var(--content-secondary);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-hover);
 }
 
 .connection-dot {

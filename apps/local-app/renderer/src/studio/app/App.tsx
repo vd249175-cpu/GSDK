@@ -1,8 +1,15 @@
 import {
-  Clapperboard, FolderOpen, Minus, Square, X,
+  Bot, Clapperboard, Film, FolderOpen, Minus, MonitorPlay, Sparkles, Square, X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent as ReactDragEvent } from 'react'
 import type { RecentLocalProject } from '@graphvideo/client-sdk'
+
+const WORKSPACE_ICONS: Record<string, typeof Film> = {
+  editing: Film,
+  generation: Sparkles,
+  review: MonitorPlay,
+  agent: Bot,
+}
 import { desktopElementSource } from './elementSource'
 import { FloatingScrollbars, InlineSelect, Workspace } from '@graphvideo/workbench'
 import {
@@ -261,16 +268,7 @@ export function App() {
             <span className="topbar-project-path">{projectPath}</span>
           </div>
         )}
-        <nav className="workspace-tabs" aria-label="工作区">
-          {workspaces.map((workspace) => (
-            <button
-              className={workspace.id === activeWorkspaceId ? 'is-active' : ''}
-              type="button"
-              key={workspace.id}
-              onClick={() => void commands.execute('workspace.activate', workspace.id)}
-            >{workspace.name}</button>
-          ))}
-        </nav>
+        <div className="topbar-drag-spacer" />
         <div className="app-actions">
           <ProjectSnapshotsDialog
             client={applicationClient.project}
@@ -319,15 +317,47 @@ export function App() {
           />
         ))}
       </div>
-      <footer className="app-footer">
-        <span><i className="connection-dot" /> State 已连接</span>
-        <span>Markdown Logic + Flat Node Store</span>
-        {activeBackgroundTasks > 0 && (
-          <span>后台任务 {activeBackgroundTasks} · {Math.round(backgroundProgress * 100)}%</span>
-        )}
-        <span className="footer-spacer" />
-        <span>{isMac ? '⌘+Space 最大化区域' : 'Ctrl+Space 最大化区域'}</span>
-        <span>GraphVideo v0.1</span>
+      <footer className="app-footer davinci-dock-bar">
+        <div className="dock-status-group">
+          <span className="dock-status-item">
+            <i className="connection-dot" />
+            <span>State 已连接</span>
+          </span>
+          <span className="dock-status-item dock-subtle-tag">
+            Markdown Logic + Flat Node Store
+          </span>
+          {activeBackgroundTasks > 0 && (
+            <span className="dock-status-item dock-task-pill">
+              后台任务 {activeBackgroundTasks} · {Math.round(backgroundProgress * 100)}%
+            </span>
+          )}
+        </div>
+
+        <nav className="workspace-tabs davinci-workspace-dock" aria-label="达芬奇工作区分页">
+          {workspaces.map((workspace) => {
+            const isActive = workspace.id === activeWorkspaceId
+            const IconComponent = WORKSPACE_ICONS[workspace.id] ?? Film
+            return (
+              <button
+                key={workspace.id}
+                type="button"
+                className={`davinci-dock-item ${isActive ? 'is-active' : ''}`}
+                onClick={() => void commands.execute('workspace.activate', workspace.id)}
+                title={workspace.name}
+              >
+                <span className="davinci-dock-icon">
+                  <IconComponent size={15} />
+                </span>
+                <span className="davinci-dock-label">{workspace.name}</span>
+              </button>
+            )
+          })}
+        </nav>
+
+        <div className="dock-meta-group">
+          <span className="dock-shortcut-hint">{isMac ? '⌘+Space 最大化区域' : 'Ctrl+Space 最大化区域'}</span>
+          <span className="dock-version-badge">GraphVideo v0.1</span>
+        </div>
       </footer>
       </main>
     </>

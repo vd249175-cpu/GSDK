@@ -248,6 +248,13 @@
   outline-color: var(--focus-ring);
 }
 
+.topbar-drag-spacer {
+  flex: 1 1 auto;
+  height: 100%;
+  min-width: 20px;
+  -webkit-app-region: drag;
+}
+
 .app-actions {
   display: flex;
   align-items: center;
