@@ -197,11 +197,17 @@ export class KernelRuntime {
       if (this.nodes.has(node.id)) {
         throw new Error(`不能准入重复的 Node ID: ${node.id}`);
       }
-      node.generation = this.generations.get(node.id) ?? 0;
-      this.nodes.set(node.id, node);
-      node._sealedForReplace = false;
       node._mountKernel(nodeRuntimeCapability, this);
-      node.onMount();
+      node.generation = this.generations.get(node.id) ?? 0;
+      node._sealedForReplace = false;
+      this.nodes.set(node.id, node);
+      try {
+        node.onMount();
+      } catch (error) {
+        this.nodes.delete(node.id);
+        node._unmountKernel(nodeRuntimeCapability, this);
+        throw error;
+      }
     }
     this.traceSession.record({
       type: 'GraphMounted',
@@ -238,6 +244,7 @@ export class KernelRuntime {
     const old = this.nodes.get(nodeId);
     if (!old) throw new Error(`Cannot replace missing node: ${nodeId}`);
     if (old === newNode) throw new Error(`Cannot replace node with itself: ${nodeId}`);
+    newNode._mountKernel(nodeRuntimeCapability, this);
     old._sealedForReplace = true;
     try {
       await this.waitForNodeIdle(old, options.timeoutMs ?? this.replaceWaitTimeoutMs);
@@ -257,8 +264,18 @@ export class KernelRuntime {
       newNode.generation = generation;
       newNode._sealedForReplace = false;
       this.nodes.set(nodeId, newNode);
-      newNode._mountKernel(nodeRuntimeCapability, this);
-      newNode.onMount();
+      try {
+        newNode.onMount();
+      } catch (error) {
+        this.nodes.delete(nodeId);
+        newNode._unmountKernel(nodeRuntimeCapability, this);
+        throw error;
+      }
+    } catch (error) {
+      if (this.nodes.get(nodeId) !== newNode) {
+        newNode._unmountKernel(nodeRuntimeCapability, this);
+      }
+      throw error;
     } finally {
       old._sealedForReplace = false;
     }
@@ -351,6 +368,16 @@ export class KernelRuntime {
     const resolved = typeof target === 'string' ? this.nodes.get(target) : target;
     const submissionId = options.submissionId ?? this.nextId('submission');
     const submission = this.createSubmission(submissionId, options.signal);
+    if (typeof target !== 'string' && this.nodes.get(target.id) !== target) {
+      this.traceSession.record({
+        type: 'InfoDropped',
+        nodeId: target.id,
+        reason: 'injectRootInfo instance not admitted',
+        count: 1,
+      });
+      this.settleSubmissionIfComplete(submission);
+      return submissionId;
+    }
     if (!resolved) {
       this.traceSession.record({
         type: 'InfoDropped',

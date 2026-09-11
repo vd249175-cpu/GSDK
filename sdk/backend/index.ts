@@ -112,7 +112,8 @@ export function createPluginNodes<Dependencies>(
 export type { EffectAdapter, EffectContext } from '@graphvideo/kernel'
 export { ExecutionWorldNode, Node, ObservationWorldNode, WorldNode, type WorldNodeKind } from '@graphvideo/kernel'
 export type {
-  ChangeContext, DomainChangeContext, Info, WorldChangeContext,
+  ChangeContext, DeliveryFeedback, DeliveryStatus, DomainChangeContext, Info,
+  NodeErrorInfo, NodeStartRequestedInfo, NodeStopRequestedInfo, WorldChangeContext,
 } from '@graphvideo/kernel'
 export type { StudioPluginManifest } from './plugin-manifest.mjs'
 export {

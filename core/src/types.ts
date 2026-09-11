@@ -50,6 +50,16 @@ export interface DeliveryFeedback {
   readonly reason?: string;
 }
 
+export interface NodeStartRequestedInfo extends Info {
+  readonly type: '@lifecycle/StartRequested';
+  readonly timestamp: number;
+}
+
+export interface NodeStopRequestedInfo extends Info {
+  readonly type: '@lifecycle/StopRequested';
+  readonly reason?: string;
+}
+
 export interface NodeErrorInfo extends Info {
   readonly type: '@error/NodeFailed';
   readonly nodeId: string;

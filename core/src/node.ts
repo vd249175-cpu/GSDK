@@ -152,6 +152,7 @@ export abstract class Node<
   public async _drainMailbox(capability: typeof nodeRuntimeCapability): Promise<void> {
     if (capability !== nodeRuntimeCapability) throw new Error('[Kernel]: Invalid runtime capability');
     if (this.drainingMailbox) return;
+    this.drainingMailbox = true;
     try {
       while (this.mailbox.length > 0 && !this._sealedForReplace) {
         const item = this.mailbox.shift()!;

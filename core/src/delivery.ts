@@ -41,9 +41,21 @@ export function deliverSendNowHelper(
     console.warn(
       `[Kernel]: Target node "${targetId}" not found for send from "${source.name}" (${source.id}); delivery dropped`,
     );
+    ctx.traceSession.record({
+      type: 'InfoDropped',
+      nodeId: targetId,
+      reason: `send target not admitted: ${source.id} -> ${targetId}`,
+      count: 1,
+    });
     return { status: 'dropped', reason: `Target node not found: ${targetId}` };
   }
   if ('_sealedForReplace' in targetNode && targetNode._sealedForReplace === true) {
+    ctx.traceSession.record({
+      type: 'InfoDropped',
+      nodeId: targetNode.id,
+      reason: `send target sealed for replace: ${source.id} -> ${targetNode.id}`,
+      count: 1,
+    });
     return { status: 'dropped', reason: `Target node sealed for replace: ${targetNode.id}` };
   }
   const now = ctx.now();

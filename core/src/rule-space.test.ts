@@ -103,8 +103,34 @@ describe('RuleSpace delivery feedback and error-as-Info', () => {
     const submissionId = kernel.injectRootInfo(source, { type: 'GoInfo' });
     await kernel.waitForSubmission(submissionId);
     expect(source.getState().feedback).toMatchObject({ status: 'dropped' });
+    expect(kernel.events.some((event) => event.type === 'InfoDropped')).toBe(true);
     await expect(kernel.waitForQuiescence()).resolves.toMatchObject({ isQuiescent: true });
     warning.mockRestore();
+    await kernel.dispose();
+  });
+
+  it('completes the submission on business failure instead of cancelling it', async () => {
+    const kernel = new KernelRuntime();
+    kernel.mount(new Failer('failer'));
+    const submissionId = kernel.injectRootInfo('failer', { type: 'WorkInfo' });
+    await expect(kernel.waitForSubmission(submissionId)).resolves.toBeUndefined();
+    expect(kernel.getSchedulerSnapshot().isQuiescent).toBe(true);
+    await kernel.dispose();
+  });
+
+  it('drops root injects addressed to a stale instance', async () => {
+    const kernel = new KernelRuntime();
+    const old = new Sink('solo');
+    kernel.mount(old);
+    kernel.evict('solo');
+    const submissionId = kernel.injectRootInfo(old, { type: 'WorkInfo' });
+    await kernel.waitForSubmission(submissionId);
+    expect(old.getState().received).toEqual([]);
+    expect(
+      kernel.events.some(
+        (event) => event.type === 'InfoDropped' && event.nodeId === 'solo',
+      ),
+    ).toBe(true);
     await kernel.dispose();
   });
 
@@ -205,6 +231,149 @@ describe('RuleSpace admit / evict / replace', () => {
     await expect(kernel.replace(new Sink('ghost'))).rejects.toThrow('Cannot replace missing node');
     await expect(kernel.replace(worker)).rejects.toThrow('itself');
     expect(kernel.getNode('solo')).toBe(worker);
+    await kernel.dispose();
+  });
+
+  it('retains the old instance when the replacement is bound to another runtime', async () => {
+    const other = new KernelRuntime();
+    const foreign = new Sink('worker');
+    other.mount(foreign);
+    const kernel = new KernelRuntime();
+    const oldWorker = new Sink('worker');
+    kernel.mount(oldWorker);
+    await expect(kernel.replace(foreign)).rejects.toThrow('其他 Runtime');
+    expect(kernel.getNode('worker')).toBe(oldWorker);
+    expect(other.getNode('worker')).toBe(foreign);
+    await kernel.dispose();
+    await other.dispose();
+  });
+});
+
+describe('RuleSpace replace timeout and seal feedback', () => {
+  it('retains the old instance when replace times out waiting for idle', async () => {
+    const kernel = new KernelRuntime();
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    const oldWorker = new GatedWorker('worker', gate, () => true);
+    kernel.mount(oldWorker);
+    const first = kernel.injectRootInfo('worker', { type: 'WorkInfo', value: 'first' });
+    while (!oldWorker.getActiveChangeId()) {
+      await Promise.resolve();
+    }
+    await expect(kernel.replace(new Sink('worker'), { timeoutMs: 10 })).rejects.toThrow(
+      'timed out',
+    );
+    expect(kernel.getNode('worker')).toBe(oldWorker);
+    release();
+    await kernel.waitForSubmission(first);
+    const second = kernel.injectRootInfo('worker', { type: 'WorkInfo', value: 'second' });
+    await kernel.waitForSubmission(second);
+    expect(oldWorker.getState().processed).toEqual(['first', 'second']);
+    await kernel.dispose();
+  });
+
+  it('reports dropped for sends issued while the target is sealed for replace', async () => {
+    const kernel = new KernelRuntime();
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    const oldWorker = new GatedWorker('worker', gate, (value) => value === 'first');
+    const source = new ProbeSource('worker');
+    kernel.mount(oldWorker, source);
+    const first = kernel.injectRootInfo('worker', { type: 'WorkInfo', value: 'first' });
+    while (!oldWorker.getActiveChangeId()) {
+      await Promise.resolve();
+    }
+    const replacing = kernel.replace(new GatedWorker('worker', Promise.resolve(), () => false));
+    const probe = kernel.injectRootInfo('probe-source', { type: 'GoInfo' });
+    await kernel.waitForSubmission(probe);
+    expect(source.getState().feedback).toMatchObject({ status: 'dropped' });
+    release();
+    await kernel.waitForSubmission(first);
+    await replacing;
+    expect(
+      kernel.events.some(
+        (event) => event.type === 'InfoDropped' && event.nodeId === 'worker',
+      ),
+    ).toBe(true);
+    await kernel.dispose();
+  });
+});
+
+class LifecycleNode extends Node<{ running: boolean; log: string[] }> {
+  constructor() {
+    super('lifecycle-node', 'LifecycleNode', { running: false, log: [] });
+  }
+
+  protected override change(
+    info: Info,
+    ctx: DomainChangeContext<{ running: boolean; log: string[] }>,
+  ): void {
+    if (info.type === '@lifecycle/StartRequested') {
+      ctx.write('running', true);
+      ctx.write('log', [...ctx.read('log'), 'start']);
+      return;
+    }
+    if (info.type === '@lifecycle/StopRequested') {
+      ctx.write('running', false);
+      ctx.write('log', [...ctx.read('log'), 'stop']);
+      return;
+    }
+    if (info.type !== 'WorkInfo') return;
+    ctx.write('log', [
+      ...ctx.read('log'),
+      ctx.read('running') ? `work:${String(info.value)}` : 'refused',
+    ]);
+  }
+}
+
+describe('RuleSpace lifecycle Info and late-result isolation', () => {
+  it('treats Start/Stop as ordinary FIFO Infos with node-side refuse and no membership change', async () => {
+    const kernel = new KernelRuntime();
+    const node = new LifecycleNode();
+    kernel.mount(node);
+    const now = Date.now();
+    await kernel.waitForSubmission(
+      kernel.injectRootInfo('lifecycle-node', { type: 'WorkInfo', value: 'early' }),
+    );
+    await kernel.waitForSubmission(
+      kernel.injectRootInfo('lifecycle-node', { type: '@lifecycle/StartRequested', timestamp: now }),
+    );
+    await kernel.waitForSubmission(
+      kernel.injectRootInfo('lifecycle-node', { type: 'WorkInfo', value: 'one' }),
+    );
+    await kernel.waitForSubmission(
+      kernel.injectRootInfo('lifecycle-node', { type: '@lifecycle/StopRequested', reason: 'test' }),
+    );
+    await kernel.waitForSubmission(
+      kernel.injectRootInfo('lifecycle-node', { type: 'WorkInfo', value: 'late' }),
+    );
+    expect(node.getState()).toEqual({
+      running: false,
+      log: ['refused', 'start', 'work:one', 'stop', 'refused'],
+    });
+    expect(kernel.getNode('lifecycle-node')).toBe(node);
+    await kernel.dispose();
+  });
+
+  it('keeps late results of an evicted entity off the re-admitted instance', async () => {
+    const kernel = new KernelRuntime();
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    const oldWorker = new GatedWorker('worker', gate, (value) => value === 'first');
+    kernel.mount(oldWorker);
+    const first = kernel.injectRootInfo('worker', { type: 'WorkInfo', value: 'first' });
+    while (!oldWorker.getActiveChangeId()) {
+      await Promise.resolve();
+    }
+    expect(kernel.evict('worker')).toBe(true);
+    const fresh = new GatedWorker('worker', Promise.resolve(), () => false);
+    kernel.admit(fresh);
+    expect(kernel.getGeneration('worker')).toBe(1);
+    release();
+    await kernel.waitForSubmission(first);
+    expect(oldWorker.getState().processed).toEqual(['first']);
+    expect(fresh.getState().processed).toEqual([]);
+    const second = kernel.injectRootInfo('worker', { type: 'WorkInfo', value: 'second' });
+    await kernel.waitForSubmission(second);
+    expect(fresh.getState().processed).toEqual(['second']);
+    expect(oldWorker.getState().processed).toEqual(['first']);
     await kernel.dispose();
   });
 });
