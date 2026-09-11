@@ -10,6 +10,7 @@ export { queryEntity, expandEntity } from './query';
 export { findCausalPaths, findCausalChain } from './path';
 export type { PathSearchOptions } from './path';
 export { selectInducedSubgraph } from './select';
+export { buildAllNodesView } from './views';
 export { analyzeViewHealth } from './health';
 export { analyzeViewReachability } from './reachability';
 export { shortestDirectedPaths } from './shortest-path';

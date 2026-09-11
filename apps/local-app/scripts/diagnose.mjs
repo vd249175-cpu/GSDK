@@ -2,10 +2,13 @@
 /**
  * 消费项目自诊断：只用发布入口 `@graphvideo/sdk/analysis` 对自身插件 Node
  * 建因果索引并查询。只读实例描述，不创建生产 Runtime、不启动应用。
- * 查询语义与原仓库 `npm run trace` 的同名基础命令一致；视图命令
- *（chain/reach/health/cluster）需自备 analysis 视图后另行扩展。
+ * 查询语义与原仓库 `npm run trace` 的同名基础命令一致；health/reach 基于
+ * 内置 `all-nodes` 总览，其余视图命令（centrality/community）需自备视图后扩展。
  */
 import {
+  analyzeViewHealth,
+  analyzeViewReachability,
+  buildAllNodesView,
   buildCausalIndex,
   expandEntity,
   findCausalChain,
@@ -78,6 +81,16 @@ switch (command) {
     })
     break
   }
+  case 'health': {
+    out(analyzeViewHealth(buildAllNodesView(index)))
+    break
+  }
+  case 'reach': {
+    const originNodeId = rest[0]
+    if (!originNodeId) throw new Error('Usage: reach <nodeId>')
+    out(analyzeViewReachability(buildAllNodesView(index), originNodeId))
+    break
+  }
   case 'validate': {
     const report = validateCausalIndex(index)
     out({ valid: report.valid, issueCount: report.issues.length, issues: report.issues })
@@ -85,6 +98,6 @@ switch (command) {
     break
   }
   default:
-    console.log(`diagnose <node|change|info|state|expand|path|select|frontend|validate> [args]`)
+    console.log(`diagnose <node|change|info|state|expand|path|select|frontend|health|reach|validate> [args]`)
     break
 }

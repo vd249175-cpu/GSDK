@@ -7,11 +7,12 @@
   "main": "src-main/main.mjs",
   "scripts": {
     "diagnose": "tsx scripts/diagnose.mjs",
+    "demo:topology": "tsx scripts/demo-topology.mjs",
+    "demo:op": "node scripts/demo-op.mjs",
     "check:renderer-boundary": "node scripts/check-renderer-boundary.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.renderer.json && tsc --noEmit -p tsconfig.main.json",
     "test": "vitest run",
-    "dev": "vite --config renderer/vite.config.ts",
-    "build": "vite build --config renderer/vite.config.ts && node --check src-main/main.mjs && node --check src-main/preload.cjs && node --check src-main/graph-host.mjs && node --check src-main/native-graph-host.mjs",
+    "build": "vite build --config renderer/vite.config.ts && node --check src-main/main.mjs && node --check src-main/preload.cjs && node --check src-main/graph-host.mjs && node --check src-main/native-graph-host.mjs && node --check src-main/demo-controller.mjs && node --check scripts/demo-topology.mjs && node --check scripts/diagnose.mjs",
     "verify:native-load": "node ../../scripts/verify-electron-native.mjs",
     "verify": "npm run check:renderer-boundary && npm run typecheck && npm run test && npm run diagnose -- validate && npm run verify:native-load && npm run build"
   },

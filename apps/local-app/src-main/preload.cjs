@@ -9,6 +9,11 @@ contextBridge.exposeInMainWorld('graph', {
   incrementCounter: () => ipcRenderer.invoke('counter/increment'),
   readCounter: () => ipcRenderer.invoke('counter/state'),
 })
+contextBridge.exposeInMainWorld('demo', {
+  readState: () => ipcRenderer.invoke('demo/state'),
+  step: () => ipcRenderer.invoke('demo/step'),
+  reset: () => ipcRenderer.invoke('demo/reset'),
+})
 contextBridge.exposeInMainWorld('shell', {
   minimize: () => ipcRenderer.send('window:minimize'),
   toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
