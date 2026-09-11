@@ -60,6 +60,14 @@ export class CausalScene3D {
   private photons: PhotonVisual[] = []
   private shockwaves: ShockwaveVisual[] = []
   private stars?: THREE.Points
+  private polarGrid?: THREE.PolarGridHelper
+
+  // 选中态与因果链路溯源集合
+  private selectedNodeId: string | null = null
+  private upstreamNodeIds = new Set<string>()
+  private downstreamNodeIds = new Set<string>()
+  private upstreamEdgeIds = new Set<string>()
+  private downstreamEdgeIds = new Set<string>()
 
   private raycaster = new THREE.Raycaster()
   private mouse = new THREE.Vector2()
@@ -74,21 +82,21 @@ export class CausalScene3D {
 
     // 1. 场景
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color('#07090e')
-    this.scene.fog = new THREE.FogExp2('#07090e', 0.008)
+    this.scene.background = new THREE.Color('#030712') // 黑曜石极深深空
+    this.scene.fog = new THREE.FogExp2('#030712', 0.007)
 
     // 2. 摄像机
     const width = container.clientWidth || window.innerWidth
     const height = container.clientHeight || window.innerHeight
     this.camera = new THREE.PerspectiveCamera(45, width / height, 0.5, 600)
-    this.camera.position.set(0, 28, 56)
+    this.camera.position.set(0, 30, 62)
 
     // 3. 渲染器
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' })
     this.renderer.setSize(width, height)
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.3
+    this.renderer.toneMappingExposure = 1.35
     container.appendChild(this.renderer.domElement)
 
     // 4. 轨道控制器
@@ -99,27 +107,34 @@ export class CausalScene3D {
     this.controls.minDistance = 6
 
     // 5. 光源
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.1)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2)
     this.scene.add(ambientLight)
 
-    const dirLight = new THREE.DirectionalLight(0x38bdf8, 2.2)
+    const dirLight = new THREE.DirectionalLight(0x00f0ff, 2.4) // 极氪电光青定向光
     dirLight.position.set(40, 60, 40)
     this.scene.add(dirLight)
 
-    const dirLight2 = new THREE.DirectionalLight(0xa855f7, 1.8)
+    const dirLight2 = new THREE.DirectionalLight(0xa855f7, 2.0) // 幽光紫补光
     dirLight2.position.set(-40, -20, -40)
     this.scene.add(dirLight2)
 
-    // 6. 星空粒子
+    // 6. 极客全息极坐标网格基盘 (Cyber Polar Grid)
+    this.polarGrid = new THREE.PolarGridHelper(120, 16, 8, 64, 0x00f0ff, 0x1e293b)
+    this.polarGrid.position.y = -14
+    ;(this.polarGrid.material as THREE.Material).transparent = true
+    ;(this.polarGrid.material as THREE.Material).opacity = 0.22
+    this.scene.add(this.polarGrid)
+
+    // 7. 星空粒子
     this.initStars()
 
-    // 7. 事件绑定
+    // 8. 事件绑定
     this.onResize = this.onResize.bind(this)
     this.onPointerDown = this.onPointerDown.bind(this)
     window.addEventListener('resize', this.onResize)
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown)
 
-    // 8. 启动渲染循环
+    // 9. 启动渲染循环
     this.animate = this.animate.bind(this)
     this.animate()
   }
@@ -341,40 +356,68 @@ export class CausalScene3D {
 
     const color = new THREE.Color(node.color || '#38bdf8')
     const isHub = Boolean(node.isHub)
-
-    // 核心球体（Hub 节点更大更亮）
+    const role = node.role || 'domain'
     const coreRadius = isHub ? 1.6 : 1.15
-    const coreGeo = new THREE.SphereGeometry(coreRadius, 32, 32)
-    const coreMat = new THREE.MeshStandardMaterial({
-      color,
-      emissive: color,
-      emissiveIntensity: isHub ? 1.1 : 0.8,
-      roughness: 0.2,
-      metalness: 0.5,
-    })
-    const core = new THREE.Mesh(coreGeo, coreMat)
+
+    let core: THREE.Mesh
+
+    if (role === 'observation') {
+      // 观察层：向上锥体探测天线（极氪电光青，感官侦测）
+      const coneGeo = new THREE.ConeGeometry(coreRadius * 0.9, coreRadius * 1.8, 4)
+      const coreMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color('#00f0ff'),
+        emissive: new THREE.Color('#00f0ff'),
+        emissiveIntensity: 1.15,
+        roughness: 0.15,
+        metalness: 0.7,
+      })
+      core = new THREE.Mesh(coneGeo, coreMat)
+      core.rotation.y = Math.PI / 4
+    } else if (role === 'execution') {
+      // 操作层：向下六角执行底座（赛博琥珀金，物理写下发）
+      const cylGeo = new THREE.CylinderGeometry(coreRadius * 1.15, coreRadius * 0.55, coreRadius * 1.7, 6)
+      const coreMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color('#f59e0b'),
+        emissive: new THREE.Color('#f59e0b'),
+        emissiveIntensity: 1.05,
+        roughness: 0.2,
+        metalness: 0.8,
+      })
+      core = new THREE.Mesh(cylGeo, coreMat)
+    } else {
+      // 纯领域核心：八面体赛博晶体（零 I/O 状态机）
+      const octGeo = new THREE.OctahedronGeometry(coreRadius, 0)
+      const coreMat = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: isHub ? 1.25 : 0.85,
+        roughness: 0.1,
+        metalness: 0.85,
+      })
+      core = new THREE.Mesh(octGeo, coreMat)
+    }
     group.add(core)
 
-    // 外围全息能量环
-    const ringRadius = isHub ? 2.2 : 1.7
+    // 外围主全息能量环
+    const ringRadius = isHub ? 2.3 : 1.7
     const ringGeo = new THREE.TorusGeometry(ringRadius, isHub ? 0.08 : 0.05, 16, 64)
     const ringMat = new THREE.MeshBasicMaterial({
-      color,
+      color: role === 'observation' ? new THREE.Color('#00f0ff') : (role === 'execution' ? new THREE.Color('#f59e0b') : color),
       transparent: true,
-      opacity: isHub ? 0.8 : 0.55,
+      opacity: isHub ? 0.85 : 0.6,
     })
     const ring = new THREE.Mesh(ringGeo, ringMat)
     ring.rotation.x = Math.PI / 2
     group.add(ring)
 
-    // 若是 Hub 中枢，添加第二道反向偏角能量环
+    // 第二道线框反向偏角能量环（领域核心与 Hub 拥有双环陀螺仪姿态）
     let ring2: THREE.Mesh | undefined
-    if (isHub) {
-      const ringGeo2 = new THREE.TorusGeometry(2.7, 0.06, 16, 64)
+    if (isHub || role === 'domain') {
+      const ringGeo2 = new THREE.TorusGeometry(ringRadius * 1.25, 0.04, 16, 64)
       const ringMat2 = new THREE.MeshBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.6,
+        opacity: 0.5,
       })
       ring2 = new THREE.Mesh(ringGeo2, ringMat2)
       ring2.rotation.y = Math.PI / 3
@@ -383,7 +426,7 @@ export class CausalScene3D {
 
     // 2D 状态徽标
     const sprite = this.createNodeSprite(node)
-    sprite.position.set(0, isHub ? 2.7 : 2.2, 0)
+    sprite.position.set(0, role === 'observation' ? 2.7 : (role === 'execution' ? -2.5 : 2.2), 0)
     group.add(sprite)
 
     group.userData = { nodeId: node.id }
@@ -394,15 +437,15 @@ export class CausalScene3D {
 
   private createNodeSprite(node: CausalNode3D): THREE.Sprite {
     const canvas = document.createElement('canvas')
-    canvas.width = 340
-    canvas.height = 100
+    canvas.width = 380
+    canvas.height = 104
     const ctx = canvas.getContext('2d')!
     this.drawSpriteCanvas(ctx, node)
 
     const texture = new THREE.CanvasTexture(canvas)
     const mat = new THREE.SpriteMaterial({ map: texture, transparent: true })
     const sprite = new THREE.Sprite(mat)
-    sprite.scale.set(6.8, 2.0, 1)
+    sprite.scale.set(7.6, 2.08, 1)
     sprite.userData = { canvas, texture }
     return sprite
   }
@@ -419,38 +462,85 @@ export class CausalScene3D {
   }
 
   private drawSpriteCanvas(ctx: CanvasRenderingContext2D, node: CausalNode3D): void {
-    ctx.fillStyle = 'rgba(10, 14, 22, 0.90)'
-    ctx.strokeStyle = node.color || '#38bdf8'
-    ctx.lineWidth = node.isHub ? 4 : 2.5
-    const x = 6, y = 6, w = 328, h = 88, r = 14
+    const isTarget = this.selectedNodeId === node.id
+    const isUpstream = this.upstreamNodeIds.has(node.id)
+    const isDownstream = this.downstreamNodeIds.has(node.id)
+
+    const w = 376, h = 100
+    const c = 12 // 极氪科技切角
+
+    let strokeColor = node.color || '#38bdf8'
+    let bgColor = 'rgba(7, 10, 18, 0.94)'
+    if (isTarget) {
+      strokeColor = '#ffffff'
+      bgColor = 'rgba(15, 23, 42, 0.98)'
+    } else if (isUpstream) {
+      strokeColor = '#00f0ff'
+      bgColor = 'rgba(6, 26, 40, 0.96)'
+    } else if (isDownstream) {
+      strokeColor = '#ffaa00'
+      bgColor = 'rgba(38, 22, 6, 0.96)'
+    }
+
+    // 绘制多边形切角边框 (Chamfered Cyber HUD)
+    ctx.fillStyle = bgColor
+    ctx.strokeStyle = strokeColor
+    ctx.lineWidth = isTarget ? 3.5 : (node.isHub ? 2.5 : 1.8)
+
     ctx.beginPath()
-    ctx.moveTo(x + r, y)
-    ctx.arcTo(x + w, y, x + w, y + h, r)
-    ctx.arcTo(x + w, y + h, x, y + h, r)
-    ctx.arcTo(x, y + h, x, y, r)
-    ctx.arcTo(x, y, x + w, y, r)
+    ctx.moveTo(c, 2)
+    ctx.lineTo(w - c, 2)
+    ctx.lineTo(w - 2, c)
+    ctx.lineTo(w - 2, h - c)
+    ctx.lineTo(w - c, h - 2)
+    ctx.lineTo(c, h - 2)
+    ctx.lineTo(2, h - c)
+    ctx.lineTo(2, c)
     ctx.closePath()
     ctx.fill()
     ctx.stroke()
 
-    // 节点名称（Hub 带皇冠标识）
-    ctx.fillStyle = '#ffffff'
-    ctx.font = node.isHub ? 'bold 22px monospace' : 'bold 20px monospace'
-    const nameStr = node.isHub ? `👑 ${node.name || node.id}` : (node.name || node.id)
-    ctx.fillText(nameStr, 18, 40)
+    // 顶部字符装饰徽标
+    ctx.font = 'bold 12px monospace'
+    if (isTarget) {
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText('★ [TARGET: SELECTED] ──────────────────★', 14, 24)
+    } else if (isUpstream) {
+      ctx.fillStyle = '#00f0ff'
+      ctx.fillText('▲ [UPSTREAM: CAUSAL INFLOW] ──────────▲', 14, 24)
+    } else if (isDownstream) {
+      ctx.fillStyle = '#ffaa00'
+      ctx.fillText('▼ [DOWNSTREAM: CAUSAL OUTFLOW] ────────▼', 14, 24)
+    } else {
+      ctx.fillStyle = strokeColor
+      if (node.role === 'observation') {
+        ctx.fillText('┌──[▲ OBSERVATION WORLD]─────────────┐', 14, 24)
+      } else if (node.role === 'execution') {
+        ctx.fillText('┌──[▼ EXECUTION WORLD]───────────────┐', 14, 24)
+      } else {
+        ctx.fillText('┌──[◈ PURE DOMAIN CORE]──────────────┐', 14, 24)
+      }
+    }
 
-    // 代次、版本与度数
+    // 节点主名称
+    ctx.fillStyle = '#f8fafc'
+    ctx.font = node.isHub ? 'bold 20px monospace' : 'bold 18px monospace'
+    const namePrefix = node.isHub ? '👑 ' : ''
+    ctx.fillText(`${namePrefix}${node.name || node.id}`, 18, 54)
+
+    // 状态与元数据（等宽字符艺术风格）
     ctx.fillStyle = '#94a3b8'
-    ctx.font = '16px monospace'
-    const genText = node.generation !== null ? `Gen ${node.generation}` : 'Dropped'
-    const degText = `↓${node.inDegree || 0} ↑${node.outDegree || 0}`
-    ctx.fillText(`${genText} · v${node.version} · ${degText}`, 18, 70)
+    ctx.font = '13px monospace'
+    const genText = node.generation !== null ? `G:${node.generation}` : 'G:--'
+    const degText = `IN:${node.inDegree || 0} OUT:${node.outDegree || 0}`
+    const verText = `v${node.version}`
+    ctx.fillText(`[${genText} · ${verText}] [${degText}]`, 18, 82)
 
-    // 运行态光点
-    ctx.fillStyle = node.status === 'RUNNING' ? '#22c55e' : (node.color || '#38bdf8')
-    ctx.beginPath()
-    ctx.arc(302, 50, node.isHub ? 9 : 7, 0, Math.PI * 2)
-    ctx.fill()
+    // 右下角运行状态字符
+    const isRunning = node.status === 'RUNNING'
+    ctx.fillStyle = isRunning ? '#22c55e' : (node.status === 'DROPPED' ? '#ef4444' : strokeColor)
+    ctx.font = 'bold 13px monospace'
+    ctx.fillText(isRunning ? '[● ACTIVE]' : '[● IDLE]', 276, 82)
   }
 
   private createEdgeVisual(
@@ -458,13 +548,24 @@ export class CausalScene3D {
     fromPos: THREE.Vector3,
     toPos: THREE.Vector3,
   ): EdgeVisual {
-    const curve = this.createCubicCurve(fromPos, toPos)
-    // 粗管径 0.24，具有高辨识度与实体感
-    const tubeGeo = new THREE.TubeGeometry(curve, 48, 0.24, 8, false)
+    const isStalk = Boolean(edge.isVerticalStalk)
+    // 垂直衍生细线使用笔直垂直过渡；普通因果管道使用优雅起伏的 3D 拱桥贝塞尔曲线
+    const curve = isStalk
+      ? new THREE.CubicBezierCurve3(
+          fromPos.clone(),
+          new THREE.Vector3(fromPos.x, fromPos.y * 0.67 + toPos.y * 0.33, fromPos.z),
+          new THREE.Vector3(toPos.x, fromPos.y * 0.33 + toPos.y * 0.67, toPos.z),
+          toPos.clone(),
+        )
+      : this.createCubicCurve(fromPos, toPos)
+
+    // 垂直衍生细线管径 0.08，普通因果管径 0.22
+    const tubeRadius = isStalk ? 0.08 : 0.22
+    const tubeGeo = new THREE.TubeGeometry(curve, isStalk ? 24 : 48, tubeRadius, 8, false)
     const lineMat = new THREE.MeshBasicMaterial({
       color: new THREE.Color(edge.color || '#38bdf8'),
       transparent: true,
-      opacity: 0.65,
+      opacity: isStalk ? 0.8 : 0.65,
     })
     const lineMesh = new THREE.Mesh(tubeGeo, lineMat)
 
@@ -472,9 +573,12 @@ export class CausalScene3D {
     const arrowMat = new THREE.MeshBasicMaterial({
       color: new THREE.Color(edge.color || '#38bdf8'),
       transparent: true,
-      opacity: 0.85,
+      opacity: isStalk ? 0.65 : 0.85,
     })
     const arrowMesh = new THREE.Mesh(this.sharedArrowGeo, arrowMat)
+    if (isStalk) {
+      arrowMesh.scale.set(0.55, 0.55, 0.55)
+    }
     this.updateArrowTransform(arrowMesh, curve)
 
     return { lineMesh, arrowMesh, curve, edge, glowIntensity: 0 }
@@ -602,6 +706,168 @@ export class CausalScene3D {
     this.shockwaves.push({ wave, mesh: waveMesh })
   }
 
+  /**
+   * 双向 BFS 因果溯源算法：
+   * 计算指定选中节点的全部上游入流集合 (Upstream / Inflow) 与后序派生出流集合 (Downstream / Outflow)
+   */
+  private computeCausalPaths(targetId: string): void {
+    this.upstreamNodeIds.clear()
+    this.downstreamNodeIds.clear()
+    this.upstreamEdgeIds.clear()
+    this.downstreamEdgeIds.clear()
+
+    const inEdges = new Map<string, Array<{ from: string; edgeId: string }>>()
+    const outEdges = new Map<string, Array<{ to: string; edgeId: string }>>()
+
+    for (const [id, visual] of this.edgeVisuals.entries()) {
+      if (visual.edge.isVerticalStalk) continue // 排除纯物理衍生细线，专注业务因果消息拓扑
+      const { from, to } = visual.edge
+      if (!inEdges.has(to)) inEdges.set(to, [])
+      inEdges.get(to)!.push({ from, edgeId: id })
+      if (!outEdges.has(from)) outEdges.set(from, [])
+      outEdges.get(from)!.push({ to, edgeId: id })
+    }
+
+    // 1. 上游溯源 (BFS Backward)
+    const upQueue = [targetId]
+    const upVisited = new Set<string>([targetId])
+    while (upQueue.length > 0) {
+      const curr = upQueue.shift()!
+      const predecessors = inEdges.get(curr) || []
+      for (const { from, edgeId } of predecessors) {
+        this.upstreamEdgeIds.add(edgeId)
+        if (!upVisited.has(from)) {
+          upVisited.add(from)
+          this.upstreamNodeIds.add(from)
+          upQueue.push(from)
+        }
+      }
+    }
+
+    // 2. 下游派生 (BFS Forward)
+    const downQueue = [targetId]
+    const downVisited = new Set<string>([targetId])
+    while (downQueue.length > 0) {
+      const curr = downQueue.shift()!
+      const successors = outEdges.get(curr) || []
+      for (const { to, edgeId } of successors) {
+        this.downstreamEdgeIds.add(edgeId)
+        if (!downVisited.has(to)) {
+          downVisited.add(to)
+          this.downstreamNodeIds.add(to)
+          downQueue.push(to)
+        }
+      }
+    }
+  }
+
+  /**
+   * 选中节点高亮全景更新：
+   * - 目标节点：白金高亮光圈 + 放大倍率
+   * - 上游链路：电光青高饱和聚光 (#00f0ff)，导管全开
+   * - 下游链路：赛博金橙高饱和聚光 (#ffaa00)，导管全开
+   * - 无关节点与边：降为 10%~15% 半透明暗灰线框
+   */
+  public setSelectedNode(nodeId: string | null): void {
+    this.selectedNodeId = nodeId
+    if (nodeId) {
+      this.computeCausalPaths(nodeId)
+    } else {
+      this.upstreamNodeIds.clear()
+      this.downstreamNodeIds.clear()
+      this.upstreamEdgeIds.clear()
+      this.downstreamEdgeIds.clear()
+    }
+
+    // 更新节点材质、缩放与徽标
+    for (const [id, visual] of this.nodeVisuals.entries()) {
+      const isTarget = id === nodeId
+      const isUpstream = this.upstreamNodeIds.has(id)
+      const isDownstream = this.downstreamNodeIds.has(id)
+      const isRelated = isTarget || isUpstream || isDownstream
+      const isDimmed = Boolean(nodeId && !isRelated)
+
+      const coreMat = visual.core.material as THREE.MeshStandardMaterial
+      const ringMat = visual.ring.material as THREE.MeshBasicMaterial
+      const ring2Mat = visual.ring2 ? (visual.ring2.material as THREE.MeshBasicMaterial) : undefined
+
+      if (isTarget) {
+        coreMat.emissive.set('#ffffff')
+        coreMat.emissiveIntensity = 1.8
+        coreMat.opacity = 1.0
+        ringMat.color.set('#ffffff')
+        ringMat.opacity = 1.0
+        visual.group.scale.set(1.25, 1.25, 1.25)
+      } else if (isUpstream) {
+        coreMat.emissive.set('#00f0ff')
+        coreMat.emissiveIntensity = 1.45
+        coreMat.opacity = 1.0
+        ringMat.color.set('#00f0ff')
+        ringMat.opacity = 0.95
+        visual.group.scale.set(1.12, 1.12, 1.12)
+      } else if (isDownstream) {
+        coreMat.emissive.set('#ffaa00')
+        coreMat.emissiveIntensity = 1.45
+        coreMat.opacity = 1.0
+        ringMat.color.set('#ffaa00')
+        ringMat.opacity = 0.95
+        visual.group.scale.set(1.12, 1.12, 1.12)
+      } else if (isDimmed) {
+        coreMat.emissive.set('#1e293b')
+        coreMat.emissiveIntensity = 0.1
+        coreMat.opacity = 0.2
+        ringMat.opacity = 0.12
+        if (ring2Mat) ring2Mat.opacity = 0.08
+        visual.group.scale.set(0.9, 0.9, 0.9)
+      } else {
+        // 恢复默认社区色与正常姿态
+        const defaultColor = new THREE.Color(visual.node.color || '#38bdf8')
+        coreMat.emissive.copy(defaultColor)
+        coreMat.emissiveIntensity = visual.node.isHub ? 1.2 : 0.85
+        coreMat.opacity = 1.0
+        ringMat.color.copy(defaultColor)
+        ringMat.opacity = visual.node.isHub ? 0.85 : 0.6
+        if (ring2Mat) ring2Mat.opacity = 0.5
+        visual.group.scale.set(1.0, 1.0, 1.0)
+      }
+
+      this.updateNodeSprite(visual)
+    }
+
+    // 更新边管网材质、透明度与颜色
+    for (const [id, visual] of this.edgeVisuals.entries()) {
+      const isUpstreamEdge = this.upstreamEdgeIds.has(id)
+      const isDownstreamEdge = this.downstreamEdgeIds.has(id)
+      const isStalk = Boolean(visual.edge.isVerticalStalk)
+      const lineMat = visual.lineMesh.material as THREE.MeshBasicMaterial
+      const arrowMat = visual.arrowMesh.material as THREE.MeshBasicMaterial
+
+      if (isUpstreamEdge) {
+        lineMat.color.set('#00f0ff') // 电光青高亮管网
+        lineMat.opacity = 1.0
+        arrowMat.color.set('#00f0ff')
+        arrowMat.opacity = 1.0
+      } else if (isDownstreamEdge) {
+        lineMat.color.set('#ffaa00') // 赛博金橙高亮管网
+        lineMat.opacity = 1.0
+        arrowMat.color.set('#ffaa00')
+        arrowMat.opacity = 1.0
+      } else if (nodeId) {
+        // 有选中节点但此边不属于因果链路，进行暗化弱化
+        lineMat.color.set('#1e293b')
+        lineMat.opacity = isStalk ? 0.12 : 0.08
+        arrowMat.opacity = 0.05
+      } else {
+        // 默认恢复
+        const defaultColor = new THREE.Color(visual.edge.color || '#38bdf8')
+        lineMat.color.copy(defaultColor)
+        lineMat.opacity = isStalk ? 0.8 : 0.65
+        arrowMat.color.copy(defaultColor)
+        arrowMat.opacity = isStalk ? 0.65 : 0.85
+      }
+    }
+  }
+
   private onPointerDown(event: PointerEvent): void {
     const rect = this.renderer.domElement.getBoundingClientRect()
     this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
@@ -617,10 +883,14 @@ export class CausalScene3D {
     if (intersects.length > 0) {
       const hit = intersects[0].object
       const nodeId = hit.userData?.nodeId
-      if (nodeId && this.onNodeSelectedCallback) {
-        this.onNodeSelectedCallback(nodeId)
+      if (nodeId) {
+        this.setSelectedNode(nodeId)
+        if (this.onNodeSelectedCallback) {
+          this.onNodeSelectedCallback(nodeId)
+        }
       }
     } else {
+      this.setSelectedNode(null)
       if (this.onNodeSelectedCallback) {
         this.onNodeSelectedCallback(null)
       }

@@ -1,3 +1,5 @@
+export type CausalNodeRole = 'domain' | 'observation' | 'execution'
+
 export interface CausalNode3D {
   id: string
   name: string
@@ -7,6 +9,8 @@ export interface CausalNode3D {
   version: number
   status: 'IDLE' | 'RUNNING' | 'DROPPED'
   state: Record<string, unknown>
+  role: CausalNodeRole
+  parentDomainNodeId?: string
   tier?: number
   communityId?: string
   communityName?: string
@@ -31,6 +35,7 @@ export interface CausalEdge3D {
   to: string
   color: string
   active: boolean
+  isVerticalStalk?: boolean
   lastSentTime?: number
   lastInfoType?: string
 }

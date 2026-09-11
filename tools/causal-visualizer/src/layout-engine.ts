@@ -31,6 +31,22 @@ const COMMUNITY_PALETTES = [
   '#3b82f6', // 湛蓝色（观察与同步）
 ]
 
+export function inferNodeRole(nodeId: string): 'domain' | 'observation' | 'execution' {
+  if (nodeId.startsWith('src-') || nodeId.includes('observer') || nodeId.includes('poll')) {
+    return 'observation'
+  }
+  if (
+    nodeId.startsWith('sink-') ||
+    nodeId.startsWith('host-') ||
+    nodeId.includes('writer') ||
+    nodeId.includes('download') ||
+    nodeId.includes('submit')
+  ) {
+    return 'execution'
+  }
+  return 'domain'
+}
+
 /**
  * 图无关标签传播聚类算法 (Label Propagation Algorithm, LPA)
  * 纯图无关：输入任意有向图与节点，基于拓扑邻域密度自适应收敛出自然社区结构。
@@ -189,19 +205,43 @@ export function computeGraphAgnosticLayout(
 
   // 3. 计算节点在 3D 空间中的排布
   const finalNodes: CausalNode3D[] = []
+  const derivativeEdges: CausalEdge3D[] = []
 
   if (mode === 'community') {
-    // === 模式 A：3D 拓扑群落聚类排布 ===
+    // === 模式 A：3D 拓扑群落聚类排布（中枢纯领域核心，上浮观察层，下沉操作层） ===
     for (const comm of communityList) {
       const members = comm.nodeIds
       const [cx, cy, cz] = comm.center
       const hubId = comm.hubNodeId
-      const satelliteMembers = members.filter((id) => id !== hubId)
 
-      // Hub 中枢节点放置于群落几何中心
+      // 分离纯领域核心节点、观察层节点 (src-*)、操作层节点 (sink-*, host-*)
+      const domainIds: string[] = []
+      const obsIds: string[] = []
+      const execIds: string[] = []
+
+      for (const mId of members) {
+        const role = inferNodeRole(mId)
+        if (role === 'observation') obsIds.push(mId)
+        else if (role === 'execution') execIds.push(mId)
+        else domainIds.push(mId)
+      }
+
+      // 若群落内全为外部世界节点，将 Hub 提升为领域锚点基准
+      if (domainIds.length === 0) {
+        domainIds.push(hubId)
+        const obsIdx = obsIds.indexOf(hubId)
+        if (obsIdx !== -1) obsIds.splice(obsIdx, 1)
+        const execIdx = execIds.indexOf(hubId)
+        if (execIdx !== -1) execIds.splice(execIdx, 1)
+      }
+
+      // 1. 中枢核心层（Y=cy 核心基准平面）
+      const domainPositions = new Map<string, [number, number, number]>()
+      const otherDomains = domainIds.filter((id) => id !== hubId)
+
+      // Hub 置于群落几何中心
       const hubRaw = nodeMap.get(hubId)!
-      const hubIn = inDegree.get(hubId) || 0
-      const hubOut = outDegree.get(hubId) || 0
+      domainPositions.set(hubId, [cx, cy, cz])
       finalNodes.push({
         id: hubId,
         name: hubId,
@@ -211,46 +251,132 @@ export function computeGraphAgnosticLayout(
         version: hubRaw.version || 0,
         status: (hubRaw.status as any) || 'IDLE',
         state: hubRaw.state || {},
+        role: inferNodeRole(hubId),
         communityId: comm.id,
         communityName: comm.name,
-        inDegree: hubIn,
-        outDegree: hubOut,
+        inDegree: inDegree.get(hubId) || 0,
+        outDegree: outDegree.get(hubId) || 0,
         isHub: true,
       })
 
-      // 卫星节点环绕 Hub 进行球面 / 轨道排布
-      const satCount = satelliteMembers.length
-      satelliteMembers.forEach((satId, sIdx) => {
-        const raw = nodeMap.get(satId)!
-        const sIn = inDegree.get(satId) || 0
-        const sOut = outDegree.get(satId) || 0
-
-        let nx = cx
-        let ny = cy
-        let nz = cz
-
-        if (satCount > 0) {
-          const orbitAngle = (sIdx / satCount) * Math.PI * 2 + (comm.center[0] * 0.1)
-          const orbitR = comm.radius * 0.85
-          nx = cx + Math.cos(orbitAngle) * orbitR
-          nz = cz + Math.sin(orbitAngle) * orbitR
-          ny = cy + Math.sin(orbitAngle * 2) * (comm.radius * 0.3)
-        }
+      // 其余领域核心节点水平环形展开
+      otherDomains.forEach((dId, dIdx) => {
+        const raw = nodeMap.get(dId)!
+        const angle = (dIdx / Math.max(1, otherDomains.length)) * Math.PI * 2 + (comm.center[0] * 0.1)
+        const r = Math.min(comm.radius * 0.75, 12)
+        const dx = cx + Math.cos(angle) * r
+        const dz = cz + Math.sin(angle) * r
+        const dy = cy + (dIdx % 2 === 0 ? 0.6 : -0.6) // 轻微高低起伏
+        domainPositions.set(dId, [dx, dy, dz])
 
         finalNodes.push({
-          id: satId,
-          name: satId,
+          id: dId,
+          name: dId,
           color: comm.color,
-          position: [nx, ny, nz],
+          position: [dx, dy, dz],
           generation: raw.generation !== undefined ? raw.generation : 0,
           version: raw.version || 0,
           status: (raw.status as any) || 'IDLE',
           state: raw.state || {},
+          role: inferNodeRole(dId),
           communityId: comm.id,
           communityName: comm.name,
-          inDegree: sIn,
-          outDegree: sOut,
+          inDegree: inDegree.get(dId) || 0,
+          outDegree: outDegree.get(dId) || 0,
           isHub: false,
+        })
+      })
+
+      // 辅助函数：寻找最近有因果连接的领域核心节点作为垂直锚点
+      const findAnchorDomain = (targetId: string): { id: string; pos: [number, number, number] } => {
+        for (const e of rawEdges) {
+          if (e.from === targetId && domainPositions.has(e.to)) {
+            return { id: e.to, pos: domainPositions.get(e.to)! }
+          }
+          if (e.to === targetId && domainPositions.has(e.from)) {
+            return { id: e.from, pos: domainPositions.get(e.from)! }
+          }
+        }
+        return { id: hubId, pos: domainPositions.get(hubId)! }
+      }
+
+      // 2. 观察层 (+Y 垂直向上高位衍生，感官探测天线)
+      obsIds.forEach((obsId, oIdx) => {
+        const raw = nodeMap.get(obsId)!
+        const anchor = findAnchorDomain(obsId)
+        const angleJitter = (oIdx / Math.max(1, obsIds.length)) * Math.PI * 2
+        const jitterR = 2.2
+        const ox = anchor.pos[0] + Math.cos(angleJitter) * jitterR
+        const oy = anchor.pos[1] + 8.5 // 垂直向上 8.5 空间单位
+        const oz = anchor.pos[2] + Math.sin(angleJitter) * jitterR
+
+        finalNodes.push({
+          id: obsId,
+          name: obsId,
+          color: '#00f0ff', // 电光青观察色
+          position: [ox, oy, oz],
+          generation: raw.generation !== undefined ? raw.generation : 0,
+          version: raw.version || 0,
+          status: (raw.status as any) || 'IDLE',
+          state: raw.state || {},
+          role: 'observation',
+          parentDomainNodeId: anchor.id,
+          communityId: comm.id,
+          communityName: comm.name,
+          inDegree: inDegree.get(obsId) || 0,
+          outDegree: outDegree.get(obsId) || 0,
+          isHub: false,
+        })
+
+        // 添加垂直衍生发光细线
+        derivativeEdges.push({
+          id: `stalk-${obsId}->${anchor.id}`,
+          from: obsId,
+          to: anchor.id,
+          color: '#00f0ff',
+          active: true,
+          isVerticalStalk: true,
+          lastInfoType: 'ObservationFilament',
+        })
+      })
+
+      // 3. 操作层 (-Y 垂直向下低位衍生，执行持久底座)
+      execIds.forEach((execId, eIdx) => {
+        const raw = nodeMap.get(execId)!
+        const anchor = findAnchorDomain(execId)
+        const angleJitter = (eIdx / Math.max(1, execIds.length)) * Math.PI * 2
+        const jitterR = 2.2
+        const ex = anchor.pos[0] + Math.cos(angleJitter) * jitterR
+        const ey = anchor.pos[1] - 8.5 // 垂直向下 8.5 空间单位
+        const ez = anchor.pos[2] + Math.sin(angleJitter) * jitterR
+
+        finalNodes.push({
+          id: execId,
+          name: execId,
+          color: '#f59e0b', // 琥珀金操作执行色
+          position: [ex, ey, ez],
+          generation: raw.generation !== undefined ? raw.generation : 0,
+          version: raw.version || 0,
+          status: (raw.status as any) || 'IDLE',
+          state: raw.state || {},
+          role: 'execution',
+          parentDomainNodeId: anchor.id,
+          communityId: comm.id,
+          communityName: comm.name,
+          inDegree: inDegree.get(execId) || 0,
+          outDegree: outDegree.get(execId) || 0,
+          isHub: false,
+        })
+
+        // 添加垂直衍生发光细线
+        derivativeEdges.push({
+          id: `stalk-${anchor.id}->${execId}`,
+          from: anchor.id,
+          to: execId,
+          color: '#f59e0b',
+          active: true,
+          isVerticalStalk: true,
+          lastInfoType: 'ExecutionFilament',
         })
       })
     }
@@ -329,6 +455,7 @@ export function computeGraphAgnosticLayout(
           version: raw.version || 0,
           status: (raw.status as any) || 'IDLE',
           state: raw.state || {},
+          role: inferNodeRole(nodeId),
           tier: t,
           communityId: comm?.id,
           communityName: comm?.name,
@@ -340,7 +467,7 @@ export function computeGraphAgnosticLayout(
     }
   }
 
-  // 4. 组装边（带群落内/跨群落能量色）
+  // 4. 组装边（普通因果边 + 垂直衍生导管边）
   const finalEdges: CausalEdge3D[] = rawEdges.map((e) => {
     const sourceNode = finalNodes.find((n) => n.id === e.from)
     const targetNode = finalNodes.find((n) => n.id === e.to)
@@ -353,8 +480,17 @@ export function computeGraphAgnosticLayout(
       to: e.to,
       color,
       active: false,
+      isVerticalStalk: false,
+      lastInfoType: e.infoType,
     }
   })
+
+  // 汇入上下衍生细线导管
+  for (const dEdge of derivativeEdges) {
+    if (!finalEdges.some((e) => e.id === dEdge.id)) {
+      finalEdges.push(dEdge)
+    }
+  }
 
   return { nodes: finalNodes, edges: finalEdges, communities: communityList }
 }
