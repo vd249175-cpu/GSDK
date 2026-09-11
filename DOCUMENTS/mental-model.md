@@ -64,7 +64,7 @@ Info 是 Node 间唯一通信载体：
 ctx.send(info, targetNodeId)
 ```
 
-send 只入队，不递归调用目标 Node。系统没有 flows、声明边、observedEdges、GraphEdge、Wrapper 或广播总线。
+send 只负责将脉冲排入目标 Mailbox，不递归调用目标 Node。**发送节点不关心 send 后的具体业务执行情况与下游状态**（即发即忘，彻底杜绝 RPC 阻塞耦合）；内核可提供轻量即时物理投递反馈（如被丢弃 `dropped`、空输出 `empty` 或已入队 `enqueued`），仅供节点做极简局部物理判定（如打点记录或探测降级），绝不阻塞当前单飞因果推进。系统没有 flows、声明边、observedEdges、GraphEdge、Wrapper 或广播总线。
 
 ### change
 

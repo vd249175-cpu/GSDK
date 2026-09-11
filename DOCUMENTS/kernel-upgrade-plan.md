@@ -55,6 +55,7 @@ description: 针对运行时与程序混淆问题的微内核范式转移方案�
    - 空间提供原生的 `space.admit(node)`（丢入实体）与 `space.evict(nodeId)`（取出实体）能力，且这两个操作随时可以在空间运行中执行。
 3. **物理法则普适且唯一**：
    - 空间内实体之间相互施加影响的**唯一合法手段是定向脉冲（`Info`）**；
+   - 发送节点只发射脉冲，不关心下游业务执行情况（即发即忘，单向推进）；
    - 不存在任何后门、共享内存或跨节点的隐式调用。
 4. **状态与实体严格绑定（State Bound to Entity）**：
    - 节点的 State 是该实体内部私有的特征，随实体本身的驱逐而彻底消亡；
@@ -96,7 +97,22 @@ description: 针对运行时与程序混淆问题的微内核范式转移方案�
 - 节点如何解释 `Info`、在何时拒绝变更、如何转移内部状态，全部内聚在 Node 源码之中；
 - **修改逻辑的唯一正统途径**：编写新版本的 Node 代码类，通过运行期的间隙暴力替换（`space.replace`）将新实体放入物理规则空间，新代码随之以纯净初始状态生效。
 
-### 4. 错误即特殊 Info（Error as Causal Info）
+### 4. 发送者的解耦哲学与轻量投递反馈（Unconcerned Sender & Delivery Feedback）
+在因果物理模型中，必须彻底理清发送端与接收端的心智边界：
+- **节点对 send 后的业务情况“完全不关心”（Unconcerned / Fire-and-Forget）**：
+  - `ctx.send(info, targetNodeId)` 是非阻塞的单向脉冲发射；
+  - 发送节点只负责将消息推向物理空间，**绝不关心、也不追踪后续下游节点的业务执行结果、处理耗时或状态转移**；
+  - 节点不等待返回值，彻底杜绝同步 RPC（请求-响应）的阻塞耦合，确保自身单飞因果推进的独立性与确定性。
+- **微内核提供轻量即时投递反馈（Delivery Feedback）**：
+  - 尽管节点不关心下游业务情况，但物理空间在派发瞬间可提供极轻量的即时状态或回调，便于节点做一些局部物理判定：
+    - `dropped`：目标节点不在空间中、尚未准入或正处于置换间隙，消息被空间直接丢弃；
+    - `empty`：目标节点判定拒绝处理或产生空输出；
+    - `enqueued`：消息已成功进入目标 Mailbox。
+  - **判定边界极其严格**：
+    - 该反馈**仅反映空间投递层的物理事实**，绝不携带下游 Node 的业务数据或堆栈；
+    - 仅供发送节点做极简判定（例如：丢弃打点、探测目标存活、执行简单降级），严禁借此构筑伪 RPC 阻塞调用。
+
+### 5. 错误即特殊 Info（Error as Causal Info）
 在物理规则空间中，**Node 的执行异常永远被代码捕获为一条特殊的 Info**：
 - **无致命 Panic，空间永不宕机**：Node 内部代码抛出的任何未捕获异常或断言失败，都会被调度器安全拦截并实体化封装为具象的 `ErrorInfo`。
 - **平权流通与任意发送**：该 Info 不会触发中断停机，而是作为普通的因果事实在空间中自由流动。它可被写进自身 State、发送给依赖方作为失败通知、或定向抛给专门的监督节点（Supervisor Node）执行熔断、告警或重试。
@@ -172,7 +188,33 @@ export class RuleSpace {
 }
 ```
 
-### 2. 标准生命周期契约（通用协议）
+### 2. 发送反馈与投递契约（轻量物理判定，非 RPC 响应）
+
+```ts
+export type DeliveryStatus = 'enqueued' | 'dropped' | 'empty';
+
+export interface DeliveryFeedback {
+  readonly status: DeliveryStatus;
+  readonly reason?: string;
+}
+
+export interface DomainChangeContext<S = any> {
+  read<K extends keyof S>(key: K): S[K];
+  write<K extends keyof S>(key: K, value: S[K]): void;
+  patchState(patch: Partial<S>): void;
+
+  // 发送即忘：不关心下游业务结果；返回极简物理投递状态或触发简单回调，仅供局部轻量判定
+  send(
+    info: Info,
+    targetNodeId: string,
+    options?: { onDelivery?: (feedback: DeliveryFeedback) => void },
+  ): DeliveryFeedback;
+
+  span<T>(name: string, action: () => Promise<T> | T): Promise<T>;
+}
+```
+
+### 3. 标准生命周期契约（通用协议）
 
 在 `@graphvideo/sdk/contract` 中定义标准生命周期 Info 辨识类型：
 
@@ -195,7 +237,7 @@ export interface NodeStopRequestedInfo extends Info {
 | 阶段 | 目标 | 交付物 | 验证方式 |
 | :--- | :--- | :--- | :--- |
 | **M1: 空间实体动态化** | 解耦内核装配期，支持运行期随时 `admit` 和 `evict` 节点。 | `core/src/space.ts` 或增强 `runtime.ts` | 针对性单测：在调度循环中任意时刻丢入/拿出 Node，验证因果拓扑即时伸缩。 |
-| **M2: 未达消息自然丢弃与防御** | 目标节点不在空间时，未到达消息安全丢弃，绝不导致内核崩溃或消息阻塞。 | `core/src/delivery.ts` 安全派发逻辑 | 并发测试：上游持续向已下线/置换中的 Node 发送 Info，验证内核稳定运行、未达消息自然丢弃。 |
+| **M2: 未达消息自然丢弃与轻量投递反馈** | 目标节点不在空间时，未到达消息安全丢弃，内核提供轻量反馈（dropped/empty 等）供极简判定。 | `core/src/delivery.ts` 安全派发逻辑 | 并发测试：上游持续向已下线/置换中的 Node 发送 Info，验证内核稳定运行、未达消息自然丢弃；测试发送端通过轻量反馈判定丢弃并完成局部降级。 |
 | **M3: 生命周期平权与 Info 标准化** | 制定标准生命周期 Info 契约，消除特权生命周期方法。 | `sdk/contract/lifecycle.ts` | 编写示例节点，仅通过响应 `StopRequestedInfo` 完成自清洁并在 change 中拒绝后续逻辑。 |
 | **M4: 节点级间隙暴力热更新 API 与验证** | 交付 `space.replace(newNode)` 间隙暴力热替换方案，丢弃残留消息并纯净初始化。 | `core/` 导出原子热更方法并在 `apps/` 中演示 | 编写热更集成测试：无需重启应用进程，动态替换 CounterNode 逻辑，验证旧未达消息被丢弃、新节点以初始状态干净启动且新逻辑即时生效。 |
 
@@ -209,5 +251,6 @@ export interface NodeStopRequestedInfo extends Info {
 2. **生命周期 Info 化与平权（启动/关闭皆普通消息，无系统特权，可沿因果链自然流转）**；
 3. **change 的代码级自由表达（Node 自主决定状态逻辑，外部不可注入规则）**；
 4. **准入（Admit）与驱逐（Evict）的间隙暴力热更机制（单飞间隙暴力替换、未达消息直接丢弃、State 绝不隐式继承）**；
+5. **发送者解耦与轻量物理投递反馈（不关心下游业务情况，提供极简状态回调做物理判定，非阻塞无 RPC）**；
 
 微内核将具备极高的一致性、轻量性与现代运行时最渴望的**真正不停机热重载**特性。
