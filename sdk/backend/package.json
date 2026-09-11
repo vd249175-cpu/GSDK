@@ -15,9 +15,15 @@
   "exports": {
     ".": {
       "types": "./index.ts",
-      "default": "./index.ts"
+      "default": "./dist/index.js"
     }
   },
+  "files": [
+    "dist",
+    "*.ts",
+    "*.mts",
+    "*.mjs"
+  ],
   "peerDependencies": {
     "@graphvideo/kernel": "^1.0.0"
   }

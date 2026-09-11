@@ -147,15 +147,13 @@ export function locateNativeBinding(): string | null {
         ? `darwin-${process.arch}`
         : null;
   if (!platformTag) return null;
-  const candidate = resolve(
-    here,
-    '..',
-    '..',
-    'crates',
-    'kernel-node',
-    `graphvideo-kernel-node.${platformTag}.node`,
-  );
-  return existsSync(candidate) ? candidate : null;
+  const fileName = `graphvideo-kernel-node.${platformTag}.node`;
+  const candidates = [
+    resolve(here, 'native', fileName),
+    resolve(here, '..', '..', 'crates', 'kernel-node', fileName),
+    resolve(here, '..', '..', '..', 'crates', 'kernel-node', fileName),
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
 
 function loadBinding(): BindingSpace {

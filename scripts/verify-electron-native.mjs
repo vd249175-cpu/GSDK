@@ -21,7 +21,7 @@ const smoke = resolve(root, 'scripts', 'electron-native-smoke.cjs')
 const result = spawnSync(electron, [smoke], {
   cwd: root,
   encoding: 'utf8',
-  env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', GRAPHVIDEO_NATIVE_NODE: binding },
+  env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
 })
 if (result.stdout) process.stdout.write(result.stdout)
 if (result.stderr) process.stderr.write(result.stderr)
