@@ -8,5 +8,5 @@
     "noEmit": true,
     "allowJs": true
   },
-  "include": ["src-main", "plugins/hello-counter/backend.mjs", "scripts/check-renderer-boundary.mjs", "scripts/diagnose.mjs", "analysis/links.mjs"]
+  "include": ["src-main", "plugins/*/backend.ts", "plugins/*/backend.mjs", "scripts/check-renderer-boundary.mjs", "scripts/diagnose.mjs", "analysis/links.mjs"]
 }

@@ -6,6 +6,8 @@
   "type": "module",
   "main": "src-main/main.mjs",
   "scripts": {
+    "dev": "vite --config renderer/vite.config.ts",
+    "start": "electron .",
     "diagnose": "tsx scripts/diagnose.mjs",
     "demo:topology": "tsx scripts/demo-topology.mjs",
     "demo:op": "node scripts/demo-op.mjs",
@@ -21,7 +23,9 @@
     "@graphvideo/kernel": "*",
     "@graphvideo/sdk": "*",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "yaml": "^2.9.0",
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

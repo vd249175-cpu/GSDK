@@ -1,0 +1,6 @@
+{
+  "id": "properties",
+  "name": "节点属性",
+  "apiVersion": 1,
+  "entry": "element.ts"
+}

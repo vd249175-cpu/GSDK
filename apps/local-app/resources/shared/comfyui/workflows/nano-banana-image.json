@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "nano-banana-image",
+  "name": "Nano Banana 2 · 核心资产与多图融合生图",
+  "description": "Google Nano Banana 2 (Gemini 3.1 Flash Image) 旗舰图像生成与多图融合",
+  "mediaType": "image",
+  "graph": {
+    "9": {
+      "inputs": {
+        "filename_prefix": "image/Nano_Banana2",
+        "images": [
+          "24",
+          0
+        ]
+      },
+      "class_type": "SaveImage",
+      "_meta": {
+        "title": "保存图像"
+      }
+    },
+    "24": {
+      "inputs": {
+        "prompt": "Authentic cinematic portrait",
+        "model": "Nano Banana 2 (Gemini 3.1 Flash Image)",
+        "aspect_ratio": "16:9",
+        "resolution": "1K",
+        "style": "MINIMAL",
+        "seed": 42,
+        "system_instruction": "You are an expert photorealistic image-generation engine. Render high quality visual output.",
+        "temperature": 1.0,
+        "top_p": 0.95
+      },
+      "class_type": "GeminiNanoBanana2V2",
+      "_meta": {
+        "title": "Nano Banana 2"
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "id": "generation",
+  "name": "生成准备",
+  "apiVersion": 1,
+  "entry": "element.ts"
+}

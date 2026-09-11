@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "id": "seedance-flf2v",
+  "name": "Seedance 首尾帧 · 视频插帧生成工作流",
+  "description": "严格以首尾两帧图像为物理约束的视频生成工作流。",
+  "mediaType": "video",
+  "provider": "comfy",
+  "parameters": {
+    "seedanceModel": { "type": "string", "enum": ["Seedance 2.0", "Seedance 2.5", "Seedance 2.0 Fast", "Seedance 2.0 Mini"], "outputName": "seedance_model" },
+    "duration": { "type": "integer", "minimum": 4, "maximum": 30 },
+    "resolution": { "type": "string", "enum": ["480p", "720p", "1080p", "4k"] },
+    "aspectRatio": { "type": "string", "enum": ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "adaptive"], "outputName": "aspect_ratio" },
+    "generateAudio": { "type": "boolean", "outputName": "generate_audio" },
+    "watermark": { "type": "boolean" },
+    "seed": { "type": "integer", "minimum": 0 }
+  },
+  "defaults": { "seedanceModel": "Seedance 2.0", "duration": 5, "resolution": "720p", "aspectRatio": "adaptive", "generateAudio": true, "watermark": false, "seed": 42 },
+  "prompt": { "aliases": { "image": "Image_{ordinal}" } },
+  "dependencies": { "requireReady": true, "counts": { "image": { "exact": 2, "message": "Seedance FLF2V 首尾帧工作流必须且只能提供首帧与尾帧 2 张参考图" } }, "parameterMaximums": { "duration": { "maximum": 15, "message": "Seedance 2.0 首尾帧时长最多 15 秒" } } },
+  "variants": [
+    { "when": { "parameter": "seedanceModel", "equals": "Seedance 2.0 Mini" }, "budget": { "kind": "stepped", "parameter": "duration", "baseUnits": 5, "base": 110, "perUnit": 12, "multiplierParameter": "resolution", "multipliers": { "4k": 2.5, "1080p": 1.5 }, "defaultMultiplier": 1, "mode": "partner_stepped" } },
+    { "when": { "parameter": "seedanceModel", "equals": "Seedance 2.5" }, "dependencies": { "requireReady": true, "counts": { "image": { "exact": 2, "message": "Seedance FLF2V 首尾帧工作流必须且只能提供首帧与尾帧 2 张参考图" } }, "parameterMaximums": {} }, "budget": { "kind": "stepped", "parameter": "duration", "baseUnits": 5, "base": 350, "perUnit": 35, "multiplierParameter": "resolution", "multipliers": { "4k": 2.5, "1080p": 1.5 }, "defaultMultiplier": 1, "mode": "partner_stepped" } }
+  ],
+  "budget": { "kind": "stepped", "parameter": "duration", "baseUnits": 5, "base": 319, "perUnit": 32, "multiplierParameter": "resolution", "multipliers": { "4k": 2.5, "1080p": 1.5 }, "defaultMultiplier": 1, "mode": "partner_stepped" }
+}

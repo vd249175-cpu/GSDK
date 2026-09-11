@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "id": "grok-video",
+  "name": "xAI Grok 首帧动效视频",
+  "description": "xAI Grok 视频生成：适合无复杂背景音效要求的快速首帧生视频与高动态镜头。",
+  "mediaType": "video",
+  "provider": "comfyui",
+  "baseUrl": "https://cloud.comfy.org",
+  "partnerModel": "xai/grok-image-generate",
+  "graph": {
+    "1": {
+      "class_type": "GrokVideoNode",
+      "inputs": {
+        "prompt": "Cinematic motion camera sweep, dynamic lighting, sharp details, 4k photorealistic.",
+        "aspect_ratio": "16:9",
+        "duration": 5,
+        "seed": 0
+      }
+    },
+    "2": {
+      "class_type": "SaveVideo",
+      "inputs": {
+        "filename_prefix": "video/Grok_Video",
+        "format": "auto",
+        "codec": "auto",
+        "video": [
+          "1",
+          0
+        ]
+      }
+    }
+  },
+  "bindings": {
+    "prompt": {
+      "node": "1",
+      "input": "prompt"
+    },
+    "aspectRatio": {
+      "node": "1",
+      "input": "aspect_ratio"
+    },
+    "duration": {
+      "node": "1",
+      "input": "duration"
+    },
+    "seed": {
+      "node": "1",
+      "input": "seed"
+    },
+    "filenamePrefix": {
+      "node": "2",
+      "input": "filename_prefix"
+    }
+  },
+  "defaults": {}
+}

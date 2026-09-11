@@ -1,0 +1,35 @@
+{
+  "modelIds": [
+    "audio-sfx",
+    "chat-image",
+    "chat-video",
+    "higgs-speech",
+    "minimax-h3-video",
+    "nano-banana-image",
+    "qwen-voice-design",
+    "seedance-flf2v",
+    "seedance-video"
+  ],
+  "mediaTypes": {
+    "audio-sfx": "audio",
+    "chat-image": "image",
+    "chat-video": "video",
+    "higgs-speech": "audio",
+    "minimax-h3-video": "video",
+    "nano-banana-image": "image",
+    "qwen-voice-design": "audio",
+    "seedance-flf2v": "video",
+    "seedance-video": "video"
+  },
+  "budgets": {
+    "audio-sfx": 0,
+    "chat-image": 0,
+    "chat-video": 0,
+    "higgs-speech": 0,
+    "minimax-h3-video": 14.3,
+    "nano-banana-image": 17,
+    "qwen-voice-design": 0,
+    "seedance-flf2v": 319,
+    "seedance-video": 319
+  }
+}

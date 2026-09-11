@@ -1,0 +1,6 @@
+{
+  "id": "agent-console",
+  "name": "Agent 终端",
+  "apiVersion": 1,
+  "entry": "element.ts"
+}

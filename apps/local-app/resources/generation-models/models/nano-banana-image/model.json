@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "id": "nano-banana-image",
+  "name": "Nano Banana 2 · 核心资产与多图融合生图",
+  "description": "角色、道具、场景和关键帧的多参考图生成模型。",
+  "mediaType": "image",
+  "provider": "comfy",
+  "parameters": {
+    "resolution": { "type": "string", "enum": ["1K", "2K", "4K"] },
+    "aspectRatio": { "type": "string", "enum": ["1:1", "16:9", "9:16", "4:3", "3:4"], "outputName": "aspect_ratio" },
+    "thinkingLevel": { "type": "string", "enum": ["MINIMAL", "MEDIUM", "HIGH"], "outputName": "thinking_level" },
+    "seed": { "type": "integer", "minimum": 0 }
+  },
+  "defaults": { "resolution": "1K", "aspectRatio": "16:9", "thinkingLevel": "MINIMAL", "seed": 42 },
+  "prompt": { "aliases": { "image": "Image_{ordinal}" } },
+  "dependencies": { "requireReady": true, "counts": { "image": { "maximum": 14 } } },
+  "variants": [
+    { "when": { "parameter": "resolution", "equals": "2K" }, "budget": { "kind": "fixed", "credits": 17.03, "mode": "partner_fixed", "formula": "Google Gemini 3.1 Flash Image 单次生成固定 17.0 Credits" } },
+    { "when": { "parameter": "resolution", "equals": "4K" }, "budget": { "kind": "fixed", "credits": 17.03, "mode": "partner_fixed", "formula": "Google Gemini 3.1 Flash Image 单次生成固定 17.0 Credits" } }
+  ],
+  "budget": { "kind": "fixed", "credits": 17, "mode": "partner_fixed", "formula": "Google Gemini 3.1 Flash Image 单次生成固定 17.0 Credits" }
+}

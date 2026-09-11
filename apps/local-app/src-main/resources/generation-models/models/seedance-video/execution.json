@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 2,
+  "kind": "comfy-template",
+  "workflow": "workflow.json",
+  "outputKind": "video",
+  "bindings": [
+    { "source": "parameter", "name": "seedance_model", "nodeId": "360", "input": "model" },
+    { "source": "prompt", "nodeId": "360", "input": "model.prompt" },
+    { "source": "parameter", "name": "resolution", "nodeId": "360", "input": "model.resolution" },
+    { "source": "parameter", "name": "aspect_ratio", "nodeId": "360", "input": "model.ratio" },
+    { "source": "parameter", "name": "duration", "nodeId": "360", "input": "model.duration" },
+    { "source": "parameter", "name": "generate_audio", "nodeId": "360", "input": "model.generate_audio" },
+    { "source": "parameter", "name": "seed", "nodeId": "360", "input": "seed" },
+    { "source": "parameter", "name": "watermark", "nodeId": "360", "input": "watermark" },
+    { "source": "parameter", "name": "seedance_model", "nodeId": "344", "input": "filename_prefix", "transform": "spaceUnderscore", "prefix": "video/" },
+    { "source": "parameter", "name": "task_type", "nodeId": "360", "input": "model.task_type", "when": { "parameter": "seedance_model", "equals": "Seedance 2.5" } },
+    { "source": "parameter", "name": "seedance_model", "nodeId": "360", "input": "model.output_format", "value": "mp4", "when": { "parameter": "seedance_model", "equals": "Seedance 2.5" } }
+  ],
+  "referenceSlots": [
+    { "type": "image", "maximum": 20, "nodeIdStart": 400, "loaderClass": "LoadImage", "loaderInput": "image", "targetNodeId": "360", "targetInputPattern": "model.reference_images.image_{ordinal}" },
+    { "type": "video", "maximum": 6, "nodeIdStart": 500, "loaderClass": "LoadVideo", "loaderInput": "video", "targetNodeId": "360", "targetInputPattern": "model.reference_videos.video_{ordinal}" },
+    { "type": "audio", "maximum": 6, "nodeIdStart": 600, "loaderClass": "LoadAudio", "loaderInput": "audio", "targetNodeId": "360", "targetInputPattern": "model.reference_audios.audio_{ordinal}" }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "graphvideo": {
+      "command": "node",
+      "args": [
+        "/Users/apexwave/Desktop/PM/GraphFramework_Windows-codex-plugin-sdk-workbench/app/resources/tools/mcp-server.mjs"
+      ],
+      "env": {
+        "GRAPHVIDEO_PROJECT_ROOT": "/Users/apexwave/Desktop/PM/影视项目/测试软件稳定程度",
+        "GRAPHVIDEO_GENERATION_MODELS_ROOT": "/Users/apexwave/Desktop/PM/GraphFramework_Windows-codex-plugin-sdk-workbench/app/resources/generation-models"
+      }
+    }
+  }
+}

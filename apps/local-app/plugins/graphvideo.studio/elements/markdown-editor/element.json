@@ -1,0 +1,6 @@
+{
+  "id": "markdown-editor",
+  "name": "Markdown Logic",
+  "apiVersion": 1,
+  "entry": "element.ts"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "agent",
+  "name": "Agent",
+  "order": 20,
+  "layout": {
+    "kind": "split",
+    "id": "root",
+    "direction": "horizontal",
+    "ratio": 0.7,
+    "first": {
+      "kind": "area",
+      "id": "console",
+      "panelId": "agent-console",
+      "instanceId": "agent-main"
+    },
+    "second": {
+      "kind": "area",
+      "id": "properties",
+      "panelId": "properties",
+      "instanceId": "agent-properties"
+    }
+  }
+}

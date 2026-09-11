@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2, "kind": "comfy-template", "workflow": "workflow.json", "outputKind": "image",
+  "bindings": [
+    { "source": "prompt", "nodeId": "3", "input": "prompt" },
+    { "source": "parameter", "name": "aspect_ratio", "nodeId": "3", "input": "model.aspect_ratio" },
+    { "source": "parameter", "name": "resolution", "nodeId": "3", "input": "model.resolution" },
+    { "source": "parameter", "name": "thinking_level", "nodeId": "3", "input": "model.thinking_level" },
+    { "source": "parameter", "name": "seed", "nodeId": "3", "input": "seed" }
+  ],
+  "referenceSlots": [
+    { "type": "image", "maximum": 14, "nodeIdStart": 100, "loaderClass": "LoadImage", "loaderInput": "image", "targetNodeId": "3", "targetInputPattern": "model.images.image_{ordinal}" }
+  ]
+}

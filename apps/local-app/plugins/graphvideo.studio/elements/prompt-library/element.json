@@ -1,0 +1,6 @@
+{
+  "id": "prompt-library",
+  "name": "提示词库",
+  "apiVersion": 1,
+  "entry": "element.ts"
+}

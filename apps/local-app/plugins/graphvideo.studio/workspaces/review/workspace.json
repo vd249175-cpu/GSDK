@@ -1,0 +1,35 @@
+{
+  "id": "review",
+  "name": "审阅",
+  "order": 30,
+  "layout": {
+    "kind": "split",
+    "id": "root",
+    "direction": "horizontal",
+    "ratio": 0.45,
+    "first": {
+      "kind": "area",
+      "id": "outliner",
+      "panelId": "outliner",
+      "instanceId": "shared-outliner"
+    },
+    "second": {
+      "kind": "split",
+      "id": "right",
+      "direction": "vertical",
+      "ratio": 0.55,
+      "first": {
+        "kind": "area",
+        "id": "properties",
+        "panelId": "properties",
+        "instanceId": "shared-properties"
+      },
+      "second": {
+        "kind": "area",
+        "id": "prompts",
+        "panelId": "prompt-library",
+        "instanceId": "prompt-main"
+      }
+    }
+  }
+}
