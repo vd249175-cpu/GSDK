@@ -79,7 +79,7 @@ function collectFiles(dir, base) {
 // 1. 构建与打包（串行）。
 execFileSync(process.execPath, [join(root, 'scripts/build-packages.mjs')], { cwd: root, stdio: 'inherit' })
 
-const preSdk = ['kernel', 'sdk/backend', 'workbench']
+const preSdk = ['core', 'sdk/backend', 'workbench']
 const outDir = join(root, 'dist/packages')
 mkdirSync(outDir, { recursive: true })
 const tarballs = []

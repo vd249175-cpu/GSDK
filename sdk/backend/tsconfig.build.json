@@ -7,7 +7,7 @@
     "outDir": "dist",
     "rootDir": ".",
     "paths": {
-      "@graphvideo/kernel": ["../../kernel/dist/index.d.ts"]
+      "@graphvideo/kernel": ["../../core/dist/index.d.ts"]
     }
   },
   "include": ["index.ts"]

@@ -7,8 +7,8 @@
     "build:sdk": "node scripts/build-packages.mjs",
     "export:sdk": "node scripts/export-packages.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --project kernel --project unit --project ui",
-    "test:kernel": "vitest run --project kernel",
+    "test": "vitest run --project core --project unit --project ui",
+    "test:core": "vitest run --project core",
     "test:unit": "vitest run --project unit",
     "test:ui": "vitest run --project ui"
   },

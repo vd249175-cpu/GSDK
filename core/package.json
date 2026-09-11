@@ -10,7 +10,7 @@
   "repository": {
     "type": "git",
     "url": "git@github.com:vd249175-cpu/GSDK.git",
-    "directory": "kernel"
+    "directory": "core"
   },
   "exports": {
     ".": {

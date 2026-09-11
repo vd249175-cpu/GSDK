@@ -14,7 +14,7 @@ function sourceFiles(directory: string): string[] {
 
 describe('deterministic domain source boundary', () => {
   it('keeps Kernel imports inside the Kernel and excludes analysis and presentation from its base class', () => {
-    const root = resolve('kernel/src');
+    const root = resolve('core/src');
     const violations = sourceFiles(root).filter((file) => !file.endsWith('.test.ts')).flatMap((file) => {
       const source = readFileSync(file, 'utf8');
       return ts.preProcessFile(source, true, true).importedFiles.flatMap(({ fileName }) => {
@@ -36,7 +36,7 @@ describe('deterministic domain source boundary', () => {
   it('does not use ambient wall clock or randomness in Node implementations', () => {
     const files = [
       ...sourceFiles(join(process.cwd(), 'app/src/nodes')),
-      join(process.cwd(), 'kernel/src/node.ts'),
+      join(process.cwd(), 'core/src/node.ts'),
     ].filter(file => existsSync(file));
 
     const violations = files.flatMap((file) => {

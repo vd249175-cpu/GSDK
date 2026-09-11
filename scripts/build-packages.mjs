@@ -21,7 +21,7 @@ const isExternal = (id) => (
 
 const packages = [
   {
-    dir: 'kernel',
+    dir: 'core',
     entries: { index: 'src/index.ts', 'effect-harness': 'src/effect-harness.ts' },
   },
   {

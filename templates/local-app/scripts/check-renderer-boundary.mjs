@@ -14,7 +14,7 @@ const forbidden = [
   '@graphvideo/sdk/testing',
   '@graphvideo/sdk/analysis',
   '@graphvideo/backend-sdk',
-  'kernel/src',
+  'core/src',
   'node:',
   'node:fs',
   'node:path',

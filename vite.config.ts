@@ -7,7 +7,7 @@ export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom'],
     alias: {
-      '@graphvideo/kernel': fileURLToPath(new URL('./kernel/src/index.ts', import.meta.url)),
+      '@graphvideo/kernel': fileURLToPath(new URL('./core/src/index.ts', import.meta.url)),
       '@graphvideo/sdk/client': fileURLToPath(new URL('./sdk/client/index.ts', import.meta.url)),
       '@graphvideo/sdk/tokens': fileURLToPath(new URL('./sdk/tokens/index.ts', import.meta.url)),
       '@graphvideo/sdk/ui': fileURLToPath(new URL('./sdk/ui/index.ts', import.meta.url)),
@@ -33,9 +33,9 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          name: 'kernel',
+          name: 'core',
           environment: 'node',
-          include: ['kernel/**/*.test.ts'],
+          include: ['core/**/*.test.ts'],
         },
       },
       {
