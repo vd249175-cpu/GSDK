@@ -7,7 +7,7 @@ import { parseGenerationModelPackage } from './generation-model-package.mjs'
 import { compileGenerationSubmitSpecV2 } from './generation-submit-spec-v2.mjs'
 
 const fixture = fileURLToPath(import.meta.url)
-const root = join(process.cwd(), 'app', 'resources', 'generation-models', 'models')
+const root = fileURLToPath(new URL('../../resources/generation-models/models', import.meta.url))
 const project = { id: 'project-1', name: 'Fixture' }
 
 async function modelPackage(id) {

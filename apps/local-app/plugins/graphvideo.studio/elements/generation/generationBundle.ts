@@ -1,5 +1,5 @@
 import { type NodeVersion, type ProjectNode, type ProjectTreeItem } from '@graphvideo/client-sdk'
-import { orderedGenerationReferenceIds } from '../../../../app/shared/generation-reference-order.mjs'
+import { orderedGenerationReferenceIds } from '../../../../src-main/shared/generation-reference-order.mjs'
 
 export interface GenerationReference {
   node: ProjectNode

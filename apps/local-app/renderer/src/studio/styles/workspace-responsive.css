@@ -1,0 +1,39 @@
+@media (max-width: 1180px) {
+  .element-refresh-button {
+    justify-content: center;
+    width: 25px;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .element-refresh-button svg { flex: 0 0 auto; }
+  .workspace-tabs button { max-width: 88px; padding: 0 8px; }
+}
+
+@media (max-width: 920px) {
+  .workspace-tabs button { max-width: 64px; padding: 0 6px; }
+}
+
+@media (max-width: 840px) {
+  .brand-name,
+  .save-status,
+  .project-title { display: none; }
+
+  .project-open-button {
+    justify-content: center;
+    width: 25px;
+    padding: 0;
+  }
+
+  .project-open-button > span { display: none; }
+  .topbar-project-history { max-width: 82px; flex-basis: 82px; }
+}
+
+@media (max-width: 720px) {
+  .topbar-settings-trigger {
+    width: 27px;
+    padding: 0;
+  }
+  .topbar-settings-trigger > span { display: none; }
+  .window-controls button { width: 34px; }
+}

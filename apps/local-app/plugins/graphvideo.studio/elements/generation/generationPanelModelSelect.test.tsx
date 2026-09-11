@@ -24,7 +24,7 @@ import {
   type SqlitePersistObservation,
   type SqlitePersistRequest,
 } from '../../../../app/src/effects/sqlite-metadata-adapter';
-import { setGenerationPromptModel, parseGenerationPrompt } from '../../../../app/shared/generation-prompt.mjs';
+import { setGenerationPromptModel, parseGenerationPrompt } from '../../../../src-main/shared/generation-prompt.mjs';
 import { LaunchpadScheduler } from '../../../../app/src/domain/launchpad-scheduler';
 
 const disposers: Array<() => void | Promise<void>> = [];

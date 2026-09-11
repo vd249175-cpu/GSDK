@@ -1,0 +1,280 @@
+/*
+ * Traditional Chinese color themes for GraphVideo Studio
+ *
+ * 1. 雪青 · 紫罗兰 (xueqing):
+ *    - 雪青 (xuě qīng): #BDB5D7
+ *    - 紫罗兰 (zǐ luó lán): #7356B1
+ *
+ * 2. 明月珰 · 石榴裙 (shiliuqun):
+ *    - 明月珰 (míng yuè dāng): #D6D4CD
+ *    - 石榴裙 (shí liú qún): #B3392F
+ */
+
+/* ==========================================================================
+   1. 雪青 · 紫罗兰 (xueqing) - 清透素雅、紫韵点睛
+   ========================================================================== */
+:root[data-theme="xueqing"] {
+  color-scheme: light;
+
+  /* Surfaces - 纯净、明亮、通透的浅白基底 */
+  --surface-canvas: #f7f6fa;
+  --surface-app: #f2f0f7;
+  --surface-header: #ffffff;
+  --surface-panel: #ffffff;
+  --surface-panel-subtle: #fbfbfe;
+  --surface-raised: #ffffff;
+  --surface-document: #ffffff;
+  --surface-input: #fbfbfe;
+  --surface-hover: rgba(115, 86, 177, 0.05);
+  --surface-selected: rgba(189, 181, 215, 0.22);
+  --selection-indicator: #7356b1;
+  --surface-backdrop: rgba(31, 22, 51, 0.28);
+
+  /* Content - 高对比清晰文字 */
+  --text-primary: #1e172e;
+  --text-secondary: #5a4f70;
+  --text-tertiary: #9286a6;
+  --content-primary: #1e172e;
+  --content-secondary: #5a4f70;
+  --content-tertiary: #9286a6;
+  --content-on-action: #ffffff;
+
+  /* Borders - 极其细致淡雅的紫灰微边 */
+  --border-default: #e9e5f2;
+  --border-strong: #d7d0e5;
+  --border-subtle: #f2eef8;
+  --focus-ring: #7356b1;
+
+  /* Actions & Highlights - 精致的紫罗兰点睛 */
+  --accent-primary: #7356b1;
+  --action-primary-bg: #7356b1;
+  --action-primary-bg-hover: #5e429b;
+  --action-primary-border: #7356b1;
+  --action-primary-fg: #ffffff;
+
+  /* Status */
+  --status-success: #059669;
+  --status-warning: #d97706;
+  --status-danger: #dc2626;
+  --state-success-fg: #059669;
+  --state-warning-fg: #d97706;
+  --state-danger-fg: #dc2626;
+
+  /* Brand and Graph Nodes */
+  --icon-brand-fg: #ffffff;
+  --icon-brand-bg-start: #7356b1;
+  --icon-brand-bg-end: #5e429b;
+  --icon-brand-shadow: rgba(115, 86, 177, 0.2);
+  --icon-node-text: #7356b1;
+  --icon-node-image: #d97706;
+  --icon-node-video: #7c3aed;
+  --icon-node-audio: #059669;
+  --icon-node-style: #ca8a04;
+  --canvas-grid-dot: rgba(115, 86, 177, 0.08);
+  --edge-conduit: rgba(115, 86, 177, 0.35);
+  --port-idle: #9286a6;
+
+  /* Scrollbars and Overlays */
+  --scrollbar-thumb: rgba(115, 86, 177, 0.2);
+  --scrollbar-thumb-hover: rgba(115, 86, 177, 0.4);
+  --shadow-floating: 0 14px 48px rgba(31, 22, 51, 0.1);
+  --overlay-scrim: rgba(31, 22, 51, 0.25);
+
+  /* Terminal Colors */
+  --terminal-background: #ffffff;
+  --terminal-foreground: #1e172e;
+  --terminal-cursor: #7356b1;
+  --terminal-selection: #ebe6f5;
+  --terminal-black: #1e172e;
+  --terminal-red: #b91c1c;
+  --terminal-green: #15803d;
+  --terminal-yellow: #b45309;
+  --terminal-blue: #5243aa;
+  --terminal-magenta: #7356b1;
+  --terminal-cyan: #0e7490;
+  --terminal-white: #5a4f70;
+  --terminal-bright-black: #5a4f70;
+  --terminal-bright-red: #dc2626;
+  --terminal-bright-green: #16a34a;
+  --terminal-bright-yellow: #d97706;
+  --terminal-bright-blue: #7356b1;
+  --terminal-bright-magenta: #8e6dd1;
+  --terminal-bright-cyan: #0284c7;
+  --terminal-bright-white: #0f0a1c;
+
+  /* Key legacy background & surface overrides - 彻底浅色化，去除沉重色块 */
+  --palette-source-hex-0d0f12: #f7f6fa;
+  --palette-source-hex-0d0f13: #f7f6fa;
+  --palette-source-hex-0e1014: #f7f6fa;
+  --palette-source-hex-0f1115: #f7f6fa;
+  --palette-source-hex-101216: #faf9fd;
+  --palette-source-hex-111318: #edeaf4;
+  --palette-source-hex-121419: #f7f6fa;
+  --palette-source-hex-14171c: #fbfbfe;
+  --palette-source-hex-15181d: #edeaf4;
+  --palette-source-hex-16181c: #edeaf4;
+  --palette-source-hex-17191e: #ffffff;
+  --palette-source-hex-171a1f: #ffffff;
+  --palette-source-hex-171a20: #ffffff;
+  --palette-source-hex-181b20: #ffffff;
+  --palette-source-hex-191c21: #f4f2f8;
+  --palette-source-hex-202329: #ffffff;
+  --palette-source-hex-20242a: #f7f6fa;
+  --palette-source-hex-22252b: #f8f7fb;
+  --palette-source-hex-22262d: #ffffff;
+  --palette-source-hex-23272e: #ffffff;
+  --palette-source-hex-25282d: #f7f6fa;
+  --palette-source-hex-272a30: #f8f7fb;
+  --palette-source-hex-282c33: #f8f7fb;
+  --palette-source-hex-292c33: #ffffff;
+  --palette-source-hex-292d34: #f8f7fb;
+  --palette-source-hex-2a2f37: #f8f7fb;
+  --palette-source-hex-30343a: #f9f8fc;
+  --palette-source-hex-30343b: #f9f8fc;
+  --palette-source-hex-1a1d22: #f4f2f8;
+  --palette-source-hex-1b1d21: #fbfbfe;
+  --palette-source-hex-1b1e23: #fbfbfe;
+  --palette-source-hex-1b1e24: #fbfbfe;
+  --palette-source-hex-1c1f24: #fbfbfe;
+  --palette-source-hex-777e89: #7b6f91;
+  --palette-source-hex-343841: #eae6f3;
+  --palette-source-hex-393d44: #ffffff;
+  --palette-source-hex-414650: #e9e5f2;
+  --palette-source-hex-454a54: #e9e5f2;
+  --palette-source-hex-464a51: #e9e5f2;
+  --palette-source-hex-4a505c: #d7d0e5;
+}
+
+/* ==========================================================================
+   2. 明月珰 · 石榴裙 (shiliuqun) - 温润如玉、朱红点睛
+   ========================================================================== */
+:root[data-theme="shiliuqun"] {
+  color-scheme: light;
+
+  /* Surfaces - 温润素雅的宣纸白基底 */
+  --surface-canvas: #f7f6f3;
+  --surface-app: #f0eeea;
+  --surface-header: #ffffff;
+  --surface-panel: #ffffff;
+  --surface-panel-subtle: #fcfbfa;
+  --surface-raised: #ffffff;
+  --surface-document: #ffffff;
+  --surface-input: #fcfbfa;
+  --surface-hover: rgba(179, 57, 47, 0.05);
+  --surface-selected: rgba(214, 212, 205, 0.35);
+  --selection-indicator: #b3392f;
+  --surface-backdrop: rgba(42, 29, 27, 0.28);
+
+  /* Content - 清晰高对比深暖褐文字 */
+  --text-primary: #241918;
+  --text-secondary: #63504d;
+  --text-tertiary: #968582;
+  --content-primary: #241918;
+  --content-secondary: #63504d;
+  --content-tertiary: #968582;
+  --content-on-action: #ffffff;
+
+  /* Borders - 温润玉石细边框 */
+  --border-default: #e8e6e0;
+  --border-strong: #d5d1c8;
+  --border-subtle: #f1efe9;
+  --focus-ring: #b3392f;
+
+  /* Actions & Highlights - 典雅石榴裙朱红点睛 */
+  --accent-primary: #b3392f;
+  --action-primary-bg: #b3392f;
+  --action-primary-bg-hover: #962c23;
+  --action-primary-border: #b3392f;
+  --action-primary-fg: #ffffff;
+
+  /* Status */
+  --status-success: #059669;
+  --status-warning: #d97706;
+  --status-danger: #b3392f;
+  --state-success-fg: #059669;
+  --state-warning-fg: #d97706;
+  --state-danger-fg: #b3392f;
+
+  /* Brand and Graph Nodes */
+  --icon-brand-fg: #ffffff;
+  --icon-brand-bg-start: #b3392f;
+  --icon-brand-bg-end: #962c23;
+  --icon-brand-shadow: rgba(179, 57, 47, 0.2);
+  --icon-node-text: #b3392f;
+  --icon-node-image: #d97706;
+  --icon-node-video: #7c3aed;
+  --icon-node-audio: #059669;
+  --icon-node-style: #ca8a04;
+  --canvas-grid-dot: rgba(179, 57, 47, 0.08);
+  --edge-conduit: rgba(179, 57, 47, 0.35);
+  --port-idle: #968582;
+
+  /* Scrollbars and Overlays */
+  --scrollbar-thumb: rgba(179, 57, 47, 0.2);
+  --scrollbar-thumb-hover: rgba(179, 57, 47, 0.4);
+  --shadow-floating: 0 14px 48px rgba(42, 29, 27, 0.1);
+  --overlay-scrim: rgba(42, 29, 27, 0.25);
+
+  /* Terminal Colors */
+  --terminal-background: #ffffff;
+  --terminal-foreground: #241918;
+  --terminal-cursor: #b3392f;
+  --terminal-selection: #edeae4;
+  --terminal-black: #241918;
+  --terminal-red: #b3392f;
+  --terminal-green: #15803d;
+  --terminal-yellow: #b45309;
+  --terminal-blue: #1d4ed8;
+  --terminal-magenta: #86198f;
+  --terminal-cyan: #0e7490;
+  --terminal-white: #63504d;
+  --terminal-bright-black: #63504d;
+  --terminal-bright-red: #d32f2f;
+  --terminal-bright-green: #16a34a;
+  --terminal-bright-yellow: #d97706;
+  --terminal-bright-blue: #2563eb;
+  --terminal-bright-magenta: #b3392f;
+  --terminal-bright-cyan: #0284c7;
+  --terminal-bright-white: #170d0c;
+
+  /* Key legacy background & surface overrides - 彻底浅色化，去除沉重色块 */
+  --palette-source-hex-0d0f12: #f7f6f3;
+  --palette-source-hex-0d0f13: #f7f6f3;
+  --palette-source-hex-0e1014: #f7f6f3;
+  --palette-source-hex-0f1115: #f7f6f3;
+  --palette-source-hex-101216: #faf9f6;
+  --palette-source-hex-111318: #eae7e1;
+  --palette-source-hex-121419: #f7f6f3;
+  --palette-source-hex-14171c: #fcfbfa;
+  --palette-source-hex-15181d: #eae7e1;
+  --palette-source-hex-16181c: #eae7e1;
+  --palette-source-hex-17191e: #ffffff;
+  --palette-source-hex-171a1f: #ffffff;
+  --palette-source-hex-171a20: #ffffff;
+  --palette-source-hex-181b20: #ffffff;
+  --palette-source-hex-191c21: #f4f2ee;
+  --palette-source-hex-202329: #ffffff;
+  --palette-source-hex-20242a: #f7f6f3;
+  --palette-source-hex-22252b: #f8f7f4;
+  --palette-source-hex-22262d: #ffffff;
+  --palette-source-hex-23272e: #ffffff;
+  --palette-source-hex-25282d: #f7f6f3;
+  --palette-source-hex-272a30: #f8f7f4;
+  --palette-source-hex-282c33: #f8f7f4;
+  --palette-source-hex-292c33: #ffffff;
+  --palette-source-hex-292d34: #f8f7f4;
+  --palette-source-hex-2a2f37: #f8f7f4;
+  --palette-source-hex-30343a: #faf9f6;
+  --palette-source-hex-1a1d22: #f4f2ee;
+  --palette-source-hex-1b1d21: #fcfbfa;
+  --palette-source-hex-1b1e23: #fcfbfa;
+  --palette-source-hex-1b1e24: #fcfbfa;
+  --palette-source-hex-1c1f24: #fcfbfa;
+  --palette-source-hex-777e89: #7d6b68;
+  --palette-source-hex-343841: #eae7e1;
+  --palette-source-hex-393d44: #ffffff;
+  --palette-source-hex-414650: #e8e6e0;
+  --palette-source-hex-454a54: #e8e6e0;
+  --palette-source-hex-464a51: #e8e6e0;
+  --palette-source-hex-4a505c: #d5d1c8;
+}

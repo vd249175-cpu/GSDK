@@ -1,0 +1,60 @@
+/*
+ * Typography system
+ *
+ * This is the only place that owns font stacks, type sizes, weights and
+ * reusable line heights. Feature styles consume these tokens instead of
+ * declaring raw typography values.
+ */
+:root {
+  /* Font families */
+  --font-family-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-family-mono: "SF Mono", Monaco, Menlo, Consolas, "Cascadia Code", "Courier New", monospace;
+
+  /* Type scale */
+  --font-size-xs: 9px;
+  --font-size-sm: 10px;
+  --font-size-md: 11px;
+  --font-size-base: 12px;
+  --font-size-lg: 13px;
+  --font-size-xl: 16px;
+
+  /* Font weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line heights */
+  --line-height-tight: 1.45;
+  --line-height-body: 1.5;
+  --line-height-comfortable: 1.55;
+  --line-height-relaxed: 1.6;
+  --line-height-prose: 1.65;
+  --line-height-editor: 20px;
+}
+
+:root[data-font-family="system"] {
+  --font-family-ui: system-ui, "Microsoft YaHei", sans-serif;
+}
+
+:root[data-font-family="mono"] {
+  --font-family-ui: var(--font-family-mono);
+}
+
+:root[data-font-size="compact"] {
+  --font-size-xs: 8px;
+  --font-size-sm: 9px;
+  --font-size-md: 10px;
+  --font-size-base: 11px;
+  --font-size-lg: 12px;
+  --font-size-xl: 14px;
+}
+
+:root[data-font-size="comfortable"] {
+  --font-size-xs: 10px;
+  --font-size-sm: 11px;
+  --font-size-md: 12px;
+  --font-size-base: 13px;
+  --font-size-lg: 14px;
+  --font-size-xl: 18px;
+}

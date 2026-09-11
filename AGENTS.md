@@ -25,11 +25,11 @@
   > 其他当前文档
 ```
 
-本仓库不保存退役架构文档。出现 Socket Kernel、声明边、Wrapper、Transition Registry 或旧应用私有绑定等说法，应视为外部旧资料，不得据此改代码。
+本仓库不保存退役架构文档。出现 Socket Kernel、声明边、Wrapper、Transition Registry 或旧应用私有绑定等说法，应视为外部旧资料，不得据此改代码。生产调度内核唯一运行在 Rust 原生调度器（`crates/kernel` 通过 `NativeRuleSpace`），旧 TS `KernelRuntime` 已降级为只读规约/测试 Oracle，不再维护双内核并行演进。
 
 ## 3. 架构红线
 
-1. `core/src` 是零业务语义微内核；`sdk/workbench/` 是零业务语义的前端工作台底座，不得导入具体业务插件。
+1. `core/src` 是零业务语义微内核规约与类型底座，生产调度由 Rust 原生微内核（`crates/kernel` 经 `NativeRuleSpace`）统一承担；`sdk/workbench/` 是零业务语义的前端工作台底座，不得导入具体业务插件。
 2. Node 间通信只使用 `ctx.send(info, targetNodeId)`；不得增加 flows、Edge、Wrapper 或全局广播总线。
 3. 每个 `ctx.send` 的 `Info.type` 必须能在当前 change 分支或发送点静态可证明。禁止把完整 Info 隐藏在不透明构造函数中；`unresolved-info-type` 是必须修复的校验错误。
 4. State 只能由 Owner Node 在当前 `change ctx` 中写入；外部节点只能通过发送 Info 请求变迁。

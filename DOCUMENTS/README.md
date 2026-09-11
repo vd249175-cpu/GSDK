@@ -4,13 +4,13 @@ type: index
 
 # GraphFramework 文档导航
 
-本目录只记录当前源码已经具备的结构、API 与开发约束，不保存迁移史、交付计划或旧应用私有架构。出现冲突时，以源码与针对性测试为准，其次是 `mental-model.md`。
+GraphFramework 是一个面向桌面与后端系统的因果应用微内核运行时。本目录只记录当前源码已经具备的结构、API 与开发约束，不保存迁移史、交付计划或旧应用私有架构。出现冲突时，以源码与针对性测试为准，其次是 `mental-model.md`。
 
 ## 核心模型
 
-- [当前心智模型](./mental-model.md)：运行本体、权限边界与不可破坏公理。
+- [当前心智模型](./mental-model.md)：运行本体、权限边界、原生微内核调度与不可破坏公理。
 - [SDK 心智模型](./sdk-mental-model.md)：包职责、依赖方向和代码归属。
-- [Kernel 与 Node SDK](./kernel-sdk-guide.md)：Node、WorldNode、submission、Projection 与原生规则空间。
+- [Kernel 与 Node SDK](./kernel-sdk-guide.md)：Node、WorldNode、submission、Projection 与原生规则空间（NativeRuleSpace）。
 
 ## 开发指南
 

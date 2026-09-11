@@ -20,11 +20,11 @@ type: reference
 
 | 包 | 内容 | 不含 |
 | --- | --- | --- |
-| `@graphvideo/kernel` | Node/WorldNode（ExecutionWorldNode/ObservationWorldNode）、mailbox/change 调度、State 版本、Projection、EffectAdapter 调用边界 | 业务、React、Node.js API |
-| `@graphvideo/backend-sdk` | Node/WorldNode（ExecutionWorldNode/ObservationWorldNode）、Info/change/Effect 类型、NodeFactory/GraphFactory、BackendPlugin 契约、rendererRoots 校验、Manifest 定义 | React、业务 Node、业务协议 |
+| `@graphvideo/kernel` | Node/WorldNode（ExecutionWorldNode/ObservationWorldNode）、核心类型、State 版本、Projection、EffectAdapter 边界、冻结参考规约（KernelRuntime） | 业务、React、Node.js API |
+| `@graphvideo/backend-sdk` | `NativeRuleSpace`（生产 Rust 调度门面与 Node 挂载桥接）、Info/change/Effect 类型、BackendPlugin 契约、rendererRoots 校验、Manifest 定义 | React、业务 Node、业务协议 |
 | `@graphvideo/sdk/client` | `createServicesContext`、`defineClientHooks`（四泛型）、`useStateSelector`、Element/Workbench 类型与 `defineWorkbenchElement` | 业务 State、业务 Client、业务 hooks |
 | `@graphvideo/workbench` | Dock、工作区、Element 加载/生命周期、面板/命令/事件/状态注册、通用 UI 控件 | 业务面板、业务 Token、Kernel |
-| `@graphvideo/sdk/testing` | `createTestRuntime`、`EffectHarness`（经 kernel） | 生产装配 |
+| `@graphvideo/sdk/testing` | `createTestRuntime`（快速单节点规约测试）、`EffectHarness`（经 kernel） | 生产装配 |
 | `@graphvideo/sdk/contract` | Manifest 类型与校验（转出 backend-sdk） | 运行时 |
 | `@graphvideo/sdk/tokens`、`./ui` | 跨面板联动 Token、通用面板控件 | 业务面板 |
 

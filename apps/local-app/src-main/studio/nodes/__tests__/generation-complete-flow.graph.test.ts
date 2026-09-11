@@ -1,9 +1,10 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { EffectAdapter, EffectContext } from '@graphvideo/kernel';
-import { loadGenerationCatalogSnapshot } from '../../../electron/generation-catalog-snapshot.mjs';
+import { loadGenerationCatalogSnapshot } from '../../../services/generation-catalog-snapshot.mjs';
 import type {
   GenerationAdapterOperationObservation,
   GenerationAdapterOperationRequest,
@@ -207,7 +208,7 @@ describe('complete generated video causal flow', () => {
       });
 
       const catalog = (await loadGenerationCatalogSnapshot(
-        resolve(process.cwd(), 'app/resources/generation-models'),
+        fileURLToPath(new URL('../../../resources/generation-models', import.meta.url)),
       )).select(['seedance-video']);
       const request: GenerationBatchRequestedInfo = {
         type: 'GenerationBatchRequestedInfo',
@@ -236,7 +237,7 @@ describe('complete generated video causal flow', () => {
         provider: 'comfy',
         expectedOutputKind: 'video',
       });
-      expect(submit?.operation === 'submit' ? submit.spec.uploads : []).toEqual(expect.arrayContaining([
+      expect(submit?.operation === 'submit' && submit.spec.provider === 'comfy' ? submit.spec.uploads : []).toEqual(expect.arrayContaining([
         expect.objectContaining({ sourcePath: expect.stringContaining('reference-v1.png') }),
       ]));
       expect(generationAdapter.calls.map((call) => call.operation)).toEqual([

@@ -1,11 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { evaluateGenerationProject, planGenerationBatch } from './generation-batch-planner.mjs'
-import { loadGenerationCatalogSnapshot } from '../electron/generation-catalog-snapshot.mjs'
+import { loadGenerationCatalogSnapshot } from '../services/generation-catalog-snapshot.mjs'
 
 let catalog
 beforeAll(async () => {
-  catalog = (await loadGenerationCatalogSnapshot(resolve(process.cwd(), 'app/resources/generation-models'))).read()
+  catalog = (await loadGenerationCatalogSnapshot(fileURLToPath(new URL('../resources/generation-models', import.meta.url)))).read()
 })
 
 const project = {

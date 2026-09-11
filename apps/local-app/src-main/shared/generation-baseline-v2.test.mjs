@@ -1,12 +1,12 @@
-import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 import baseline from './__fixtures__/generation-model-baseline.json' with { type: 'json' }
 import { estimateModelBudgetV2 } from './generation-model-intent-v2.mjs'
-import { loadGenerationCatalogSnapshot } from '../electron/generation-catalog-snapshot.mjs'
+import { loadGenerationCatalogSnapshot } from '../services/generation-catalog-snapshot.mjs'
 
 let catalog
 beforeAll(async () => {
-  catalog = (await loadGenerationCatalogSnapshot(resolve(process.cwd(), 'app/resources/generation-models'))).read()
+  catalog = (await loadGenerationCatalogSnapshot(fileURLToPath(new URL('../resources/generation-models', import.meta.url)))).read()
 })
 
 describe('generation model migration baseline', () => {

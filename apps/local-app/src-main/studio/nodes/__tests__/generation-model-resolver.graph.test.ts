@@ -3,12 +3,12 @@ import { GenerationModelResolverNode } from '../generation-model-resolver';
 import { GenerationTaskNode } from '../generation-task';
 import type { GenerationModelResolutionRequestedInfo } from '../../protocol';
 import { createCausalRegionHarness } from '../../testing/graph';
-import { loadGenerationCatalogSnapshot } from '../../../electron/generation-catalog-snapshot.mjs';
-import { resolve } from 'node:path';
+import { loadGenerationCatalogSnapshot } from '../../../services/generation-catalog-snapshot.mjs';
+import { fileURLToPath } from 'node:url';
 
 describe('GenerationModelResolverNode', () => {
   it('owns pure model resolution without invoking a physical adapter', async () => {
-    const catalog = (await loadGenerationCatalogSnapshot(resolve(process.cwd(), 'app/resources/generation-models'))).select(['audio-sfx']);
+    const catalog = (await loadGenerationCatalogSnapshot(fileURLToPath(new URL('../../../resources/generation-models', import.meta.url)))).select(['audio-sfx']);
     const resolver = new GenerationModelResolverNode();
     const region = createCausalRegionHarness([resolver, new GenerationTaskNode()]);
     const info: GenerationModelResolutionRequestedInfo = {

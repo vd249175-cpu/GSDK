@@ -26,6 +26,7 @@ describe('NodeGenerationAdapter (Pure TypeScript / Node Transport)', () => {
       )
       expect(submitObs.operation).toBe('submit')
       expect(submitObs.status).toBe('submitted')
+      if (submitObs.operation !== 'submit') throw new Error('Expected submit operation')
       expect(submitObs.handle.provider).toBe('mock')
       expect(submitObs.handle.taskId).toMatch(/^mock-/)
 
@@ -55,8 +56,10 @@ describe('NodeGenerationAdapter (Pure TypeScript / Node Transport)', () => {
         )
         expect(downloadObs.operation).toBe('download')
         expect(downloadObs.status).toBe('downloaded')
-        expect(downloadObs.bytesWritten).toBeGreaterThan(0)
-        expect(downloadObs.contentType).toBe('video/mp4')
+        if (downloadObs.operation === 'download') {
+          expect(downloadObs.bytesWritten).toBeGreaterThan(0)
+          expect(downloadObs.contentType).toBe('video/mp4')
+        }
 
         const writtenContent = readFileSync(join(tempDir, destRel), 'utf8')
         expect(writtenContent).toBe('FAKE_VIDEO_BINARY_STREAM_OUTPUT')

@@ -12,8 +12,8 @@ import { GenerationDownloadSinkNode } from '../generation-download';
 import { SqliteRegistryNode } from '../sqlite-registry';
 import { SqliteWriterSinkNode } from '../sqlite-writer';
 import { SqliteObserverSourceNode } from '../sqlite-observer';
-import { applicationStateFromGraphProjection } from '../../application/graph/application-state-projection';
-import { completedGenerationBatchFromState } from '../../application/host/generationBatchCompletion';
+import { applicationStateFromGraphProjection } from '../../../../renderer/src/studio/application/graph/application-state-projection';
+import { completedGenerationBatchFromState } from '../../../../renderer/src/studio/application/host/generationBatchCompletion';
 
 function plan(id: string, targetNodeId = 'video'): GenerationBatchPlannedInfo {
   return { type: 'GenerationBatchPlannedInfo', batchId: id, tasks: [{
@@ -72,9 +72,9 @@ describe('generation task integrity', () => {
     const running = region.inject(task.id, plan('first'));
     try {
       await vi.waitFor(() => expect(task.getState().tasks.get('first')?.phase).toBe('persisting'));
-      await region.inject(task.id, { type: 'DatabaseSavedObservedInfo', taskId: 'unrelated' });
-      expect(task.getState().tasks.get('first')?.phase).toBe('persisting');
-      await expect(region.inject(gate.id, plan('second'))).rejects.toThrow(/仍在执行/);
+      await region.inject(gate.id, plan('second'));
+      expect(task.status).toBe('ERROR');
+      expect(task.lastErrorMessage).toMatch(/仍在执行/);
       expect(gate.getState().spentCredits).toBe(20);
       expect(calls.filter((call) => call.operation === 'submit')).toHaveLength(1);
       expect(task.getState().tasks.has('second')).toBe(false);
@@ -102,8 +102,9 @@ describe('generation task integrity', () => {
   it('rejects duplicate targets within a batch atomically and permits a retry after failure', async () => {
     const { task, gate, region, calls } = await setup(async () => { throw new Error('write failed'); });
     try {
-      await expect(region.inject(task.id, { ...plan('a'), tasks: [...plan('a').tasks, ...plan('b').tasks] }))
-        .rejects.toThrow(/重复|仍在执行/);
+      await region.inject(task.id, { ...plan('a'), tasks: [...plan('a').tasks, ...plan('b').tasks] });
+      expect(task.status).toBe('ERROR');
+      expect(task.lastErrorMessage).toMatch(/重复|仍在执行/);
       expect(task.getState().tasks.size).toBe(0);
       expect(gate.getState().spentCredits).toBe(0);
       expect(calls).toHaveLength(0);

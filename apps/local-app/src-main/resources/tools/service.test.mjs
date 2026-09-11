@@ -4,7 +4,7 @@ import {
   replaceProjectStructure, renameProjectEntity, resolveProjectHistory, runMarkdownLogic, setProjectStructure,
 } from './service.mjs'
 import { parseSelector } from './symbol-language.mjs'
-import { openLocalProject, saveProjectSnapshot } from '../../electron/project-store.mjs'
+import { openLocalProject, saveProjectSnapshot } from '../../services/project-store.mjs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'

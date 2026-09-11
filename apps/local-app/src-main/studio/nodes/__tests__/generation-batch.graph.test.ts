@@ -24,8 +24,8 @@ import { SqliteObserverSourceNode } from '../sqlite-observer';
 import type { GenerationTaskState } from '../generation-task';
 import type { GenerationBatchRequestedInfo } from '../../protocol';
 import { createCausalRegionHarness, InfoCollectorNode } from '../../testing/graph';
-import { loadGenerationCatalogSnapshot } from '../../../electron/generation-catalog-snapshot.mjs';
-import { resolve } from 'node:path';
+import { loadGenerationCatalogSnapshot } from '../../../services/generation-catalog-snapshot.mjs';
+import { fileURLToPath } from 'node:url';
 
 class BatchAdapter implements EffectAdapter<GenerationAdapterOperationRequest, GenerationAdapterOperationObservation> {
   readonly id = 'fixture/batch-adapter';
@@ -65,7 +65,7 @@ class ImmediateDelay implements EffectAdapter<GenerationPollDelayRequest, Genera
 
 describe('one snapshot generation batch', () => {
   it('compiles once, submits three tasks in parallel, and delegates later polls to another Node', async () => {
-    const catalogStore = await loadGenerationCatalogSnapshot(resolve(process.cwd(), 'app/resources/generation-models'));
+    const catalogStore = await loadGenerationCatalogSnapshot(fileURLToPath(new URL('../../../resources/generation-models', import.meta.url)));
     const adapter = new BatchAdapter();
     const resolver = new GenerationModelResolverNode();
     const task = new GenerationTaskNode();

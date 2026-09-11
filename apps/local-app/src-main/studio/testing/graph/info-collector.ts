@@ -1,4 +1,4 @@
-import { Node, type ChangeContext, type Info } from '../@graphvideo/kernel';
+import { Node, type ChangeContext, type Info } from '@graphvideo/kernel';
 
 export interface InfoCollectorState {
   readonly received: readonly Info[];

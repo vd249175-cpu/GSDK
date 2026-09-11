@@ -1,0 +1,426 @@
+/* GraphVideo Blender-Style Professional Workstation Theme */
+
+:root {
+  --bg-app: #0d1117;
+  --bg-panel: #131720;
+  --bg-panel-header: #171c26;
+  --bg-panel-hover: #1c2230;
+  --bg-input: #090c12;
+  --border-color: #212836;
+  --border-light: #2c3649;
+  --text-main: #e2e8f0;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --accent-blue: #0284c7;
+  --accent-purple: #8b5cf6;
+  --accent-green: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-pink: #ec4899;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-app);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--text-main);
+  font-size: 12px;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* 1. Top Header Bar (macOS Window + Workspaces + Global Actions) */
+.top-header {
+  height: 38px;
+  background: #11141c;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  z-index: 50;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.traffic-lights {
+  display: flex;
+  gap: 7px;
+}
+
+.traffic-light {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+.traffic-red { background: #ef4444; }
+.traffic-yellow { background: #f59e0b; }
+.traffic-green { background: #10b981; }
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  color: #f8fafc;
+  margin-right: 6px;
+}
+
+.workspace-tabs {
+  display: flex;
+  gap: 2px;
+  background: #090c12;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.ws-tab {
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.ws-tab:hover {
+  color: #fff;
+}
+
+.ws-tab.active {
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.h-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.h-btn:hover {
+  background: var(--bg-panel-hover);
+  color: #fff;
+  border-color: var(--border-color);
+}
+
+/* 2. Main Workbench Body (3-Column Layout or Canvas View) */
+.main-viewport {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+.workbench-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-color);
+  position: relative;
+}
+
+.panel:last-child {
+  border-right: none;
+}
+
+.panel-markdown { flex: 0 0 42%; }
+.panel-outliner { flex: 0 0 28%; }
+.panel-properties { flex: 1; }
+
+.panel-header {
+  height: 32px;
+  background: var(--bg-panel-header);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 11px;
+  color: #f1f5f9;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 4px;
+  color: var(--text-muted);
+}
+
+.panel-subbar {
+  min-height: 28px;
+  background: #11151e;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding: 2px 8px;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tag-btn {
+  background: #1b212f;
+  border: 1px solid var(--border-color);
+  color: var(--text-dim);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.tag-btn:hover {
+  background: #252e40;
+  color: #fff;
+}
+
+.tag-btn.run {
+  background: #1e3a8a;
+  border-color: #3b82f6;
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+.panel-content {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+/* Code Editor in Markdown Panel */
+.code-editor-wrap {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: #090c12;
+  font-family: "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+}
+
+.line-numbers {
+  width: 32px;
+  padding: 10px 0;
+  text-align: center;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.5;
+  border-right: 1px solid #171d29;
+}
+
+.code-textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #e2e8f0;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+  outline: none;
+  resize: none;
+  user-select: text;
+  white-space: pre;
+}
+
+/* Outliner Tree List */
+.outliner-search {
+  width: 100%;
+  background: #090c12;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: #f1f5f9;
+  font-size: 11px;
+  outline: none;
+}
+
+.tree-list {
+  padding: 8px 6px;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.tree-item:hover {
+  background: #1b212f;
+  color: #fff;
+}
+
+.tree-item.active {
+  background: #1e3a8a;
+  color: #93c5fd;
+  font-weight: 500;
+}
+
+.tree-icon {
+  font-size: 11px;
+}
+
+.tree-icon.text { color: #60a5fa; }
+.tree-icon.image { color: #f472b6; }
+.tree-icon.video { color: #fb923c; }
+.tree-icon.audio { color: #34d399; }
+.tree-icon.style { color: #a78bfa; }
+
+/* Properties Panel Empty & Detail State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #475569;
+  gap: 8px;
+}
+
+.prop-form {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prop-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prop-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.prop-input {
+  background: #090c12;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: #f1f5f9;
+  font-size: 11px;
+  outline: none;
+}
+
+/* Panel Footer Bar */
+.panel-footer {
+  height: 24px;
+  background: #0e1219;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.footer-tags {
+  display: flex;
+  gap: 8px;
+}
+
+/* 3. Visual Canvas View (Topology Pipeline) */
+.canvas-container {
+  display: none;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  background: #080c14;
+}
+
+.canvas-container.active {
+  display: block;
+}
+
+/* 4. Bottom Global Status Bar */
+.bottom-statusbar {
+  height: 24px;
+  background: #090c12;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-size: 10px;
+  color: var(--text-muted);
+  z-index: 50;
+}
+
+.status-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #10b981;
+}
+
+.status-indicator .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}

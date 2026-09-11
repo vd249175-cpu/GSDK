@@ -36,12 +36,14 @@ describe('MarkdownSourceNode 3-Way Safe Monotonic Evolution', () => {
     const mdNode = new MarkdownSourceNode('test-md', 'Markdown 文本源', '# Initial');
     const region = createCausalRegionHarness([mdNode]);
 
-    await expect(region.inject(mdNode.id, {
+    await region.inject(mdNode.id, {
       type: 'ProjectDocumentReplacementInfo',
       markdown: '# Next',
       baseRevision: 'invalid-number' as any,
       label: 'ProjectDocumentReplacementInfo',
-    })).rejects.toThrow('项目文档 baseRevision 非法');
+    });
+    expect(mdNode.status).toBe('ERROR');
+    expect(mdNode.lastErrorMessage).toContain('项目文档 baseRevision 非法');
     await region.dispose();
   });
 });

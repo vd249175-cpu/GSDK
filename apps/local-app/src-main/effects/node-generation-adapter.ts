@@ -10,6 +10,7 @@ import {
   type GenerationAdapterHandle,
   type GenerationAdapterOperationObservation,
   type GenerationAdapterOperationRequest,
+  type GenerationAdapterSubmitSpec,
   type GenerationProviderId,
 } from '../studio/effects/generation-adapter-operation'
 
@@ -63,7 +64,7 @@ export class NodeGenerationAdapter implements EffectAdapter<
   }
 
   private async handleSubmit(
-    spec: GenerationAdapterOperationRequest extends { operation: 'submit'; spec: infer S } ? S : never,
+    spec: GenerationAdapterSubmitSpec,
     context: EffectContext,
   ): Promise<GenerationAdapterOperationObservation> {
     if (spec.provider === 'mock') {

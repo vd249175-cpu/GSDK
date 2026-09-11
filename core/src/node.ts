@@ -57,9 +57,6 @@ export abstract class Node<
 > {
   public readonly factoryKey: string;
   public isWorldNode: boolean = false;
-  public category: string = 'domain';
-  public description: string = '';
-  public icon: string = '';
 
   public status: NodeStatus = 'IDLE';
   public executionCount: number = 0;

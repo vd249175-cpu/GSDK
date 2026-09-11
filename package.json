@@ -10,6 +10,8 @@
     "apps/*"
   ],
   "scripts": {
+    "dev": "npm --prefix apps/local-app run dev",
+    "start": "npm --prefix apps/local-app run start",
     "typecheck": "tsc --noEmit",
     "build:native": "cargo build -p graphvideo-kernel-node && node scripts/stage-native.mjs",
     "build:native:release": "cargo build --release -p graphvideo-kernel-node && node scripts/stage-native.mjs --release",

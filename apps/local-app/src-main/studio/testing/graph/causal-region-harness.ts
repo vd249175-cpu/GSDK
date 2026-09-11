@@ -7,7 +7,7 @@ import {
   type Node,
   type RuntimeIdKind,
   type TraceEvent,
-} from '../@graphvideo/kernel';
+} from '@graphvideo/kernel';
 
 export interface CausalRegionHarness {
   readonly runtime: KernelRuntime;

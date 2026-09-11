@@ -18,7 +18,7 @@ describe('parseProject', () => {
   it('parses stable ids, types and semantic relations', () => {
     const parsed = parseProject(sample)
     expect(parsed.issues).toEqual([])
-    expect(parsed.declarations.map((node) => node.id)).toEqual([
+    expect(parsed.declarations.map((node: any) => node.id)).toEqual([
       'node_script', 'node_shot', 'node_frame',
     ])
     const script = parsed.tree[0].children[0]
@@ -60,7 +60,7 @@ id-map:
 @A
 @B
 </project-structure>`)
-    expect(parsed.issues.map((issue) => issue.code)).toEqual([
+    expect(parsed.issues.map((issue: any) => issue.code)).toEqual([
       'duplicate-id',
       'type-mismatch',
     ])

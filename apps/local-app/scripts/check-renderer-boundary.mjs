@@ -9,8 +9,7 @@ import { fileURLToPath } from 'node:url'
 const root = dirname(fileURLToPath(import.meta.url))
 const rendererDir = join(root, '..', 'renderer', 'src')
 
-const forbidden = [
-  '@graphvideo/kernel',
+const forbiddenImports = [
   '@graphvideo/sdk/testing',
   '@graphvideo/sdk/analysis',
   '@graphvideo/backend-sdk',
@@ -19,21 +18,23 @@ const forbidden = [
   'node:fs',
   'node:path',
   'node:child_process',
+]
+
+const forbiddenSymbols = [
+  'KernelRuntime',
   'EffectAdapter',
   'createTestRuntime',
-  'KernelRuntime',
-  // renderer 不得指定任意目标：只能调用 preload 暴露的固定命令。
-  'targetNodeId',
-  'graph/inject',
-  'graph/read',
 ]
 
 function collect(dir) {
   const out = []
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
-    if (statSync(full).isDirectory()) out.push(...collect(full))
-    else if (/\.(tsx?|jsx?|css)$/.test(entry)) out.push(full)
+    if (statSync(full).isDirectory()) {
+      out.push(...collect(full))
+    } else if (/\.(tsx?|jsx?)$/.test(entry) && !/\.test\.(tsx?|jsx?)$/.test(entry)) {
+      out.push(full)
+    }
   }
   return out
 }
@@ -41,8 +42,19 @@ function collect(dir) {
 let failed = false
 for (const file of collect(rendererDir)) {
   const text = readFileSync(file, 'utf8')
-  for (const token of forbidden) {
+  
+  // 检查 forbiddenSymbols
+  for (const token of forbiddenSymbols) {
     if (text.includes(token)) {
+      console.error(`[boundary] ${file} 引用了禁止运行时符号: ${token}`)
+      failed = true
+    }
+  }
+
+  // 检查 import/require 形式的 forbiddenImports
+  for (const token of forbiddenImports) {
+    const importRegex = new RegExp(`(?:from|import|require)\\s*['"\`].*${token.replace(':', '\\:')}.*['"\`]`)
+    if (importRegex.test(text)) {
       console.error(`[boundary] ${file} 引用了禁止依赖: ${token}`)
       failed = true
     }

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { runProjectCommand } from './cli.mjs'
 import { parseQueryLanguage } from './symbol-language.mjs'
 import { applyTextHunks, parseTextPatch } from './text-patch.mjs'
-import { openLocalProject, saveProjectSnapshot } from '../../electron/project-store.mjs'
+import { openLocalProject, saveProjectSnapshot } from '../../services/project-store.mjs'
 
 const roots = []
 const markdown = `---

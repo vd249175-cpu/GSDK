@@ -15,7 +15,7 @@ import {
   writeProjectMarkdown,
 } from './service.mjs'
 import { parseQueryLanguage } from './symbol-language.mjs'
-import { listGenerationModels, resolveGenerationPrompt } from '../../electron/generation-model-store.mjs'
+import { listGenerationModels, resolveGenerationPrompt } from '../../services/generation-model-store.mjs'
 import { catalogAgentDocuments } from './document-catalog.mjs'
 
 export function createGraphVideoMcpServer(projectRoot = process.env.GRAPHVIDEO_PROJECT_ROOT) {

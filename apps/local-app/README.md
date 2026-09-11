@@ -35,7 +35,7 @@ Adapter 的演示见 `backend.test.mjs` 测试夹具（SaverNode），不进生�
 - 本模板只演示最小链路（counter 自增 + 前后端读写）；多节点扇出/扇入仍通过定向 Info 表达。
 
 ## 目录职责
-- `src-main/`：宿主入口与唯一 Runtime 所有者。`main.mjs` 使用 `native-graph-host.mjs`；`graph-host.mjs` 保留为 TypeScript KernelRuntime 的对照与测试宿主。写入经插件 `rendererRoots` 授权，读取走 Projection/EncodedValue；renderer 不得指定任意 Node/Info。窗口三键是图外桌面服务，直接调用 BrowserWindow。
+- `src-main/`：宿主入口与唯一 Runtime 所有者。`main.mjs` 统一使用 `native-graph-host.mjs`（基于 `NativeRuleSpace` 原生微内核调度；旧 TS KernelRuntime 已退役，`graph-host.mjs` 仅保留为原生宿主的兼容别名）。写入经插件 `rendererRoots` 授权，读取走 Projection/EncodedValue；renderer 不得指定任意 Node/Info。窗口三键是图外桌面服务，直接调用 BrowserWindow。
 - `plugins/hello-counter/`：业务插件，`backend.mjs` 提供 Node，`graphvideo.plugin.json` 声明。
 - `products/default.json`：产品组合（主题默认 + 插件列表）。
 - `renderer/`：Vite/React 前端，只读投影经 preload 白名单通道，不触 Kernel。样式只消费 `@graphvideo/workbench` 语义 Token（`app.css` 为模板自有）；顶栏主题切换（深色/浅色/雪青/石榴裙）是本地 UI 态，存 `localStorage`。
@@ -47,10 +47,9 @@ Adapter 的演示见 `backend.test.mjs` 测试夹具（SaverNode），不进生�
 | 复用项 | 来源 | Owner | 消费者 | 生命周期 | 公开入口 |
 | --- | --- | --- | --- | --- | --- |
 | `Node` / `defineBackendPlugin` | `@graphvideo/backend-sdk` | 插件 | `plugins/*/backend.mjs` | 进程常驻 | `backend-sdk` index |
-| `KernelRuntime`（参考与测试） | `@graphvideo/kernel` | 宿主 | `src-main/graph-host.mjs` | 单次测试 | `kernel` index |
-| `NativeRuleSpace` + `mountDomainNode`（生产 main） | `@graphvideo/backend-sdk` | 宿主 | `src-main/native-graph-host.mjs` | 进程常驻 | `backend-sdk` index |
+| `NativeRuleSpace` + `mountDomainNode`（生产与测试宿主） | `@graphvideo/backend-sdk` | 宿主 | `src-main/native-graph-host.mjs` | 进程常驻 | `backend-sdk` index |
 | Rust 调度内核 | `graphvideo-kernel-node`（`npm run build:native` 构建） | 宿主 | `NativeRuleSpace` 经 napi 加载 | 进程常驻 | staged `.node` |
-| `createTestRuntime`（仅测试） | `@graphvideo/sdk/testing` | 插件测试 | `*.test.mjs` | 单次测试 | `sdk/testing` |
+| `createTestRuntime`（仅单节点规约测试） | `@graphvideo/sdk/testing` | 插件测试 | `*.test.mjs` | 单次测试 | `sdk/testing` |
 | 工作台样式 | `@graphvideo/workbench/styles.css` | renderer | `renderer/src/app.tsx` | 前端构建期 | `workbench` styles.css |
 | `parseStudioPluginManifest` 约束（如需） | `@graphvideo/sdk/contract` | 插件 | manifest 校验 | 构建/测试期 | `sdk/contract` |
 

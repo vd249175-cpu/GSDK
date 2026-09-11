@@ -7,7 +7,19 @@
     "strict": true,
     "skipLibCheck": true,
     "types": ["vite/client"],
-    "noEmit": true
+    "allowJs": true,
+    "baseUrl": ".",
+    "paths": {
+      "@graphvideo/workbench": ["../../sdk/workbench/src/index.ts"],
+      "@graphvideo/workbench/*": ["../../sdk/workbench/src/*"],
+      "@graphvideo/client-sdk": ["renderer/src/studio/client-sdk.ts"],
+      "@graphvideo/domain": ["src-main/studio/domain/launchpad-scheduler.ts"],
+      "@graphvideo/sdk/tokens": ["../../sdk/tokens/index.ts"],
+      "../../../shared/*": ["src-main/shared/*"],
+      "../../shared/*": ["src-main/shared/*"],
+      "../shared/*": ["src-main/shared/*"]
+    }
   },
-  "include": ["renderer/src", "renderer/vite.config.ts"]
+  "include": ["renderer/src", "renderer/vite.config.ts"],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx"]
 }
