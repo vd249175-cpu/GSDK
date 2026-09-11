@@ -18,3 +18,6 @@ sdk/init-bundle/
 crates/target/
 **/target/
 Cargo.lock
+
+# Staged native binding (rebuild via npm run build:native)
+crates/kernel-node/*.node

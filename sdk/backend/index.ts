@@ -119,3 +119,7 @@ export type { StudioPluginManifest } from './plugin-manifest.mjs'
 export {
   defineStudioPluginManifest, parseStudioPluginManifest,
 } from './plugin-manifest.mjs'
+export { NativeRuleSpace, locateNativeBinding } from './native-space'
+export type {
+  NativeChangeContext, NativeDeliveryFeedback, NativeDeliveryStatus, NativeHandler, NativeInfo,
+} from './native-space'

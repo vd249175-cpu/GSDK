@@ -48,6 +48,8 @@ pub struct QueuedInfo {
     pub target: EntityId,
     /// Payload discriminator (the `Info.type` in TS).
     pub info_type: String,
+    /// Opaque payload DTO (JSON at the FFI boundary, `None` for stubs).
+    pub payload_json: Option<String>,
     /// Target generation captured at enqueue.
     pub generation: Generation,
     /// Change that caused this send, if any.

@@ -11,6 +11,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "build:native": "cargo build -p graphvideo-kernel-node && node scripts/stage-native.mjs",
     "test": "vitest run --project core --project unit --project ui",
     "test:core": "vitest run --project core",
     "test:unit": "vitest run --project unit",

@@ -42,6 +42,8 @@ pub struct ChangeView {
     /// Pulse discriminator and sender.
     pub info_type: String,
     pub sender: EntityId,
+    /// Opaque payload DTO (JSON at the FFI boundary).
+    pub payload_json: Option<String>,
     /// Owning submission, if any.
     pub submission: Option<SubmissionId>,
 }
@@ -54,6 +56,35 @@ pub struct ActiveChange {
     entity: EntityId,
     generation: Generation,
     submission: Option<SubmissionId>,
+}
+
+impl ActiveChange {
+    pub fn change_id(&self) -> ChangeId {
+        self.change_id
+    }
+    pub fn entity(&self) -> &str {
+        &self.entity
+    }
+    pub fn generation(&self) -> Generation {
+        self.generation
+    }
+    pub fn submission(&self) -> Option<&SubmissionId> {
+        self.submission.as_ref()
+    }
+    /// Rebuild a token received back from outside (checked on settle).
+    pub fn from_parts(
+        change_id: ChangeId,
+        entity: EntityId,
+        generation: Generation,
+        submission: Option<SubmissionId>,
+    ) -> Self {
+        ActiveChange {
+            change_id,
+            entity,
+            generation,
+            submission,
+        }
+    }
 }
 
 /// A queued delivery visible without dequeuing (introspection only).
@@ -144,11 +175,23 @@ impl Kernel {
         self.registry.generation(id)
     }
 
-    /// Directional pulse: enqueue into the target mailbox, fire-and-forget.
     pub fn send(
         &mut self,
         sender: EntityId,
         info_type: String,
+        target: &str,
+        caused_by: Option<ChangeId>,
+        submission: Option<SubmissionId>,
+    ) -> DeliveryFeedback {
+        self.send_json(sender, info_type, None, target, caused_by, submission)
+    }
+
+    /// [`Kernel::send`] with an opaque payload DTO attached.
+    pub fn send_json(
+        &mut self,
+        sender: EntityId,
+        info_type: String,
+        payload_json: Option<String>,
         target: &str,
         caused_by: Option<ChangeId>,
         submission: Option<SubmissionId>,
@@ -182,6 +225,7 @@ impl Kernel {
                     sender,
                     target: target.to_owned(),
                     info_type,
+                    payload_json,
                     generation,
                     caused_by,
                     submission: submission.clone(),
@@ -206,6 +250,17 @@ impl Kernel {
         info_type: String,
         submission: SubmissionId,
     ) -> DeliveryFeedback {
+        self.inject_root_json(target, info_type, None, submission)
+    }
+
+    /// [`Kernel::inject_root`] with an opaque payload DTO attached.
+    pub fn inject_root_json(
+        &mut self,
+        target: &str,
+        info_type: String,
+        payload_json: Option<String>,
+        submission: SubmissionId,
+    ) -> DeliveryFeedback {
         self.submissions
             .entry(submission.clone())
             .or_insert(Submission {
@@ -213,9 +268,10 @@ impl Kernel {
                 cancelled: false,
                 failure: None,
             });
-        self.send(
+        self.send_json(
             "external-root".to_owned(),
             info_type,
+            payload_json,
             target,
             None,
             Some(submission),
@@ -264,6 +320,7 @@ impl Kernel {
             generation: info.generation,
             info_type: info.info_type.clone(),
             sender: info.sender.clone(),
+            payload_json: info.payload_json.clone(),
             submission: info.submission.clone(),
         };
         let token = ActiveChange {
@@ -316,6 +373,18 @@ impl Kernel {
         }
         true
     }
+    /// Scan admitted entities in order and open the first runnable change.
+    /// JS-driven pumps use this instead of `pump_once` because the change
+    /// body runs outside Rust (possibly across an await).
+    pub fn poll_next(&mut self) -> Option<(ActiveChange, ChangeView)> {
+        for id in self.registry.ordered_ids() {
+            if let Ok(opened) = self.begin_change(&id) {
+                return Some(opened);
+            }
+        }
+        None
+    }
+
     /// Run at most one queued change across the space in admitted-id order.
     /// Returns true when a change ran or a stale/cancelled delivery settled.
     pub fn pump_once<H>(&mut self, mut body: H) -> bool

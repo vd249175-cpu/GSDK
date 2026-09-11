@@ -1,0 +1,15 @@
+[package]
+name = "graphvideo-kernel-node"
+version = "0.1.0"
+edition = "2021"
+description = "Node-API binding: JS business entities on the Rust rule space"
+license = "Apache-2.0"
+
+[lib]
+name = "graphvideo_kernel_node"
+crate-type = ["cdylib"]
+
+[dependencies]
+graphvideo-kernel = { path = "../kernel" }
+napi = "3"
+napi-derive = "3"
