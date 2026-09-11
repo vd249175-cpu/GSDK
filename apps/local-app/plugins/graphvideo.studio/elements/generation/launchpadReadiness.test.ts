@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GenerationDagReadiness } from '../../application/contract/domain'
+import type { GenerationDagReadiness } from '@graphvideo/client-sdk'
 import { isExecutableGenerationReadiness } from './launchpadReadiness'
 
 describe('launchpad generation readiness', () => {

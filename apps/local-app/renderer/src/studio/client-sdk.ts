@@ -37,6 +37,7 @@ export type {
   AgentTemplateDto as AgentTemplateDefinition,
   AgentTerminalLaunchDto as AgentTerminalLaunch,
   GenerationDagItem,
+  GenerationDagReadiness,
   GenerationModelReference,
   GenerationModelResolveInput,
   LocalProjectSourceDto,

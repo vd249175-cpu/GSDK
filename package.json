@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "npm --prefix apps/local-app run dev",
     "start": "npm --prefix apps/local-app run start",
+    "check:syntax": "node scripts/check-syntax.mjs",
     "typecheck": "tsc --noEmit",
     "build:native": "cargo build -p graphvideo-kernel-node && node scripts/stage-native.mjs",
     "build:native:release": "cargo build --release -p graphvideo-kernel-node && node scripts/stage-native.mjs --release",
@@ -30,8 +31,10 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
+    "electron": "^35.7.5",
     "jsdom": "^30.0.1",
     "lucide-react": "^1.44.0",
+    "oxlint": "^1.82.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "typescript": "^5.4.5",

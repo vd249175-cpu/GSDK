@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { WorkspaceRuntimeState } from '../../client/state/workspaceTypes'
+import type { WorkspaceRuntimeState } from '../dock/workspaceTypes'
 import {
   loadActiveWorkspacePreference, loadWorkspaceDefault,
   saveActiveWorkspacePreference, saveWorkspaceDefault,

@@ -21,3 +21,7 @@ Cargo.lock
 
 # Staged native binding (rebuild via npm run build:native)
 crates/kernel-node/*.node
+
+# Main process and plugin build artifacts
+apps/local-app/plugins/graphvideo.studio/backend.js
+apps/local-app/src-main/effects/node-generation-adapter.js

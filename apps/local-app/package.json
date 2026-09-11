@@ -7,6 +7,8 @@
   "main": "src-main/main.mjs",
   "scripts": {
     "dev": "vite --config renderer/vite.config.ts",
+    "build:main": "esbuild plugins/graphvideo.studio/backend.ts --bundle --platform=node --format=esm --packages=external --outfile=plugins/graphvideo.studio/backend.js && esbuild src-main/effects/node-generation-adapter.ts --bundle --platform=node --format=esm --packages=external --outfile=src-main/effects/node-generation-adapter.js",
+    "prestart": "npm run build:main",
     "start": "electron .",
     "diagnose": "tsx scripts/diagnose.mjs",
     "demo:topology": "tsx scripts/demo-topology.mjs",
@@ -14,7 +16,7 @@
     "check:renderer-boundary": "node scripts/check-renderer-boundary.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.renderer.json && tsc --noEmit -p tsconfig.main.json",
     "test": "vitest run",
-    "build": "vite build --config renderer/vite.config.ts && node --check src-main/main.mjs && node --check src-main/preload.cjs && node --check src-main/graph-host.mjs && node --check src-main/native-graph-host.mjs && node --check src-main/demo-controller.mjs && node --check scripts/demo-topology.mjs && node --check scripts/diagnose.mjs",
+    "build": "npm run build:main && vite build --config renderer/vite.config.ts && node --check src-main/main.mjs && node --check src-main/preload.cjs && node --check src-main/graph-host.mjs && node --check src-main/native-graph-host.mjs && node --check src-main/demo-controller.mjs && node --check scripts/demo-topology.mjs && node --check scripts/diagnose.mjs",
     "verify:native-load": "node ../../scripts/verify-electron-native.mjs",
     "verify": "npm run check:renderer-boundary && npm run typecheck && npm run test && npm run diagnose -- validate && npm run verify:native-load && npm run build"
   },

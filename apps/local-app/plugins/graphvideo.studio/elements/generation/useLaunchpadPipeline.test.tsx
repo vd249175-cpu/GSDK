@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LaunchpadItem } from '@graphvideo/domain'
-import type { RuntimeTaskGraphState } from '../../../../app/src/core/state/types'
+import type { RuntimeTaskGraphState } from '../../../../renderer/src/studio/core/state/types'
 import { useLaunchpadPipeline } from './useLaunchpadPipeline'
 
 const fixture = vi.hoisted(() => ({

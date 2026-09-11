@@ -1,31 +1,40 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { EffectAdapter } from '@graphvideo/kernel';
-import { ApplicationHost } from '../../../../app/src/application/host/applicationHost';
-import { registerApplicationHandlers } from '../../../../app/src/application/host/registerApplicationHandlers';
+import { KernelRuntime, type EffectAdapter } from '@graphvideo/kernel';
+import { ApplicationHost } from '../../../../renderer/src/studio/application/host/applicationHost';
+import { registerApplicationHandlers } from '../../../../renderer/src/studio/application/host/registerApplicationHandlers';
 import {
   KernelApplicationGraphHost,
-} from '../../../../app/src/application/graph/graphHost';
+} from '../../../../renderer/src/studio/application/graph/graphHost';
 import {
   graphVideoRuntimeNodeIds,
-} from '../../../../app/src/graph/node-ids';
-import { createStudioRuntime } from '../../../../app/src/main/runtime-composition';
-import { InProcessTransport } from '../../../../app/src/application/transport/inProcessTransport';
-import { ApplicationSnapshotStore, createApplicationClient } from '../../../../app/src/client/app/applicationClient';
-import { ClientStateStore } from '../../../../app/src/client/state/clientStateStore';
-import { ClientTransport } from '../../../../app/src/client/app/clientTransport';
-import type { ProjectNode } from '../../../../app/src/core/project/types';
+} from '../../../../renderer/src/studio/graph/node-ids';
+import { createStudioNodes } from '../../../../src-main/studio/nodes/studio-factories';
+import { InProcessTransport } from '../../../../renderer/src/studio/application/transport/inProcessTransport';
+import { ApplicationSnapshotStore, createApplicationClient } from '../../../../renderer/src/studio/client/app/applicationClient';
+import { ClientStateStore } from '../../../../renderer/src/studio/client/state/clientStateStore';
+import { ClientTransport } from '../../../../renderer/src/studio/client/app/clientTransport';
+import type { ProjectNode } from '../../../../renderer/src/studio/core/project/types';
 import {
   projectStructureAdapterId,
   type ProjectStructurePersistObservation,
   type ProjectStructurePersistRequest,
-} from '../../../../app/src/effects/project-structure-adapter';
+} from '../../../../src-main/studio/effects/project-structure-adapter';
 import {
   sqliteMetadataAdapterId,
   type SqlitePersistObservation,
   type SqlitePersistRequest,
-} from '../../../../app/src/effects/sqlite-metadata-adapter';
+} from '../../../../src-main/studio/effects/sqlite-metadata-adapter';
 import { setGenerationPromptModel, parseGenerationPrompt } from '../../../../src-main/shared/generation-prompt.mjs';
-import { LaunchpadScheduler } from '../../../../app/src/domain/launchpad-scheduler';
+import { LaunchpadScheduler } from '../../../../src-main/studio/domain/launchpad-scheduler';
+
+function createStudioRuntime(options: { dependencies: any }) {
+  const runtime = new KernelRuntime();
+  const nodes = createStudioNodes(options.dependencies);
+  for (const node of nodes) {
+    runtime.registerNode(node);
+  }
+  return runtime;
+}
 
 const disposers: Array<() => void | Promise<void>> = [];
 

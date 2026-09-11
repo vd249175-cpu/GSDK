@@ -1,6 +1,5 @@
 import { NativeRuleSpace, assertRendererRoot, mountDomainNode, replaceDomainNode } from '@graphvideo/backend-sdk'
-import { createStudioNodes } from './studio/nodes/studio-factories'
-import studioPlugin from '../plugins/graphvideo.studio/backend'
+import studioPlugin from '../plugins/graphvideo.studio/backend.js'
 
 /**
  * 原生微内核图宿主 (NativeGraphHost)：
@@ -12,7 +11,7 @@ export function createNativeGraphHost({ dependencies = {}, plugins = [studioPlug
   const mountedNodes = []
 
   if (mountStudioNodes && plugins.some((p) => p?.id === studioPlugin.id)) {
-    const studioNodes = createStudioNodes(dependencies)
+    const studioNodes = studioPlugin.createNodes({ dependencies })
     for (const node of studioNodes) {
       mountDomainNode(space, node)
       mountedNodes.push(node)

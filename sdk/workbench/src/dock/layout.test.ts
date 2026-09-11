@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { DockNode } from '../../client/state/workspaceTypes'
+import type { DockNode } from './workspaceTypes'
 import {
   canCloseArea, closeArea, excludeAreas, findArea, listAreas, resizeSplit, splitArea,
   swapAreaPanels, switchAreaPanel,

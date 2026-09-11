@@ -1,5 +1,5 @@
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
-import { basename, dirname, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 const historyVersion = 1
 const defaultLimit = 10
@@ -116,4 +116,13 @@ export class ProjectHistoryStore {
     await writeFile(temporaryPath, JSON.stringify({ version: historyVersion, projects }, null, 2), 'utf8')
     await rename(temporaryPath, this.filePath)
   }
+}
+
+let defaultHistoryStore = null
+export function getProjectHistory(userDataPath = null) {
+  if (!defaultHistoryStore) {
+    const file = userDataPath ? join(userDataPath, 'project-history.json') : resolve(process.cwd(), '.graphvideo-history.json')
+    defaultHistoryStore = new ProjectHistoryStore(file)
+  }
+  return defaultHistoryStore
 }

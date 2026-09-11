@@ -6,22 +6,27 @@ import { NodeGenerationAdapter } from './effects/node-generation-adapter.js'
 import studioPlugin from '../plugins/graphvideo.studio/backend.js'
 import {
   openLocalProject,
-  restoreLastProject,
-  listRecentProjects,
+  persistGraphMetadata,
+  saveProjectStructure,
+  promoteProjectNodeVersion,
+  resolveProjectNodeVersionPath,
+} from './services/project-store.mjs'
+import {
   listProjectSnapshots,
   createProjectSnapshot,
-  branchFromSnapshot,
-  persistGraphMetadata,
-  persistProjectStructure,
-  copyNodeVersionFiles,
-  promoteNodeVersion,
-  exportCurrentVideos,
-} from './services/project-store.mjs'
-import { resolveProjectNodeVersionPath, createProjectAssetResponse } from './services/project-asset.mjs'
+  branchProjectSnapshot,
+} from './services/project-snapshot-store.mjs'
+import { copyProjectVersions } from './services/project-clipboard.mjs'
+import { exportProjectVideos } from './services/project-video-export.mjs'
+import { createProjectAssetResponse } from './services/project-asset.mjs'
 import { resolveProjectPath } from './services/project-paths.mjs'
 import { getProjectHistory } from './services/project-history.mjs'
 import { ProjectExternalSync } from './services/project-external-sync.mjs'
-import { getGenerationModelStore } from './services/generation-model-store.mjs'
+import {
+  listGenerationModels,
+  resolveGenerationPrompt,
+  evaluateGenerationDag,
+} from './services/generation-model-store.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const appRoot = join(here, '..')
@@ -77,7 +82,7 @@ const host = createNativeGraphHost({
       id: 'effect:adapter:project-structure',
       async execute(request, context) {
         if (!activeProjectRoot) throw new Error('Project Structure Effect 需要已打开项目')
-        return persistProjectStructure(activeProjectRoot, request)
+        return saveProjectStructure(activeProjectRoot, request)
       },
     },
   },
@@ -177,19 +182,18 @@ function registerIpcHandlers() {
 
   ipcMain.handle('project:restore-last', async () => {
     try {
-      const project = await restoreLastProject()
-      if (project?.localPath) {
-        activeProjectRoot = project.localPath
-        await projectExternalSync.start(activeProjectRoot)
-        await host.injectRoot('src-fs-source', { type: 'ProjectOpenedInfo', project })
+      const history = getProjectHistory()
+      const recent = await history.list()
+      if (recent[0]?.path) {
+        return openProjectAtPath(recent[0].path)
       }
-      return project
+      return null
     } catch {
       return null
     }
   })
 
-  ipcMain.handle('project:list-recent', async () => listRecentProjects())
+  ipcMain.handle('project:list-recent', async () => getProjectHistory().list())
   ipcMain.handle('project:snapshots-list', async () => (activeProjectRoot ? listProjectSnapshots(activeProjectRoot) : []))
   ipcMain.handle('project:snapshots-create', async (_event, label) => {
     if (!activeProjectRoot) throw new Error('未打开项目')
@@ -197,16 +201,16 @@ function registerIpcHandlers() {
   })
   ipcMain.handle('project:snapshots-branch', async (_event, snapshotId, branchName) => {
     if (!activeProjectRoot) throw new Error('未打开项目')
-    const branchPath = await branchFromSnapshot(activeProjectRoot, snapshotId, branchName)
+    const branchPath = await branchProjectSnapshot(activeProjectRoot, snapshotId, branchName)
     return openProjectAtPath(branchPath)
   })
   ipcMain.handle('project:promote-node-version', async (_event, nodeId, versionId) => {
     if (!activeProjectRoot) throw new Error('未打开项目')
-    return promoteNodeVersion(activeProjectRoot, nodeId, versionId)
+    return promoteProjectNodeVersion(activeProjectRoot, nodeId, versionId)
   })
   ipcMain.handle('project:copy-version-files', async (_event, items) => {
     if (!activeProjectRoot) throw new Error('未打开项目')
-    return copyNodeVersionFiles(activeProjectRoot, items)
+    return copyProjectVersions(activeProjectRoot, items)
   })
   ipcMain.handle('project:export-current-videos', async (_event, nodeIds) => {
     if (!activeProjectRoot) throw new Error('未打开项目')
@@ -215,7 +219,7 @@ function registerIpcHandlers() {
       title: '导出视频至目录',
     })
     if (destination.canceled || !destination.filePaths[0]) return { canceled: true }
-    const result = await exportCurrentVideos(activeProjectRoot, nodeIds, destination.filePaths[0])
+    const result = await exportProjectVideos(activeProjectRoot, nodeIds, destination.filePaths[0])
     return { canceled: false, ...result }
   })
 
@@ -239,10 +243,10 @@ function registerIpcHandlers() {
   ipcMain.handle('elements:refresh', async () => ipcMain.emit('elements:list'))
 
   // 模型库接口
-  const modelStore = getGenerationModelStore(join(appRoot, 'resources', 'generation-models'))
-  ipcMain.handle('generation-models:list', async () => modelStore.listManifests())
-  ipcMain.handle('generation-models:resolve', async (_event, input) => modelStore.resolvePackage(input))
-  ipcMain.handle('generation-models:evaluate-dag', async (_event, projectRoot) => modelStore.evaluateDag(projectRoot || activeProjectRoot))
+  const modelsDir = join(appRoot, 'resources', 'generation-models')
+  ipcMain.handle('generation-models:list', async () => listGenerationModels(modelsDir))
+  ipcMain.handle('generation-models:resolve', async (_event, input) => resolveGenerationPrompt(modelsDir, input))
+  ipcMain.handle('generation-models:evaluate-dag', async (_event, projectRoot) => evaluateGenerationDag(modelsDir, projectRoot || activeProjectRoot))
 
   // 提示词库接口
   ipcMain.handle('prompt-library:list', async () => [])
