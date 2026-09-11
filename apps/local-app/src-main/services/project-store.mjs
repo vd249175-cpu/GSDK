@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { statSync } from 'node:fs'
 import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, relative, sep } from 'node:path'
-import { assertNodeId } from '../resources/shared/node-id.mjs'
+import { assertNodeId } from '../shared/node-id.mjs'
 import { resolveProjectDatabasePath, resolveProjectPath } from './project-paths.mjs'
 
 const databaseRelativePath = join('.graphvideo', 'nodes.sqlite')

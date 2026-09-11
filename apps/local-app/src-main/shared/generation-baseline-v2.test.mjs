@@ -6,7 +6,7 @@ import { loadGenerationCatalogSnapshot } from '../services/generation-catalog-sn
 
 let catalog
 beforeAll(async () => {
-  catalog = (await loadGenerationCatalogSnapshot(fileURLToPath(new URL('../resources/generation-models', import.meta.url)))).read()
+  catalog = (await loadGenerationCatalogSnapshot(fileURLToPath(new URL('../../resources/generation-models', import.meta.url)))).read()
 })
 
 describe('generation model migration baseline', () => {

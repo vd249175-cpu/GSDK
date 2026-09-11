@@ -5,13 +5,13 @@ import { parseProject, stripOutlineAnnotations } from '../shared/project-parser.
 import { parseGenerationPrompt } from '../shared/generation-prompt.mjs'
 import {
   openLocalProject, renameRetainedNode, saveProjectMarkdown, saveProjectNode, saveProjectSnapshot,
-} from '../../electron/project-store.mjs'
+} from '../../src-main/services/project-store.mjs'
 import {
   deleteGenerationModel,
   importGenerationModel,
   listGenerationModels,
   readGenerationModel,
-} from '../../electron/generation-model-store.mjs'
+} from '../../src-main/services/generation-model-store.mjs'
 import { applyTextHunks, applyTargetReplace } from './text-patch.mjs'
 import { parseSelector, overviewStatuses } from './symbol-language.mjs'
 

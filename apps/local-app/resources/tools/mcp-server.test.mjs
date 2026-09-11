@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { openLocalProject, saveProjectSnapshot } from '../../electron/project-store.mjs'
+import { openLocalProject, saveProjectSnapshot } from '../../src-main/services/project-store.mjs'
 import { runMarkdownLogic } from './service.mjs'
 
 const roots = []
@@ -36,7 +36,7 @@ afterEach(async () => {
 describe('GraphVideo MCP Server', () => {
   it('connects via stdio, lists all tools, and losslessly edits multi-line fields', async () => {
     const project = await createTestProject()
-    const serverScript = resolve('app/resources/tools/mcp-server.mjs')
+    const serverScript = fileURLToPath(new URL('./mcp-server.mjs', import.meta.url))
 
     const transport = new StdioClientTransport({
       command: 'node',

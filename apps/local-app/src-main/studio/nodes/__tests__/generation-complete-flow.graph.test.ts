@@ -208,7 +208,7 @@ describe('complete generated video causal flow', () => {
       });
 
       const catalog = (await loadGenerationCatalogSnapshot(
-        fileURLToPath(new URL('../../../resources/generation-models', import.meta.url)),
+        fileURLToPath(new URL('../../../../resources/generation-models', import.meta.url)),
       )).select(['seedance-video']);
       const request: GenerationBatchRequestedInfo = {
         type: 'GenerationBatchRequestedInfo',

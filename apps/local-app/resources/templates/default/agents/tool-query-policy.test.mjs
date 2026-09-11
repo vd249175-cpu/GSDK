@@ -1,11 +1,12 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { discoverAgentTemplates } from '../../../../electron/agent-catalog.mjs'
+import { discoverAgentTemplates } from '../../../../src-main/services/agent-catalog.mjs'
 
 const agentNames = ['director', 'image-prompter', 'planner', 'storyboarder', 'video-prompter']
-const agentsRoot = resolve('app/resources/templates/default/agents')
-const mcpInstructionsPath = resolve('app/resources/tools/instructions.md')
+const agentsRoot = fileURLToPath(new URL('.', import.meta.url))
+const mcpInstructionsPath = fileURLToPath(new URL('../../../tools/instructions.md', import.meta.url))
 
 async function markdownSourcesAt(directory) {
   const entries = await readdir(directory, { withFileTypes: true })
@@ -36,7 +37,7 @@ describe('agent project query policy', () => {
     expect(videoSource).toContain('独立音频 `~` 与视觉风格 `&` 的唯一 Prompt Owner')
     await expect(readFile(resolve(agentsRoot, 'prompter', 'AGENTS.md'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
 
-    const templates = await discoverAgentTemplates(resolve('app/resources/templates'))
+    const templates = await discoverAgentTemplates(fileURLToPath(new URL('../..', import.meta.url)))
     const defaultTemplate = templates.find((template) => template.id === 'default')
     expect(defaultTemplate?.agents.map((agent) => agent.id)).toEqual(agentNames)
     await expect(readFile(resolve(agentsRoot, 'image-prompter', 'details', 'visual_style_engineering.md'), 'utf8'))

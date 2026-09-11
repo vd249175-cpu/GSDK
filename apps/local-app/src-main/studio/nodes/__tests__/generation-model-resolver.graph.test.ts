@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 describe('GenerationModelResolverNode', () => {
   it('owns pure model resolution without invoking a physical adapter', async () => {
-    const catalog = (await loadGenerationCatalogSnapshot(fileURLToPath(new URL('../../../resources/generation-models', import.meta.url)))).select(['audio-sfx']);
+    const catalog = (await loadGenerationCatalogSnapshot(fileURLToPath(new URL('../../../../resources/generation-models', import.meta.url)))).select(['audio-sfx']);
     const resolver = new GenerationModelResolverNode();
     const region = createCausalRegionHarness([resolver, new GenerationTaskNode()]);
     const info: GenerationModelResolutionRequestedInfo = {

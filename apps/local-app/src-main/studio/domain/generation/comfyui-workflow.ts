@@ -1,6 +1,6 @@
 import type { ComfyUiWorkflowConfig } from '../types';
 // @ts-ignore
-import { applyComfyUiBindings } from '../../../resources/shared/comfyui/workflow.mjs';
+import { applyComfyUiBindings } from '../../../shared/comfyui/workflow.mjs';
 
 /**
  * 纯逻辑：ComfyUI 工作流参数绑定、Graph 变异与 Prompt Payload 构建引擎

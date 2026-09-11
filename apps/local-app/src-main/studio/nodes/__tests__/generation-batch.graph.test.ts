@@ -65,7 +65,7 @@ class ImmediateDelay implements EffectAdapter<GenerationPollDelayRequest, Genera
 
 describe('one snapshot generation batch', () => {
   it('compiles once, submits three tasks in parallel, and delegates later polls to another Node', async () => {
-    const catalogStore = await loadGenerationCatalogSnapshot(fileURLToPath(new URL('../../../resources/generation-models', import.meta.url)));
+    const catalogStore = await loadGenerationCatalogSnapshot(fileURLToPath(new URL('../../../../resources/generation-models', import.meta.url)));
     const adapter = new BatchAdapter();
     const resolver = new GenerationModelResolverNode();
     const task = new GenerationTaskNode();

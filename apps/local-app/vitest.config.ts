@@ -14,7 +14,7 @@ export default defineConfig({
     ],
   },
   test: {
-    include: ['plugins/**/*.test.{mjs,ts}', 'src-main/**/*.test.{mjs,ts}'],
+    include: ['plugins/**/*.test.{mjs,ts}', 'src-main/**/*.test.{mjs,ts}', 'resources/**/*.test.{mjs,ts}'],
     environment: 'node',
   },
 })

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { parseProject } from '../resources/shared/project-parser.mjs'
+import { parseProject } from '../shared/project-parser.mjs'
 import {
   importProjectNodeVersion, minimalProjectMarkdown, openLocalProject, persistGraphMetadata, promoteProjectNodeVersion,
   resolveProjectNodeVersionPath, resolveProjectNodeVersionPathSync,
