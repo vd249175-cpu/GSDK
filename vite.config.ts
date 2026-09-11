@@ -30,7 +30,7 @@ export default defineConfig({
     testTimeout: 10_000,
     hookTimeout: 10_000,
     teardownTimeout: 2_000,
-    exclude: ['**/node_modules/**', '**/dist/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/*live*.test.ts'],
     projects: [
       {
         extends: true,

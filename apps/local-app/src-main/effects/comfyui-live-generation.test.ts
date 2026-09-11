@@ -21,7 +21,7 @@ function resolveApiKey(): string {
 
 const API_KEY = resolveApiKey()
 
-describe('ComfyUI Cloud API 真实图像生成单元测试', () => {
+describe.skip('ComfyUI Cloud API 真实图像生成单元测试 (已跳过真实 API 调用)', () => {
   it('使用截取的部分工作流节点 (GeminiNanoBanana2V2 + SaveImage) 完整生成一张真实图片并落盘', async () => {
     expect(API_KEY, '请在 .env 中配置 COMFY_API_KEY 后运行测试').toBeTruthy()
     expect(API_KEY.startsWith('comfyui-')).toBe(true)

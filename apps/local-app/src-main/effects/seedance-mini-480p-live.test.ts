@@ -85,7 +85,7 @@ function createTestPng(width: number, height: number, colorFn: (x: number, y: nu
   ])
 }
 
-describe('Seedance 2.0 Mini 480p 双图参考视频生成与端到端实测', () => {
+describe.skip('Seedance 2.0 Mini 480p 双图参考视频生成与端到端实测 (已完全剔除/禁用真实 API 调用)', () => {
   mkdirSync(sampleMediaDir, { recursive: true })
 
   const img1Path = join(sampleMediaDir, 'seedance_ref_warm.jpg')
@@ -142,7 +142,7 @@ seed: 42
     console.log('✅ 480p Seedance Mini 工作流拓扑编译校验 100% 吻合！')
   })
 
-  it('3. 向 Comfy Cloud 真实下发 480p Seedance Mini 作业并流式下载最终视频', async () => {
+  it.skip('3. 向 Comfy Cloud 真实下发 480p Seedance Mini 作业并流式下载最终视频 (已禁用真实 API 调用)', async () => {
     expect(API_KEY, '未配置 COMFY_API_KEY').toBeTruthy()
 
     const input = {

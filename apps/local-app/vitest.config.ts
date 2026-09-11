@@ -15,6 +15,7 @@ export default defineConfig({
   },
   test: {
     include: ['plugins/**/*.test.{mjs,ts}', 'src-main/**/*.test.{mjs,ts}', 'resources/**/*.test.{mjs,ts}'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/*live*.test.ts', '**/*workflow-test*.test.ts'],
     environment: 'node',
   },
 })
