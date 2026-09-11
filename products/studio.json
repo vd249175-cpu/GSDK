@@ -1,0 +1,10 @@
+﻿{
+  "id": "graphvideo-studio",
+  "name": "GraphVideo Studio",
+  "version": "1.0.0",
+  "defaultTheme": "dark",
+  "defaultWorkspace": "editing",
+  "plugins": [
+    "graphvideo.studio"
+  ]
+}

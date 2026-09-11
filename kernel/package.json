@@ -1,0 +1,28 @@
+{
+  "name": "@graphvideo/kernel",
+  "version": "1.0.0",
+  "description": "Zero-business-semantics causal graph microkernel for GraphFramework",
+  "license": "Apache-2.0",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:vd249175-cpu/GSDK.git",
+    "directory": "kernel"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs"
+    },
+    "./effect-harness": {
+      "types": "./dist/effect-harness.d.ts",
+      "import": "./dist/effect-harness.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ]
+}

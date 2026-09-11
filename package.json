@@ -1,0 +1,28 @@
+{
+  "name": "graphvideo-sdk-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:sdk": "node scripts/build-packages.mjs",
+    "export:sdk": "node scripts/export-packages.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --project kernel --project unit --project ui",
+    "test:kernel": "vitest run --project kernel",
+    "test:unit": "vitest run --project unit",
+    "test:ui": "vitest run --project ui"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "jsdom": "^30.0.1",
+    "lucide-react": "^1.30.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "^5.4.5",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  }
+}

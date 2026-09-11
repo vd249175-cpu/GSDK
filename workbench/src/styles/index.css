@@ -1,0 +1,10 @@
+@import './typography.css';
+@import './theme.css';
+@import './theme-light.css';
+@import './theme-traditional.css';
+
+@import './dock.css';
+@import './workspace-tabs.css';
+@import './controls.css';
+@import './panel-chrome.css';
+@import './scrollbars.css';

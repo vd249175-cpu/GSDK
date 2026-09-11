@@ -1,0 +1,48 @@
+.workspace-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  align-self: stretch;
+  min-width: 0;
+  flex: 1 1 auto;
+  margin-left: 8px;
+  overflow: hidden;
+}
+
+.workspace-tabs button {
+  min-width: 0;
+  max-width: 130px;
+  overflow: hidden;
+  height: 100%;
+  padding: 0 12px;
+  color: var(--content-secondary);
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.workspace-tabs button:hover {
+  color: var(--content-primary);
+  background: var(--surface-hover);
+}
+
+.workspace-tabs button.is-active {
+  color: var(--content-primary);
+  background: var(--surface-selected);
+  border-bottom-color: var(--selection-indicator);
+}
+
+.workspace-tabs button:focus-visible {
+  outline-color: var(--focus-ring);
+}
+
+@media (max-width: 1180px) {
+  .workspace-tabs button { max-width: 88px; padding: 0 8px; }
+}
+
+@media (max-width: 920px) {
+  .workspace-tabs button { max-width: 64px; padding: 0 6px; }
+}

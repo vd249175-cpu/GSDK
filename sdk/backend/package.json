@@ -1,0 +1,27 @@
+{
+  "name": "@graphvideo/backend-sdk",
+  "version": "1.0.0",
+  "description": "Backend plugin SDK for GraphFramework: Node factories, plugin contract, kernel re-exports",
+  "license": "Apache-2.0",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:vd249175-cpu/GSDK.git",
+    "directory": "sdk/backend"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "@graphvideo/kernel": "^1.0.0"
+  }
+}

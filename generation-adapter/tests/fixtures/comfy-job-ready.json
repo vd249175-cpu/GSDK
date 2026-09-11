@@ -1,0 +1,16 @@
+{
+  "status": "completed",
+  "outputs_count": 1,
+  "outputs": {
+    "3": {
+      "videos": [
+        {
+          "filename": "fixture result.mp4",
+          "subfolder": "video/final",
+          "type": "output"
+        }
+      ]
+    }
+  }
+}
+

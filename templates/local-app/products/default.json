@@ -1,0 +1,4 @@
+{
+  "defaultTheme": "dark",
+  "plugins": ["example.hello-counter"]
+}

@@ -1,0 +1,156 @@
+/* @graphvideo/sdk/ui standard styles */
+.gv-panel-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-canvas, #080a0d);
+  color: var(--text-primary, #f8fafc);
+  overflow: hidden;
+}
+
+.gv-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle, #22252c);
+  background: var(--surface-header, #111318);
+  user-select: none;
+}
+
+.gv-panel-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.gv-panel-header-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary, #f8fafc);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gv-panel-header-subtitle {
+  font-size: 0.625rem;
+  color: var(--text-tertiary, #64748b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gv-panel-header-badge {
+  padding: 0.125rem 0.375rem;
+  font-size: 0.625rem;
+  font-weight: 500;
+  border-radius: 0.25rem;
+  background: var(--surface-panel, #16181f);
+  color: var(--text-secondary, #94a3b8);
+  border: 1px solid var(--border-subtle, #22252c);
+}
+
+.gv-panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.gv-property-section {
+  border-bottom: 1px solid var(--border-subtle, #22252c);
+}
+
+.gv-property-section-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-primary, #f8fafc);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+}
+
+.gv-property-section-btn:hover {
+  background: var(--surface-hover, #1d212b);
+}
+
+.gv-property-section-left {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.gv-property-section-content {
+  padding: 0.25rem 0.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.gv-property-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.gv-property-row-inline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.gv-property-row-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary, #94a3b8);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gv-property-row-desc {
+  font-size: 0.625rem;
+  color: var(--text-tertiary, #64748b);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gv-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-tertiary, #64748b);
+}
+
+.gv-empty-state-title {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary, #94a3b8);
+  margin-top: 0.25rem;
+}
+
+.gv-empty-state-desc {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary, #64748b);
+  margin-top: 0.25rem;
+  max-width: 20rem;
+}

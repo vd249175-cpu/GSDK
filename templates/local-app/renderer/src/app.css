@@ -1,0 +1,208 @@
+/* 模板自有样式：只消费 @graphvideo/workbench 发布的语义 Token，不自建主题。 */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-canvas);
+  color: var(--content-primary);
+  font-family: var(--font-family-ui);
+  overflow: hidden;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* 顶栏：拖拽区 + 标题 + 主题切换 + 窗口三键 */
+.app-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  flex: none;
+  padding: 0 0 0 16px;
+  background: var(--surface-header);
+  border-bottom: 1px solid var(--border-subtle);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.app-topbar.is-mac {
+  padding-left: 78px;
+}
+
+.app-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--content-secondary);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+.theme-switch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.theme-switch button {
+  border: 0;
+  background: transparent;
+  color: var(--content-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.theme-switch button:hover {
+  color: var(--content-primary);
+}
+
+.theme-switch button[aria-pressed='true'] {
+  background: var(--action-primary-bg);
+  color: var(--content-on-action);
+}
+
+.window-controls {
+  display: flex;
+  align-self: stretch;
+  align-items: stretch;
+  -webkit-app-region: no-drag;
+}
+
+.window-controls button {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  border: 0;
+  background: transparent;
+  color: var(--content-tertiary);
+  cursor: pointer;
+}
+
+.window-controls button:hover {
+  color: var(--content-primary);
+  background: var(--surface-hover);
+}
+
+.window-controls .window-close:hover {
+  color: var(--content-on-action);
+  background: var(--state-danger-fg);
+}
+
+/* 内容：居中计数卡片 */
+.app-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  min-height: 0;
+}
+
+.counter-card {
+  width: 380px;
+  max-width: 100%;
+  padding: 32px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: var(--shadow-floating);
+  text-align: center;
+}
+
+.counter-label {
+  margin: 0 0 8px;
+  font-size: var(--font-size-sm);
+  color: var(--content-secondary);
+}
+
+.count-value {
+  margin: 0 0 24px;
+  font-size: 56px;
+  line-height: 1;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.primary-button {
+  width: 100%;
+  height: 38px;
+  border: 1px solid var(--action-primary-border);
+  border-radius: 8px;
+  background: var(--action-primary-bg);
+  color: var(--content-on-action);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.primary-button:hover {
+  background: var(--action-primary-bg-hover);
+}
+
+.primary-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.hint {
+  margin: 16px 0 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+  color: var(--content-tertiary);
+}
+
+.hint code {
+  font-family: var(--font-family-mono);
+  color: var(--content-secondary);
+}
+
+/* 底栏：连接状态 */
+.app-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 28px;
+  flex: none;
+  padding: 0 16px;
+  background: var(--surface-header);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--font-size-xs);
+  color: var(--content-tertiary);
+  user-select: none;
+}
+
+.connection-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--state-success-fg);
+  vertical-align: 1px;
+}
+
+.connection-dot.is-offline {
+  background: var(--state-warning-fg);
+}
+
+.footer-spacer {
+  flex: 1;
+}

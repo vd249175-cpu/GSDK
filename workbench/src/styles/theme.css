@@ -1,0 +1,165 @@
+/*
+ * Color system
+ *
+ * Palette tokens are the only theme-owned colour values.  Feature styles consume
+ * the semantic and component tokens below, never a palette value directly.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Palette */
+  --palette-neutral-1000: #080a0d;
+  --palette-neutral-950: #111318;
+  --palette-neutral-925: #14171c;
+  --palette-neutral-900: #17191e;
+  --palette-neutral-875: #191c21;
+  --palette-neutral-850: #1c1f25;
+  --palette-neutral-825: #202329;
+  --palette-neutral-800: #22252c;
+  --palette-neutral-750: #292d35;
+  --palette-neutral-700: #30343c;
+  --palette-neutral-650: #343842;
+  --palette-neutral-600: #454b57;
+  --palette-neutral-500: #656b75;
+  --palette-neutral-400: #8b919c;
+  --palette-neutral-300: #aeb3bc;
+  --palette-neutral-200: #d6d9df;
+  --palette-neutral-100: #eef2ff;
+  --palette-white: #ffffff;
+  --palette-black: #000000;
+  --palette-blue-500: #6b8cff;
+  --palette-blue-400: #7e9aff;
+  --palette-green-500: #6fcf97;
+  --palette-yellow-500: #e8bd68;
+  --palette-red-500: #ed7474;
+  --palette-cyan-500: #67c8d8;
+  --palette-purple-500: #b88ae8;
+  --palette-orange-500: #e89a62;
+  --palette-xueqing: #bdb5d7;
+  --palette-ziluolan: #7356b1;
+  --palette-mingyuedang: #d6d4cd;
+  --palette-shiliuqun: #b3392f;
+
+  /* Semantic Variables (Dark default) */
+  --surface-canvas: #080a0d;
+  --surface-header: #111318;
+  --surface-panel: #17191e;
+  --surface-hover: rgba(255, 255, 255, 0.08);
+  --border-subtle: #22252c;
+  --border-strong: #343842;
+  /* DEPRECATED（待视觉确认后改道）：--accent-primary → --action-primary-bg（浅色已同值，深色 #38bdf8 → #6b8cff 需人工确认）；--text-primary/secondary/tertiary → --content-primary/secondary/tertiary（深色色值不同，禁机械替换）。新代码一律用语义 Token。 */
+  --accent-primary: #38bdf8;
+  --status-success: #10b981;
+  --status-warning: #f59e0b;
+  --status-danger: #ef4444;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --canvas-grid-dot: rgba(148, 163, 184, 0.08);
+  --edge-conduit: rgba(100, 116, 139, 0.45);
+  --port-idle: #64748b;
+
+  /* Semantic tokens */
+  --surface-canvas: var(--palette-neutral-950);
+  --surface-app: var(--palette-neutral-900);
+  --surface-panel: var(--palette-neutral-850);
+  --surface-panel-subtle: var(--palette-neutral-800);
+  --surface-raised: var(--palette-neutral-750);
+  --surface-input: var(--palette-neutral-925);
+  --surface-document: var(--palette-neutral-875);
+  --surface-hover: color-mix(in srgb, var(--palette-neutral-750), var(--palette-white) 6%);
+  --surface-selected: color-mix(in srgb, var(--palette-blue-500), transparent 72%);
+  --selection-indicator: var(--palette-blue-400);
+  --surface-backdrop: color-mix(in srgb, var(--palette-neutral-1000), transparent 18%);
+  --content-primary: var(--palette-neutral-200);
+  --content-secondary: var(--palette-neutral-400);
+  --content-tertiary: var(--palette-neutral-500);
+  --content-on-action: var(--palette-neutral-100);
+  --border-default: var(--palette-neutral-650);
+  --border-strong: var(--palette-neutral-600);
+  --border-subtle: color-mix(in srgb, var(--palette-neutral-650), transparent 35%);
+  --focus-ring: var(--palette-blue-500);
+  --action-primary-bg: var(--palette-blue-500);
+  --action-primary-bg-hover: color-mix(in srgb, var(--palette-blue-500), var(--palette-white) 12%);
+  --action-primary-border: color-mix(in srgb, var(--palette-blue-500), var(--palette-white) 28%);
+  --action-primary-fg: var(--content-on-action);
+  --state-success-fg: var(--palette-green-500);
+  --state-success-bg: color-mix(in srgb, var(--palette-green-500), transparent 86%);
+  --state-success-border: color-mix(in srgb, var(--palette-green-500), transparent 66%);
+  --state-warning-fg: var(--palette-yellow-500);
+  --state-warning-bg: color-mix(in srgb, var(--palette-yellow-500), transparent 90%);
+  --state-warning-border: color-mix(in srgb, var(--palette-yellow-500), transparent 76%);
+  --state-danger-fg: var(--palette-red-500);
+  --state-danger-bg: color-mix(in srgb, var(--palette-red-500), transparent 87%);
+  --state-danger-border: color-mix(in srgb, var(--palette-red-500), transparent 68%);
+  --icon-brand-fg: var(--palette-neutral-100);
+  --icon-brand-bg-start: var(--palette-blue-400);
+  --icon-brand-bg-end: #506bd6;
+  --icon-brand-shadow: rgba(41, 69, 170, .35);
+  --icon-node-text: #77b8ef;
+  --icon-node-image: var(--palette-orange-500);
+  --icon-node-video: var(--palette-purple-500);
+  --icon-node-audio: var(--palette-green-500);
+  --icon-node-style: var(--palette-yellow-500);
+  --scrollbar-thumb: rgba(139, 145, 156, .48);
+  --scrollbar-thumb-hover: rgba(174, 179, 188, .68);
+  --shadow-floating: 0 14px 48px color-mix(in srgb, var(--palette-black), transparent 38%);
+  --overlay-scrim: color-mix(in srgb, var(--palette-neutral-1000), transparent 24%);
+
+  /* Component defaults. Override the token, rather than passing a raw colour. */
+  --button-bg: var(--surface-raised);
+  --button-bg-hover: var(--surface-hover);
+  --button-border: var(--border-strong);
+  --button-fg: var(--content-primary);
+  --field-bg: var(--surface-input);
+  --field-border: var(--border-default);
+  --field-fg: var(--content-primary);
+  --generation-border: color-mix(in srgb, var(--content-tertiary), transparent 68%);
+
+  /* Terminal colours bridge xterm's canvas renderer into the application theme. */
+  --terminal-background: var(--surface-document);
+  --terminal-foreground: var(--content-primary);
+  --terminal-cursor: var(--focus-ring);
+  --terminal-selection: var(--surface-selected);
+  --terminal-black: var(--content-tertiary);
+  --terminal-red: var(--state-danger-fg);
+  --terminal-green: var(--state-success-fg);
+  --terminal-yellow: var(--state-warning-fg);
+  --terminal-blue: var(--action-primary-bg);
+  --terminal-magenta: var(--icon-node-video);
+  --terminal-cyan: var(--icon-node-text);
+  --terminal-white: var(--content-secondary);
+  --terminal-bright-black: var(--content-secondary);
+  --terminal-bright-red: var(--terminal-red);
+  --terminal-bright-green: var(--terminal-green);
+  --terminal-bright-yellow: var(--terminal-yellow);
+  --terminal-bright-blue: var(--focus-ring);
+  --terminal-bright-magenta: var(--terminal-magenta);
+  --terminal-bright-cyan: var(--terminal-cyan);
+  --terminal-bright-white: var(--content-primary);
+
+  --header-height: 27px;
+  --topbar-height: 38px;
+  --footer-height: 23px;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --surface-canvas: #f8fafc;
+  --surface-header: #ffffff;
+  --surface-panel: #ffffff;
+  --surface-hover: rgba(0, 0, 0, 0.05);
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --accent-primary: #0284c7;
+  --status-success: #059669;
+  --status-warning: #d97706;
+  --status-danger: #dc2626;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --canvas-grid-dot: rgba(15, 23, 42, 0.09);
+  --edge-conduit: rgba(148, 163, 184, 0.7);
+  --port-idle: #94a3b8;
+}

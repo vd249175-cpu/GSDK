@@ -1,0 +1,24 @@
+/* FloatingScrollbars 配套样式：随组件由 @graphvideo/workbench 交付。
+   全局滚动条隐藏（scrollbar-width / ::-webkit-scrollbar）属于应用根 reset，由消费应用自行提供。 */
+.floating-scrollbars {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  overflow: hidden;
+  pointer-events: none;
+}
+.floating-scrollbar-thumb {
+  position: fixed;
+  min-width: 5px;
+  min-height: 5px;
+  background: var(--scrollbar-thumb);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  pointer-events: auto;
+  touch-action: none;
+  transition: background 100ms ease;
+}
+.floating-scrollbar-thumb.is-vertical { width: 6px; }
+.floating-scrollbar-thumb.is-horizontal { height: 6px; }
+.floating-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); background-clip: padding-box; }

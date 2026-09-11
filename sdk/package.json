@@ -1,0 +1,64 @@
+{
+  "name": "@graphvideo/sdk",
+  "version": "1.0.3",
+  "description": "GraphFramework developer SDK: backend, client, tokens, ui, testing, analysis, contract",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:vd249175-cpu/GSDK.git",
+    "directory": "sdk"
+  },
+  "bin": {
+    "graphvideo-init": "./bin/graphvideo-init.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.mjs"
+    },
+    "./tokens": {
+      "types": "./dist/tokens/index.d.ts",
+      "import": "./dist/tokens/index.mjs"
+    },
+    "./ui": {
+      "types": "./dist/ui/index.d.ts",
+      "import": "./dist/ui/index.mjs"
+    },
+    "./ui/styles.css": "./dist/sdk.css",
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.mjs"
+    },
+    "./analysis": {
+      "types": "./dist/analysis/index.d.ts",
+      "import": "./dist/analysis/index.mjs"
+    },
+    "./contract": {
+      "types": "./dist/contract/index.d.ts",
+      "import": "./dist/contract/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "bin",
+    "init-bundle"
+  ],
+  "dependencies": {
+    "@graphvideo/backend-sdk": "^1.0.0",
+    "@graphvideo/workbench": "^1.0.0"
+  },
+  "peerDependencies": {
+    "@graphvideo/kernel": "^1.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "lucide-react": "^1.30.0",
+    "typescript": "^5.0.0"
+  }
+}

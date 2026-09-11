@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowJs": true
+  },
+  "include": ["src-main", "plugins/hello-counter/backend.mjs", "scripts/check-renderer-boundary.mjs", "scripts/diagnose.mjs", "analysis/links.mjs"]
+}

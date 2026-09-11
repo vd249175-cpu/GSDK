@@ -1,0 +1,101 @@
+/* Light-theme overrides for the tokens declared in theme.css. */
+:root[data-theme="light"],
+:root[data-theme="xueqing"],
+:root[data-theme="shiliuqun"] {
+  color-scheme: light;
+  --surface-canvas: #f8fafc;
+  --surface-app: #f1f5f9;
+  --surface-header: #ffffff;
+  --surface-panel: #ffffff;
+  --surface-panel-subtle: #f8fafc;
+  --surface-raised: #ffffff;
+  --surface-document: #ffffff;
+  --surface-input: #f8fafc;
+  --surface-hover: rgba(0, 0, 0, 0.05);
+  --surface-selected: #e2e8f0;
+  --selection-indicator: #0284c7;
+  --surface-backdrop: rgba(15, 23, 42, 0.35);
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --content-primary: #0f172a;
+  --content-secondary: #475569;
+  --content-tertiary: #94a3b8;
+  --content-on-action: #ffffff;
+
+  --border-default: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --border-subtle: #e2e8f0;
+  --focus-ring: #0284c7;
+
+  --accent-primary: #0284c7;
+  --status-success: #059669;
+  --status-warning: #d97706;
+  --status-danger: #dc2626;
+  --canvas-grid-dot: rgba(15, 23, 42, 0.08);
+  --edge-conduit: rgba(2, 132, 199, 0.35);
+  --port-idle: #94a3b8;
+
+  --palette-neutral-1000: #ffffff;
+  --palette-neutral-950: #f8fafc;
+  --palette-neutral-925: #f1f5f9;
+  --palette-neutral-900: #e2e8f0;
+  --palette-neutral-850: #cbd5e1;
+  --palette-neutral-800: #94a3b8;
+  --palette-neutral-700: #64748b;
+  --palette-neutral-600: #475569;
+  --palette-neutral-500: #334155;
+  --palette-neutral-400: #1e293b;
+  --palette-neutral-300: #0f172a;
+  --palette-neutral-200: #0f172a;
+  --palette-neutral-100: #0f172a;
+
+  --palette-blue-500: #0284c7;
+  --palette-blue-400: #0369a1;
+  --palette-green-500: #059669;
+  --palette-yellow-500: #d97706;
+  --palette-red-500: #dc2626;
+
+  --action-primary-bg: #0284c7;
+  --action-primary-bg-hover: #0369a1;
+  --action-primary-border: #0284c7;
+  --state-success-fg: #059669;
+  --state-warning-fg: #d97706;
+  --state-danger-fg: #dc2626;
+  --icon-brand-fg: #ffffff;
+  --icon-brand-bg-start: #0284c7;
+  --icon-brand-bg-end: #0369a1;
+  --icon-brand-shadow: rgba(2, 132, 199, 0.24);
+  --icon-node-text: #0284c7;
+  --icon-node-image: #d97706;
+  --icon-node-video: #7c3aed;
+  --icon-node-audio: #059669;
+  --icon-node-style: #ca8a04;
+  --scrollbar-thumb: rgba(100, 116, 139, 0.3);
+  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.5);
+  --shadow-floating: 0 14px 48px rgba(15, 23, 42, 0.12);
+  --overlay-scrim: rgba(15, 23, 42, 0.35);
+
+  /* Terminal colours bridge xterm's canvas renderer into the light application theme with high contrast. */
+  --terminal-background: #ffffff;
+  --terminal-foreground: #0f172a;
+  --terminal-cursor: #0284c7;
+  --terminal-selection: #cbd5e1;
+  --terminal-black: #0f172a;
+  --terminal-red: #b91c1c;
+  --terminal-green: #15803d;
+  --terminal-yellow: #b45309;
+  --terminal-blue: #1d4ed8;
+  --terminal-magenta: #7e22ce;
+  --terminal-cyan: #0e7490;
+  --terminal-white: #334155;
+  --terminal-bright-black: #475569;
+  --terminal-bright-red: #dc2626;
+  --terminal-bright-green: #16a34a;
+  --terminal-bright-yellow: #d97706;
+  --terminal-bright-blue: #2563eb;
+  --terminal-bright-magenta: #9333ea;
+  --terminal-bright-cyan: #0284c7;
+  --terminal-bright-white: #020617;
+}

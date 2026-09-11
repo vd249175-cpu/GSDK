@@ -1,0 +1,34 @@
+{
+  "name": "local-app-template",
+  "version": "1.0.0",
+  "private": true,
+  "description": "最小仓外本地应用：Electron 壳 + Vite/React renderer，只消费 @graphvideo/* 发布入口",
+  "type": "module",
+  "main": "src-main/main.mjs",
+  "scripts": {
+    "diagnose": "node scripts/diagnose.mjs",
+    "check:renderer-boundary": "node scripts/check-renderer-boundary.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.renderer.json && tsc --noEmit -p tsconfig.main.json",
+    "test": "vitest run",
+    "dev": "vite --config renderer/vite.config.ts",
+    "build": "vite build --config renderer/vite.config.ts && node --check src-main/main.mjs && node --check src-main/preload.cjs && node --check src-main/graph-host.mjs",
+    "verify": "npm run check:renderer-boundary && npm run typecheck && npm run test && npm run build"
+  },
+  "dependencies": {
+    "@graphvideo/backend-sdk": "^1.0.0",
+    "@graphvideo/kernel": "^1.0.0",
+    "@graphvideo/sdk": "^1.0.0",
+    "@graphvideo/workbench": "^1.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "electron": "^33.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  }
+}

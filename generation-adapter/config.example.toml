@@ -1,0 +1,17 @@
+[worker]
+max_workers = 8
+
+# Provider credentials are read from environment variables. This file contains
+# endpoints and transport tuning only; it must not contain project or model rules.
+[providers.comfy]
+base_url = "https://cloud.comfy.org"
+api_key_env = "COMFY_API_KEY"
+api_mode = "cloud"
+use_sdk = true
+request_timeout_seconds = 60
+
+[providers.audio]
+base_url = "http://127.0.0.1:5000/api/v1"
+project_id = "default"
+project_name = "GraphVideo"
+request_timeout_seconds = 60

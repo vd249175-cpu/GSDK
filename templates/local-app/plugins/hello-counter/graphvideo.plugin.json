@@ -1,0 +1,11 @@
+{
+  "id": "example.hello-counter",
+  "name": "Hello Counter",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "backend": "backend.mjs",
+    "elements": [],
+    "workspaces": []
+  }
+}

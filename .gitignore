@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vite/
+coverage/
+*.tsbuildinfo
+.DS_Store
+*.log
+.env
+.env.local
+
+# init 冷启动随包产物（export:sdk 组装，不进源码）
+sdk/init-bundle/
