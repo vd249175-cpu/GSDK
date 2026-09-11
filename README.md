@@ -27,11 +27,11 @@ npm install
 npm run typecheck        # tsc --noEmit（源码直连穿透检查，0 秒等待）
 npm test                 # vitest run（core + unit + ui 全套单测）
 npm run build:native     # 构建 Rust/N-API 调度内核并摆放本机原生产物
-npm run build:runtime    # 生成 Electron 可加载的 backend 本地运行时
+npm run build:runtime    # 生成 Electron 可加载的 Kernel/backend 本地运行时
 npm run test:core        # 微内核针对性单测
 npm run test:unit        # SDK 单元测试
 npm run test:ui          # Workbench UI 前端测试
-npm run test:app         # 本地应用单元测试
+npm run test:app         # 构建本机运行时后执行本地应用单元测试
 npm run verify:app       # 本地应用边界、类型、单测、因果诊断与构建全体验收
 npm run refactor -- find-refs <file> <symbol>    # AST 符号全局引用定位
 npm run refactor -- rename <file> <symbol> <new>  # AST 跨文件安全重命名

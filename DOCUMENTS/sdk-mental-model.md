@@ -30,7 +30,7 @@ type: reference
 
 `@graphvideo/sdk/analysis` 是 Node.js 开发期条目（实例因果分析），不进浏览器包。
 
-本仓库采用 npm workspace 源码构建。TypeScript 类型与大部分 SDK 入口直接指向源码；Electron 主进程不能直接加载 `.ts`，因此 `npm run build:runtime` 会把 backend 入口构建到 `sdk/backend/dist/`，并把当前平台的原生绑定放入该运行时目录。`npm run build:native` 构建 Rust/N-API 调度内核。本仓库不提供 tarball 导出、发包或仓外脚手架流程。
+本仓库采用 npm workspace 源码构建。TypeScript 类型与大部分 SDK 入口直接指向源码；Electron 主进程不能直接加载 `.ts`，因此 `npm run build:runtime` 会依次生成 `core/dist/` 与 `sdk/backend/dist/`，并把当前平台的原生绑定放入 backend 运行时目录。backend 构建把 `@graphvideo/kernel` 保持为外部依赖，使直接 Kernel 消费者与 backend-sdk 共享同一份身份能力。`npm run build:native` 构建 Rust/N-API 调度内核。本仓库不提供 tarball 导出、发包或仓外脚手架流程。
 
 ## 2. 后端心智模型：事实只进 Owner
 
@@ -119,7 +119,7 @@ npm --prefix apps/local-app run diagnose -- node <nodeId>  # 单实体切片，�
 npm --prefix apps/local-app run build    # 动生产装配/Electron 后跑
 ```
 
-`sdk/backend/dist/` 是源码仓库的本地构建产物，不是发布包；其他 SDK 入口仍由 workspace 直接使用源码。
+`core/dist/` 与 `sdk/backend/dist/` 是源码仓库的本地运行产物，不是发布包；其他 SDK 入口仍由 workspace 直接使用源码。
 
 `core/src/determinism-source.test.ts` 是架构门禁：业务 Node 触碰 I/O/系统 API 即失败。
 

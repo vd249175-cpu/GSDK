@@ -54,7 +54,7 @@ Adapter 的演示见 `backend.test.mjs` 测试夹具（SaverNode），不进生�
 
 ```bash
 npm run build:native
-npm run build:runtime
+npm run build:runtime   # 生成共享的 Kernel/backend Electron 运行时
 npm run verify:app
 npx vitest run apps/local-app/src-main/native-graph-host.test.mjs --silent
 ```
