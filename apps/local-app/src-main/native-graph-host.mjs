@@ -56,6 +56,10 @@ export function createNativeGraphHost({ dependencies = {}, plugins = [studioPlug
       return space.readProjection()
     },
 
+    subscribeCausalTelemetry(callback) {
+      return space.subscribeCausalEvents(callback)
+    },
+
     readNodeState(nodeId) {
       const projection = space.readProjection()
       const entry = projection.nodes.find((n) => n.nodeId === nodeId)

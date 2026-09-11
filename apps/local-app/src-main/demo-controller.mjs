@@ -50,6 +50,7 @@ export function createDemoController(host) {
   }
 
   function readDemo() {
+    mountBase()
     const projection = space.readProjection()
     const nodes = projection.nodes
       .filter((entry) => entry.nodeId.startsWith('demo.'))

@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNativeGraphHost } from './native-graph-host.mjs'
+import { createDemoController } from './demo-controller.mjs'
 import { NodeGenerationAdapter } from './effects/node-generation-adapter.js'
 import studioPlugin from '../plugins/graphvideo.studio/backend.js'
 import {
@@ -136,6 +137,8 @@ const host = createNativeGraphHost({
   plugins: [studioPlugin],
 })
 
+const demoController = createDemoController(host)
+
 async function openProjectAtPath(projectPath) {
   loadEnvFile(join(projectPath, '.env'))
   const project = await openLocalProject(projectPath)
@@ -193,6 +196,11 @@ function registerIpcHandlers() {
   ipcMain.on('window:close', () => mainWindow?.close())
   ipcMain.on('window:reload', () => mainWindow?.webContents.reload())
 
+  // 广播微内核原生因果遥测（供 3D 拓扑流看板与分析工具实时观察）
+  host.subscribeCausalTelemetry((event) => {
+    broadcast('graph:event', { event: 'causal:telemetry', payload: event })
+  })
+
   // 微内核因果通信接口
   ipcMain.handle('graph:request', async (_event, { method, input }) => {
     switch (method) {
@@ -206,6 +214,27 @@ function registerIpcHandlers() {
       }
       case 'graph.projection.read':
         return { projection: host.readProjection() }
+      case 'graph.topology.read': {
+        const projection = host.readProjection()
+        const nodes = projection.nodes.map((n) => ({
+          nodeId: n.nodeId,
+          version: n.version,
+          status: n.status,
+          state: host.space.valueCodec.decode(n.state),
+          generation: host.generation(n.nodeId),
+        }))
+        return {
+          revision: projection.revision,
+          scheduler: projection.scheduler,
+          nodes,
+        }
+      }
+      case 'graph.demo.step':
+        return demoController.step()
+      case 'graph.demo.reset':
+        return demoController.reset()
+      case 'graph.demo.read':
+        return demoController.readDemo()
       case 'graph.cancel':
         return { cancelled: false }
       default:
