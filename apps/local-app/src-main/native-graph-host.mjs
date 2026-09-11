@@ -1,4 +1,4 @@
-import { NativeRuleSpace, assertRendererRoot, describeDomainNode, mountDomainNode } from '@graphvideo/backend-sdk'
+import { NativeRuleSpace, assertRendererRoot, mountDomainNode, replaceDomainNode } from '@graphvideo/backend-sdk'
 
 /**
  * 原生规则空间图宿主：与 `graph-host.mjs` 同一对外契约（mount →
@@ -35,11 +35,12 @@ export function createNativeGraphHost({ plugins = [] } = {}) {
       return space.generation(nodeId)
     },
     async hotSwap(node) {
-      const described = describeDomainNode(node)
-      if (!space.getState(described.id)) throw new Error(`热替换目标未装配: ${described.id}`)
-      return space.replace(described.id, described.initialState, described.handler)
+      if (!space.getState(node.id)) throw new Error(`热替换目标未装配: ${node.id}`)
+      return replaceDomainNode(space, node)
     },
-    dispose() {},
+    dispose() {
+      return space.dispose()
+    },
   }
   function readCounterState() {
     const state = space.getState('example.counter')

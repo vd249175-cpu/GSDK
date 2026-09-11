@@ -1,4 +1,4 @@
-import type { DomainChangeContext, Info, Node } from '@graphvideo/kernel';
+import type { DomainChangeContext, Info, Node, WorldChangeContext } from '@graphvideo/kernel';
 import { NativeRuleSpace } from './native-space';
 import type { NativeHandler, NativeInfo } from './native-space';
 
@@ -6,6 +6,8 @@ export interface DescribedDomainNode<S extends Record<string, unknown>> {
   id: string;
   initialState: S;
   handler: NativeHandler<S>;
+  isWorldNode: boolean;
+  dispose: () => Promise<void>;
 }
 
 /**
@@ -17,16 +19,13 @@ export interface DescribedDomainNode<S extends Record<string, unknown>> {
  * hot-swapped leftover cannot leak stale facts into the new generation.
  *
  * Supported context surface: `read`/`write`/`patchState`/`send` (feedback
- * passes through structurally) and `span` (runs inline; the native host
- * records no trace spans). `WorldNode`s are refused: effects need an
- * `EffectAdapter` wired to a host the native pump does not provide.
+ * passes through structurally), `effectAdapter` and `span`. The Node keeps
+ * its construction-injected adapter; the native host supplies the effect
+ * clock and the owning submission's AbortSignal.
  */
 export function describeDomainNode<S extends Record<string, unknown>>(
   node: Node<S>,
 ): DescribedDomainNode<S> {
-  if (node.isWorldNode) {
-    throw new Error(`WorldNodes cannot mount on the native host (no EffectAdapter): ${node.id}`);
-  }
   const initialState = { ...(node.getState() as S) };
   const handler: NativeHandler<S> = (info, ctx) =>
     (
@@ -38,9 +37,16 @@ export function describeDomainNode<S extends Record<string, unknown>>(
       write: (key, value) => ctx.write(key, value),
       patchState: (patch) => ctx.patchState(patch),
       send: (child, target) => ctx.send(child as NativeInfo, target),
-      span: (_name, action) => Promise.resolve().then(action),
-    } as DomainChangeContext<S>);
-  return { id: node.id, initialState, handler };
+      effectAdapter: (adapter, request, options) => ctx.effectAdapter(adapter, request, options),
+      span: (name, action) => ctx.span(name, action),
+    } as WorldChangeContext<S>);
+  return {
+    id: node.id,
+    initialState,
+    handler,
+    isWorldNode: node.isWorldNode,
+    dispose: () => node.dispose(),
+  };
 }
 
 /** Register a domain `Node` on the space. Returns its starting generation. */
@@ -49,5 +55,37 @@ export function mountDomainNode<S extends Record<string, unknown>>(
   node: Node<S>,
 ): number {
   const described = describeDomainNode(node);
-  return space.register(described.id, described.initialState, described.handler);
+  const generation = space.register(described.id, described.initialState, described.handler, {
+    isWorldNode: described.isWorldNode,
+    dispose: described.dispose,
+  });
+  try {
+    node.onMount();
+    return generation;
+  } catch (error) {
+    space.unregister(described.id);
+    throw error;
+  }
+}
+
+/** Replace a mounted Node after preparing its lifecycle resources. */
+export async function replaceDomainNode<S extends Record<string, unknown>>(
+  space: NativeRuleSpace,
+  node: Node<S>,
+  options: { timeoutMs?: number } = {},
+): Promise<number> {
+  const described = describeDomainNode(node);
+  node.onMount();
+  try {
+    return await space.replace(
+      described.id,
+      described.initialState,
+      described.handler,
+      options,
+      { isWorldNode: described.isWorldNode, dispose: described.dispose },
+    );
+  } catch (error) {
+    await node.dispose();
+    throw error;
+  }
 }

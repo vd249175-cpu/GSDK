@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { Node } from './index';
-import type { DomainChangeContext, Info } from '@graphvideo/kernel';
-import { locateNativeBinding, mountDomainNode, NativeRuleSpace } from './index';
+import { ExecutionWorldNode, Node } from './index';
+import type { DomainChangeContext, EffectAdapter, Info, WorldChangeContext } from '@graphvideo/kernel';
+import {
+  locateNativeBinding,
+  mountDomainNode,
+  NativeRuleSpace,
+  replaceDomainNode,
+} from './index';
 
 const binary = locateNativeBinding();
 
@@ -42,11 +47,99 @@ describe.skipIf(!binary)('Native domain-node bridge', () => {
     expect(space.pendingTotal()).toBe(0);
   });
 
-  it('refuses WorldNodes without an effect host', () => {
+  it('runs an ExecutionWorldNode effect and feeds it the submission abort signal', async () => {
     const space = new NativeRuleSpace();
-    const world = new SinkNode();
-    (world as unknown as { isWorldNode: boolean }).isWorldNode = true;
-    expect(() => mountDomainNode(space, world)).toThrow('WorldNodes cannot mount');
+    let effectSignal: AbortSignal | undefined;
+    const adapter: EffectAdapter<{ value: number }, { value: number }> = {
+      id: 'native-test-effect',
+      async execute(request, context) {
+        effectSignal = context.signal;
+        return { value: request.value + 1 };
+      },
+    };
+    class EffectNode extends ExecutionWorldNode<{ value: number }> {
+      constructor() {
+        super('effect-node', 'EffectNode', { value: 0 });
+      }
+      protected override async change(
+        info: Info,
+        ctx: WorldChangeContext<{ value: number }>,
+      ): Promise<void> {
+        if (info.type !== 'RunInfo') return;
+        const observed = await ctx.effectAdapter(adapter, { value: Number(info.value) });
+        ctx.write('value', observed.value);
+      }
+    }
+    mountDomainNode(space, new EffectNode());
+    await space.waitForSubmission(
+      space.injectRoot('effect-node', { type: 'RunInfo', value: 4 }, 'sub/effect'),
+    );
+    expect(effectSignal).toBeInstanceOf(AbortSignal);
+    expect(space.getState('effect-node')).toEqual({ value: 5 });
+  });
+
+  it('aborts a running WorldNode adapter and keeps its State unchanged', async () => {
+    const space = new NativeRuleSpace();
+    let entered = false;
+    const adapter: EffectAdapter<void, number> = {
+      id: 'native-cancellable-effect',
+      execute(_request, context) {
+        entered = true;
+        return new Promise<number>((_resolve, reject) => {
+          context.signal?.addEventListener('abort', () => reject(context.signal?.reason), {
+            once: true,
+          });
+        });
+      },
+    };
+    class CancellableNode extends ExecutionWorldNode<{ value: number }> {
+      constructor() {
+        super('cancellable-node', 'CancellableNode', { value: 0 });
+      }
+      protected override async change(
+        info: Info,
+        ctx: WorldChangeContext<{ value: number }>,
+      ): Promise<void> {
+        if (info.type !== 'RunInfo') return;
+        ctx.write('value', await ctx.effectAdapter(adapter, undefined));
+      }
+    }
+    mountDomainNode(space, new CancellableNode());
+    const submission = space.injectRoot('cancellable-node', { type: 'RunInfo' }, 'sub/cancel');
+    const pumping = space.pump();
+    while (!entered) await Promise.resolve();
+    expect(space.cancel(submission)).toBe(true);
+    await pumping;
+    expect(space.getState('cancellable-node')).toEqual({ value: 0 });
+    await expect(space.waitForSubmission(submission)).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('runs Node lifecycle cleanup across replace and space disposal', async () => {
+    const events: string[] = [];
+    class LifecycleProbe extends Node<Record<string, never>> {
+      constructor(id: string, private readonly label: string) {
+        super(id, label, {});
+        this.registerDisposer(() => events.push(`dispose:${this.label}`));
+      }
+      override onMount(): void {
+        events.push(`mount:${this.label}`);
+      }
+      override onUnmount(): void {
+        events.push(`unmount:${this.label}`);
+      }
+    }
+    const space = new NativeRuleSpace();
+    mountDomainNode(space, new LifecycleProbe('lifecycle-probe', 'v1'));
+    await replaceDomainNode(space, new LifecycleProbe('lifecycle-probe', 'v2'));
+    await space.dispose();
+    expect(events).toEqual([
+      'mount:v1',
+      'mount:v2',
+      'dispose:v1',
+      'unmount:v1',
+      'dispose:v2',
+      'unmount:v2',
+    ]);
   });
 
   it('treats Start/Stop as ordinary FIFO Infos with no membership change', async () => {

@@ -2,6 +2,19 @@ import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  defaultValueCodec,
+  systemClock,
+  systemRandomSource,
+  TimeRandomIdProvider,
+} from '@graphvideo/kernel';
+import type {
+  Clock,
+  EffectAdapter,
+  GraphProjection,
+  IdProvider,
+  ValueCodec,
+} from '@graphvideo/kernel';
 
 export interface NativeInfo {
   readonly type: string;
@@ -20,6 +33,12 @@ export interface NativeChangeContext<S = any> {
   write<K extends keyof S>(key: K, value: S[K]): void;
   patchState(patch: Partial<S>): void;
   send(info: NativeInfo, targetNodeId: string): NativeDeliveryFeedback;
+  effectAdapter<Request, Observation>(
+    adapter: EffectAdapter<Request, Observation>,
+    request: Request,
+    options?: { signal?: AbortSignal },
+  ): Promise<Observation>;
+  span<T>(name: string, action: () => Promise<T> | T): Promise<T>;
 }
 
 export type NativeHandler<S = any> = (
@@ -87,9 +106,32 @@ interface BindingSpace {
 interface RegisteredNode {
   state: Record<string, unknown>;
   handler: NativeHandler<any>;
+  version: number;
+  isWorldNode: boolean;
+  dispose?: () => void | Promise<void>;
 }
 
 const ERROR_INFO_TYPE = '@error/NodeFailed';
+
+export interface NativeRuleSpaceOptions {
+  readonly errorTargetNodeId?: string;
+  readonly clock?: Clock;
+  readonly idProvider?: IdProvider;
+  readonly valueCodec?: ValueCodec;
+  readonly replaceTimeoutMs?: number;
+}
+
+export interface NativeRegisterOptions {
+  readonly isWorldNode?: boolean;
+  readonly dispose?: () => void | Promise<void>;
+}
+
+class StaleNativeChangeError extends Error {
+  constructor(entity: string) {
+    super(`Native change context is stale: ${entity}`);
+    this.name = 'StaleNativeChangeError';
+  }
+}
 
 /** Absolute path of the built native module, if present. */
 export function locateNativeBinding(): string | null {
@@ -149,40 +191,65 @@ function joinInfo(infoType: string, payloadJson?: string): NativeInfo {
  * JS business entities on the Rust rule space.
  *
  * Scheduling facts (registry, mailboxes, submissions, drops) live in Rust;
- * business State and change bodies live here. The pump is JS-driven and
- * non-reentrant: `pump`, `injectRoot` settlement waits and `replace` refuse
- * to run while a pump is active.
+ * business State and change bodies live here. Concurrent pump requests
+ * share one drain. Replacement seals its target immediately and waits for
+ * the active JS change to reach the single-flight gap.
  */
 export class NativeRuleSpace {
   private readonly binding: BindingSpace;
   private readonly nodes = new Map<string, RegisteredNode>();
-  private readonly submissions = new Map<string, string>();
-  private pumping = false;
+  private readonly submissionControllers = new Map<string, AbortController>();
+  private readonly projectionListeners = new Set<(projection: GraphProjection) => void>();
+  private readonly activeEntities = new Set<string>();
+  private readonly replacements = new Set<string>();
+  private readonly pendingDisposals = new Set<Promise<void>>();
+  private pumpPromise?: Promise<number>;
+  private projectionRevision = 0;
+  private readonly clock: Clock;
+  private readonly idProvider: IdProvider;
+  private readonly replaceTimeoutMs: number;
+  public readonly valueCodec: ValueCodec;
   public errorTargetNodeId?: string;
 
-  constructor(options: { errorTargetNodeId?: string } = {}) {
+  constructor(options: NativeRuleSpaceOptions = {}) {
     this.binding = loadBinding();
     this.errorTargetNodeId = options.errorTargetNodeId;
+    this.clock = options.clock ?? systemClock;
+    this.idProvider = options.idProvider
+      ?? new TimeRandomIdProvider(this.clock, systemRandomSource);
+    this.valueCodec = options.valueCodec ?? defaultValueCodec;
+    this.replaceTimeoutMs = options.replaceTimeoutMs ?? 5000;
   }
 
   register<S extends Record<string, unknown>>(
     id: string,
     initialState: S,
     handler: NativeHandler<S>,
+    options: NativeRegisterOptions = {},
   ): number {
     if (this.nodes.has(id)) throw new Error(`Entity already registered: ${id}`);
+    const state = this.cloneState(initialState);
     const generation = this.binding.admit(id);
     this.nodes.set(id, {
-      state: { ...initialState },
+      state,
       handler: handler as NativeHandler<any>,
+      version: 0,
+      isWorldNode: options.isWorldNode ?? false,
+      dispose: options.dispose,
     });
+    this.publishProjection();
     return generation;
   }
 
   unregister(id: string): boolean {
-    if (!this.nodes.has(id)) return false;
+    const node = this.nodes.get(id);
+    if (!node) return false;
+    const removed = this.binding.evict(id);
+    if (!removed) return false;
     this.nodes.delete(id);
-    return this.binding.evict(id);
+    this.queueDisposal(node);
+    this.publishProjection();
+    return true;
   }
 
   async replace<S extends Record<string, unknown>>(
@@ -190,30 +257,87 @@ export class NativeRuleSpace {
     initialState: S,
     handler: NativeHandler<S>,
     options: { timeoutMs?: number } = {},
+    registration: NativeRegisterOptions = {},
   ): Promise<number> {
-    if (this.pumping) throw new Error(`Cannot replace while pumping: ${id}`);
     if (!this.nodes.has(id)) throw new Error(`Cannot replace missing entity: ${id}`);
-    // The kernel swaps the slot atomically in the single-flight gap. A Busy
-    // rejection means a directly-driven change is still open, so retry until
-    // the timeout (the TS reference waits for node idle the same way).
-    const deadline = Date.now() + (options.timeoutMs ?? 5000);
-    for (;;) {
+    if (this.replacements.has(id)) throw new Error(`Replace already in progress: ${id}`);
+    const preparedState = this.cloneState(initialState);
+    const old = this.nodes.get(id)!;
+    const deadline = this.clock.monotonicNow() + (options.timeoutMs ?? this.replaceTimeoutMs);
+    let swapped = false;
+    this.replacements.add(id);
+    this.binding.seal(id);
+    this.publishProjection();
+    try {
+      for (;;) {
+        try {
+          const generation = this.binding.replace(id);
+          this.nodes.set(id, {
+            state: preparedState,
+            handler: handler as NativeHandler<any>,
+            version: 0,
+            isWorldNode: registration.isWorldNode ?? false,
+            dispose: registration.dispose,
+          });
+          swapped = true;
+          this.queueDisposal(old);
+          this.publishProjection();
+          return generation;
+        } catch (error) {
+          if (!isBusyError(error) || this.clock.monotonicNow() >= deadline) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 1));
+        }
+      }
+    } finally {
+      this.replacements.delete(id);
+      if (!swapped) {
+        this.binding.unseal(id);
+        this.publishProjection();
+      }
+    }
+  }
+
+  readProjection(): GraphProjection {
+    return {
+      revision: this.projectionRevision,
+      nodes: Array.from(this.nodes.entries()).map(([nodeId, node]) => ({
+        nodeId,
+        state: this.valueCodec.encode(node.state, {
+          maxDepth: Number.POSITIVE_INFINITY,
+          maxArrayLength: Number.POSITIVE_INFINITY,
+          rootPath: [nodeId, '$projection'],
+        }),
+        version: node.version,
+        status: this.activeEntities.has(nodeId) ? 'RUNNING' : 'IDLE',
+      })),
+      scheduler: {
+        pendingDeliveries: this.binding.pendingTotal(),
+        activeChanges: this.activeEntities.size,
+        scheduledGraphMicrotasks: this.pumpPromise ? 1 : 0,
+      },
+    };
+  }
+
+  subscribeProjection(listener: (projection: GraphProjection) => void): () => void {
+    this.projectionListeners.add(listener);
+    return () => this.projectionListeners.delete(listener);
+  }
+
+  private publishProjection(): void {
+    this.projectionRevision += 1;
+    const projection = this.readProjection();
+    for (const listener of this.projectionListeners) {
       try {
-        const generation = this.binding.replace(id);
-        this.nodes.set(id, {
-          state: { ...initialState },
-          handler: handler as NativeHandler<any>,
-        });
-        return generation;
+        listener(projection);
       } catch (error) {
-        if (!isBusyError(error) || Date.now() >= deadline) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 1));
+        console.error('[NativeRuleSpace] Projection listener failed:', error);
       }
     }
   }
 
   getState(id: string): Record<string, unknown> | undefined {
-    return this.nodes.get(id)?.state;
+    const state = this.nodes.get(id)?.state;
+    return state ? this.cloneState(state) : undefined;
   }
 
   generation(id: string): number | null {
@@ -237,13 +361,19 @@ export class NativeRuleSpace {
   }
 
   cancel(submissionId: string): boolean {
-    return this.binding.cancel(submissionId);
+    const cancelled = this.binding.cancel(submissionId);
+    if (cancelled) this.submissionControllers.get(submissionId)?.abort();
+    this.publishProjection();
+    return cancelled;
   }
 
   injectRoot(targetNodeId: string, info: NativeInfo, submissionId?: string): string {
-    const submission = submissionId ?? `native/${Date.now()}/${Math.random().toString(36).slice(2)}`;
-    this.submissions.set(submission, submission);
+    const submission = submissionId ?? this.idProvider.nextId('submission');
+    if (!this.submissionControllers.has(submission)) {
+      this.submissionControllers.set(submission, new AbortController());
+    }
     this.binding.injectRoot(targetNodeId, info.type, splitPayload(info), submission);
+    this.publishProjection();
     return submission;
   }
 
@@ -251,11 +381,15 @@ export class NativeRuleSpace {
     for (let rounds = 0; rounds < 10_000; rounds++) {
       await this.pump();
       const state = this.binding.submissionState(submissionId);
-      if (state === 'completed') return;
+      if (state === 'completed') {
+        this.submissionControllers.delete(submissionId);
+        return;
+      }
       if (state === null || state === undefined) {
         throw new Error(`Submission not found: ${submissionId}`);
       }
       if (state === 'cancelled') {
+        this.submissionControllers.delete(submissionId);
         const error = new Error(`Submission cancelled: ${submissionId}`);
         error.name = 'AbortError';
         throw error;
@@ -268,9 +402,18 @@ export class NativeRuleSpace {
   }
 
   /** Drain every runnable change. Non-reentrant. Returns changes executed. */
-  async pump(): Promise<number> {
-    if (this.pumping) throw new Error('Native pump is non-reentrant');
-    this.pumping = true;
+  pump(): Promise<number> {
+    if (this.pumpPromise) return this.pumpPromise;
+    const pending = this.drain();
+    this.pumpPromise = pending;
+    const clear = () => {
+      if (this.pumpPromise === pending) this.pumpPromise = undefined;
+    };
+    void pending.then(clear, clear);
+    return pending;
+  }
+
+  private async drain(): Promise<number> {
     try {
       let ran = 0;
       for (;;) {
@@ -280,34 +423,45 @@ export class NativeRuleSpace {
         await this.runOne(polled);
       }
     } finally {
-      this.pumping = false;
+      this.publishProjection();
     }
   }
 
   private makeContext<S>(
     entity: string,
+    generation: number,
+    node: RegisteredNode,
     changeId: number,
     submission: string | undefined,
   ): NativeChangeContext<S> {
     const space = this;
+    const signal = submission ? this.submissionControllers.get(submission)?.signal : undefined;
+    const assertCurrent = (): void => {
+      signal?.throwIfAborted();
+      if (space.nodes.get(entity) !== node || space.binding.generation(entity) !== generation) {
+        throw new StaleNativeChangeError(entity);
+      }
+    };
     return {
       read<K extends keyof S>(key: K): S[K] {
-        const node = space.nodes.get(entity);
-        if (!node) throw new Error(`Entity state gone: ${entity}`);
+        assertCurrent();
         return node.state[key as string] as S[K];
       },
       write<K extends keyof S>(key: K, value: S[K]): void {
-        const node = space.nodes.get(entity);
-        if (!node) throw new Error(`Entity state gone: ${entity}`);
+        assertCurrent();
         node.state[key as string] = value;
+        node.version += 1;
+        space.publishProjection();
       },
       patchState(patch: Partial<S>): void {
-        const node = space.nodes.get(entity);
-        if (!node) throw new Error(`Entity state gone: ${entity}`);
+        assertCurrent();
         Object.assign(node.state, patch);
+        node.version += 1;
+        space.publishProjection();
       },
       send(info: NativeInfo, targetNodeId: string): NativeDeliveryFeedback {
-        return toFeedback(
+        assertCurrent();
+        const feedback = toFeedback(
           space.binding.send(
             entity,
             info.type,
@@ -317,6 +471,34 @@ export class NativeRuleSpace {
             submission,
           ),
         );
+        space.publishProjection();
+        return feedback;
+      },
+      async effectAdapter<Request, Observation>(
+        adapter: EffectAdapter<Request, Observation>,
+        request: Request,
+        options: { signal?: AbortSignal } = {},
+      ): Promise<Observation> {
+        assertCurrent();
+        if (!node.isWorldNode) {
+          throw new Error(`Pure domain entity cannot execute physical effect: ${entity}`);
+        }
+        if (!adapter.id.trim()) throw new Error('EffectAdapter id must not be empty');
+        const effectSignal = options.signal ?? signal;
+        effectSignal?.throwIfAborted();
+        const observed = await adapter.execute(request, {
+          clock: space.clock,
+          signal: effectSignal,
+        });
+        effectSignal?.throwIfAborted();
+        assertCurrent();
+        return observed;
+      },
+      async span<T>(_name: string, action: () => Promise<T> | T): Promise<T> {
+        assertCurrent();
+        const result = await action();
+        assertCurrent();
+        return result;
       },
     };
   }
@@ -330,17 +512,59 @@ export class NativeRuleSpace {
       return;
     }
     const info = joinInfo(polled.view.infoType, polled.view.payloadJson);
-    const ctx = this.makeContext(polled.view.entity, polled.view.changeId, polled.view.submission);
+    this.activeEntities.add(polled.view.entity);
+    this.publishProjection();
+    const ctx = this.makeContext(
+      polled.view.entity,
+      polled.view.generation,
+      node,
+      polled.view.changeId,
+      polled.view.submission,
+    );
     try {
       await node.handler(info, ctx);
     } catch (error) {
+      const signal = polled.view.submission
+        ? this.submissionControllers.get(polled.view.submission)?.signal
+        : undefined;
+      if (signal?.aborted || error instanceof StaleNativeChangeError) {
+        this.binding.settleChange(polled.token, null);
+        return;
+      }
       const message = error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? error.stack : undefined;
       this.routeErrorAsInfo(polled, info.type, message, stack);
       this.binding.settleChange(polled.token, null);
       return;
+    } finally {
+      this.activeEntities.delete(polled.view.entity);
+      this.publishProjection();
     }
     this.binding.settleChange(polled.token, null);
+  }
+
+  async dispose(): Promise<void> {
+    for (const submissionId of this.submissionControllers.keys()) this.cancel(submissionId);
+    for (const id of [...this.nodes.keys()]) this.unregister(id);
+    await Promise.allSettled([...this.pendingDisposals]);
+    this.projectionListeners.clear();
+  }
+
+  private cloneState<S extends Record<string, unknown>>(state: S): S {
+    return this.valueCodec.decode(this.valueCodec.encode(state, {
+      maxDepth: Number.POSITIVE_INFINITY,
+      maxArrayLength: Number.POSITIVE_INFINITY,
+    })) as S;
+  }
+
+  private queueDisposal(node: RegisteredNode): void {
+    if (!node.dispose) return;
+    const pending = Promise.resolve().then(node.dispose).then(() => undefined);
+    this.pendingDisposals.add(pending);
+    void pending.then(
+      () => this.pendingDisposals.delete(pending),
+      () => this.pendingDisposals.delete(pending),
+    );
   }
 
   private routeErrorAsInfo(

@@ -351,13 +351,17 @@ impl Kernel {
         if self.registry.get(&token.entity).is_none() {
             return self.settle_tombstone(token, outcome);
         }
-        {
+        let matches_live_slot = {
             let slot = self.registry.get_mut(&token.entity).expect("checked above");
-            if slot.active_change != Some(token.change_id) || slot.generation != token.generation {
-                return false;
-            }
-            slot.active_change = None;
+            slot.active_change == Some(token.change_id) && slot.generation == token.generation
+        };
+        if !matches_live_slot {
+            return self.settle_tombstone(token, outcome);
         }
+        self.registry
+            .get_mut(&token.entity)
+            .expect("checked above")
+            .active_change = None;
         let submission = token.submission.clone();
         match outcome {
             ChangeOutcome::Completed => self.settle_counted(submission, None),

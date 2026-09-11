@@ -327,3 +327,16 @@ fn replace_under_flood_drops_backlog_and_settles_everything() {
     );
     assert_eq!(kernel.pending_total(), 0);
 }
+
+#[test]
+fn evicted_change_settles_after_same_id_is_readmitted() {
+    let mut kernel = Kernel::new();
+    kernel.admit("worker".to_owned()).unwrap();
+    enqueued(kernel.inject_root("worker", "WorkInfo".to_owned(), "sub/old".to_owned()));
+    let (token, _) = kernel.begin_change("worker").unwrap();
+    assert!(kernel.evict("worker"));
+    assert_eq!(kernel.admit("worker".to_owned()), Ok(1));
+    assert!(kernel.settle_change(token, ChangeOutcome::Completed));
+    assert_eq!(kernel.submission_state("sub/old"), Some(SubmissionState::Completed));
+    assert_eq!(kernel.pending_total(), 0);
+}
