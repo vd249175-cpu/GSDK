@@ -23,6 +23,7 @@
       "@graphvideo/sdk": ["./sdk/index.ts"],
       "@graphvideo/sdk/analysis": ["./sdk/analysis/index.ts"],
       "@graphvideo/sdk/client": ["./sdk/client/index.ts"],
+      "@graphvideo/client-sdk": ["./apps/local-app/renderer/src/studio/client-sdk.ts"],
       "@graphvideo/sdk/contract": ["./sdk/contract/index.ts"],
       "@graphvideo/sdk/testing": ["./sdk/testing/index.ts"],
       "@graphvideo/sdk/tokens": ["./sdk/tokens/index.ts"],
