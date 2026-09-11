@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, protocol } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, protocol, shell } from 'electron'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNativeGraphHost } from './native-graph-host.mjs'
@@ -10,6 +10,7 @@ import {
   saveProjectStructure,
   promoteProjectNodeVersion,
   resolveProjectNodeVersionPath,
+  importProjectNodeVersion,
 } from './services/project-store.mjs'
 import {
   listProjectSnapshots,
@@ -27,6 +28,26 @@ import {
   resolveGenerationPrompt,
   evaluateGenerationDag,
 } from './services/generation-model-store.mjs'
+import { ElementCatalog } from './services/element-catalog.mjs'
+import {
+  discoverAgentTemplates,
+  resolveAgentDirectory,
+  listPromptEntries,
+  readPromptFile,
+  savePromptFile,
+  createPromptFile,
+  createPromptDirectory,
+  renamePromptEntry,
+  deletePromptEntry,
+} from './services/agent-catalog.mjs'
+import {
+  listStyleProbeTargets,
+  readStyleProbeTarget,
+  saveStyleProbeTarget,
+  createStyleProbeTarget,
+  deleteStyleProbeTarget,
+  importStyleProbeMedia,
+} from './services/style-probe-store.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const appRoot = join(here, '..')
@@ -224,23 +245,12 @@ function registerIpcHandlers() {
   })
 
   // 扩展与元素清单
-  ipcMain.handle('elements:list', async () => ({
-    elements: [
-      { elementId: 'markdown-editor', pluginId: 'graphvideo.studio', version: '1.0.0', manifestText: '' },
-      { elementId: 'outliner', pluginId: 'graphvideo.studio', version: '1.0.0', manifestText: '' },
-      { elementId: 'generation', pluginId: 'graphvideo.studio', version: '1.0.0', manifestText: '' },
-      { elementId: 'properties', pluginId: 'graphvideo.studio', version: '1.0.0', manifestText: '' },
-      { elementId: 'prompt-library', pluginId: 'graphvideo.studio', version: '1.0.0', manifestText: '' },
-      { elementId: 'agent-console', pluginId: 'graphvideo.studio', version: '1.0.0', manifestText: '' },
-    ],
-    workspaces: [
-      { id: 'editing', name: '编排', layout: {} },
-      { id: 'generation', name: '生成', layout: {} },
-      { id: 'review', name: '审阅', layout: {} },
-      { id: 'agent', name: '智能体', layout: {} },
-    ],
-  }))
-  ipcMain.handle('elements:refresh', async () => ipcMain.emit('elements:list'))
+  const elementCatalog = new ElementCatalog({
+    pluginsRoot: join(appRoot, 'plugins'),
+    pluginIds: ['graphvideo.studio'],
+  })
+  ipcMain.handle('elements:list', async () => elementCatalog.scan())
+  ipcMain.handle('elements:refresh', async () => elementCatalog.scan())
 
   // 模型库接口
   const modelsDir = join(appRoot, 'resources', 'generation-models')
@@ -248,8 +258,78 @@ function registerIpcHandlers() {
   ipcMain.handle('generation-models:resolve', async (_event, input) => resolveGenerationPrompt(modelsDir, input))
   ipcMain.handle('generation-models:evaluate-dag', async (_event, projectRoot) => evaluateGenerationDag(modelsDir, projectRoot || activeProjectRoot))
 
+  // 项目版本导入接口
+  ipcMain.handle('project:import-node-version', async (_event, nodeId, sourcePath) => {
+    if (!activeProjectRoot) throw new Error('未打开项目')
+    let resolvedSource = sourcePath
+    if (!resolvedSource) {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        title: '选择导入文件',
+      })
+      if (result.canceled || !result.filePaths[0]) return { canceled: true }
+      resolvedSource = result.filePaths[0]
+    }
+    const version = await importProjectNodeVersion(activeProjectRoot, nodeId, resolvedSource)
+    return { canceled: false, version }
+  })
+
+  // 智能体目录接口
+  const templatesRoot = join(appRoot, 'resources', 'templates')
+  ipcMain.handle('agent:discover', async () => discoverAgentTemplates(templatesRoot))
+  ipcMain.handle('agent:clipboard-read-text', () => clipboard.readText())
+  ipcMain.handle('agent:clipboard-write-text', (_event, value) => {
+    clipboard.writeText(String(value ?? ''))
+    return true
+  })
+  ipcMain.handle('agent:open-directory', async (_event, { templateId, agentId }) => {
+    const dir = await resolveAgentDirectory(templatesRoot, templateId, agentId)
+    await shell.openPath(dir)
+    return { opened: true, directory: dir }
+  })
+  ipcMain.handle('agent:launch-native-terminal', async (_event, { templateId, agentId }) => {
+    const dir = await resolveAgentDirectory(templatesRoot, templateId, agentId)
+    await shell.openPath(dir)
+    return { launched: true, directory: dir }
+  })
+
   // 提示词库接口
-  ipcMain.handle('prompt-library:list', async () => [])
+  const promptLibraryRoot = join(appRoot, 'resources', 'prompt-library')
+  ipcMain.handle('prompt-library:list', async () => listPromptEntries(promptLibraryRoot))
+  ipcMain.handle('prompt-library:read', async (_event, relativePath) => readPromptFile(promptLibraryRoot, relativePath))
+  ipcMain.handle('prompt-library:save', async (_event, relativePath, content) => savePromptFile(promptLibraryRoot, relativePath, content))
+  ipcMain.handle('prompt-library:create', async (_event, relativePath, content) => createPromptFile(promptLibraryRoot, relativePath, content))
+  ipcMain.handle('prompt-library:create-directory', async (_event, relativePath) => createPromptDirectory(promptLibraryRoot, relativePath))
+  ipcMain.handle('prompt-library:rename', async (_event, sourcePath, targetPath) => renamePromptEntry(promptLibraryRoot, sourcePath, targetPath))
+  ipcMain.handle('prompt-library:delete', async (_event, relativePath) => deletePromptEntry(promptLibraryRoot, relativePath))
+
+  // 风格探针接口
+  ipcMain.handle('style-probe:list-targets', async () => (activeProjectRoot ? listStyleProbeTargets(activeProjectRoot) : []))
+  ipcMain.handle('style-probe:read-target', async (_event, fileName) => {
+    if (!activeProjectRoot) throw new Error('未打开项目')
+    return readStyleProbeTarget(activeProjectRoot, fileName)
+  })
+  ipcMain.handle('style-probe:save-target', async (_event, fileName, content) => {
+    if (!activeProjectRoot) throw new Error('未打开项目')
+    return saveStyleProbeTarget(activeProjectRoot, fileName, content)
+  })
+  ipcMain.handle('style-probe:create-target', async (_event, fileName, title) => {
+    if (!activeProjectRoot) throw new Error('未打开项目')
+    return createStyleProbeTarget(activeProjectRoot, fileName, title)
+  })
+  ipcMain.handle('style-probe:delete-target', async (_event, fileName) => {
+    if (!activeProjectRoot) throw new Error('未打开项目')
+    return deleteStyleProbeTarget(activeProjectRoot, fileName)
+  })
+  ipcMain.handle('style-probe:import-media', async (_event, sourceFilePath, prefix) => {
+    if (!activeProjectRoot) throw new Error('未打开项目')
+    return importStyleProbeMedia(activeProjectRoot, sourceFilePath, prefix)
+  })
+
+  // 音频与系统辅助
+  ipcMain.handle('audio-studio:dispatch', async () => ({}))
+  ipcMain.handle('os:launch-app', async () => ({}))
+  ipcMain.handle('os:stop-app', async () => ({}))
 }
 
 async function createWindow() {

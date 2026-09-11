@@ -52,10 +52,11 @@ function assertUnique(items, idField, kind) {
 }
 
 export class ElementCatalog {
-  constructor({ elementsRoot, workspacesRoot, pluginsRoot }) {
+  constructor({ elementsRoot, workspacesRoot, pluginsRoot, pluginIds = null }) {
     this.elementsRoot = elementsRoot
     this.workspacesRoot = workspacesRoot
     this.pluginsRoot = pluginsRoot
+    this.pluginIds = Array.isArray(pluginIds) ? new Set(pluginIds) : null
   }
 
   async scan() {
@@ -96,6 +97,7 @@ export class ElementCatalog {
     }
     if (this.pluginsRoot) {
       for (const pluginDirectoryId of await directoriesAt(this.pluginsRoot)) {
+        if (this.pluginIds && !this.pluginIds.has(pluginDirectoryId)) continue
         const pluginDirectory = pathInside(this.pluginsRoot, pluginDirectoryId)
         let manifest
         try {
