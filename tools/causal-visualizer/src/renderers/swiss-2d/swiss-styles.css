@@ -86,27 +86,42 @@
   stroke-linejoin: round;
   opacity: 0.92;
   filter: drop-shadow(0 2.5px 5px rgba(0, 0, 0, 0.14));
-  transition: stroke 0.15s ease, stroke-width 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
+  transition: stroke 0.18s ease, stroke-width 0.18s ease, opacity 0.18s ease, filter 0.18s ease;
 }
 
+/* 上游连线：纯正国际克莱因蓝 (Electric Klein Blue) */
 .swiss-orthogonal-line.upstream {
-  stroke: #002fa7; /* 国际克莱因蓝 */
-  stroke-width: 3.2px;
+  stroke: #0047ff;
+  stroke-width: 3.5px;
   opacity: 1;
-  filter: drop-shadow(0 3px 8px rgba(0, 47, 167, 0.35));
+  filter: drop-shadow(0 0 6px rgba(0, 71, 255, 0.6)) drop-shadow(0 3px 6px rgba(0, 71, 255, 0.35));
 }
 
+.swiss-orthogonal-line.upstream.direct {
+  stroke: #0047ff;
+  stroke-width: 4.5px;
+  filter: drop-shadow(0 0 10px rgba(0, 71, 255, 0.85)) drop-shadow(0 4px 8px rgba(0, 71, 255, 0.45));
+}
+
+/* 下游连线：纯正先锋朱红 (International Vermilion Red) */
 .swiss-orthogonal-line.downstream {
-  stroke: #ff3300; /* 先锋朱红 */
-  stroke-width: 3.2px;
+  stroke: #ff3300;
+  stroke-width: 3.5px;
   opacity: 1;
-  filter: drop-shadow(0 3px 8px rgba(255, 51, 0, 0.35));
+  filter: drop-shadow(0 0 6px rgba(255, 51, 0, 0.6)) drop-shadow(0 3px 6px rgba(255, 51, 0, 0.35));
 }
 
+.swiss-orthogonal-line.downstream.direct {
+  stroke: #ff3300;
+  stroke-width: 4.5px;
+  filter: drop-shadow(0 0 10px rgba(255, 51, 0, 0.85)) drop-shadow(0 4px 8px rgba(255, 51, 0, 0.45));
+}
+
+/* 未选中的非因果连线：柔和淡化 */
 .swiss-orthogonal-line.dimmed {
-  stroke: #8c8c8c;
-  stroke-width: 1.8px;
-  opacity: 0.35;
+  stroke: #c2c2bc;
+  stroke-width: 1.4px;
+  opacity: 0.16;
   filter: none;
 }
 
@@ -115,35 +130,45 @@
   fill: #ffffff;
   stroke: #0a0a0a;
   stroke-width: 1.5px;
-  transition: stroke 0.15s ease, fill 0.15s ease;
+  transition: stroke 0.18s ease, fill 0.18s ease;
 }
 
 .swiss-jack-inner {
   fill: #0a0a0a;
-  transition: fill 0.15s ease;
+  transition: fill 0.18s ease;
 }
 
 .swiss-jack-outer.upstream {
-  stroke: #002fa7;
+  stroke: #0047ff;
+  stroke-width: 2px;
 }
 .swiss-jack-inner.upstream {
-  fill: #002fa7;
+  fill: #0047ff;
+}
+.swiss-jack-outer.upstream.direct {
+  stroke: #0047ff;
+  stroke-width: 2.8px;
 }
 
 .swiss-jack-outer.downstream {
   stroke: #ff3300;
+  stroke-width: 2px;
 }
 .swiss-jack-inner.downstream {
   fill: #ff3300;
 }
+.swiss-jack-outer.downstream.direct {
+  stroke: #ff3300;
+  stroke-width: 2.8px;
+}
 
 .swiss-jack-outer.dimmed {
-  stroke: #8c8c8c;
-  opacity: 0.4;
+  stroke: #c2c2bc;
+  opacity: 0.2;
 }
 .swiss-jack-inner.dimmed {
-  fill: #8c8c8c;
-  opacity: 0.4;
+  fill: #c2c2bc;
+  opacity: 0.2;
 }
 
 /* 柔性软绳顺畅滑动脉冲光标 */

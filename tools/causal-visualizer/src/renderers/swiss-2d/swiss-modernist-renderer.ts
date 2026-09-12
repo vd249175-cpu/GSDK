@@ -532,9 +532,13 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
       }
     }
 
-    // 更新柔性软绳与端子插孔样式
+    // 更新柔性软绳与端子插孔样式，并将高亮上下游连线置顶
     if (this.svgLayer && this.layout) {
+      const upstreamGroups: SVGElement[] = []
+      const downstreamGroups: SVGElement[] = []
+
       for (const edge of this.layout.edges) {
+        const group = this.svgLayer.querySelector<SVGGElement>(`#swiss-edge-group-${edge.id}`)
         const el = this.svgLayer.querySelector<SVGPathElement>(`#swiss-edge-${edge.id}`)
         const jackElements = [
           this.svgLayer.querySelector<SVGCircleElement>(`#swiss-jack-so-${edge.id}`),
@@ -551,14 +555,29 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
           jk.setAttribute('class', isOuter ? 'swiss-jack-outer' : 'swiss-jack-inner')
         })
 
+        const isDirectUpstream = edge.to === nodeId
+        const isDirectDownstream = edge.from === nodeId
+
         if (this.upstreamEdgeIds.has(edge.id)) {
           el.classList.add('upstream')
+          if (isDirectUpstream) el.classList.add('direct')
           el.setAttribute('marker-end', 'url(#swiss-arrow-upstream)')
-          jackElements.forEach((jk) => jk?.classList.add('upstream'))
+          jackElements.forEach((jk) => {
+            if (!jk) return
+            jk.classList.add('upstream')
+            if (isDirectUpstream) jk.classList.add('direct')
+          })
+          if (group) upstreamGroups.push(group)
         } else if (this.downstreamEdgeIds.has(edge.id)) {
           el.classList.add('downstream')
+          if (isDirectDownstream) el.classList.add('direct')
           el.setAttribute('marker-end', 'url(#swiss-arrow-downstream)')
-          jackElements.forEach((jk) => jk?.classList.add('downstream'))
+          jackElements.forEach((jk) => {
+            if (!jk) return
+            jk.classList.add('downstream')
+            if (isDirectDownstream) jk.classList.add('direct')
+          })
+          if (group) downstreamGroups.push(group)
         } else if (nodeId) {
           el.classList.add('dimmed')
           el.setAttribute('marker-end', 'url(#swiss-arrow-default)')
@@ -566,6 +585,14 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
         } else {
           el.setAttribute('marker-end', 'url(#swiss-arrow-default)')
         }
+      }
+
+      // 置顶：将所有上游和下游高亮连接线元素移动到 SVG 根节点的最后（DOM 渲染顺序置顶）
+      for (const g of upstreamGroups) {
+        this.svgLayer.appendChild(g)
+      }
+      for (const g of downstreamGroups) {
+        this.svgLayer.appendChild(g)
       }
     }
   }
