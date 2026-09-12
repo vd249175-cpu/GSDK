@@ -17,6 +17,41 @@ describe('Swiss Modular Grid Layout Engine', () => {
     outDegree: 1,
   })
 
+  const segmentIntersectsBox = (
+    p1: { x: number; y: number },
+    p2: { x: number; y: number },
+    box: { left: number; right: number; top: number; bottom: number },
+  ): boolean => {
+    if (p1.x >= box.left && p1.x <= box.right && p1.y >= box.top && p1.y <= box.bottom) return true
+    if (p2.x >= box.left && p2.x <= box.right && p2.y >= box.top && p2.y <= box.bottom) return true
+
+    const dx = p2.x - p1.x
+    const dy = p2.y - p1.y
+
+    let t0 = 0
+    let t1 = 1
+
+    const p = [-dx, dx, -dy, dy]
+    const q = [p1.x - box.left, box.right - p1.x, p1.y - box.top, box.bottom - p1.y]
+
+    for (let i = 0; i < 4; i++) {
+      if (p[i] === 0) {
+        if (q[i] < 0) return false
+      } else {
+        const t = q[i] / p[i]
+        if (p[i] < 0) {
+          if (t > t1) return false
+          if (t > t0) t0 = t
+        } else {
+          if (t < t0) return false
+          if (t < t1) t1 = t
+        }
+      }
+    }
+
+    return t0 <= t1
+  }
+
   it('correctly partitions nodes into three distinct Swiss column tiers', () => {
     const nodes: CausalNode3D[] = [
       createMockNode('obs_camera', 'observation'),
@@ -285,6 +320,205 @@ describe('Swiss Modular Grid Layout Engine', () => {
       const mid1 = r1.points[Math.floor(r1.points.length / 2)]
       const mid2 = r2.points[Math.floor(r2.points.length / 2)]
       expect(mid1.y).not.toBe(mid2.y)
+    })
+
+    it('normalizes short-line wiggle: zero jitter for short wires and smooth tangent at port sockets', () => {
+      // 1. 短线 (40px) 紧绷无抖动测试
+      const shortWaypoints = [
+        { x: 100, y: 150 },
+        { x: 140, y: 150 },
+      ]
+      const shortResult = buildOrganicRopeSpline(shortWaypoints, 'short-wire')
+      expect(shortResult.svgPath).toContain('C')
+      // 短线所有点 Y 坐标严格等于 150，绝无锯齿高频乱晃
+      for (const pt of shortResult.points) {
+        expect(pt.y).toBe(150)
+      }
+
+      // 2. 长线 (400px) 端部插孔保护：两端 14px 范围内严格水平无抖动
+      const longWaypoints = [
+        { x: 100, y: 300 },
+        { x: 500, y: 300 },
+      ]
+      const longResult = buildOrganicRopeSpline(longWaypoints, 'long-wire')
+      const nearStartPoints = longResult.points.filter((pt) => pt.x <= 114)
+      for (const pt of nearStartPoints) {
+        expect(pt.y).toBe(300)
+      }
+      const nearEndPoints = longResult.points.filter((pt) => pt.x >= 486)
+      for (const pt of nearEndPoints) {
+        expect(pt.y).toBe(300)
+      }
+
+      // 中部有舒展自然的有机垂坠 (最大微动在安全范围内 < 8px)
+      const midPoints = longResult.points.filter((pt) => pt.x > 200 && pt.x < 400)
+      const maxDev = Math.max(...midPoints.map((pt) => Math.abs(pt.y - 300)))
+      expect(maxDev).toBeGreaterThan(0.5)
+      expect(maxDev).toBeLessThan(8.0)
+    })
+
+    it('strictly avoids card penetration for backward edges and same-column edges across intermediate cards', () => {
+      // 复现用户遇到的真实场景：
+      // Col 0: src-generation-poll (row 0)
+      // Col 1: node-md-source (row 0)
+      // Col 2: node-sqlite (row 0), node-generation-task (row 1)
+      // Col 3: node-sec-gate (row 0)
+      // Col 4: sink-generation-submit (row 0)
+      const nodes: CausalNode3D[] = [
+        createMockNode('src-generation-poll', 'observation'),
+        createMockNode('node-md-source', 'domain'),
+        createMockNode('node-sqlite', 'domain'),
+        createMockNode('node-generation-task', 'domain'),
+        createMockNode('node-sec-gate', 'domain'),
+        createMockNode('sink-generation-submit', 'execution'),
+      ]
+
+      const edges: CausalEdge3D[] = [
+        // 1. 跨列反向通信：Col 4 -> Col 2 (sink-generation-submit -> node-generation-task)
+        { id: 'e_back_col4_to_col2', from: 'sink-generation-submit', to: 'node-generation-task', color: '#000', active: true },
+        // 2. 同列回流：Col 2 -> Col 2 (node-sqlite -> node-generation-task)
+        { id: 'e_same_col2', from: 'node-sqlite', to: 'node-generation-task', color: '#000', active: true },
+        // 3. 跨列反向通信：Col 2 -> Col 0 (node-generation-task -> src-generation-poll)
+        { id: 'e_back_col2_to_col0', from: 'node-generation-task', to: 'src-generation-poll', color: '#000', active: true },
+      ]
+
+      const layout = computeSwissGridLayout(nodes, edges)
+      const taskCard = layout.nodes.find((n) => n.nodeId === 'node-generation-task')!
+      expect(taskCard).toBeDefined()
+
+      // 卡片绝对安全区域 (微缩小 2px 排除插头插口边缘接触)
+      const cardLeft = taskCard.x + 3
+      const cardRight = taskCard.x + taskCard.width - 3
+      const cardTop = taskCard.y + 3
+      const cardBottom = taskCard.y + taskCard.height - 3
+
+      for (const edge of layout.edges) {
+        for (let i = 0; i < edge.points.length - 1; i++) {
+          const p1 = edge.points[i]
+          const p2 = edge.points[i + 1]
+
+          const segMinX = Math.min(p1.x, p2.x)
+          const segMaxX = Math.max(p1.x, p2.x)
+          const segMinY = Math.min(p1.y, p2.y)
+          const segMaxY = Math.max(p1.y, p2.y)
+
+          const isPenetrating = segmentIntersectsBox(p1, p2, {
+            left: cardLeft,
+            right: cardRight,
+            top: cardTop,
+            bottom: cardBottom,
+          })
+          if (isPenetrating) {
+            console.error(`Penetration detected in edge ${edge.id}: segment (${p1.x},${p1.y}) -> (${p2.x},${p2.y}) cuts into card [${cardLeft}, ${cardRight}] x [${cardTop}, ${cardBottom}]`)
+          }
+          expect(isPenetrating).toBe(false)
+        }
+      }
+    })
+
+    it('successfully lays out all 16 nodes and 37 routes with zero card penetrations and zero ceiling clumping', () => {
+      const nodes: CausalNode3D[] = [
+        createMockNode('src-fs-source', 'observation'),
+        createMockNode('src-sqlite-observer', 'observation'),
+        createMockNode('src-generation-poll', 'observation'),
+        createMockNode('src-generation-poll-scheduler', 'observation'),
+        createMockNode('node-md-source', 'domain'),
+        createMockNode('n-hist', 'domain'),
+        createMockNode('node-generation-model-resolver', 'domain'),
+        createMockNode('node-md-parser', 'domain'),
+        createMockNode('node-sqlite', 'domain'),
+        createMockNode('node-generation-task', 'domain'),
+        createMockNode('node-outliner', 'domain'),
+        createMockNode('node-sec-gate', 'domain'),
+        createMockNode('host-el', 'execution'),
+        createMockNode('sink-sqlite-writer', 'execution'),
+        createMockNode('sink-generation-submit', 'execution'),
+        createMockNode('sink-generation-download', 'execution'),
+      ]
+
+      const routes = [
+        { from: 'src-fs-source', to: 'node-sqlite', infoType: 'ProjectMetadataHydratedInfo' },
+        { from: 'src-fs-source', to: 'node-md-source', infoType: 'ProjectMarkdownRunRequestedInfo' },
+        { from: 'src-fs-source', to: 'host-el', infoType: 'StoppedInfo' },
+        { from: 'node-md-source', to: 'node-outliner', infoType: 'ProjectTreeEditTaskInfo' },
+        { from: 'node-md-source', to: 'node-md-parser', infoType: 'DocumentUpdatedInfo' },
+        { from: 'node-md-parser', to: 'node-outliner', infoType: 'ParsedAstTreeInfo' },
+        { from: 'node-md-parser', to: 'node-sqlite', infoType: 'SyncTreeInfo' },
+        { from: 'node-outliner', to: 'node-md-source', infoType: 'ProjectDocumentReplacementInfo' },
+        { from: 'node-outliner', to: 'node-sec-gate', infoType: 'StructureMarkdownInfo' },
+        { from: 'node-outliner', to: 'n-hist', infoType: 'StateToCaptureInfo' },
+        { from: 'n-hist', to: 'node-sqlite', infoType: 'RevertMetadataTaskInfo' },
+        { from: 'node-sqlite', to: 'n-hist', infoType: 'ProjectHistoryResetInfo' },
+        { from: 'node-sqlite', to: 'node-generation-task', infoType: 'DatabaseSavedObservedInfo' },
+        { from: 'node-sqlite', to: 'node-generation-task', infoType: 'DatabaseWriteFailedObservedInfo' },
+        { from: 'node-sqlite', to: 'sink-sqlite-writer', infoType: 'PersistProjectStructureTaskInfo' },
+        { from: 'node-sqlite', to: 'n-hist', infoType: 'TaskFactObservedInfo' },
+        { from: 'sink-sqlite-writer', to: 'src-sqlite-observer', infoType: 'DatabaseWriteFailedObservedInfo' },
+        { from: 'sink-sqlite-writer', to: 'src-sqlite-observer', infoType: 'PhysicalProjectStructureMutationInfo' },
+        { from: 'sink-sqlite-writer', to: 'src-sqlite-observer', infoType: 'PhysicalDiskMutationInfo' },
+        { from: 'src-sqlite-observer', to: 'node-sqlite', infoType: 'Info' },
+        { from: 'src-sqlite-observer', to: 'node-sqlite', infoType: 'ProjectStructurePersistedObservedInfo' },
+        { from: 'node-sec-gate', to: 'node-generation-task', infoType: 'Info' },
+        { from: 'node-sec-gate', to: 'node-generation-task', infoType: 'GenerationBatchSubmittedObservedInfo' },
+        { from: 'node-sec-gate', to: 'sink-generation-submit', infoType: 'GenerationBatchSubmittedObservedInfo' },
+        { from: 'node-sec-gate', to: 'node-sqlite', infoType: 'Info' },
+        { from: 'node-generation-model-resolver', to: 'node-generation-task', infoType: 'GenerationBatchPlannedInfo' },
+        { from: 'node-generation-model-resolver', to: 'node-generation-task', infoType: 'GenerationModelResolutionCompletedInfo' },
+        { from: 'node-generation-model-resolver', to: 'node-generation-task', infoType: 'GenerationModelResolutionFailedInfo' },
+        { from: 'node-generation-task', to: 'node-sec-gate', infoType: 'GenerationSubmitBatchRequestedInfo' },
+        { from: 'node-generation-task', to: 'src-generation-poll', infoType: 'GenerationPollBatchRequestedInfo' },
+        { from: 'node-generation-task', to: 'sink-generation-download', infoType: 'GenerationDownloadBatchRequestedInfo' },
+        { from: 'node-generation-task', to: 'src-generation-poll-scheduler', infoType: 'GenerationPollScheduleRequestedInfo' },
+        { from: 'node-generation-task', to: 'node-sec-gate', infoType: 'ArtifactSavedObservedInfo' },
+        { from: 'sink-generation-submit', to: 'node-generation-task', infoType: 'GenerationBatchSubmittedObservedInfo' },
+        { from: 'src-generation-poll', to: 'node-generation-task', infoType: 'GenerationBatchPolledObservedInfo' },
+        { from: 'src-generation-poll-scheduler', to: 'node-generation-task', infoType: 'GenerationTasksPollRequestedInfo' },
+        { from: 'sink-generation-download', to: 'node-generation-task', infoType: 'GenerationBatchDownloadedObservedInfo' },
+      ]
+
+      const edges: CausalEdge3D[] = routes.map((r, idx) => ({
+        id: `route-${idx}-${r.from}-${r.to}`,
+        from: r.from,
+        to: r.to,
+        lastInfoType: r.infoType,
+        color: '#000',
+        active: true,
+      }))
+
+      const layout = computeSwissGridLayout(nodes, edges)
+      expect(layout.nodes).toHaveLength(16)
+      expect(layout.edges).toHaveLength(37)
+
+      // 验证对全量 16 张卡片与 37 条连线，绝无任何穿透
+      for (const card of layout.nodes) {
+        const cardLeft = card.x + 3
+        const cardRight = card.x + card.width - 3
+        const cardTop = card.y + 3
+        const cardBottom = card.y + card.height - 3
+
+        for (const edge of layout.edges) {
+          for (let i = 0; i < edge.points.length - 1; i++) {
+            const p1 = edge.points[i]
+            const p2 = edge.points[i + 1]
+
+            const segMinX = Math.min(p1.x, p2.x)
+            const segMaxX = Math.max(p1.x, p2.x)
+            const segMinY = Math.min(p1.y, p2.y)
+            const segMaxY = Math.max(p1.y, p2.y)
+
+            const isPenetrating = segmentIntersectsBox(p1, p2, {
+              left: cardLeft,
+              right: cardRight,
+              top: cardTop,
+              bottom: cardBottom,
+            })
+            if (isPenetrating) {
+              console.error(`Penetration on card ${card.nodeId} by edge ${edge.id}: (${p1.x},${p1.y}) -> (${p2.x},${p2.y})`)
+            }
+            expect(isPenetrating).toBe(false)
+          }
+        }
+      }
     })
   })
 })
