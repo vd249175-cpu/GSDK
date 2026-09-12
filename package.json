@@ -13,7 +13,7 @@
   "scripts": {
     "dev": "npm --prefix apps/local-app run dev",
     "visualizer": "npm --prefix tools/causal-visualizer run dev",
-    "start": "npm --prefix apps/local-app run start",
+    "start": "npm --prefix apps/local-app run build:main && electron apps/local-app",
     "check:syntax": "node scripts/check-syntax.mjs",
     "typecheck": "tsc --noEmit",
     "build:native": "cargo build -p graphvideo-kernel-node && node scripts/stage-native.mjs",
@@ -42,5 +42,8 @@
     "typescript": "^5.4.5",
     "vite": "^8.2.1",
     "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1"
   }
 }
