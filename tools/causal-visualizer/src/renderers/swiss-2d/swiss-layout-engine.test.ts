@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSoftRopePath, computeSwissGridLayout } from './swiss-layout-engine'
+import { buildOrganicRopeSpline, buildSoftRopePath, computeSwissGridLayout } from './swiss-layout-engine'
 import type { CausalEdge3D, CausalNode3D } from '../../types'
 
 describe('Swiss Modular Grid Layout Engine', () => {
@@ -170,40 +170,116 @@ describe('Swiss Modular Grid Layout Engine', () => {
     }
   })
 
-  describe('buildSoftRopePath (Slack-Aware Soft Rope Engine)', () => {
-    it('generates a relaxed cubic curve with natural slack for 2-point direct spans', () => {
+  it('dynamically distributes connection ports so multiple outgoing or incoming lines do NOT stack onto a single point', () => {
+    // 构造 1 个节点向 3 个不同节点连线的扇出场景
+    const nodes: CausalNode3D[] = [
+      createMockNode('source_node', 'observation'),
+      createMockNode('target_1', 'domain'),
+      createMockNode('target_2', 'domain'),
+      createMockNode('target_3', 'domain'),
+    ]
+
+    const edges: CausalEdge3D[] = [
+      { id: 'e1', from: 'source_node', to: 'target_1', color: '#000', active: true, lastInfoType: 'A' },
+      { id: 'e2', from: 'source_node', to: 'target_2', color: '#000', active: true, lastInfoType: 'B' },
+      { id: 'e3', from: 'source_node', to: 'target_3', color: '#000', active: true, lastInfoType: 'C' },
+    ]
+
+    const layout = computeSwissGridLayout(nodes, edges)
+    const e1 = layout.edges.find((e) => e.id === 'e1')!
+    const e2 = layout.edges.find((e) => e.id === 'e2')!
+    const e3 = layout.edges.find((e) => e.id === 'e3')!
+
+    const y1 = e1.points[0].y
+    const y2 = e2.points[0].y
+    const y3 = e3.points[0].y
+
+    // 验证三个出端口 Y 坐标互不相同，绝不堆叠在同一个点上
+    expect(y1).not.toBe(y2)
+    expect(y2).not.toBe(y3)
+    expect(y1).not.toBe(y3)
+    // 验证端子间距均匀 (>= 15px)
+    expect(Math.abs(y1 - y2)).toBeGreaterThanOrEqual(15)
+    expect(Math.abs(y2 - y3)).toBeGreaterThanOrEqual(15)
+  })
+
+  it('routes backward edges via left corridor without penetrating the destination card', () => {
+    // 构造反向边场景：Execution 节点回流到最左侧 Observation 节点 (Column 0)
+    const nodes: CausalNode3D[] = [
+      createMockNode('src-sqlite-observer', 'observation'),
+      createMockNode('dom-kernel', 'domain'),
+      createMockNode('sink-sqlite-writer', 'execution'),
+    ]
+
+    const edges: CausalEdge3D[] = [
+      { id: 'back_edge', from: 'sink-sqlite-writer', to: 'src-sqlite-observer', color: '#000', active: true, lastInfoType: 'PersistDone' },
+    ]
+
+    const layout = computeSwissGridLayout(nodes, edges)
+    const obsCard = layout.nodes.find((n) => n.nodeId === 'src-sqlite-observer')!
+    const backEdge = layout.edges.find((e) => e.id === 'back_edge')!
+
+    expect(obsCard).toBeDefined()
+    expect(backEdge).toBeDefined()
+
+    // 验证反向边的任何采样线段绝不穿透目标卡片内部
+    const cardLeft = obsCard.x + 2
+    const cardRight = obsCard.x + obsCard.width - 2
+    const cardTop = obsCard.y + 2
+    const cardBottom = obsCard.y + obsCard.height - 2
+
+    for (let i = 0; i < backEdge.points.length - 1; i++) {
+      const p1 = backEdge.points[i]
+      const p2 = backEdge.points[i + 1]
+
+      const segMinX = Math.min(p1.x, p2.x)
+      const segMaxX = Math.max(p1.x, p2.x)
+      const segMinY = Math.min(p1.y, p2.y)
+      const segMaxY = Math.max(p1.y, p2.y)
+
+      const xOverlap = Math.max(0, Math.min(segMaxX, cardRight) - Math.max(segMinX, cardLeft))
+      const yOverlap = Math.max(0, Math.min(segMaxY, cardBottom) - Math.max(segMinY, cardTop))
+
+      const isPenetrating = xOverlap > 0 && yOverlap > 0
+      expect(isPenetrating).toBe(false)
+    }
+  })
+
+  describe('buildOrganicRopeSpline (TA Procedural Organic Rope Engine)', () => {
+    it('generates organic multi-frequency wiggles with zero terminal displacement', () => {
       const waypoints = [
         { x: 100, y: 200 },
-        { x: 300, y: 200 },
+        { x: 400, y: 200 },
       ]
-      const { svgPath, points } = buildSoftRopePath(waypoints, 18, 8)
+      const { svgPath, points } = buildOrganicRopeSpline(waypoints, 'test-edge-1')
 
       expect(svgPath).toContain('C')
-      expect(svgPath).toMatch(/^M 100 200 C/)
-      expect(points.length).toBeGreaterThanOrEqual(16)
+      expect(points.length).toBeGreaterThanOrEqual(28)
 
-      // 验证中间点带有松弛裕量（Y 坐标由于 slackOffset 而偏离原始直线的 200，绝不处处紧绷）
-      const midPoint = points[Math.floor(points.length / 2)]
-      expect(midPoint.y).not.toBe(200)
+      // 端点严格吻合，零位移
+      expect(points[0].x).toBe(100)
+      expect(points[0].y).toBe(200)
+      expect(points[points.length - 1].x).toBe(400)
+      expect(points[points.length - 1].y).toBe(200)
+
+      // 验证中间点出现有机随机扭动（Y 坐标由于多频谐波法向微动而偏离 200，绝非平直直线）
+      const midPoints = points.slice(5, points.length - 5)
+      const hasWiggle = midPoints.some((pt) => Math.abs(pt.y - 200) > 1.0)
+      expect(hasWiggle).toBe(true)
     })
 
-    it('generates soft filleted corners for 4-point channel paths without sharp 90-degree miters', () => {
+    it('generates different deterministic wiggles for different edge IDs', () => {
       const waypoints = [
-        { x: 50, y: 100 },
-        { x: 150, y: 100 },
-        { x: 150, y: 300 },
-        { x: 250, y: 300 },
+        { x: 100, y: 150 },
+        { x: 350, y: 150 },
       ]
-      const { svgPath, points } = buildSoftRopePath(waypoints, 18)
+      const r1 = buildOrganicRopeSpline(waypoints, 'edge-alpha')
+      const r2 = buildOrganicRopeSpline(waypoints, 'edge-beta')
 
-      // 包含两个拐角圆弧指令 (两个 C 指令)
-      const cMatches = svgPath.match(/C/g)
-      expect(cMatches?.length).toBe(2)
-
-      // 采样点覆盖起点、拐角圆弧和终点，稠密且连续
-      expect(points.length).toBeGreaterThanOrEqual(24)
-      expect(points[0]).toEqual({ x: 50, y: 100 })
-      expect(points[points.length - 1]).toEqual({ x: 250, y: 300 })
+      // 两个不同边 ID 生成不同的扰动形态（确定性随机种子差异）
+      const mid1 = r1.points[Math.floor(r1.points.length / 2)]
+      const mid2 = r2.points[Math.floor(r2.points.length / 2)]
+      expect(mid1.y).not.toBe(mid2.y)
     })
   })
 })

@@ -46,18 +46,52 @@ export interface SwissDashboardLayout {
 }
 
 /**
- * 2D 柔性软绳塑型与平滑采样引擎 (Slack-Aware Soft Rope Path Builder)
- * 
- * 核心设计哲学：
- * 1. 柔软绳子的高塑型度：软绳可以被精准塑型在通道与缝隙中，顺应拐角处的方形走廊；
- * 2. 拐角处的柔性圆角（Soft Filleted Corners）：消灭死板的 0 倒角数学直角，呈现软绳转弯时的平滑连续切向圆角（R ≈ 14~20px）；
- * 3. 松弛呼吸感（Slack & Breathing Room）：长直段与同行单跨度具有微小柔和的呼吸微曲（4~8px），杜绝处处紧绷的激光束感；
- * 4. 多段物理质点均匀采样（Multi-Segment Sampling）：沿完整曲线采样 20~40 个均匀坐标，确保脉冲信号沿圆弧顺畅流动。
+ * 确定性哈希伪随机数发生器 (PRNG)：根据 edgeId 生成稳定的随机数种子流
  */
-export function buildSoftRopePath(
+export function createEdgePrng(seedStr: string) {
+  let h = 2166136261 >>> 0
+  for (let i = 0; i < seedStr.length; i++) {
+    h = Math.imul(h ^ seedStr.charCodeAt(i), 16777619) >>> 0
+  }
+  return function next(): number {
+    h = Math.imul(h ^ (h >>> 16), 2246822507) >>> 0
+    h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0
+    return ((h ^= h >>> 16) >>> 0) / 4294967296
+  }
+}
+
+export interface CardAABB {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * 技术美术程序化多频谐波有机软绳物理仿真算法
+ * (Technical Art Procedural Organic Harmonic Rope Engine)
+ *
+ * 核心设计：
+ * 1. 骨架拓扑通道 (Guide Waypoints)：以通道规划点为骨干基线；
+ * 2. 多频带复合谐波湍流微动 (Multi-Octave Harmonic Turbulence)：
+ *    沿绳索长度施加低频宏观悬垂（Macro Sag）、中频有机弯曲（Organic Wiggle）与高频绳纹微扭动（Micro Ripple）；
+ * 3. 端口包络衰减 (Terminal Clamping Envelope)：
+ *    在起止端子 20px 范围内平滑衰减为 0，确保插头严丝合缝垂直咬合在五金端子上；
+ * 4. 法线位移 (Normal Vector Displacement)：
+ *    扰动严格沿着绳索前进方向的法线方向施加，呈现软绳自然弯折摆动的真实物理形变；
+ * 5. 卡片 AABB 距离场排斥 (SDF Card Repulsion)：
+ *    卡片边界施加安全距离斥力场，杜绝任何穿透遮挡卡片的情况；
+ * 6. 向心三次贝塞尔样条平滑重构 (Smooth Cubic Bézier Spline Reconstruction)：
+ *    将扰动后的质点序列拟合为连续光滑的三次贝塞尔曲线，全线零生硬直线、零 CAD 机械圆角。
+ */
+export function buildOrganicRopeSpline(
   waypoints: Array<{ x: number; y: number }>,
-  cornerRadius = 18,
-  slackOffset = 0,
+  edgeId = 'default-edge',
+  cards: CardAABB[] = [],
+  options: {
+    cornerRadius?: number
+    noiseScale?: number
+  } = {},
 ): { svgPath: string; points: Array<{ x: number; y: number }> } {
   if (waypoints.length === 0) {
     return { svgPath: '', points: [] }
@@ -69,114 +103,205 @@ export function buildSoftRopePath(
     }
   }
 
-  // 1. 若只有两个点（例如同行横向直连）：生成带自然松弛呼吸感的微弯软绳，消除紧绷拉扯感
+  const prng = createEdgePrng(edgeId)
+  const cornerRadius = options.cornerRadius ?? 22
+  const noiseScale = options.noiseScale ?? 1.0
+
+  // 1. 生成每个 edge 专属的多频随机谐波参数（确定性种子，形态稳定不抽搐）
+  const phi1 = prng() * Math.PI * 2
+  const phi2 = prng() * Math.PI * 2
+  const phi3 = prng() * Math.PI * 2
+
+  const amp1 = (4.5 + prng() * 3.5) * noiseScale // 宏观自然摆动 4.5 ~ 8.0px
+  const amp2 = (2.2 + prng() * 2.2) * noiseScale // 中观有机弯折 2.2 ~ 4.4px
+  const amp3 = (0.8 + prng() * 1.0) * noiseScale // 微观绳索肌理 0.8 ~ 1.8px
+
+  const freq1 = 1.3 + prng() * 0.4
+  const freq2 = 3.3 + prng() * 0.8
+  const freq3 = 7.2 + prng() * 1.6
+
+  // 2. 构造基础骨干密集分段 (Base Guide Polyline)
+  const basePolyline: Array<{ x: number; y: number }> = []
+
   if (waypoints.length === 2) {
     const p0 = waypoints[0]
     const p1 = waypoints[1]
     const dx = p1.x - p0.x
     const dy = p1.y - p0.y
     const dist = Math.hypot(dx, dy)
+    const steps = Math.max(28, Math.min(52, Math.round(dist / 8)))
 
-    // 控制点带有自然松弛微弯（slackOffset 赋予其自如的非死板弧度）
     const c1x = p0.x + dx * 0.45
-    const c1y = p0.y + dy * 0.15 + slackOffset
+    const c1y = p0.y + dy * 0.15
     const c2x = p1.x - dx * 0.45
-    const c2y = p1.y - dy * 0.15 + slackOffset
+    const c2y = p1.y - dy * 0.15
 
-    const svgPath = `M ${p0.x} ${p0.y} C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${p1.x} ${p1.y}`
-
-    const samples: Array<{ x: number; y: number }> = []
-    const STEPS = Math.max(16, Math.min(32, Math.round(dist / 10)))
-    for (let i = 0; i <= STEPS; i++) {
-      const t = i / STEPS
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps
       const u = 1 - t
       const x = u * u * u * p0.x + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * p1.x
       const y = u * u * u * p0.y + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * p1.y
-      samples.push({ x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 })
+      basePolyline.push({ x, y })
     }
+  } else {
+    basePolyline.push({ ...waypoints[0] })
+    let prevEnd = { ...waypoints[0] }
 
-    return { svgPath, points: samples }
-  }
+    for (let i = 1; i < waypoints.length - 1; i++) {
+      const prev = waypoints[i - 1]
+      const curr = waypoints[i]
+      const next = waypoints[i + 1]
 
-  // 2. 多拐角点序列：在每个折角处生成柔性圆角过渡与松弛采样
-  const samples: Array<{ x: number; y: number }> = []
-  let svgPath = `M ${waypoints[0].x} ${waypoints[0].y}`
-  samples.push({ ...waypoints[0] })
+      const vIn = { x: curr.x - prev.x, y: curr.y - prev.y }
+      const vOut = { x: next.x - curr.x, y: next.y - curr.y }
+      const lenIn = Math.hypot(vIn.x, vIn.y)
+      const lenOut = Math.hypot(vOut.x, vOut.y)
 
-  let prevEnd = { ...waypoints[0] }
+      if (lenIn < 1 || lenOut < 1) continue
 
-  for (let i = 1; i < waypoints.length - 1; i++) {
-    const prev = waypoints[i - 1]
-    const curr = waypoints[i]
-    const next = waypoints[i + 1]
+      const uIn = { x: vIn.x / lenIn, y: vIn.y / lenIn }
+      const uOut = { x: vOut.x / lenOut, y: vOut.y / lenOut }
 
-    const vIn = { x: curr.x - prev.x, y: curr.y - prev.y }
-    const vOut = { x: next.x - curr.x, y: next.y - curr.y }
-    const lenIn = Math.hypot(vIn.x, vIn.y)
-    const lenOut = Math.hypot(vOut.x, vOut.y)
+      const r = Math.min(cornerRadius, lenIn * 0.45, lenOut * 0.45)
+      const ptA = { x: curr.x - uIn.x * r, y: curr.y - uIn.y * r }
+      const ptB = { x: curr.x + uOut.x * r, y: curr.y + uOut.y * r }
 
-    if (lenIn < 1 || lenOut < 1) continue
-
-    const uIn = { x: vIn.x / lenIn, y: vIn.y / lenIn }
-    const uOut = { x: vOut.x / lenOut, y: vOut.y / lenOut }
-
-    // 最大允许倒角半径，防止折叠重叠
-    const r = Math.min(cornerRadius, lenIn * 0.45, lenOut * 0.45)
-
-    // 倒角起点 A 与终点 B
-    const ptA = { x: curr.x - uIn.x * r, y: curr.y - uIn.y * r }
-    const ptB = { x: curr.x + uOut.x * r, y: curr.y + uOut.y * r }
-
-    // 直段从 prevEnd 到 ptA
-    const segDist = Math.hypot(ptA.x - prevEnd.x, ptA.y - prevEnd.y)
-    if (segDist > 1) {
-      const segSteps = Math.max(1, Math.round(segDist / 16))
+      // 直段采样
+      const segDist = Math.hypot(ptA.x - prevEnd.x, ptA.y - prevEnd.y)
+      const segSteps = Math.max(1, Math.round(segDist / 14))
       for (let s = 1; s <= segSteps; s++) {
         const st = s / segSteps
-        samples.push({
-          x: Math.round((prevEnd.x + (ptA.x - prevEnd.x) * st) * 10) / 10,
-          y: Math.round((prevEnd.y + (ptA.y - prevEnd.y) * st) * 10) / 10,
+        basePolyline.push({
+          x: prevEnd.x + (ptA.x - prevEnd.x) * st,
+          y: prevEnd.y + (ptA.y - prevEnd.y) * st,
         })
       }
-      svgPath += ` L ${ptA.x.toFixed(2)} ${ptA.y.toFixed(2)}`
+
+      // 拐角采样 (贝塞尔圆弧过渡)
+      const K = 0.55228475
+      const c1 = { x: ptA.x + uIn.x * r * K, y: ptA.y + uIn.y * r * K }
+      const c2 = { x: ptB.x - uOut.x * r * K, y: ptB.y - uOut.y * r * K }
+      const cornerSteps = 8
+      for (let c = 1; c <= cornerSteps; c++) {
+        const t = c / cornerSteps
+        const u = 1 - t
+        const cx = u * u * u * ptA.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * ptB.x
+        const cy = u * u * u * ptA.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * ptB.y
+        basePolyline.push({ x: cx, y: cy })
+      }
+
+      prevEnd = ptB
     }
 
-    // 贝塞尔倒角拟合 (0.55228475 为标准 90 度圆弧三次贝塞尔拟合参数)
-    const K = 0.55228475
-    const c1 = { x: ptA.x + uIn.x * r * K, y: ptA.y + uIn.y * r * K }
-    const c2 = { x: ptB.x - uOut.x * r * K, y: ptB.y - uOut.y * r * K }
-
-    svgPath += ` C ${c1.x.toFixed(2)} ${c1.y.toFixed(2)}, ${c2.x.toFixed(2)} ${c2.y.toFixed(2)}, ${ptB.x.toFixed(2)} ${ptB.y.toFixed(2)}`
-
-    // 拐角圆弧均匀采样 6 个点，确保能量脉冲平滑过弯
-    const CORNER_STEPS = 6
-    for (let c = 1; c <= CORNER_STEPS; c++) {
-      const t = c / CORNER_STEPS
-      const u = 1 - t
-      const cx = u * u * u * ptA.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * ptB.x
-      const cy = u * u * u * ptA.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * ptB.y
-      samples.push({ x: Math.round(cx * 10) / 10, y: Math.round(cy * 10) / 10 })
-    }
-
-    prevEnd = ptB
-  }
-
-  // 终段直连到目标端子
-  const lastPt = waypoints[waypoints.length - 1]
-  const lastDist = Math.hypot(lastPt.x - prevEnd.x, lastPt.y - prevEnd.y)
-  if (lastDist > 1) {
-    const lastSteps = Math.max(1, Math.round(lastDist / 16))
+    const lastPt = waypoints[waypoints.length - 1]
+    const lastDist = Math.hypot(lastPt.x - prevEnd.x, lastPt.y - prevEnd.y)
+    const lastSteps = Math.max(1, Math.round(lastDist / 14))
     for (let s = 1; s <= lastSteps; s++) {
       const st = s / lastSteps
-      samples.push({
-        x: Math.round((prevEnd.x + (lastPt.x - prevEnd.x) * st) * 10) / 10,
-        y: Math.round((prevEnd.y + (lastPt.y - prevEnd.y) * st) * 10) / 10,
+      basePolyline.push({
+        x: prevEnd.x + (lastPt.x - prevEnd.x) * st,
+        y: prevEnd.y + (lastPt.y - prevEnd.y) * st,
       })
     }
-    svgPath += ` L ${lastPt.x.toFixed(2)} ${lastPt.y.toFixed(2)}`
   }
 
-  return { svgPath, points: samples }
+  // 3. 沿法线方向施加多频分形随机扭动 (Organic Noise along Normal Vectors)
+  const totalCount = basePolyline.length
+  const perturbedPoints: Array<{ x: number; y: number }> = []
+
+  for (let i = 0; i < totalCount; i++) {
+    const pt = basePolyline[i]
+    const u = i / (totalCount - 1)
+
+    // 端点包络衰减：确保头尾严格咬合在插孔上，不发生插头偏位
+    // sin(pi * u)^1.35 使得头尾平滑归零，中间自如舒展扭动
+    const env = Math.pow(Math.sin(Math.PI * u), 1.35)
+
+    if (env < 0.001 || i === 0 || i === totalCount - 1) {
+      perturbedPoints.push({ x: Math.round(pt.x * 10) / 10, y: Math.round(pt.y * 10) / 10 })
+      continue
+    }
+
+    // 计算局部切线与法线向量
+    const prevPt = basePolyline[Math.max(0, i - 1)]
+    const nextPt = basePolyline[Math.min(totalCount - 1, i + 1)]
+    const tx = nextPt.x - prevPt.x
+    const ty = nextPt.y - prevPt.y
+    const tLen = Math.hypot(tx, ty)
+    const nx = tLen > 0.001 ? -ty / tLen : 0
+    const ny = tLen > 0.001 ? tx / tLen : 1
+
+    // 多频复合有机扰动
+    const wave1 = amp1 * Math.sin(2 * Math.PI * freq1 * u + phi1)
+    const wave2 = amp2 * Math.sin(2 * Math.PI * freq2 * u + phi2)
+    const wave3 = amp3 * Math.cos(2 * Math.PI * freq3 * u + phi3)
+    const totalWiggle = (wave1 + wave2 + wave3) * env
+
+    let px = pt.x + nx * totalWiggle
+    let py = pt.y + ny * totalWiggle
+
+    // 4. 卡片 AABB 物理距离场排斥检测 (SDF Repulsion)
+    // 严苛防止随机微动将线缆推入卡片内部
+    for (const card of cards) {
+      const margin = 10
+      const boxLeft = card.x - margin
+      const boxRight = card.x + card.width + margin
+      const boxTop = card.y - margin
+      const boxBottom = card.y + card.height + margin
+
+      if (px >= boxLeft && px <= boxRight && py >= boxTop && py <= boxBottom) {
+        // 进入了卡片禁区，向最近的安全边界推离
+        const dL = Math.abs(px - boxLeft)
+        const dR = Math.abs(boxRight - px)
+        const dT = Math.abs(py - boxTop)
+        const dB = Math.abs(boxBottom - py)
+        const minD = Math.min(dL, dR, dT, dB)
+
+        if (minD === dL) px = boxLeft - 2
+        else if (minD === dR) px = boxRight + 2
+        else if (minD === dT) py = boxTop - 2
+        else py = boxBottom + 2
+      }
+    }
+
+    perturbedPoints.push({
+      x: Math.round(px * 10) / 10,
+      y: Math.round(py * 10) / 10,
+    })
+  }
+
+  // 5. 三次贝塞尔曲线平滑样条重构 (Spline Reconstruction)
+  // 将离散质点转化为连续光滑无折角的真实软绳 SVG 曲线
+  let svgPath = `M ${perturbedPoints[0].x} ${perturbedPoints[0].y}`
+  const N = perturbedPoints.length
+
+  for (let i = 0; i < N - 1; i++) {
+    const p0 = perturbedPoints[Math.max(0, i - 1)]
+    const p1 = perturbedPoints[i]
+    const p2 = perturbedPoints[i + 1]
+    const p3 = perturbedPoints[Math.min(N - 1, i + 2)]
+
+    // Catmull-Rom 转三阶贝塞尔控制点公式
+    const c1x = p1.x + (p2.x - p0.x) / 6
+    const c1y = p1.y + (p2.y - p0.y) / 6
+    const c2x = p2.x - (p3.x - p1.x) / 6
+    const c2y = p2.y - (p3.y - p1.y) / 6
+
+    svgPath += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`
+  }
+
+  return { svgPath, points: perturbedPoints }
+}
+
+/**
+ * 兼容旧接口封装
+ */
+export function buildSoftRopePath(
+  waypoints: Array<{ x: number; y: number }>,
+  cornerRadius = 18,
+  slackOffset = 0,
+): { svgPath: string; points: Array<{ x: number; y: number }> } {
+  return buildOrganicRopeSpline(waypoints, `rope-${slackOffset}`, [], { cornerRadius })
 }
 
 /**
@@ -357,18 +482,97 @@ export function computeSwissGridLayout(
     gutterToIdx: number
   }
 
+  // 4.1 动态多插孔端口分配 (Dynamic Multi-Jack Port Allocation - 彻底消除单点堆叠)
+  const nodeOutgoingEdges = new Map<string, CausalEdge3D[]>()
+  const nodeIncomingEdges = new Map<string, CausalEdge3D[]>()
+
+  for (const edge of edgeList) {
+    if (!nodeOutgoingEdges.has(edge.from)) nodeOutgoingEdges.set(edge.from, [])
+    nodeOutgoingEdges.get(edge.from)!.push(edge)
+
+    if (!nodeIncomingEdges.has(edge.to)) nodeIncomingEdges.set(edge.to, [])
+    nodeIncomingEdges.get(edge.to)!.push(edge)
+  }
+
+  const fromPortMap = new Map<string, { x: number; y: number }>()
+  const toPortMap = new Map<string, { x: number; y: number }>()
+
+  // 计算出端口 (位于源卡片右边缘，按目标节点 Y 坐标排序，使得连线由上至下有序引出)
+  nodeOutgoingEdges.forEach((edges, fromId) => {
+    const fromNode = nodeLayoutMap.get(fromId)
+    if (!fromNode) return
+
+    edges.sort((a, b) => {
+      const toA = nodeLayoutMap.get(a.to)
+      const toB = nodeLayoutMap.get(b.to)
+      return (toA?.y ?? 0) - (toB?.y ?? 0)
+    })
+
+    const k = edges.length
+    const marginY = 26
+    const spanY = Math.max(12, fromNode.height - marginY * 2)
+
+    edges.forEach((edge, idx) => {
+      const portY = k === 1
+        ? fromNode.y + fromNode.height / 2
+        : fromNode.y + marginY + (idx / (k - 1)) * spanY
+      fromPortMap.set(edge.id, {
+        x: fromNode.x + fromNode.width,
+        y: Math.round(portY),
+      })
+    })
+  })
+
+  // 计算入端口 (按来源节点 Y 坐标排序，使得进线平滑平行)
+  nodeIncomingEdges.forEach((edges, toId) => {
+    const toNode = nodeLayoutMap.get(toId)
+    if (!toNode) return
+
+    edges.sort((a, b) => {
+      const fromA = nodeLayoutMap.get(a.from)
+      const fromB = nodeLayoutMap.get(b.from)
+      return (fromA?.y ?? 0) - (fromB?.y ?? 0)
+    })
+
+    const k = edges.length
+    const marginY = 26
+    const spanY = Math.max(12, toNode.height - marginY * 2)
+
+    edges.forEach((edge, idx) => {
+      const portY = k === 1
+        ? toNode.y + toNode.height / 2
+        : toNode.y + marginY + (idx / (k - 1)) * spanY
+      toPortMap.set(edge.id, {
+        x: toNode.x,
+        y: Math.round(portY),
+      })
+    })
+  })
+
   const tasks: EdgeRoutingTask[] = []
   for (const edge of edgeList) {
     const fromNode = nodeLayoutMap.get(edge.from)
     const toNode = nodeLayoutMap.get(edge.to)
     if (!fromNode || !toNode) continue
 
-    const startX = fromNode.x + fromNode.width
-    const startY = fromNode.y + fromNode.height / 2
-    const endX = toNode.x
-    const endY = toNode.y + toNode.height / 2
+    const fromPort = fromPortMap.get(edge.id) || {
+      x: fromNode.x + fromNode.width,
+      y: fromNode.y + fromNode.height / 2,
+    }
+    const toPort = toPortMap.get(edge.id) || {
+      x: toNode.x,
+      y: toNode.y + toNode.height / 2,
+    }
 
+    const startX = fromPort.x
+    const startY = fromPort.y
     const colDiff = toNode.colIndex - fromNode.colIndex
+
+    // 同列连线特殊处理：进端口同样落在右边缘通道内，形成右侧纯通道回路，杜绝横切自身卡片
+    const isSameColumn = colDiff === 0
+    const endX = isSameColumn ? toNode.x + toNode.width : toPort.x
+    const endY = toPort.y
+
     let category: EdgeRoutingTask['category'] = 'adjacent_forward'
     let useTopHighway = false
 
@@ -376,9 +580,8 @@ export function computeSwissGridLayout(
       category = 'adjacent_forward'
     } else if (colDiff > 1) {
       category = 'multi_forward'
-      // 距离顶部较近的走顶部高架，距离底部较近的走底部高架
       useTopHighway = (startY + endY) / 2 <= (TOP_MARGIN + maxNodeY) / 2
-    } else if (colDiff === 0) {
+    } else if (isSameColumn) {
       category = 'same_column'
     } else {
       category = 'backward'
@@ -645,11 +848,19 @@ export function computeSwissGridLayout(
         ]
       }
     } else if (t.category === 'multi_forward' || t.category === 'backward') {
-      // 跨层/回流跳跃：六锚点规整走廊塑型（横-竖-横-竖-横），所有拐角处平滑过渡
-      const exitTrackX =
-        wireXMap.get(`${t.edge.id}-exit`) || wireXMap.get(`${t.edge.id}-back-exit`) || t.startX + 24
-      const entryTrackX =
-        wireXMap.get(`${t.edge.id}-entry`) || wireXMap.get(`${t.edge.id}-back-entry`) || t.endX - 24
+      const isBackward = t.category === 'backward'
+      const exitTrackX = isBackward
+        ? t.startX + 24
+        : wireXMap.get(`${t.edge.id}-exit`) || t.startX + 24
+
+      // 关键修复：当目标节点位于最左侧 Column 0 时，下降轨道必须设在画布左侧外延安全走廊 (LEFT_CORRIDOR_X = 38px)
+      // 绝不可放在 Column 0 右侧的 gutter[0]，否则连线横切整个 Column 0 卡片！
+      const LEFT_CORRIDOR_X = Math.max(28, LEFT_MARGIN - 42) // 38px
+      const entryTrackX = isBackward
+        ? (t.toNode.colIndex === 0
+            ? LEFT_CORRIDOR_X
+            : (gutters[t.toNode.colIndex - 1]?.center || t.endX - 24))
+        : (wireXMap.get(`${t.edge.id}-entry`) || t.endX - 24)
 
       const highwayY = t.useTopHighway
         ? topHighwayYMap.get(t.edge.id) || TOP_HIGHWAY_MAX_Y
@@ -663,20 +874,27 @@ export function computeSwissGridLayout(
         { x: entryTrackX, y: t.endY },
         { x: t.endX, y: t.endY },
       ]
-      cornerRadius = 20
+      cornerRadius = 22
     } else if (t.category === 'same_column') {
-      // 同列折叠：在通道内形成柔性向外舒展软环
+      // 同列折叠：在通道内形成柔性向外舒展软环，端点均在卡片右侧通道，绝不横切卡片
       const trackX = wireXMap.get(`${t.edge.id}-same`) || t.startX + 36
       waypoints = [
         { x: t.startX, y: t.startY },
         { x: trackX, y: t.startY },
         { x: trackX, y: t.endY },
-        { x: t.startX, y: t.endY },
+        { x: t.endX, y: t.endY },
       ]
-      cornerRadius = 16
+      cornerRadius = 18
     }
 
-    const { svgPath, points } = buildSoftRopePath(waypoints, cornerRadius, slackOffset)
+    const cardBoxes: CardAABB[] = swissNodes.map((n) => ({
+      x: n.x,
+      y: n.y,
+      width: n.width,
+      height: n.height,
+    }))
+
+    const { svgPath, points } = buildOrganicRopeSpline(waypoints, t.edge.id, cardBoxes, { cornerRadius })
 
     swissEdges.push({
       id: t.edge.id,
