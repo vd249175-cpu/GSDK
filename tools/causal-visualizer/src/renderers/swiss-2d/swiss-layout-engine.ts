@@ -93,11 +93,11 @@ export function computeSwissGridLayout(
     domainSubCols[idx % domainColsCount].push(node)
   })
 
-  // 3. 计算总列定义
+  // 3. 计算总列定义 (严格遵循 GraphFramework 架构三原则：感知 01、领域 02、执行 03)
   const columns: SwissColumnHeader[] = [
     {
       title: 'OBSERVATION // 01',
-      subtitle: '感知世界 · 零写事实 · 悬崖灯塔',
+      subtitle: '外部事件感知 · 零外部写 · 事实封装',
       role: 'observation',
       x: LEFT_MARGIN,
       width: CARD_WIDTH,
@@ -106,9 +106,10 @@ export function computeSwissGridLayout(
 
   let currentX = LEFT_MARGIN + CARD_WIDTH + COL_GAP
   for (let c = 0; c < domainColsCount; c++) {
+    const colSuffix = domainColsCount > 1 ? ` [分列 ${String.fromCharCode(65 + c)}]` : ''
     columns.push({
-      title: `DOMAIN CORE // 0${2 + c}`,
-      subtitle: '纯领域聚落 · 状态主权 · 确定性因果',
+      title: `DOMAIN CORE // 02${colSuffix}`,
+      subtitle: '纯领域微内核 · 状态主权 · 确定性收敛',
       role: 'domain',
       x: currentX,
       width: CARD_WIDTH,
@@ -117,8 +118,8 @@ export function computeSwissGridLayout(
   }
 
   columns.push({
-    title: `EXECUTION // 0${2 + domainColsCount}`,
-    subtitle: '系统动作 · 下发结算 · 垂钓渔港',
+    title: 'EXECUTION // 03',
+    subtitle: '主动物理下发 · 动作执行 · 外部结算',
     role: 'execution',
     x: currentX,
     width: CARD_WIDTH,

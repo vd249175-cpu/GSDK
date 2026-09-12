@@ -144,9 +144,10 @@
 }
 
 .swiss-node-card.dimmed {
-  opacity: 0.35;
-  box-shadow: 2px 2px 0px #d4d4d4;
-  border-color: #d4d4d4;
+  /* 保持纯正黑白印刷高反差质感，绝不出现低对比度灰框与禁用感 */
+  border-color: #0a0a0a;
+  box-shadow: 3px 3px 0px #0a0a0a;
+  opacity: 0.82;
 }
 
 .swiss-node-card.impact-flash {

@@ -205,10 +205,20 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
         this.rootEl?.releasePointerCapture(e.pointerId)
 
         // 单击空白处取消选中
-        if (dist < 4) {
+        if (dist < 4 && this.selectedNodeId) {
           this.setSelectedNode(null)
           this.callbacks.onNodeSelect?.(null)
         }
+      }
+    })
+
+    // 单击空白背景直接取消选中
+    this.rootEl.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.swiss-node-card')) return
+      if ((e.target as HTMLElement).closest('.swiss-viewport-controls')) return
+      if (this.selectedNodeId) {
+        this.setSelectedNode(null)
+        this.callbacks.onNodeSelect?.(null)
       }
     })
   }
@@ -374,8 +384,9 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
 
       card.onclick = (e) => {
         e.stopPropagation()
-        this.setSelectedNode(item.nodeId)
-        this.callbacks.onNodeSelect?.(item.nodeId)
+        const nextId = this.selectedNodeId === item.nodeId ? null : item.nodeId
+        this.setSelectedNode(nextId)
+        this.callbacks.onNodeSelect?.(nextId)
       }
 
       this.cardsContainer.appendChild(card)

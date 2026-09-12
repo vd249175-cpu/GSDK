@@ -217,6 +217,9 @@ export function VisualizerApp() {
   // 左上角一键切换呈现范式
   const handleToggleParadigm = () => {
     const next: ParadigmType = paradigm === 'island-3d' ? 'swiss-2d' : 'island-3d'
+    // 切换视觉范式时重置聚焦态，避免旧视角残留导致节点褪色
+    setSelectedNodeId(null)
+    setInspectedItem(null)
     setParadigm(next)
     mountRenderer(next)
   }
