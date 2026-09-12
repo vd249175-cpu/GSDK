@@ -1,5 +1,39 @@
 export type CausalNodeRole = 'domain' | 'observation' | 'execution'
 
+export type InspectItemCategory =
+  | 'state_field'
+  | 'change_villager'
+  | 'system_landmark'
+  | 'island_flora'
+
+export interface InspectItemData {
+  id: string
+  nodeId: string
+  nodeName: string
+  itemType:
+    | 'villager'
+    | 'crystal'
+    | 'windmill'
+    | 'crop'
+    | 'campfire'
+    | 'sheep'
+    | 'rabbit'
+    | 'mushroom'
+    | 'flower'
+    | 'rock'
+    | 'house'
+    | 'lighthouse'
+    | 'fishingPier'
+    | 'tree'
+  itemName: string
+  itemIcon: string
+  category: InspectItemCategory
+  stateKey?: string
+  stateValue?: unknown
+  valueType?: string
+  description: string
+}
+
 export interface CausalNode3D {
   id: string
   name: string

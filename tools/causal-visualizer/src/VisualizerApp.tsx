@@ -2,7 +2,13 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { CausalScene3D } from './causal-scene'
 import { computeGraphAgnosticLayout, type LayoutMode } from './layout-engine'
 import { visualizerClient } from './visualizer-client'
-import type { CausalCommunity3D, CausalEdge3D, CausalNode3D, CausalTelemetryEvent } from './types'
+import type { CausalCommunity3D, CausalEdge3D, CausalNode3D, CausalTelemetryEvent, InspectItemData } from './types'
+import { TopNavigationBar } from './components/TopNavigationBar'
+import { IslandViewBanner } from './components/IslandViewBanner'
+import { IslandItemsBar } from './components/IslandItemsBar'
+import { ItemInspectCard } from './components/ItemInspectCard'
+import { BottomControlsDock } from './components/BottomControlsDock'
+import { TelemetryFeed } from './components/TelemetryFeed'
 import './visualizer.css'
 
 export function VisualizerApp() {
@@ -15,6 +21,7 @@ export function VisualizerApp() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('community')
   const [logs, setLogs] = useState<CausalTelemetryEvent[]>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [inspectedItem, setInspectedItem] = useState<InspectItemData | null>(null)
   const [autoRotate, setAutoRotate] = useState(false)
   const [revision, setRevision] = useState(0)
   const [isConnected, setIsConnected] = useState(visualizerClient.connected)
@@ -159,9 +166,18 @@ export function VisualizerApp() {
   useEffect(() => {
     if (!containerRef.current) return
 
-    const scene = new CausalScene3D(containerRef.current, (nodeId) => {
-      setSelectedNodeId(nodeId)
-    })
+    const scene = new CausalScene3D(
+      containerRef.current,
+      (nodeId) => {
+        setSelectedNodeId(nodeId)
+        if (!nodeId) {
+          setInspectedItem(null)
+        }
+      },
+      (item) => {
+        setInspectedItem(item)
+      },
+    )
     sceneRef.current = scene
 
     // 监听连接状态变更
@@ -267,11 +283,6 @@ export function VisualizerApp() {
     }
   }, [enqueueLog, triggerThrottledNodeUpdate, scheduleRelayout, syncTopology])
 
-  const handleSelectNode = (nodeId: string | null) => {
-    setSelectedNodeId(nodeId)
-    sceneRef.current?.setSelectedNode(nodeId)
-  }
-
   const handleToggleAutoRotate = () => {
     const next = !autoRotate
     setAutoRotate(next)
@@ -279,12 +290,14 @@ export function VisualizerApp() {
   }
 
   const handleResetCamera = () => {
-    sceneRef.current?.resetCamera()
+    setSelectedNodeId(null)
+    setInspectedItem(null)
+    sceneRef.current?.returnToOverview()
   }
 
   const handleFocusSelected = () => {
     if (selectedNodeId) {
-      sceneRef.current?.focusNode(selectedNodeId)
+      sceneRef.current?.focusIslandView(selectedNodeId)
     }
   }
 
@@ -293,248 +306,70 @@ export function VisualizerApp() {
   }
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId)
+  const selectedAssembly = selectedNodeId ? sceneRef.current?.getNodeAssembly(selectedNodeId) : undefined
+  const islandItems = selectedAssembly?.inspectableItems || []
+
   const domainCount = nodes.filter((n) => n.role === 'domain').length
   const obsCount = nodes.filter((n) => n.role === 'observation').length
   const execCount = nodes.filter((n) => n.role === 'execution').length
-
-  // 构建字符艺术因果流转树 (ASCII Causal Dependency Tree)
-  const renderAsciiTree = () => {
-    if (!selectedNode) return ''
-    const upEdges = edges.filter((e) => e.to === selectedNode.id && !e.isVerticalStalk)
-    const downEdges = edges.filter((e) => e.from === selectedNode.id && !e.isVerticalStalk)
-
-    const roleLabel =
-      selectedNode.role === 'observation'
-        ? 'OBSERVATION WORLD'
-        : selectedNode.role === 'execution'
-        ? 'EXECUTION WORLD'
-        : 'PURE DOMAIN CORE'
-
-    let lines: string[] = []
-    lines.push('╔═══════════════════════════════════════════════════════╗')
-    lines.push('║        C A U S A L   F L O W   P R O B E              ║')
-    lines.push('╚═══════════════════════════════════════════════════════╝')
-    lines.push(`┌── [▲ UPSTREAM CAUSAL ORIGIN (入流前序: ${upEdges.length})]`)
-    if (upEdges.length === 0) {
-      lines.push('│   └─ (无前序入流 · 初始根源节点)')
-    } else {
-      upEdges.forEach((e, idx) => {
-        const isLast = idx === upEdges.length - 1
-        const branch = isLast ? '└──' : '├──'
-        const info = e.lastInfoType || 'Info'
-        lines.push(`│   ${branch} [${e.from}] ──(${info})─►`)
-      })
-    }
-
-    lines.push('│')
-    lines.push(`◆── [TARGET: ${selectedNode.id}] [${roleLabel}]`)
-    lines.push('│')
-
-    lines.push(`└── [▼ DOWNSTREAM CAUSAL DISPATCH (派发出流: ${downEdges.length})]`)
-    if (downEdges.length === 0) {
-      lines.push('    └── (无后序派发 · 终端汇聚节点)')
-    } else {
-      downEdges.forEach((e, idx) => {
-        const isLast = idx === downEdges.length - 1
-        const branch = isLast ? '└──' : '├──'
-        const info = e.lastInfoType || 'Info'
-        lines.push(`    ${branch} ──(${info})─► [${e.to}]`)
-      })
-    }
-
-    return lines.join('\n')
-  }
+  const routeCount = edges.filter((e) => !e.isVerticalStalk).length
 
   return (
     <div className="visualizer-root">
       {/* 3D WebGL 画布 */}
       <div ref={containerRef} className="canvas-container" />
 
-      {/* 像素海岛 HUD 顶部全息状态条 */}
-      <header className="top-bar">
-        <div className="title-group">
-          <span className="logo-badge">🏝️</span>
-          <div>
-            <div className="brand-badge">NAUTICAL ARCHIPELAGO · EXPEDITION HUD</div>
-            <h1>GSDK 3D 像素海岛因果全息观测看板</h1>
-            <div className="subtitle">纯图无关 · 像素群岛洋流 · 观察灯塔 / 物理渔港 / 领域聚落</div>
-          </div>
-          {isConnected ? (
-            <div className="kernel-badge live">
-              <span className="live-dot" />
-              [KERNEL: RUST_NATIVE_LIVE]
-            </div>
-          ) : (
-            <div className="kernel-badge waiting">
-              [KERNEL: WAITING_CONNECTION]
-            </div>
-          )}
-        </div>
+      {/* 像素海岛顶部导航栏 */}
+      <TopNavigationBar
+        isConnected={isConnected}
+        domainCount={domainCount}
+        obsCount={obsCount}
+        execCount={execCount}
+        routeCount={routeCount}
+        communityCount={communities.length}
+        logCount={logs.length}
+        revision={revision}
+      />
 
-        <div className="stats-group">
-          <div className="stat-item">
-            <span className="label">三层活跃海岛</span>
-            <div className="tier-counters">
-              <span className="tier-pill domain" title="纯领域聚落海岛">◈ {domainCount}</span>
-              <span className="tier-pill obs" title="观察悬崖灯塔岛 (感知)">▲ {obsCount}</span>
-              <span className="tier-pill exec" title="执行垂钓渔港岛 (动作)">▼ {execCount}</span>
-            </div>
-          </div>
-          <div className="stat-item">
-            <span className="label">航运航线水道</span>
-            <span className="value">{edges.filter((e) => !e.isVerticalStalk).length} 条</span>
-          </div>
-          <div className="stat-item">
-            <span className="label">近岸水陆水道</span>
-            <span className="value">{edges.filter((e) => e.isVerticalStalk).length} 根</span>
-          </div>
-          <div className="stat-item">
-            <span className="label">群岛海域环礁</span>
-            <span className="value">{communities.length} POD</span>
-          </div>
-          <div className="stat-item">
-            <span className="label">遥测事件帧</span>
-            <span className="value">{logs.length}</span>
-          </div>
-          {revision > 0 && (
-            <div className="stat-item">
-              <span className="label">微内核版本</span>
-              <span className="value">#r{revision}</span>
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* 极客风格底部控制坞 */}
-      <footer className="bottom-dock">
-        <button className="btn-ctrl" onClick={handleResetCamera} title="重置摄像机位置">
-          🎯 [0x00:复位]
-        </button>
-        <button
-          className="btn-ctrl"
-          style={{ borderColor: autoRotate ? 'var(--vis-accent)' : undefined }}
-          onClick={handleToggleAutoRotate}
-          title="开启/停止 3D 空间缓慢自转"
-        >
-          {autoRotate ? '⏸️ [自转:开]' : '🔄 [自转:关]'}
-        </button>
-        <button className="btn-ctrl" onClick={toggleLayoutMode} title="切换 3D 拓扑群落聚类与因果流水线布局">
-          {layoutMode === 'community' ? '🪐 [排布:LPA社区]' : '🌊 [排布:因果流水线]'}
-        </button>
-        {selectedNodeId && (
-          <button className="btn-ctrl active" onClick={handleFocusSelected} title="镜头推进聚焦到选中的节点">
-            🔍 [聚焦:TARGET]
-          </button>
-        )}
-        <div className="dock-divider" />
-        <button className="btn-ctrl" onClick={syncTopology} title="重新从微内核拉取最新拓扑快照">
-          🌌 [同步:TOPOLOGY]
-        </button>
-        <button className="btn-ctrl" onClick={handleClearLogs} title="清空历史事件流">
-          🧹 [清屏:CLEAR]
-        </button>
-      </footer>
-
-      {/* 左下角实时内核遥测日志（极客字符流） */}
-      <aside className="event-feed">
-        <div className="feed-header">
-          <span>⚡ [TELEMETRY_STREAM::LIVE]</span>
-          <span className="feed-status">● STREAMING</span>
-        </div>
-        <div className="feed-list">
-          {logs.length === 0 ? (
-            <div style={{ color: 'var(--vis-text-muted)', fontSize: 11, padding: 12, lineHeight: 1.5, fontFamily: 'monospace' }}>
-              &gt; 观测器因果监听已就绪。<br />
-              &gt; 当微内核发生 ctx.send 时，上下游管网将即时发光并激发光子飞渡。
-            </div>
-          ) : (
-            logs.slice(0, 20).map((log, idx) => (
-              <div key={idx} className={`feed-item ${log.type}`}>
-                <div className="feed-type">[{log.type}]</div>
-                <div className="feed-desc">
-                  {log.type === 'info_sent' && `${log.fromNodeId} ──► ${log.toNodeId} (${log.info.type})`}
-                  {log.type === 'state_mutated' && `${log.nodeId} State 变迁至 v${log.version}`}
-                  {log.type === 'root_injected' && `根注入 ──► ${log.targetNodeId} (${log.info.type})`}
-                  {log.type === 'change_start' && `调度开始: ${log.nodeId} (${log.info.type})`}
-                  {log.type === 'change_end' && `调度收敛: ${log.nodeId} (${log.durationMs.toFixed(1)}ms)`}
-                  {log.type === 'node_admitted' && `实体准入: ${log.nodeId}@Gen${log.generation}`}
-                  {log.type === 'node_evicted' && `实体卸载: ${log.nodeId}`}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </aside>
-
-      {/* 右侧海岛详情抽屉（航海字符艺术拓扑 + 像素生态探针） */}
+      {/* 小岛微观视角顶部导航标牌与生态快速条 */}
       {selectedNode && (
-        <section className="inspector-drawer">
-          <div className="inspector-header">
-            <div>
-              <div className={`role-badge ${selectedNode.role}`}>
-                {selectedNode.role === 'observation' && '▲ 观察海岛 [悬崖像素灯塔 · 360°巡夜扫海]'}
-                {selectedNode.role === 'execution' && '▼ 执行海岛 [临水垂钓栈桥 · 草帽渔翁垂钓]'}
-                {selectedNode.role === 'domain' && '◈ 领域海岛 [聚落中心小木屋 · 零 I/O 状态机]'}
-              </div>
-              <h2>{selectedNode.isHub ? `👑 ${selectedNode.name}` : selectedNode.name}</h2>
-              <div className="node-subid">
-                ISLAND ID: {selectedNode.id}
-              </div>
-            </div>
-            <button className="close-btn" onClick={() => handleSelectNode(null)}>×</button>
-          </div>
+        <>
+          <IslandViewBanner
+            node={selectedNode}
+            onBackOverview={handleResetCamera}
+          />
 
-          <div className="node-meta-grid">
-            <div className="meta-card">
-              <div className="label">代次 (GEN)</div>
-              <div className="val">{selectedNode.generation !== null ? `Gen ${selectedNode.generation}` : 'DROPPED'}</div>
-            </div>
-            <div className="meta-card">
-              <div className="label">状态版本 / 岛民</div>
-              <div className="val">v{selectedNode.version} (🚶 {Math.min(4, Math.max(1, Math.floor(Math.log2(Math.max(1, selectedNode.version) + 1))))}人)</div>
-            </div>
-            <div className="meta-card">
-              <div className="label">角色定位</div>
-              <div className="val" style={{ color: selectedNode.role === 'observation' ? '#00f0ff' : (selectedNode.role === 'execution' ? '#f59e0b' : '#38bdf8') }}>
-                {selectedNode.role.toUpperCase()}
-              </div>
-            </div>
-            <div className="meta-card">
-              <div className="label">航运网络度数</div>
-              <div className="val">
-                ↓{selectedNode.inDegree || 0} 入港 │ ↑{selectedNode.outDegree || 0} 出海
-              </div>
-            </div>
-            <div className="meta-card" style={{ gridColumn: 'span 2' }}>
-              <div className="label">所属群岛 (LPA Archipelago)</div>
-              <div className="val" style={{ fontSize: 12, color: selectedNode.color }}>
-                🏝️ {selectedNode.communityName || '独立环礁'}
-              </div>
-            </div>
-          </div>
-
-          {/* 字符艺术海岛上下游航运拓扑链 */}
-          <div className="ascii-tree-card">
-            <div className="ascii-tree-header">
-              <span>◈ 上下游因果航线拓扑</span>
-              <span style={{ fontSize: 10, color: 'var(--vis-accent)' }}>[双向 BFS 溯源]</span>
-            </div>
-            <pre className="ascii-tree-content">{renderAsciiTree()}</pre>
-          </div>
-
-          <div className="state-viewer">
-            <div className="state-viewer-header">
-              <span>◈ 节点私有 State 投影（图无关生态映射）</span>
-              <span style={{ fontSize: 10, color: '#38bdf8' }}>[生态要素: {Object.keys(selectedNode.state).length > 0 ? `${Object.keys(selectedNode.state).length} 组属性生成` : '原始荒野'}]</span>
-            </div>
-            <pre className="state-json">
-              {Object.keys(selectedNode.state).length === 0
-                ? '// 暂无私有状态字段 (荒野原生态)'
-                : JSON.stringify(selectedNode.state, null, 2)}
-            </pre>
-          </div>
-        </section>
+          <IslandItemsBar
+            items={islandItems}
+            selectedItem={inspectedItem}
+            onSelectItem={(item) => setInspectedItem(item)}
+          />
+        </>
       )}
+
+      {/* 点击村民或生态物品弹出的精致字段卡片 */}
+      {inspectedItem && (
+        <ItemInspectCard
+          item={inspectedItem}
+          onClose={() => setInspectedItem(null)}
+        />
+      )}
+
+      {/* 底部控制坞 */}
+      <BottomControlsDock
+        selectedNodeId={selectedNodeId}
+        autoRotate={autoRotate}
+        layoutMode={layoutMode}
+        onResetCamera={handleResetCamera}
+        onToggleAutoRotate={handleToggleAutoRotate}
+        onToggleLayoutMode={toggleLayoutMode}
+        onFocusSelected={handleFocusSelected}
+        onSyncTopology={syncTopology}
+        onClearLogs={handleClearLogs}
+      />
+
+      {/* 实时内核遥测航海日志 */}
+      <TelemetryFeed logs={logs} />
     </div>
   )
 }

@@ -158,4 +158,46 @@ describe('Graph-Agnostic Island & Ecosystem Generator (像素海岛生态测试)
     }
     expect(assembly.lighthouseBeamMaterial?.visible).toBe(false)
   })
+
+  it('应当为岛屿上的村民和生态物品附着 InspectItemData 字段属性数据', () => {
+    const node: CausalNode3D = {
+      id: 'actor-cluster-test',
+      name: 'ActorCluster',
+      generation: 1,
+      version: 3,
+      status: 'RUNNING',
+      state: {
+        workerCount: 8,
+        isStreamActive: true,
+        clusterTags: ['gpu', 'vulkan'],
+      },
+      role: 'domain',
+      color: '#38bdf8',
+      position: [0, 0, 0],
+    }
+
+    const assembly = generateIslandAssembly(node)
+    expect(assembly.inspectableItems.length).toBeGreaterThanOrEqual(4)
+
+    // 必须包含变迁岛民
+    const villagers = assembly.inspectableItems.filter((i) => i.category === 'change_villager')
+    expect(villagers.length).toBeGreaterThanOrEqual(1)
+    expect(villagers[0].stateKey).toContain('version')
+
+    // 必须包含状态字段物品
+    const fields = assembly.inspectableItems.filter((i) => i.category === 'state_field')
+    const fieldKeys = fields.map((f) => f.stateKey)
+    expect(fieldKeys).toContain('workerCount')
+    expect(fieldKeys).toContain('isStreamActive')
+    expect(fieldKeys).toContain('clusterTags')
+
+    // 检查 3D Mesh 上的 userData 穿透标记
+    let foundMeshWithInspectData = false
+    assembly.rootGroup.traverse((child) => {
+      if (child.userData?.inspectData) {
+        foundMeshWithInspectData = true
+      }
+    })
+    expect(foundMeshWithInspectData).toBe(true)
+  })
 })

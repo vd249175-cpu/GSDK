@@ -54,7 +54,7 @@ body, html {
   z-index: 1;
 }
 
-/* 极氪 HUD 顶部全息状态栏 */
+/* 像素海岛顶部全息状态栏 */
 .top-bar {
   position: absolute;
   top: 14px;
@@ -69,17 +69,8 @@ body, html {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--vis-border);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), inset 0 0 16px rgba(0, 240, 255, 0.05);
-  clip-path: polygon(
-    0 10px,
-    10px 0,
-    calc(100% - 10px) 0,
-    100% 10px,
-    100% calc(100% - 10px),
-    calc(100% - 10px) 100%,
-    10px 100%,
-    0 calc(100% - 10px)
-  );
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 16px rgba(56, 189, 248, 0.05);
+  border-radius: 14px;
   z-index: 10;
 }
 
@@ -209,7 +200,7 @@ body, html {
   color: #ffaa00;
 }
 
-/* 底部极客控制坞 */
+/* 底部控制坞 */
 .bottom-dock {
   position: absolute;
   bottom: 20px;
@@ -223,26 +214,18 @@ body, html {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--vis-border);
-  clip-path: polygon(
-    0 8px,
-    8px 0,
-    calc(100% - 8px) 0,
-    100% 8px,
-    100% calc(100% - 8px),
-    calc(100% - 8px) 100%,
-    8px 100%,
-    0 calc(100% - 8px)
-  );
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+  border-radius: 24px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
   z-index: 10;
 }
 
 .btn-ctrl {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(0, 240, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 16px;
   color: var(--vis-text-primary);
-  padding: 6px 12px;
-  font-size: 11px;
+  padding: 6px 14px;
+  font-size: 11.5px;
   font-family: inherit;
   letter-spacing: 0.3px;
   cursor: pointer;
@@ -253,16 +236,16 @@ body, html {
 }
 
 .btn-ctrl:hover {
-  background: rgba(0, 240, 255, 0.12);
+  background: rgba(56, 189, 248, 0.2);
   border-color: var(--vis-accent);
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.35);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
   color: #ffffff;
 }
 
 .btn-ctrl.active {
-  background: rgba(0, 240, 255, 0.2);
+  background: rgba(2, 132, 199, 0.4);
   border-color: var(--vis-accent);
-  box-shadow: 0 0 16px rgba(0, 240, 255, 0.4);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
   color: #ffffff;
 }
 
@@ -278,22 +261,13 @@ body, html {
   position: absolute;
   bottom: 20px;
   left: 20px;
-  width: 330px;
-  max-height: 250px;
+  width: 320px;
+  max-height: 240px;
   background: var(--vis-panel);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--vis-border);
-  clip-path: polygon(
-    0 8px,
-    8px 0,
-    calc(100% - 8px) 0,
-    100% 8px,
-    100% calc(100% - 8px),
-    calc(100% - 8px) 100%,
-    8px 100%,
-    0 calc(100% - 8px)
-  );
+  border-radius: 14px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -356,188 +330,391 @@ body, html {
   word-break: break-all;
 }
 
-/* 右侧节点详情抽屉（字符艺术因果拓扑探针） */
-.inspector-drawer {
+/* 小岛微观视角顶部导航横幅 */
+.island-view-banner {
   position: absolute;
-  top: 82px;
-  right: 20px;
-  bottom: 20px;
-  width: 360px;
-  background: var(--vis-panel-raised);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid var(--vis-border-bright);
-  clip-path: polygon(
-    0 12px,
-    12px 0,
-    calc(100% - 12px) 0,
-    100% 12px,
-    100% calc(100% - 12px),
-    calc(100% - 12px) 100%,
-    12px 100%,
-    0 calc(100% - 12px)
-  );
-  padding: 16px;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(7, 24, 46, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 30px;
+  padding: 6px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 20px rgba(56, 189, 248, 0.12);
+  z-index: 15;
+  animation: banner-pop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.island-view-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.island-view-icon {
+  font-size: 22px;
+}
+
+.island-view-title-wrap {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(0, 240, 255, 0.04);
-  z-index: 10;
-  animation: drawer-slide 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.inspector-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--vis-border);
-  padding-bottom: 10px;
-}
-
-.role-badge {
-  font-size: 10px;
+.island-view-title {
+  font-size: 14px;
   font-weight: 700;
-  padding: 2px 6px;
-  margin-bottom: 4px;
-  display: inline-block;
-  letter-spacing: 0.5px;
+  color: #ffffff;
+  letter-spacing: 0.4px;
 }
 
-.role-badge.domain {
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.4);
+.island-view-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.role-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.role-tag.domain {
+  background: rgba(56, 189, 248, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.5);
   color: #38bdf8;
 }
 
-.role-badge.observation {
-  background: rgba(0, 240, 255, 0.12);
+.role-tag.observation {
+  background: rgba(0, 240, 255, 0.18);
   border: 1px solid rgba(0, 240, 255, 0.5);
   color: #00f0ff;
 }
 
-.role-badge.execution {
-  background: rgba(255, 170, 0, 0.12);
+.role-tag.execution {
+  background: rgba(255, 170, 0, 0.18);
   border: 1px solid rgba(255, 170, 0, 0.5);
   color: #ffaa00;
 }
 
-.inspector-header h2 {
-  font-size: 15px;
-  margin: 2px 0 0 0;
-  color: var(--vis-text-primary);
-  letter-spacing: 0.4px;
-}
-
-.node-subid {
-  font-size: 10px;
+.meta-tag {
+  font-size: 9.5px;
   color: var(--vis-text-muted);
-  margin-top: 2px;
 }
 
-.close-btn {
+.btn-back-overview {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
+}
+
+.btn-back-overview:hover {
+  background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.7);
+  transform: translateY(-1px) scale(1.03);
+}
+
+/* 小岛生态物品与村民选择胶囊栏 */
+.island-items-bar {
+  position: absolute;
+  top: 138px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 90vw;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(7, 24, 46, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 22px;
+  padding: 4px 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  z-index: 15;
+}
+
+.items-bar-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #bae6fd;
+  white-space: nowrap;
+}
+
+.items-chips-scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+
+.items-chips-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.item-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 14px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  color: #e0f2fe;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+}
+
+.item-chip:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.item-chip.active {
+  background: #0284c7;
+  border-color: #ffffff;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+  transform: translateY(-1px);
+}
+
+/* 物品/村民像素字段探针卡片 (Animal Crossing / RPG Style) */
+.item-inspect-card {
+  position: absolute;
+  right: 24px;
+  top: 80px;
+  width: 350px;
+  max-width: calc(100vw - 48px);
+  background: rgba(7, 24, 46, 0.94);
+  border: 1.5px solid rgba(56, 189, 248, 0.5);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 24px rgba(56, 189, 248, 0.15);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  padding: 16px;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: pop-in 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.inspect-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.25);
+  padding-bottom: 10px;
+}
+
+.inspect-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inspect-big-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.inspect-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.3px;
+  margin-bottom: 3px;
+}
+
+.inspect-category-row {
+  display: flex;
+  align-items: center;
+}
+
+.inspect-category-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.inspect-category-badge.state_field {
+  background: rgba(56, 189, 248, 0.18);
+  border: 1px solid #38bdf8;
+  color: #38bdf8;
+}
+
+.inspect-category-badge.change_villager {
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid #c084fc;
+  color: #e9d5ff;
+}
+
+.inspect-category-badge.system_landmark {
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid #fbbf24;
+  color: #fde68a;
+}
+
+.inspect-category-badge.island_flora {
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid #34d399;
+  color: #a7f3d0;
+}
+
+.inspect-close-btn {
   background: none;
   border: none;
   color: var(--vis-text-muted);
   cursor: pointer;
-  font-size: 18px;
-  font-family: inherit;
+  font-size: 20px;
+  line-height: 1;
   padding: 0 4px;
 }
 
-.close-btn:hover {
-  color: var(--vis-accent);
+.inspect-close-btn:hover {
+  color: #ffffff;
 }
 
-.node-meta-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
+.inspect-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.meta-card {
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(0, 240, 255, 0.1);
-  padding: 6px 8px;
+.inspect-field-card {
+  background: rgba(3, 12, 24, 0.7);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 10px;
+  padding: 10px;
 }
 
-.meta-card .label {
-  font-size: 9px;
-  color: var(--vis-text-muted);
+.inspect-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 9.5px;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  color: var(--vis-text-muted);
 }
 
-.meta-card .val {
+.field-type {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.inspect-field-key {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: inherit;
+  margin: 3px 0 8px 0;
+  word-break: break-all;
+}
+
+.inspect-field-val-wrap {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+}
+
+.field-val-label {
+  font-size: 9.5px;
+  color: var(--vis-text-muted);
+  margin-bottom: 4px;
+}
+
+.inspect-bool-badge {
+  display: inline-block;
   font-size: 11px;
   font-weight: 700;
-  margin-top: 2px;
-  color: var(--vis-accent);
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
-/* 字符艺术因果拓扑树 */
-.ascii-tree-card {
-  background: #02050c;
-  border: 1px solid rgba(0, 240, 255, 0.25);
-  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.8);
-  display: flex;
-  flex-direction: column;
+.inspect-bool-badge.true {
+  background: #10b981;
+  color: #ffffff;
 }
 
-.ascii-tree-header {
-  padding: 5px 8px;
-  background: rgba(0, 240, 255, 0.05);
-  border-bottom: 1px solid rgba(0, 240, 255, 0.15);
-  font-size: 10px;
+.inspect-bool-badge.false {
+  background: #64748b;
+  color: #ffffff;
+}
+
+.inspect-num-badge {
+  font-size: 15px;
   font-weight: 700;
-  color: var(--vis-accent);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  color: #38bdf8;
+  font-family: inherit;
 }
 
-.ascii-tree-content {
-  margin: 0;
-  padding: 8px 10px;
+.inspect-str-badge {
+  font-size: 12px;
+  color: #fef08a;
+  word-break: break-all;
+}
+
+.inspect-json-box {
+  background: #020617;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 6px;
+  padding: 8px;
+  color: #38bdf8;
+  font-size: 11px;
   font-family: inherit;
-  font-size: 10.5px;
-  line-height: 1.42;
+  max-height: 130px;
+  overflow-y: auto;
+  margin: 2px 0 0 0;
+}
+
+.inspect-desc-box {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.desc-text {
+  font-size: 11.5px;
+  line-height: 1.5;
   color: #cbd5e1;
-  overflow-x: auto;
-  white-space: pre;
-  max-height: 140px;
-  overflow-y: auto;
 }
 
-.state-viewer {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: #02050c;
-  border: 1px solid rgba(0, 240, 255, 0.2);
-  overflow: hidden;
-  min-height: 120px;
-}
-
-.state-viewer-header {
-  padding: 5px 8px;
-  background: rgba(255, 255, 255, 0.02);
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--vis-text-muted);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.state-json {
-  flex: 1;
-  padding: 8px 10px;
-  margin: 0;
-  overflow-y: auto;
-  font-family: inherit;
+.inspect-causal-tip {
   font-size: 10.5px;
   line-height: 1.45;
+  color: #94a3b8;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+}
+
+.inspect-causal-tip b {
   color: #38bdf8;
 }
 
@@ -551,7 +728,12 @@ body, html {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes drawer-slide {
-  from { opacity: 0; transform: translateX(16px); }
-  to { opacity: 1; transform: translateX(0); }
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.92) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes banner-pop {
+  from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
