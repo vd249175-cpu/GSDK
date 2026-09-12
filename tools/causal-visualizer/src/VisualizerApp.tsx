@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { CausalScene3D } from './causal-scene'
 import { computeGraphAgnosticLayout, type LayoutMode } from './layout-engine'
 import { visualizerClient } from './visualizer-client'
 import type { CausalCommunity3D, CausalEdge3D, CausalNode3D, CausalTelemetryEvent, InspectItemData } from './types'
+import type { IVisualizerRenderer, ParadigmType } from './renderers/renderer-interface'
+import { Archipelago3DRenderer } from './renderers/archipelago-3d-renderer'
+import { SwissModernist2DRenderer } from './renderers/swiss-2d/swiss-modernist-renderer'
 import { TopNavigationBar } from './components/TopNavigationBar'
 import { IslandViewBanner } from './components/IslandViewBanner'
 import { IslandItemsBar } from './components/IslandItemsBar'
@@ -11,10 +13,52 @@ import { BottomControlsDock } from './components/BottomControlsDock'
 import { TelemetryFeed } from './components/TelemetryFeed'
 import './visualizer.css'
 
+function buildNodeInspectItems(node: CausalNode3D): InspectItemData[] {
+  const items: InspectItemData[] = []
+  items.push({
+    id: `role-${node.id}`,
+    nodeId: node.id,
+    nodeName: node.name,
+    itemType: node.role === 'observation' ? 'lighthouse' : node.role === 'execution' ? 'fishingPier' : 'house',
+    itemName:
+      node.role === 'observation'
+        ? '观察感知端点 (Observation)'
+        : node.role === 'execution'
+          ? '执行动作出口 (Execution)'
+          : '纯领域核心聚落 (Domain Core)',
+    itemIcon: node.role === 'observation' ? '▲' : node.role === 'execution' ? '▼' : '◈',
+    category: 'system_landmark',
+    stateKey: 'role',
+    stateValue: node.role,
+    valueType: 'System Role',
+    description: '节点系统角色与物理隔离边界定义。纯领域零 I/O；观察类零主动写；执行类动作结算即离。',
+  })
+
+  if (node.state) {
+    for (const [key, val] of Object.entries(node.state)) {
+      items.push({
+        id: `field-${node.id}-${key}`,
+        nodeId: node.id,
+        nodeName: node.name,
+        itemType: typeof val === 'number' ? 'crystal' : typeof val === 'boolean' ? 'campfire' : 'flower',
+        itemName: `${key}`,
+        itemIcon: typeof val === 'number' ? '🔢' : typeof val === 'boolean' ? '🔘' : '📋',
+        category: 'state_field',
+        stateKey: key,
+        stateValue: val,
+        valueType: typeof val,
+        description: `Owner Node 当前私有状态属性 [${key}]，仅由本节点在当前 change ctx 中写入。`,
+      })
+    }
+  }
+  return items
+}
+
 export function VisualizerApp() {
   const containerRef = useRef<HTMLDivElement>(null)
-  const sceneRef = useRef<CausalScene3D | null>(null)
+  const rendererRef = useRef<IVisualizerRenderer | null>(null)
 
+  const [paradigm, setParadigm] = useState<ParadigmType>('island-3d')
   const [nodes, setNodes] = useState<CausalNode3D[]>([])
   const [edges, setEdges] = useState<CausalEdge3D[]>([])
   const [communities, setCommunities] = useState<CausalCommunity3D[]>([])
@@ -32,9 +76,11 @@ export function VisualizerApp() {
   const communitiesRef = useRef<CausalCommunity3D[]>([])
   const edgeSetRef = useRef<Set<string>>(new Set())
   const layoutModeRef = useRef<LayoutMode>('community')
+  const paradigmRef = useRef<ParadigmType>('island-3d')
 
-  // 保持 layoutModeRef 与 state 同步
+  // 保持同步
   layoutModeRef.current = layoutMode
+  paradigmRef.current = paradigm
 
   // 高频遥测防抖防爆流队列
   const pendingLogsRef = useRef<CausalTelemetryEvent[]>([])
@@ -57,13 +103,13 @@ export function VisualizerApp() {
     }
   }, [])
 
-  // 节流节点属性更新（版本、状态），最高 80ms 一次 React 重绘
+  // 节流节点属性更新（版本、状态），最高 80ms 一次渲染刷新
   const triggerThrottledNodeUpdate = useCallback(() => {
     if (!nodeUpdateTimerRef.current) {
       nodeUpdateTimerRef.current = setTimeout(() => {
         nodeUpdateTimerRef.current = null
         setNodes([...nodesRef.current])
-        sceneRef.current?.updateTopology(nodesRef.current, edgesRef.current, communitiesRef.current)
+        rendererRef.current?.updateTopology(nodesRef.current, edgesRef.current, communitiesRef.current)
       }, 80)
     }
   }, [])
@@ -92,7 +138,7 @@ export function VisualizerApp() {
       setNodes([...layout.nodes])
       setEdges([...layout.edges])
       setCommunities([...layout.communities])
-      sceneRef.current?.updateTopology(layout.nodes, layout.edges, layout.communities)
+      rendererRef.current?.updateTopology(layout.nodes, layout.edges, layout.communities)
     }, 120)
   }, [])
 
@@ -124,7 +170,7 @@ export function VisualizerApp() {
         setNodes([...layout.nodes])
         setEdges([...layout.edges])
         setCommunities([...layout.communities])
-        sceneRef.current?.updateTopology(layout.nodes, layout.edges, layout.communities)
+        rendererRef.current?.updateTopology(layout.nodes, layout.edges, layout.communities)
 
         // 若初次拉取附带历史遥测且当前无日志，载入最近历史
         if (snapshot.recentEvents && snapshot.recentEvents.length > 0) {
@@ -135,6 +181,52 @@ export function VisualizerApp() {
       console.warn('[VisualizerApp] Sync live topology fallback:', err)
     }
   }, [])
+
+  // 挂载/切换呈现范式引擎
+  const mountRenderer = useCallback((targetParadigm: ParadigmType) => {
+    if (!containerRef.current) return
+
+    // 销毁上一个引擎
+    if (rendererRef.current) {
+      rendererRef.current.dispose()
+      rendererRef.current = null
+    }
+    containerRef.current.innerHTML = ''
+
+    let renderer: IVisualizerRenderer
+    if (targetParadigm === 'swiss-2d') {
+      renderer = new SwissModernist2DRenderer({
+        onNodeSelect: (nodeId) => {
+          setSelectedNodeId(nodeId)
+          if (!nodeId) setInspectedItem(null)
+        },
+        onItemInspect: (item) => {
+          setInspectedItem(item)
+        },
+      })
+    } else {
+      renderer = new Archipelago3DRenderer({
+        onNodeSelect: (nodeId) => {
+          setSelectedNodeId(nodeId)
+          if (!nodeId) setInspectedItem(null)
+        },
+        onItemInspect: (item) => {
+          setInspectedItem(item)
+        },
+      })
+    }
+
+    renderer.mount(containerRef.current)
+    rendererRef.current = renderer
+
+    // 同步现有拓扑到新视口
+    if (nodesRef.current.length > 0) {
+      renderer.updateTopology(nodesRef.current, edgesRef.current, communitiesRef.current)
+      if (selectedNodeId) {
+        renderer.setSelectedNode(selectedNodeId)
+      }
+    }
+  }, [selectedNodeId])
 
   const toggleLayoutMode = () => {
     const nextMode: LayoutMode = layoutMode === 'community' ? 'pipeline' : 'community'
@@ -160,27 +252,19 @@ export function VisualizerApp() {
     setNodes([...layout.nodes])
     setEdges([...layout.edges])
     setCommunities([...layout.communities])
-    sceneRef.current?.updateTopology(layout.nodes, layout.edges, layout.communities)
+    rendererRef.current?.updateTopology(layout.nodes, layout.edges, layout.communities)
+  }
+
+  const handleToggleParadigm = () => {
+    const next: ParadigmType = paradigm === 'island-3d' ? 'swiss-2d' : 'island-3d'
+    setParadigm(next)
+    mountRenderer(next)
   }
 
   useEffect(() => {
-    if (!containerRef.current) return
+    mountRenderer(paradigmRef.current)
 
-    const scene = new CausalScene3D(
-      containerRef.current,
-      (nodeId) => {
-        setSelectedNodeId(nodeId)
-        if (!nodeId) {
-          setInspectedItem(null)
-        }
-      },
-      (item) => {
-        setInspectedItem(item)
-      },
-    )
-    sceneRef.current = scene
-
-    // 监听连接状态变更
+    // 监听微内核连接
     const unConn = visualizerClient.onConnectionChange((connected) => {
       setIsConnected(connected)
       if (connected) {
@@ -188,7 +272,7 @@ export function VisualizerApp() {
       }
     })
 
-    // 订阅微内核原生遥测流（带防抖批处理）
+    // 订阅微内核原生遥测流（带防抖批处理与范式无关分发）
     const unsubscribe = visualizerClient.subscribe((event) => {
       enqueueLog(event)
 
@@ -196,7 +280,6 @@ export function VisualizerApp() {
         case 'info_sent': {
           const edgeKey = `${event.fromNodeId}->${event.toNodeId}`
 
-          // 动态发现新边：若当前拓扑中尚无此光轨，动态记录并防抖触发重排
           if (!edgeSetRef.current.has(edgeKey)) {
             const newEdge: CausalEdge3D = {
               id: edgeKey,
@@ -213,9 +296,8 @@ export function VisualizerApp() {
             scheduleRelayout()
           }
 
-          // 3D 视觉即时响应（由 Three.js 内部控频，不阻塞 React）
           const payloadSummary = event.info ? JSON.stringify(event.info).slice(0, 32) : undefined
-          scene.triggerInfoTransmission(event.fromNodeId, event.toNodeId, event.info.type, payloadSummary)
+          rendererRef.current?.triggerInfoTransmission(event.fromNodeId, event.toNodeId, event.info.type, payloadSummary)
           break
         }
 
@@ -243,6 +325,7 @@ export function VisualizerApp() {
             node.version = event.version
             node.state = event.state
             triggerThrottledNodeUpdate()
+            rendererRef.current?.triggerNodeImpact?.(event.nodeId)
           }
           break
         }
@@ -262,10 +345,8 @@ export function VisualizerApp() {
       }
     })
 
-    // 初次尝试拉取拓扑
     syncTopology()
 
-    // 自动重试探活（如果初始节点数还是 0，每 2 秒静默探测一次）
     const retryInterval = setInterval(() => {
       if (nodesRef.current.length === 0) {
         syncTopology()
@@ -279,25 +360,26 @@ export function VisualizerApp() {
       if (logFlushRafRef.current) cancelAnimationFrame(logFlushRafRef.current)
       if (nodeUpdateTimerRef.current) clearTimeout(nodeUpdateTimerRef.current)
       if (layoutDebounceTimerRef.current) clearTimeout(layoutDebounceTimerRef.current)
-      scene.dispose()
+      rendererRef.current?.dispose()
+      rendererRef.current = null
     }
-  }, [enqueueLog, triggerThrottledNodeUpdate, scheduleRelayout, syncTopology])
+  }, [mountRenderer, enqueueLog, triggerThrottledNodeUpdate, scheduleRelayout, syncTopology])
 
   const handleToggleAutoRotate = () => {
     const next = !autoRotate
     setAutoRotate(next)
-    sceneRef.current?.setAutoRotate(next)
+    rendererRef.current?.setAutoRotate?.(next)
   }
 
   const handleResetCamera = () => {
     setSelectedNodeId(null)
     setInspectedItem(null)
-    sceneRef.current?.returnToOverview()
+    rendererRef.current?.returnToOverview?.()
   }
 
   const handleFocusSelected = () => {
     if (selectedNodeId) {
-      sceneRef.current?.focusIslandView(selectedNodeId)
+      rendererRef.current?.focusNode?.(selectedNodeId)
     }
   }
 
@@ -306,8 +388,8 @@ export function VisualizerApp() {
   }
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId)
-  const selectedAssembly = selectedNodeId ? sceneRef.current?.getNodeAssembly(selectedNodeId) : undefined
-  const islandItems = selectedAssembly?.inspectableItems || []
+  const selectedAssembly = selectedNodeId ? rendererRef.current?.getNodeAssembly?.(selectedNodeId) : undefined
+  const islandItems = selectedAssembly?.inspectableItems || (selectedNode ? buildNodeInspectItems(selectedNode) : [])
 
   const domainCount = nodes.filter((n) => n.role === 'domain').length
   const obsCount = nodes.filter((n) => n.role === 'observation').length
@@ -316,10 +398,10 @@ export function VisualizerApp() {
 
   return (
     <div className="visualizer-root">
-      {/* 3D WebGL 画布 */}
+      {/* 视口容器 (支持 3D WebGL / 2D Swiss Canvas 无缝挂载) */}
       <div ref={containerRef} className="canvas-container" />
 
-      {/* 像素海岛顶部导航栏 */}
+      {/* 顶部总览仪表盘（支持 3D / 2D 范式切换） */}
       <TopNavigationBar
         isConnected={isConnected}
         domainCount={domainCount}
@@ -329,9 +411,11 @@ export function VisualizerApp() {
         communityCount={communities.length}
         logCount={logs.length}
         revision={revision}
+        activeParadigm={paradigm}
+        onToggleParadigm={handleToggleParadigm}
       />
 
-      {/* 小岛微观视角顶部导航标牌与生态快速条 */}
+      {/* 节点微观视角标牌与生态属性条 */}
       {selectedNode && (
         <>
           <IslandViewBanner
@@ -347,7 +431,7 @@ export function VisualizerApp() {
         </>
       )}
 
-      {/* 点击村民或生态物品弹出的精致字段卡片 */}
+      {/* 状态字段卡片 */}
       {inspectedItem && (
         <ItemInspectCard
           item={inspectedItem}
@@ -360,15 +444,17 @@ export function VisualizerApp() {
         selectedNodeId={selectedNodeId}
         autoRotate={autoRotate}
         layoutMode={layoutMode}
+        activeParadigm={paradigm}
         onResetCamera={handleResetCamera}
         onToggleAutoRotate={handleToggleAutoRotate}
         onToggleLayoutMode={toggleLayoutMode}
         onFocusSelected={handleFocusSelected}
         onSyncTopology={syncTopology}
         onClearLogs={handleClearLogs}
+        onToggleParadigm={handleToggleParadigm}
       />
 
-      {/* 实时内核遥测航海日志 */}
+      {/* 实时内核遥测日志 */}
       <TelemetryFeed logs={logs} />
     </div>
   )

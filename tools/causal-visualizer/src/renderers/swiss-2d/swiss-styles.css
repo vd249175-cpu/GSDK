@@ -1,0 +1,312 @@
+/* =========================================================================
+ * 2D 瑞士先锋主义看板专属样式 (Swiss International Typographic Style)
+ * 纯粹理性、极简功能主义、严苛网格、包豪斯红黑克莱因蓝高反差
+ * ========================================================================= */
+
+.swiss-viewport-root {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #f7f7f5;
+  color: #0a0a0a;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Arial", "PingFang SC", sans-serif;
+  user-select: none;
+}
+
+/* 瑞士建筑标尺与微米网格底图 */
+.swiss-grid-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* 2D 变换平移缩放世界容器 */
+.swiss-world-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* 顶部列标与瑞士排版总览 */
+.swiss-columns-header {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  display: flex;
+  pointer-events: none;
+}
+
+.swiss-column-badge {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  border-left: 2px solid #0a0a0a;
+  padding-left: 10px;
+}
+
+.swiss-col-title {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  color: #0a0a0a;
+  text-transform: uppercase;
+}
+
+.swiss-col-sub {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #737373;
+  margin-top: 2px;
+}
+
+/* SVG 正交连接线图层 */
+.swiss-svg-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.swiss-orthogonal-line {
+  fill: none;
+  stroke: #a3a3a3;
+  stroke-width: 1.5px;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease;
+}
+
+.swiss-orthogonal-line.upstream {
+  stroke: #002fa7; /* 国际克莱因蓝 */
+  stroke-width: 2.5px;
+}
+
+.swiss-orthogonal-line.downstream {
+  stroke: #ff3300; /* 先锋朱红 */
+  stroke-width: 2.5px;
+}
+
+.swiss-orthogonal-line.dimmed {
+  stroke: #e5e5e5;
+  stroke-width: 1px;
+}
+
+/* 正交流动脉冲光标 */
+.swiss-signal-pulse {
+  fill: #ff3300;
+  filter: drop-shadow(0 0 4px #ff3300);
+}
+
+/* -------------------------------------------------------------
+ * 瑞士先锋主义模块化节点卡片 (Swiss Modular Causal Card)
+ * ------------------------------------------------------------- */
+.swiss-node-card {
+  position: absolute;
+  background: #ffffff;
+  border: 2px solid #0a0a0a;
+  box-sizing: border-box;
+  box-shadow: 4px 4px 0px #0a0a0a;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s ease;
+}
+
+.swiss-node-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 6px 6px 0px #0a0a0a;
+}
+
+.swiss-node-card.selected {
+  border-color: #ff3300;
+  box-shadow: 6px 6px 0px #ff3300;
+}
+
+.swiss-node-card.upstream {
+  border-color: #002fa7;
+  box-shadow: 5px 5px 0px #002fa7;
+}
+
+.swiss-node-card.downstream {
+  border-color: #ff3300;
+  box-shadow: 5px 5px 0px #ff3300;
+}
+
+.swiss-node-card.dimmed {
+  opacity: 0.35;
+  box-shadow: 2px 2px 0px #d4d4d4;
+  border-color: #d4d4d4;
+}
+
+.swiss-node-card.impact-flash {
+  animation: swiss-flash 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 卡片顶部元数据条 */
+.swiss-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e5e5e5;
+  padding-bottom: 6px;
+}
+
+.swiss-role-pill {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  padding: 2px 6px;
+  text-transform: uppercase;
+}
+
+.swiss-role-pill.observation {
+  background: #002fa7;
+  color: #ffffff;
+}
+
+.swiss-role-pill.domain {
+  background: #0a0a0a;
+  color: #ffffff;
+}
+
+.swiss-role-pill.execution {
+  background: #ff3300;
+  color: #ffffff;
+}
+
+.swiss-gen-tag {
+  font-size: 9.5px;
+  font-weight: 800;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  color: #525252;
+}
+
+/* 卡片主视觉标题与超大字重版本 */
+.swiss-card-main {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin: 6px 0;
+}
+
+.swiss-card-name {
+  font-size: 16px;
+  font-weight: 900;
+  color: #0a0a0a;
+  letter-spacing: -0.4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+
+.swiss-card-ver {
+  font-size: 32px;
+  font-weight: 900;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  letter-spacing: -1.5px;
+  line-height: 0.9;
+  color: #0a0a0a;
+}
+
+.swiss-node-card.selected .swiss-card-ver {
+  color: #ff3300;
+}
+
+/* 状态微观网格对齐表格 */
+.swiss-card-table {
+  border-top: 1px solid #f0f0f0;
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.swiss-table-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.swiss-table-key {
+  color: #737373;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-weight: 600;
+}
+
+.swiss-table-val {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-weight: 700;
+}
+
+.swiss-table-val.status-running {
+  background: #ff3300;
+  color: #ffffff;
+  padding: 1px 4px;
+  font-size: 9px;
+}
+
+.swiss-table-val.status-idle {
+  color: #171717;
+}
+
+/* 瑞士右下角浮动操纵盘 (Pan & Zoom Controls) */
+.swiss-viewport-controls {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 2px solid #0a0a0a;
+  box-shadow: 4px 4px 0px #0a0a0a;
+  padding: 4px 8px;
+  z-index: 20;
+}
+
+.swiss-zoom-btn {
+  background: #ffffff;
+  border: 1px solid #0a0a0a;
+  width: 28px;
+  height: 28px;
+  font-size: 15px;
+  font-weight: 900;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s ease;
+}
+
+.swiss-zoom-btn:hover {
+  background: #ff3300;
+  color: #ffffff;
+  border-color: #ff3300;
+}
+
+.swiss-zoom-level {
+  font-size: 11px;
+  font-weight: 800;
+  font-family: monospace;
+  min-width: 44px;
+  text-align: center;
+}
+
+@keyframes swiss-flash {
+  0% { background: #ff3300; color: #ffffff; }
+  100% { background: #ffffff; color: #0a0a0a; }
+}

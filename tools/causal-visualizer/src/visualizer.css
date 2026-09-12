@@ -169,6 +169,44 @@ body, html {
   gap: 20px;
 }
 
+.btn-paradigm-toggle {
+  background: #0a0a0a;
+  color: #ffffff;
+  border: 1.5px solid #0a0a0a;
+  border-radius: 18px;
+  padding: 6px 14px;
+  font-size: 11.5px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+}
+
+.btn-paradigm-toggle:hover {
+  background: #ff3300;
+  border-color: #ff3300;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(255, 51, 0, 0.35);
+}
+
+.btn-paradigm-pill {
+  background: #0a0a0a !important;
+  color: #ffffff !important;
+  border-color: #0a0a0a !important;
+  font-weight: 800 !important;
+}
+
+.btn-paradigm-pill:hover {
+  background: #ff3300 !important;
+  border-color: #ff3300 !important;
+  color: #ffffff !important;
+}
+
 .stat-item {
   display: flex;
   flex-direction: column;
