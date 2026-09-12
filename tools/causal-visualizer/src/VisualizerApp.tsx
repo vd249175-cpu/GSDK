@@ -466,19 +466,19 @@ export function VisualizerApp() {
         </div>
       </aside>
 
-      {/* 右侧节点详情抽屉（字符艺术因果树 + 状态探针） */}
+      {/* 右侧海岛详情抽屉（航海字符艺术拓扑 + 像素生态探针） */}
       {selectedNode && (
         <section className="inspector-drawer">
           <div className="inspector-header">
             <div>
               <div className={`role-badge ${selectedNode.role}`}>
-                {selectedNode.role === 'observation' && '▲ OBSERVATION WORLD [物理感知·向上天线]'}
-                {selectedNode.role === 'execution' && '▼ EXECUTION WORLD [物理执行·向下底座]'}
-                {selectedNode.role === 'domain' && '◈ PURE DOMAIN CORE [零 I/O 纯领域状态机]'}
+                {selectedNode.role === 'observation' && '▲ 观察海岛 [悬崖像素灯塔 · 360°巡夜扫海]'}
+                {selectedNode.role === 'execution' && '▼ 执行海岛 [临水垂钓栈桥 · 草帽渔翁垂钓]'}
+                {selectedNode.role === 'domain' && '◈ 领域海岛 [聚落中心小木屋 · 零 I/O 状态机]'}
               </div>
               <h2>{selectedNode.isHub ? `👑 ${selectedNode.name}` : selectedNode.name}</h2>
               <div className="node-subid">
-                ID: {selectedNode.id}
+                ISLAND ID: {selectedNode.id}
               </div>
             </div>
             <button className="close-btn" onClick={() => handleSelectNode(null)}>×</button>
@@ -490,8 +490,8 @@ export function VisualizerApp() {
               <div className="val">{selectedNode.generation !== null ? `Gen ${selectedNode.generation}` : 'DROPPED'}</div>
             </div>
             <div className="meta-card">
-              <div className="label">状态版本 (VER)</div>
-              <div className="val">v{selectedNode.version}</div>
+              <div className="label">状态版本 / 岛民</div>
+              <div className="val">v{selectedNode.version} (🚶 {Math.min(4, Math.max(1, Math.floor(Math.log2(Math.max(1, selectedNode.version) + 1))))}人)</div>
             </div>
             <div className="meta-card">
               <div className="label">角色定位</div>
@@ -500,23 +500,23 @@ export function VisualizerApp() {
               </div>
             </div>
             <div className="meta-card">
-              <div className="label">因果网络度数</div>
+              <div className="label">航运网络度数</div>
               <div className="val">
-                ↓{selectedNode.inDegree || 0} IN │ ↑{selectedNode.outDegree || 0} OUT
+                ↓{selectedNode.inDegree || 0} 入港 │ ↑{selectedNode.outDegree || 0} 出海
               </div>
             </div>
             <div className="meta-card" style={{ gridColumn: 'span 2' }}>
-              <div className="label">LPA 社区星云</div>
+              <div className="label">所属群岛 (LPA Archipelago)</div>
               <div className="val" style={{ fontSize: 12, color: selectedNode.color }}>
-                {selectedNode.communityName || '未归类'}
+                🏝️ {selectedNode.communityName || '独立环礁'}
               </div>
             </div>
           </div>
 
-          {/* 字符艺术因果上下游拓扑链 */}
+          {/* 字符艺术海岛上下游航运拓扑链 */}
           <div className="ascii-tree-card">
             <div className="ascii-tree-header">
-              <span>◈ 上下游因果依赖拓扑</span>
+              <span>◈ 上下游因果航线拓扑</span>
               <span style={{ fontSize: 10, color: 'var(--vis-accent)' }}>[双向 BFS 溯源]</span>
             </div>
             <pre className="ascii-tree-content">{renderAsciiTree()}</pre>
@@ -524,12 +524,12 @@ export function VisualizerApp() {
 
           <div className="state-viewer">
             <div className="state-viewer-header">
-              <span>◈ 节点私有 State 投影</span>
-              <span style={{ fontSize: 10, color: '#64748b' }}>[ValueCodec.decode]</span>
+              <span>◈ 节点私有 State 投影（图无关生态映射）</span>
+              <span style={{ fontSize: 10, color: '#38bdf8' }}>[生态要素: {Object.keys(selectedNode.state).length > 0 ? `${Object.keys(selectedNode.state).length} 组属性生成` : '原始荒野'}]</span>
             </div>
             <pre className="state-json">
               {Object.keys(selectedNode.state).length === 0
-                ? '// 暂无状态字段'
+                ? '// 暂无私有状态字段 (荒野原生态)'
                 : JSON.stringify(selectedNode.state, null, 2)}
             </pre>
           </div>

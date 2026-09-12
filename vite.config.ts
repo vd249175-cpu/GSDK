@@ -57,6 +57,14 @@ export default defineConfig({
           include: ['sdk/workbench/**/*.test.{ts,tsx}'],
         },
       },
+      {
+        extends: true,
+        test: {
+          name: 'tools',
+          environment: 'node',
+          include: ['tools/**/*.test.{ts,tsx}'],
+        },
+      },
     ],
   },
 })

@@ -300,20 +300,20 @@ export function computeGraphAgnosticLayout(
         return { id: hubId, pos: domainPositions.get(hubId)! }
       }
 
-      // 2. 观察层 (+Y 垂直向上高位衍生，感官探测天线)
+      // 2. 观察层海岛 (位于海湾外缘海角礁盘，迎风瞭望)
       obsIds.forEach((obsId, oIdx) => {
         const raw = nodeMap.get(obsId)!
         const anchor = findAnchorDomain(obsId)
-        const angleJitter = (oIdx / Math.max(1, obsIds.length)) * Math.PI * 2
-        const jitterR = 2.2
-        const ox = anchor.pos[0] + Math.cos(angleJitter) * jitterR
-        const oy = anchor.pos[1] + 8.5 // 垂直向上 8.5 空间单位
-        const oz = anchor.pos[2] + Math.sin(angleJitter) * jitterR
+        const angle = (oIdx / Math.max(1, obsIds.length)) * Math.PI + (comm.center[0] * 0.1)
+        const dist = Math.min(comm.radius * 0.7, 10.5) + 3.0
+        const ox = anchor.pos[0] + Math.cos(angle) * dist
+        const oy = 0.6 // 悬崖礁石略微高于海面
+        const oz = anchor.pos[2] + Math.sin(angle) * dist
 
         finalNodes.push({
           id: obsId,
           name: obsId,
-          color: '#00f0ff', // 电光青观察色
+          color: '#0284c7', // 蔚蓝海岛色
           position: [ox, oy, oz],
           generation: raw.generation !== undefined ? raw.generation : 0,
           version: raw.version || 0,
@@ -328,32 +328,32 @@ export function computeGraphAgnosticLayout(
           isHub: false,
         })
 
-        // 添加垂直衍生发光细线
+        // 添加近岸航道细线
         derivativeEdges.push({
           id: `stalk-${obsId}->${anchor.id}`,
           from: obsId,
           to: anchor.id,
-          color: '#00f0ff',
+          color: '#38bdf8',
           active: true,
           isVerticalStalk: true,
-          lastInfoType: 'ObservationFilament',
+          lastInfoType: 'CoastalChannel',
         })
       })
 
-      // 3. 操作层 (-Y 垂直向下低位衍生，执行持久底座)
+      // 3. 操作层海岛 (位于深水良港侧，垂钓码头)
       execIds.forEach((execId, eIdx) => {
         const raw = nodeMap.get(execId)!
         const anchor = findAnchorDomain(execId)
-        const angleJitter = (eIdx / Math.max(1, execIds.length)) * Math.PI * 2
-        const jitterR = 2.2
-        const ex = anchor.pos[0] + Math.cos(angleJitter) * jitterR
-        const ey = anchor.pos[1] - 8.5 // 垂直向下 8.5 空间单位
-        const ez = anchor.pos[2] + Math.sin(angleJitter) * jitterR
+        const angle = Math.PI + (eIdx / Math.max(1, execIds.length)) * Math.PI + (comm.center[0] * 0.1)
+        const dist = Math.min(comm.radius * 0.7, 10.5) + 3.0
+        const ex = anchor.pos[0] + Math.cos(angle) * dist
+        const ey = -0.15 // 栈桥贴近海平面
+        const ez = anchor.pos[2] + Math.sin(angle) * dist
 
         finalNodes.push({
           id: execId,
           name: execId,
-          color: '#f59e0b', // 琥珀金操作执行色
+          color: '#f59e0b', // 暖金港口色
           position: [ex, ey, ez],
           generation: raw.generation !== undefined ? raw.generation : 0,
           version: raw.version || 0,
@@ -368,7 +368,7 @@ export function computeGraphAgnosticLayout(
           isHub: false,
         })
 
-        // 添加垂直衍生发光细线
+        // 添加近岸航道细线
         derivativeEdges.push({
           id: `stalk-${anchor.id}->${execId}`,
           from: anchor.id,
@@ -376,7 +376,7 @@ export function computeGraphAgnosticLayout(
           color: '#f59e0b',
           active: true,
           isVerticalStalk: true,
-          lastInfoType: 'ExecutionFilament',
+          lastInfoType: 'HarborChannel',
         })
       })
     }
