@@ -350,14 +350,14 @@ export function VisualizerApp() {
       {/* 3D WebGL 画布 */}
       <div ref={containerRef} className="canvas-container" />
 
-      {/* 极氪风格极客 HUD 顶部全息状态条 */}
+      {/* 像素海岛 HUD 顶部全息状态条 */}
       <header className="top-bar">
         <div className="title-group">
-          <span className="logo-badge">◈</span>
+          <span className="logo-badge">🏝️</span>
           <div>
-            <div className="brand-badge">ZEEKR TECH · CYBERNETIC HUD</div>
-            <h1>GSDK 3D 因果数据流全息观测看板</h1>
-            <div className="subtitle">纯图无关 · LPA 社区聚类 · 观察/领域/操作三层立体投影</div>
+            <div className="brand-badge">NAUTICAL ARCHIPELAGO · EXPEDITION HUD</div>
+            <h1>GSDK 3D 像素海岛因果全息观测看板</h1>
+            <div className="subtitle">纯图无关 · 像素群岛洋流 · 观察灯塔 / 物理渔港 / 领域聚落</div>
           </div>
           {isConnected ? (
             <div className="kernel-badge live">
@@ -373,23 +373,23 @@ export function VisualizerApp() {
 
         <div className="stats-group">
           <div className="stat-item">
-            <span className="label">三层活跃拓扑</span>
+            <span className="label">三层活跃海岛</span>
             <div className="tier-counters">
-              <span className="tier-pill domain" title="纯领域核心状态机">◈ {domainCount}</span>
-              <span className="tier-pill obs" title="物理世界观察天线 (上层)">▲ {obsCount}</span>
-              <span className="tier-pill exec" title="物理世界操作执行器 (下层)">▼ {execCount}</span>
+              <span className="tier-pill domain" title="纯领域聚落海岛">◈ {domainCount}</span>
+              <span className="tier-pill obs" title="观察悬崖灯塔岛 (感知)">▲ {obsCount}</span>
+              <span className="tier-pill exec" title="执行垂钓渔港岛 (动作)">▼ {execCount}</span>
             </div>
           </div>
           <div className="stat-item">
-            <span className="label">动态因果光轨</span>
+            <span className="label">航运航线水道</span>
             <span className="value">{edges.filter((e) => !e.isVerticalStalk).length} 条</span>
           </div>
           <div className="stat-item">
-            <span className="label">垂直衍生细线</span>
+            <span className="label">近岸水陆水道</span>
             <span className="value">{edges.filter((e) => e.isVerticalStalk).length} 根</span>
           </div>
           <div className="stat-item">
-            <span className="label">LPA 聚类群落</span>
+            <span className="label">群岛海域环礁</span>
             <span className="value">{communities.length} POD</span>
           </div>
           <div className="stat-item">

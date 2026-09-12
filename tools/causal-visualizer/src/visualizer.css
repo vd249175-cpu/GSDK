@@ -1,13 +1,13 @@
 :root {
-  --vis-bg: #030712;
-  --vis-panel: rgba(6, 11, 24, 0.88);
-  --vis-panel-raised: rgba(10, 16, 32, 0.94);
-  --vis-border: rgba(0, 240, 255, 0.22);
-  --vis-border-bright: rgba(0, 240, 255, 0.6);
+  --vis-bg: #0284c7;
+  --vis-panel: rgba(6, 26, 48, 0.85);
+  --vis-panel-raised: rgba(10, 36, 64, 0.92);
+  --vis-border: rgba(56, 189, 248, 0.28);
+  --vis-border-bright: rgba(56, 189, 248, 0.7);
   --vis-text-primary: #f8fafc;
   --vis-text-muted: #94a3b8;
-  --vis-accent: #00f0ff;
-  --vis-amber: #ffaa00;
+  --vis-accent: #38bdf8;
+  --vis-amber: #f59e0b;
   --vis-purple: #a855f7;
   --vis-success: #10b981;
   --vis-danger: #ef4444;
@@ -32,7 +32,7 @@ body, html {
   overflow: hidden;
 }
 
-/* 赛博扫描线质感 */
+/* 柔和海风大气微光 */
 .visualizer-root::after {
   content: "";
   position: absolute;
@@ -41,14 +41,7 @@ body, html {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.12) 0px,
-    rgba(0, 0, 0, 0.12) 1px,
-    transparent 1px,
-    transparent 2px
-  );
-  opacity: 0.6;
+  background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
   z-index: 2;
 }
 

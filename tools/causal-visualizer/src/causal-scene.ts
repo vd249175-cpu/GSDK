@@ -58,9 +58,10 @@ export class CausalScene3D {
   private communityVisuals = new Map<string, CommunityVisual>()
   private boats: BoatVisual[] = []
   private shockwaves: ShockwaveVisual[] = []
-  private stars?: THREE.Points
   private oceanMesh?: THREE.Mesh
   private oceanGeometry?: THREE.PlaneGeometry
+  private skyMesh?: THREE.Mesh
+  private clouds: THREE.Group[] = []
 
   // 选中态与因果链路溯源集合
   private selectedNodeId: string | null = null
@@ -80,15 +81,15 @@ export class CausalScene3D {
     this.container = container
     this.onNodeSelectedCallback = onNodeSelected
 
-    // 1. 场景与海岛大气背景 (Deep Ocean Marine Atmosphere)
+    // 1. 场景与明朗海天大气环境 (Vibrant Sunny Ocean & Sky Atmosphere)
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color('#071322') // 深海墨蓝
-    this.scene.fog = new THREE.FogExp2('#071322', 0.0055)
+    this.scene.background = new THREE.Color('#7dd3fc') // 晨曦蔚蓝天际
+    this.scene.fog = new THREE.Fog('#7dd3fc', 60, 420) // 远海无缝消隐于海平线晨雾
 
     // 2. 摄像机
     const width = container.clientWidth || window.innerWidth
     const height = container.clientHeight || window.innerHeight
-    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.5, 600)
+    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.5, 650)
     this.camera.position.set(0, 32, 68)
 
     // 3. 渲染器
@@ -96,7 +97,7 @@ export class CausalScene3D {
     this.renderer.setSize(width, height)
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.25
+    this.renderer.toneMappingExposure = 1.35
     container.appendChild(this.renderer.domElement)
 
     // 4. 轨道控制器
@@ -106,71 +107,109 @@ export class CausalScene3D {
     this.controls.maxDistance = 260
     this.controls.minDistance = 8
 
-    // 5. 光照体系（海岛半球天光 + 太阳直射光 + 碧海补光）
-    const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x071b2e, 1.4)
+    // 5. 明媚海岛光照体系（半球天光 + 阳光直射 + 海面碧蓝漫反射）
+    const hemiLight = new THREE.HemisphereLight(0xbae6fd, 0x0284c7, 1.8)
     this.scene.add(hemiLight)
 
-    const sunLight = new THREE.DirectionalLight(0xfff7ed, 2.2)
-    sunLight.position.set(45, 75, 35)
+    const sunLight = new THREE.DirectionalLight(0xfffbeb, 2.8)
+    sunLight.position.set(60, 95, 45)
     this.scene.add(sunLight)
 
-    const fillLight = new THREE.DirectionalLight(0x38bdf8, 1.1)
-    fillLight.position.set(-35, 20, -35)
+    const fillLight = new THREE.DirectionalLight(0x38bdf8, 1.2)
+    fillLight.position.set(-45, 25, -45)
     this.scene.add(fillLight)
 
-    // 6. 动态低多边形海洋水面 (Low-poly Animated Ocean Plane)
+    // 6. 天空穹顶 (Sky Dome Gradient)
+    this.initSkyDome()
+
+    // 7. 无垠低多边形波光海洋水面 (Endless Faceted Low-poly Ocean)
     this.initOcean()
 
-    // 7. 星空微光
-    this.initStars()
+    // 8. 低空随风浮云 (Drifting Sea Clouds)
+    this.initClouds()
 
-    // 8. 事件绑定
+    // 9. 事件绑定
     this.onResize = this.onResize.bind(this)
     this.onPointerDown = this.onPointerDown.bind(this)
     window.addEventListener('resize', this.onResize)
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown)
 
-    // 9. 启动渲染循环
+    // 10. 启动渲染循环
     this.animate = this.animate.bind(this)
     this.animate()
   }
 
+  private initSkyDome(): void {
+    const skyGeo = new THREE.SphereGeometry(480, 32, 16)
+    const canvas = document.createElement('canvas')
+    canvas.width = 2
+    canvas.height = 512
+    const ctx = canvas.getContext('2d')!
+    const grad = ctx.createLinearGradient(0, 0, 0, 512)
+    grad.addColorStop(0.0, '#0284c7') // 天顶深蓝
+    grad.addColorStop(0.4, '#38bdf8') // 亮蓝海空
+    grad.addColorStop(0.8, '#7dd3fc') // 海平线柔青
+    grad.addColorStop(1.0, '#bae6fd') // 暖色海雾
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, 2, 512)
+
+    const texture = new THREE.CanvasTexture(canvas)
+    const skyMat = new THREE.MeshBasicMaterial({
+      map: texture,
+      side: THREE.BackSide,
+      depthWrite: false,
+    })
+    this.skyMesh = new THREE.Mesh(skyGeo, skyMat)
+    this.scene.add(this.skyMesh)
+  }
+
   private initOcean(): void {
-    const size = 360
-    const segments = 42
+    // 宽广无垠的低多边形海面
+    const size = 1200
+    const segments = 64
     this.oceanGeometry = new THREE.PlaneGeometry(size, size, segments, segments)
     this.oceanGeometry.rotateX(-Math.PI / 2)
 
     const oceanMat = new THREE.MeshStandardMaterial({
-      color: 0x0f2f50,
-      roughness: 0.18,
-      metalness: 0.75,
+      color: 0x0284c7, // 明澈蔚蓝热带海面
+      roughness: 0.15,
+      metalness: 0.12,
+      flatShading: true,
       transparent: true,
-      opacity: 0.88,
+      opacity: 0.94,
     })
     this.oceanMesh = new THREE.Mesh(this.oceanGeometry, oceanMat)
     this.oceanMesh.position.y = 0.0
     this.scene.add(this.oceanMesh)
   }
 
-  private initStars(): void {
-    const starGeo = new THREE.BufferGeometry()
-    const starCount = 1800
-    const starPos = new Float32Array(starCount * 3)
-    for (let i = 0; i < starCount * 3; i += 3) {
-      starPos[i] = (Math.random() - 0.5) * 320
-      starPos[i + 1] = (Math.random() - 0.5) * 200
-      starPos[i + 2] = (Math.random() - 0.5) * 320
-    }
-    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3))
-    const starMat = new THREE.PointsMaterial({
-      color: 0x64748b,
-      size: 0.8,
-      transparent: true,
-      opacity: 0.55,
+  private initClouds(): void {
+    const cloudMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.85,
+      flatShading: true,
     })
-    this.stars = new THREE.Points(starGeo, starMat)
-    this.scene.add(this.stars)
+
+    const cloudCount = 12
+    for (let c = 0; c < cloudCount; c++) {
+      const cloud = new THREE.Group()
+      const boxCount = 3 + (c % 3)
+      for (let b = 0; b < boxCount; b++) {
+        const bw = 5 + ((c * 3 + b) % 4)
+        const bh = 2.2 + (b % 2) * 0.6
+        const bd = 4 + ((c + b) % 3)
+        const box = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), cloudMat)
+        box.position.set((b - boxCount / 2) * 3.4, (b % 2) * 0.8, ((b * 2) % 3) - 1.5)
+        cloud.add(box)
+      }
+
+      const angle = (c / cloudCount) * Math.PI * 2 + (c % 2) * 0.3
+      const dist = 70 + (c % 4) * 32
+      cloud.position.set(Math.cos(angle) * dist, 42 + (c % 3) * 6, Math.sin(angle) * dist)
+      cloud.scale.setScalar(1.2 + (c % 3) * 0.3)
+      this.scene.add(cloud)
+      this.clouds.push(cloud)
+    }
   }
 
   public setAutoRotate(enabled: boolean): void {
@@ -824,23 +863,30 @@ export class CausalScene3D {
     const time = this.clock.getElapsedTime()
     this.controls.update()
 
-    if (this.stars) {
-      this.stars.rotation.y += 0.0002
-    }
-
-    // 1. 低多边形海洋水面正弦波涌动 (Ocean Swell Waves)
+    // 1. 低多边形海洋水面波浪翻滚与阳光反射 (Faceted Sparkling Waves)
     if (this.oceanGeometry) {
       const posAttr = this.oceanGeometry.attributes.position
       for (let i = 0; i < posAttr.count; i++) {
         const x = posAttr.getX(i)
         const z = posAttr.getZ(i)
-        const waveY = Math.sin(x * 0.06 + time * 1.3) * Math.cos(z * 0.06 + time * 1.0) * 0.32
+        const waveY =
+          Math.sin(x * 0.05 + time * 1.5) * Math.cos(z * 0.05 + time * 1.2) * 0.42 +
+          Math.sin(x * 0.11 - time * 2.1 + z * 0.07) * 0.18
         posAttr.setY(i, waveY)
       }
       posAttr.needsUpdate = true
+      this.oceanGeometry.computeVertexNormals()
     }
 
-    // 2. 更新每个海岛的周期性生态律动与岛民动作
+    // 2. 漫天海云随风缓缓漂移 (Drifting Clouds)
+    for (const cloud of this.clouds) {
+      cloud.position.x += 0.03
+      if (cloud.position.x > 260) {
+        cloud.position.x = -260
+      }
+    }
+
+    // 3. 更新每个海岛的周期性生态律动与岛民动作
     for (const visual of this.nodeVisuals.values()) {
       visual.assembly.updateEcosystem(time, visual.node.status === 'RUNNING')
 
@@ -850,7 +896,7 @@ export class CausalScene3D {
       }
     }
 
-    // 3. 边管网与发光渐隐
+    // 4. 边管网与发光渐隐
     for (const visual of this.edgeVisuals.values()) {
       if (visual.glowIntensity > 0) {
         visual.glowIntensity -= 0.015
@@ -861,7 +907,7 @@ export class CausalScene3D {
       }
     }
 
-    // 4. 航行帆船更新 (Sailboats gliding & rocking on waves)
+    // 5. 航行帆船更新 (Sailboats gliding & rocking on waves)
     for (let i = this.boats.length - 1; i >= 0; i--) {
       const bVisual = this.boats[i]
       const { pulse, mesh, curve, targetNodeId } = bVisual
@@ -884,7 +930,7 @@ export class CausalScene3D {
       }
     }
 
-    // 5. 水面扩散涟漪 (Water Ripples)
+    // 6. 水面扩散涟漪 (Water Ripples)
     for (let i = this.shockwaves.length - 1; i >= 0; i--) {
       const sVisual = this.shockwaves[i]
       const { wave, mesh } = sVisual
@@ -932,6 +978,13 @@ export class CausalScene3D {
     this.sharedShockwaveGeo.dispose()
     this.sharedArrowGeo.dispose()
     if (this.oceanGeometry) this.oceanGeometry.dispose()
+    if (this.skyMesh) {
+      this.skyMesh.geometry.dispose()
+      if (this.skyMesh.material) (this.skyMesh.material as THREE.Material).dispose()
+    }
+    for (const cloud of this.clouds) {
+      this.disposeObject(cloud)
+    }
 
     this.controls.dispose()
     this.renderer.dispose()
