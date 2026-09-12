@@ -11,6 +11,7 @@ import { IslandItemsBar } from './components/IslandItemsBar'
 import { ItemInspectCard } from './components/ItemInspectCard'
 import { BottomControlsDock } from './components/BottomControlsDock'
 import { TelemetryFeed } from './components/TelemetryFeed'
+import { SwissNodeDetailPanel } from './renderers/swiss-2d/SwissNodeDetailPanel'
 import './visualizer.css'
 
 export function VisualizerApp() {
@@ -350,7 +351,21 @@ export function VisualizerApp() {
     setLogs([])
   }
 
+  // ESC 键快捷取消选中
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedNodeId(null)
+        setInspectedItem(null)
+        rendererRef.current?.setSelectedNode(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   const isIsland = paradigm === 'island-3d'
+  const isSwiss = paradigm === 'swiss-2d'
   const selectedNode = nodes.find((n) => n.id === selectedNodeId)
   const selectedAssembly = selectedNodeId ? rendererRef.current?.getNodeAssembly?.(selectedNodeId) : undefined
   const islandItems = selectedAssembly?.inspectableItems || []
@@ -432,6 +447,23 @@ export function VisualizerApp() {
           {/* 航海因果手札 (Logbook) */}
           <TelemetryFeed logs={logs} />
         </>
+      )}
+
+      {/* 2D 瑞士看板专属详细信息规格详单 */}
+      {isSwiss && selectedNode && (
+        <SwissNodeDetailPanel
+          node={selectedNode}
+          allNodes={nodes}
+          edges={edges}
+          onClose={() => {
+            setSelectedNodeId(null)
+            rendererRef.current?.setSelectedNode(null)
+          }}
+          onSelectNode={(nodeId) => {
+            setSelectedNodeId(nodeId)
+            rendererRef.current?.setSelectedNode(nodeId)
+          }}
+        />
       )}
     </div>
   )

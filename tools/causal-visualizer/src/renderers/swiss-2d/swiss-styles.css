@@ -311,3 +311,486 @@
   0% { background: #ff3300; color: #ffffff; }
   100% { background: #ffffff; color: #0a0a0a; }
 }
+
+/* -------------------------------------------------------------
+ * 瑞士先锋主义节点详细规格表 (Swiss Node Specification Sheet)
+ * ------------------------------------------------------------- */
+.swiss-detail-panel {
+  position: absolute;
+  top: 14px;
+  right: 20px;
+  bottom: 20px;
+  width: 420px;
+  max-width: calc(100vw - 40px);
+  background: #ffffff;
+  border: 2.5px solid #0a0a0a;
+  box-shadow: 8px 8px 0px #0a0a0a;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: swiss-slide-right 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+@keyframes swiss-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 详单头部 */
+.swiss-panel-header {
+  padding: 16px 18px 14px 18px;
+  background: #ffffff;
+  border-bottom: 2.5px solid #0a0a0a;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.swiss-panel-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.swiss-spec-index {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  color: #0a0a0a;
+  font-family: "JetBrains Mono", Consolas, monospace;
+}
+
+.swiss-panel-close-btn {
+  background: #ffffff;
+  border: 1.5px solid #0a0a0a;
+  color: #0a0a0a;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: inherit;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.swiss-panel-close-btn:hover {
+  background: #ff3300;
+  border-color: #ff3300;
+  color: #ffffff;
+}
+
+.swiss-panel-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.swiss-panel-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.swiss-panel-node-name {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.6px;
+  color: #0a0a0a;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+.swiss-panel-node-id-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.swiss-id-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #737373;
+  font-family: "JetBrains Mono", Consolas, monospace;
+}
+
+.swiss-id-code {
+  font-size: 11px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  background: #f5f5f4;
+  padding: 2px 6px;
+  border: 1px solid #e7e5e4;
+  color: #1c1917;
+  font-weight: 700;
+}
+
+.swiss-id-copy-btn {
+  background: transparent;
+  border: 1px solid #a8a29e;
+  font-size: 9.5px;
+  font-weight: 800;
+  font-family: monospace;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.swiss-id-copy-btn:hover {
+  background: #0a0a0a;
+  color: #ffffff;
+  border-color: #0a0a0a;
+}
+
+/* 规格指标网格 */
+.swiss-panel-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1.4fr;
+  gap: 8px;
+  background: #f7f7f5;
+  border: 1.5px solid #0a0a0a;
+  padding: 8px 10px;
+}
+
+.swiss-stat-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.swiss-stat-key {
+  font-size: 9px;
+  font-weight: 800;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  color: #737373;
+  letter-spacing: 0.8px;
+}
+
+.swiss-stat-val {
+  font-size: 13px;
+  font-weight: 900;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  color: #0a0a0a;
+}
+
+.swiss-stat-val.val-ver {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.swiss-stat-val.val-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.swiss-status-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #737373;
+}
+
+.swiss-stat-val.val-status.active .swiss-status-indicator {
+  background: #ff3300;
+  box-shadow: 0 0 6px #ff3300;
+  animation: pulse-dot 1.2s infinite;
+}
+
+.swiss-stat-val.val-degree {
+  font-size: 11px;
+}
+
+/* 滚动内容区域 */
+.swiss-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.swiss-panel-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.swiss-panel-body::-webkit-scrollbar-track {
+  background: #f7f7f5;
+}
+
+.swiss-panel-body::-webkit-scrollbar-thumb {
+  background: #0a0a0a;
+}
+
+.swiss-panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.swiss-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  color: #0a0a0a;
+  border-left: 3px solid #0a0a0a;
+  padding-left: 8px;
+}
+
+.swiss-count-badge {
+  background: #0a0a0a;
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 800;
+  font-family: monospace;
+  padding: 1px 5px;
+}
+
+.swiss-empty-hint {
+  font-size: 11px;
+  color: #737373;
+  font-style: italic;
+  padding: 8px 10px;
+  background: #fafaf9;
+  border: 1px dashed #d6d3d1;
+}
+
+/* 因果链路穿梭卡片 */
+.swiss-causal-links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.swiss-causal-link-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1.5px solid #0a0a0a;
+  box-shadow: 2px 2px 0px #0a0a0a;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.swiss-causal-link-item:hover {
+  transform: translateX(3px);
+  box-shadow: 4px 4px 0px #0a0a0a;
+}
+
+.swiss-causal-link-item.upstream:hover {
+  border-color: #002fa7;
+  box-shadow: 4px 4px 0px #002fa7;
+}
+
+.swiss-causal-link-item.downstream:hover {
+  border-color: #ff3300;
+  box-shadow: 4px 4px 0px #ff3300;
+}
+
+.swiss-link-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swiss-link-arrow {
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.swiss-causal-link-item.upstream .swiss-link-arrow {
+  color: #002fa7;
+}
+
+.swiss-causal-link-item.downstream .swiss-link-arrow {
+  color: #ff3300;
+}
+
+.swiss-link-name {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0a0a0a;
+}
+
+.swiss-link-info-type {
+  font-size: 10px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-weight: 700;
+  background: #f5f5f4;
+  border: 1px solid #d6d3d1;
+  padding: 2px 6px;
+  color: #292524;
+}
+
+/* 状态字典表格 */
+.swiss-copy-state-btn {
+  background: transparent;
+  border: 1px solid #0a0a0a;
+  font-size: 9.5px;
+  font-weight: 800;
+  font-family: monospace;
+  cursor: pointer;
+  padding: 2px 6px;
+  transition: all 0.15s ease;
+}
+
+.swiss-copy-state-btn:hover {
+  background: #0a0a0a;
+  color: #ffffff;
+}
+
+.swiss-state-table {
+  display: flex;
+  flex-direction: column;
+  border: 1.5px solid #0a0a0a;
+  background: #ffffff;
+}
+
+.swiss-state-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.swiss-state-row:last-child {
+  border-bottom: none;
+}
+
+.swiss-state-key-col {
+  padding: 8px 10px;
+  background: #fafaf9;
+  border-right: 1px solid #e7e5e4;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.swiss-state-key-name {
+  font-size: 11px;
+  font-weight: 800;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  color: #0a0a0a;
+  word-break: break-all;
+}
+
+.swiss-state-key-type {
+  font-size: 9px;
+  color: #78716c;
+  font-family: monospace;
+}
+
+.swiss-state-val-col {
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.swiss-bool-badge {
+  font-size: 10px;
+  font-weight: 900;
+  font-family: monospace;
+  padding: 2px 6px;
+}
+
+.swiss-bool-badge.true {
+  background: #0a0a0a;
+  color: #ffffff;
+}
+
+.swiss-bool-badge.false {
+  background: #f5f5f4;
+  color: #78716c;
+  border: 1px solid #d6d3d1;
+}
+
+.swiss-val-text {
+  font-size: 11.5px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-weight: 700;
+  color: #0a0a0a;
+  word-break: break-all;
+}
+
+.swiss-json-block {
+  margin: 0;
+  font-size: 10.5px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  background: #f7f7f5;
+  border: 1px solid #d6d3d1;
+  padding: 6px 8px;
+  max-height: 180px;
+  overflow: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 架构规约 */
+.swiss-compliance-box {
+  background: #fafaf9;
+  border: 1.5px solid #0a0a0a;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #262626;
+}
+
+.swiss-compliance-box p {
+  margin: 0;
+}
+
+.swiss-compliance-box code {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  background: #e7e5e4;
+  padding: 1px 4px;
+  font-weight: 700;
+}
+
+/* 底部操作 */
+.swiss-panel-footer {
+  padding: 10px 18px;
+  border-top: 2.5px solid #0a0a0a;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.swiss-panel-checksum {
+  font-size: 10px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  color: #737373;
+  font-weight: 700;
+}
+
+.swiss-footer-close-btn {
+  background: #0a0a0a;
+  color: #ffffff;
+  border: 1.5px solid #0a0a0a;
+  padding: 5px 14px;
+  font-size: 11.5px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.swiss-footer-close-btn:hover {
+  background: #ff3300;
+  border-color: #ff3300;
+}
+
