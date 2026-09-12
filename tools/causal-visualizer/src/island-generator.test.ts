@@ -124,4 +124,38 @@ describe('Graph-Agnostic Island & Ecosystem Generator (像素海岛生态测试)
       assembly.updateEcosystem(3.05, false)
     }).not.toThrow()
   })
+
+  it('观察节点灯塔默认静默不放光，仅在触发观察事件时亮起光锥扫海', () => {
+    const obsNode: CausalNode3D = {
+      id: 'src-radar-telemetry',
+      name: 'RadarTelemetry',
+      generation: 0,
+      version: 1,
+      status: 'IDLE',
+      state: {},
+      role: 'observation',
+      color: '#0284c7',
+      position: [0, 0, 0],
+    }
+
+    const assembly = generateIslandAssembly(obsNode)
+    expect(assembly.lighthouseBeam).toBeDefined()
+    expect(assembly.lighthouseBeamMaterial).toBeDefined()
+
+    // 默认空闲静默状态下：灯塔光锥不可见，透明度为 0
+    assembly.updateEcosystem(0.0, false)
+    expect(assembly.lighthouseBeamMaterial?.visible).toBe(false)
+    expect(assembly.lighthouseBeamMaterial?.opacity).toBe(0)
+
+    // 触发观察事实遥测时：光锥点亮扫海
+    assembly.triggerLighthouseSweep()
+    expect(assembly.lighthouseBeamMaterial?.visible).toBe(true)
+    expect(assembly.lighthouseBeamMaterial?.opacity).toBeGreaterThan(0.5)
+
+    // 随着时间推移，光锥逐渐消隐
+    for (let step = 0; step < 100; step++) {
+      assembly.updateEcosystem(step * 0.05, false)
+    }
+    expect(assembly.lighthouseBeamMaterial?.visible).toBe(false)
+  })
 })

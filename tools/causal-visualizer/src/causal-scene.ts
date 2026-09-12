@@ -13,11 +13,15 @@ interface NodeVisual {
 }
 
 interface EdgeVisual {
-  lineMesh: THREE.Mesh
+  group: THREE.Group
+  dashedMesh: THREE.Mesh
+  channelMesh: THREE.Mesh
+  waypointMesh: THREE.Mesh
   arrowMesh: THREE.Mesh
   curve: THREE.CubicBezierCurve3
   edge: CausalEdge3D
   glowIntensity: number
+  dashTexture: THREE.CanvasTexture
 }
 
 interface CommunityVisual {
@@ -86,11 +90,11 @@ export class CausalScene3D {
     this.scene.background = new THREE.Color('#7dd3fc') // 晨曦蔚蓝天际
     this.scene.fog = new THREE.Fog('#7dd3fc', 60, 420) // 远海无缝消隐于海平线晨雾
 
-    // 2. 摄像机
+    // 2. 摄像机（海面高空俯瞰航海图视角）
     const width = container.clientWidth || window.innerWidth
     const height = container.clientHeight || window.innerHeight
     this.camera = new THREE.PerspectiveCamera(45, width / height, 0.5, 650)
-    this.camera.position.set(0, 32, 68)
+    this.camera.position.set(0, 36, 62)
 
     // 3. 渲染器
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' })
@@ -106,6 +110,7 @@ export class CausalScene3D {
     this.controls.dampingFactor = 0.05
     this.controls.maxDistance = 260
     this.controls.minDistance = 8
+    this.controls.maxPolarAngle = Math.PI / 2 - 0.04 // 禁止仰视穿透海面，始终保持在海面上方俯瞰航海图
 
     // 5. 明媚海岛光照体系（半球天光 + 阳光直射 + 海面碧蓝漫反射）
     const hemiLight = new THREE.HemisphereLight(0xbae6fd, 0x0284c7, 1.8)
@@ -219,7 +224,7 @@ export class CausalScene3D {
 
   public resetCamera(): void {
     this.controls.target.set(0, 0, 0)
-    this.camera.position.set(0, 28, 56)
+    this.camera.position.set(0, 36, 62)
     this.controls.update()
   }
 
@@ -228,30 +233,80 @@ export class CausalScene3D {
     if (!visual) return
     const pos = visual.group.position
     this.controls.target.copy(pos)
-    this.camera.position.set(pos.x, pos.y + 6, pos.z + 16)
+    this.camera.position.set(pos.x, pos.y + 12, pos.z + 24)
     this.controls.update()
+    if (visual.assembly.triggerLighthouseSweep) {
+      visual.assembly.triggerLighthouseSweep()
+    }
   }
 
-  private createCubicCurve(fromPos: THREE.Vector3, toPos: THREE.Vector3): THREE.CubicBezierCurve3 {
-    const midPoint = new THREE.Vector3().addVectors(fromPos, toPos).multiplyScalar(0.5)
-    // 航海航线贴近海平面 (y = 0.2 ~ 0.5) 保持开阔视野
+  /**
+   * 航海图连线虚线纹理生成器 (Nautical Chart Dashed Track Texture)
+   */
+  private createNauticalDashTexture(colorHex: string): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 16
+    const ctx = canvas.getContext('2d')!
+    ctx.clearRect(0, 0, 64, 16)
+
+    // 绘制航海图虚线段（航运标志色与平滑圆角端头）
+    ctx.fillStyle = colorHex || '#38bdf8'
+    ctx.beginPath()
+    ctx.roundRect(4, 2, 36, 12, 4)
+    ctx.fill()
+
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.wrapS = THREE.RepeatWrapping
+    texture.wrapT = THREE.ClampToEdgeWrapping
+    return texture
+  }
+
+  /**
+   * 2D 水平面航海图连线曲线生成器 (Flat Nautical Sea-Chart Curve)
+   * 紧贴海平面 (Y=0.16)，施加水平法向微幅弯曲，杜绝立体空悬
+   */
+  private createNauticalCurve(fromPos: THREE.Vector3, toPos: THREE.Vector3, isStalk = false): THREE.CubicBezierCurve3 {
+    const dx = toPos.x - fromPos.x
+    const dz = toPos.z - fromPos.z
+    const dist = Math.sqrt(dx * dx + dz * dz)
+
+    // 让航线从起点岛屿海岸线 (距离中心 ~2.8) 延伸至目标岛屿海岸线 (距离中心 ~2.8)
+    const rFrom = Math.min(dist * 0.28, 2.8)
+    const rTo = Math.min(dist * 0.28, 2.8)
+    const ux = dx / Math.max(0.001, dist)
+    const uz = dz / Math.max(0.001, dist)
+
+    const startX = fromPos.x + ux * rFrom
+    const startZ = fromPos.z + uz * rFrom
+    const endX = toPos.x - ux * rTo
+    const endZ = toPos.z - uz * rTo
+
+    const midPoint = new THREE.Vector3((startX + endX) * 0.5, 0.16, (startZ + endZ) * 0.5)
+
+    // 在水平海面 X-Z 上施加正交法向微幅弯曲，使航海图航线呈优雅弧线避开重叠
+    const curvature = isStalk ? 0.0 : Math.min(0.12, 3.6 / Math.max(1, dist))
+    const nx = -uz * curvature * dist
+    const nz = ux * curvature * dist
+
+    // 航海图航线统一紧贴海平面 (y = 0.16)
+    const seaY = 0.16
     return new THREE.CubicBezierCurve3(
-      new THREE.Vector3(fromPos.x, 0.22, fromPos.z),
-      new THREE.Vector3(fromPos.x * 0.7 + midPoint.x * 0.3, 0.28, fromPos.z * 0.7 + midPoint.z * 0.3),
-      new THREE.Vector3(toPos.x * 0.7 + midPoint.x * 0.3, 0.28, toPos.z * 0.7 + midPoint.z * 0.3),
-      new THREE.Vector3(toPos.x, 0.22, toPos.z),
+      new THREE.Vector3(startX, seaY, startZ),
+      new THREE.Vector3(startX * 0.7 + midPoint.x * 0.3 + nx, seaY, startZ * 0.7 + midPoint.z * 0.3 + nz),
+      new THREE.Vector3(endX * 0.7 + midPoint.x * 0.3 + nx, seaY, endZ * 0.7 + midPoint.z * 0.3 + nz),
+      new THREE.Vector3(endX, seaY, endZ),
     )
   }
 
-  private updateArrowTransform(arrow: THREE.Mesh, curve: THREE.CubicBezierCurve3): void {
+  private updateNauticalArrow(arrow: THREE.Mesh, curve: THREE.CubicBezierCurve3): void {
     const t = 0.82
     const pt = curve.getPointAt(t)
     const tangent = curve.getTangentAt(t).normalize()
 
-    arrow.position.set(pt.x, 0.25, pt.z)
-    const defaultDir = new THREE.Vector3(0, 1, 0)
-    const quat = new THREE.Quaternion().setFromUnitVectors(defaultDir, tangent)
-    arrow.quaternion.copy(quat)
+    arrow.position.set(pt.x, 0.18, pt.z)
+    const angle = Math.atan2(tangent.x, tangent.z)
+    arrow.rotation.set(0, angle, 0)
   }
 
   /**
@@ -301,11 +356,9 @@ export class CausalScene3D {
     // 4. 移除已消失的边航线
     for (const [id, visual] of this.edgeVisuals.entries()) {
       if (!currentEdges.has(id)) {
-        this.scene.remove(visual.lineMesh)
-        this.scene.remove(visual.arrowMesh)
-        visual.lineMesh.geometry.dispose()
-        ;(visual.lineMesh.material as THREE.Material).dispose()
-        ;(visual.arrowMesh.material as THREE.Material).dispose()
+        this.scene.remove(visual.group)
+        this.disposeObject(visual.group)
+        visual.dashTexture.dispose()
         this.edgeVisuals.delete(id)
       }
     }
@@ -340,7 +393,7 @@ export class CausalScene3D {
       }
     }
 
-    // 6. 更新或创建海运航线（蓝色夜光水道）
+    // 6. 更新或创建海运航线（航海图虚线连线）
     for (const edge of edges) {
       const fromNode = this.nodeVisuals.get(edge.from)
       const toNode = this.nodeVisuals.get(edge.to)
@@ -349,18 +402,31 @@ export class CausalScene3D {
       const existing = this.edgeVisuals.get(edge.id)
       if (existing) {
         existing.edge = edge
-        const newCurve = this.createCubicCurve(fromNode.group.position, toNode.group.position)
+        const isStalk = Boolean(edge.isVerticalStalk)
+        const newCurve = this.createNauticalCurve(fromNode.group.position, toNode.group.position, isStalk)
         existing.curve = newCurve
-        existing.lineMesh.geometry.dispose()
-        existing.lineMesh.geometry = new THREE.TubeGeometry(newCurve, 40, 0.16, 8, false)
-        ;(existing.lineMesh.material as THREE.MeshBasicMaterial).color.set(edge.color || '#38bdf8')
-        ;(existing.arrowMesh.material as THREE.MeshBasicMaterial).color.set(edge.color || '#38bdf8')
-        this.updateArrowTransform(existing.arrowMesh, newCurve)
+
+        existing.channelMesh.geometry.dispose()
+        existing.channelMesh.geometry = new THREE.TubeGeometry(newCurve, isStalk ? 24 : 44, isStalk ? 0.08 : 0.18, 6, false)
+        existing.dashedMesh.geometry.dispose()
+        existing.dashedMesh.geometry = new THREE.TubeGeometry(newCurve, isStalk ? 24 : 44, isStalk ? 0.06 : 0.09, 6, false)
+
+        const curveLength = newCurve.getLength()
+        const dashRepeat = Math.max(3, Math.round(curveLength / 2.2))
+        existing.dashTexture.repeat.set(dashRepeat, 1)
+
+        const midPt = newCurve.getPointAt(0.5)
+        existing.waypointMesh.position.set(midPt.x, 0.17, midPt.z)
+        this.updateNauticalArrow(existing.arrowMesh, newCurve)
+
+        const edgeColor = new THREE.Color(edge.color || '#38bdf8')
+        ;(existing.channelMesh.material as THREE.MeshBasicMaterial).color.copy(edgeColor)
+        ;(existing.waypointMesh.material as THREE.MeshBasicMaterial).color.copy(edgeColor)
+        ;(existing.arrowMesh.material as THREE.MeshBasicMaterial).color.copy(edgeColor)
       } else {
         const visual = this.createEdgeVisual(edge, fromNode.group.position, toNode.group.position)
         this.edgeVisuals.set(edge.id, visual)
-        this.scene.add(visual.lineMesh)
-        this.scene.add(visual.arrowMesh)
+        this.scene.add(visual.group)
       }
     }
   }
@@ -422,9 +488,9 @@ export class CausalScene3D {
     group.position.set(...node.position)
     group.add(assembly.rootGroup)
 
-    // 2D 状态徽标浮空置于小岛上方 (y = 5.2)
+    // 2D 极简航海名标徽章置于小岛中央上方 (y = 3.6)
     const sprite = this.createNodeSprite(node)
-    sprite.position.set(0, 5.2, 0)
+    sprite.position.set(0, 3.6, 0)
     group.add(sprite)
 
     group.userData = { nodeId: node.id }
@@ -436,15 +502,15 @@ export class CausalScene3D {
 
   private createNodeSprite(node: CausalNode3D): THREE.Sprite {
     const canvas = document.createElement('canvas')
-    canvas.width = 380
-    canvas.height = 104
+    canvas.width = 240
+    canvas.height = 48
     const ctx = canvas.getContext('2d')!
     this.drawSpriteCanvas(ctx, node)
 
     const texture = new THREE.CanvasTexture(canvas)
-    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true })
+    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })
     const sprite = new THREE.Sprite(mat)
-    sprite.scale.set(7.6, 2.08, 1)
+    sprite.scale.set(3.2, 0.64, 1)
     sprite.userData = { canvas, texture }
     return sprite
   }
@@ -465,80 +531,61 @@ export class CausalScene3D {
     const isUpstream = this.upstreamNodeIds.has(node.id)
     const isDownstream = this.downstreamNodeIds.has(node.id)
 
-    const w = 376, h = 100
-    const c = 12
+    const w = 240
+    const h = 48
+    ctx.clearRect(0, 0, w, h)
 
     let strokeColor = node.color || '#38bdf8'
-    let bgColor = 'rgba(7, 16, 30, 0.94)'
+    let bgColor = 'rgba(10, 25, 47, 0.82)'
     if (isTarget) {
       strokeColor = '#ffffff'
-      bgColor = 'rgba(15, 30, 55, 0.98)'
+      bgColor = 'rgba(14, 116, 144, 0.94)'
     } else if (isUpstream) {
       strokeColor = '#00f0ff'
-      bgColor = 'rgba(6, 28, 48, 0.96)'
+      bgColor = 'rgba(8, 47, 73, 0.90)'
     } else if (isDownstream) {
       strokeColor = '#ffaa00'
-      bgColor = 'rgba(40, 24, 6, 0.96)'
+      bgColor = 'rgba(67, 20, 7, 0.90)'
     }
 
+    // 优雅圆润海图胶囊名牌 (Pill Badge)
     ctx.fillStyle = bgColor
     ctx.strokeStyle = strokeColor
-    ctx.lineWidth = isTarget ? 3.5 : (node.isHub ? 2.5 : 1.8)
+    ctx.lineWidth = isTarget ? 2.8 : 1.6
 
     ctx.beginPath()
-    ctx.moveTo(c, 2)
-    ctx.lineTo(w - c, 2)
-    ctx.lineTo(w - 2, c)
-    ctx.lineTo(w - 2, h - c)
-    ctx.lineTo(w - c, h - 2)
-    ctx.lineTo(c, h - 2)
-    ctx.lineTo(2, h - c)
-    ctx.lineTo(2, c)
-    ctx.closePath()
+    ctx.roundRect(3, 3, w - 6, h - 6, 21)
     ctx.fill()
     ctx.stroke()
 
-    // 顶部航海字符艺术装饰
-    ctx.font = 'bold 12px monospace'
-    if (isTarget) {
-      ctx.fillStyle = '#ffffff'
-      ctx.fillText('★ [ISLAND: SELECTED TARGET] ──────────★', 14, 24)
-    } else if (isUpstream) {
-      ctx.fillStyle = '#00f0ff'
-      ctx.fillText('▲ [UPSTREAM: CAUSAL INFLOW] ──────────▲', 14, 24)
-    } else if (isDownstream) {
-      ctx.fillStyle = '#ffaa00'
-      ctx.fillText('▼ [DOWNSTREAM: CAUSAL OUTFLOW] ────────▼', 14, 24)
-    } else {
-      ctx.fillStyle = strokeColor
-      if (node.role === 'observation') {
-        ctx.fillText('┌──[▲ OBSERVATION LIGHTHOUSE]────────┐', 14, 24)
-      } else if (node.role === 'execution') {
-        ctx.fillText('┌──[▼ EXECUTION FISHING PIER]────────┐', 14, 24)
-      } else {
-        ctx.fillText('┌──[◈ PURE DOMAIN SETTLEMENT]────────┐', 14, 24)
-      }
-    }
+    // 角色地标图标
+    let roleIcon = '🏝️'
+    if (node.role === 'observation') roleIcon = '🔭'
+    else if (node.role === 'execution') roleIcon = '🎣'
+    else if (node.isHub) roleIcon = '👑'
 
-    // 海岛主名称
+    // 节点名称文字
+    ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace'
     ctx.fillStyle = '#f8fafc'
-    ctx.font = node.isHub ? 'bold 20px monospace' : 'bold 18px monospace'
-    const namePrefix = node.isHub ? '👑 ' : ''
-    ctx.fillText(`${namePrefix}${node.name || node.id}`, 18, 54)
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    const nameText = `${roleIcon} ${node.name || node.id}`
+    const maxTextW = 185
+    let truncated = nameText
+    if (ctx.measureText(truncated).width > maxTextW) {
+      while (truncated.length > 4 && ctx.measureText(truncated + '…').width > maxTextW) {
+        truncated = truncated.slice(0, -1)
+      }
+      truncated += '…'
+    }
+    ctx.fillText(truncated, 14, h / 2)
 
-    // 生态代次与度数
-    ctx.fillStyle = '#94a3b8'
-    ctx.font = '13px monospace'
-    const genText = node.generation !== null ? `G:${node.generation}` : 'G:--'
-    const degText = `IN:${node.inDegree || 0} OUT:${node.outDegree || 0}`
-    const verText = `v${node.version}`
-    ctx.fillText(`[${genText} · ${verText}] [${degText}]`, 18, 82)
-
-    // 活跃度指示
+    // 右侧运行/锚泊状态航标灯 (Navigation Pip)
     const isRunning = node.status === 'RUNNING'
     ctx.fillStyle = isRunning ? '#22c55e' : (node.status === 'DROPPED' ? '#ef4444' : strokeColor)
-    ctx.font = 'bold 13px monospace'
-    ctx.fillText(isRunning ? '[● SAILING]' : '[● ANCHORED]', 260, 82)
+    ctx.beginPath()
+    ctx.arc(w - 18, h / 2, 4.5, 0, Math.PI * 2)
+    ctx.fill()
   }
 
   private createEdgeVisual(
@@ -547,34 +594,77 @@ export class CausalScene3D {
     toPos: THREE.Vector3,
   ): EdgeVisual {
     const isStalk = Boolean(edge.isVerticalStalk)
-    const curve = isStalk
-      ? new THREE.CubicBezierCurve3(
-          fromPos.clone(),
-          new THREE.Vector3(fromPos.x, fromPos.y * 0.67 + toPos.y * 0.33, fromPos.z),
-          new THREE.Vector3(toPos.x, fromPos.y * 0.33 + toPos.y * 0.67, toPos.z),
-          toPos.clone(),
-        )
-      : this.createCubicCurve(fromPos, toPos)
+    const curve = this.createNauticalCurve(fromPos, toPos, isStalk)
+    const curveLength = curve.getLength()
+    const colorHex = edge.color || '#38bdf8'
 
-    const tubeRadius = isStalk ? 0.06 : 0.16
-    const tubeGeo = new THREE.TubeGeometry(curve, isStalk ? 24 : 40, tubeRadius, 8, false)
-    const lineMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(edge.color || '#38bdf8'),
+    const group = new THREE.Group()
+
+    // 1. 航道水路基底浅色水槽 (Translucent Fairway Bed)
+    const channelGeo = new THREE.TubeGeometry(curve, isStalk ? 24 : 44, isStalk ? 0.08 : 0.18, 6, false)
+    const channelMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(colorHex),
       transparent: true,
-      opacity: isStalk ? 0.6 : 0.5,
+      opacity: 0.16,
+      depthWrite: false,
     })
-    const lineMesh = new THREE.Mesh(tubeGeo, lineMat)
+    const channelMesh = new THREE.Mesh(channelGeo, channelMat)
+    group.add(channelMesh)
 
+    // 2. 航海图虚线轨迹 (Dashed Nautical Chart Route)
+    const dashTexture = this.createNauticalDashTexture(colorHex)
+    const dashRepeat = Math.max(3, Math.round(curveLength / 2.2))
+    dashTexture.repeat.set(dashRepeat, 1)
+
+    const dashedGeo = new THREE.TubeGeometry(curve, isStalk ? 24 : 44, isStalk ? 0.06 : 0.09, 6, false)
+    const dashedMat = new THREE.MeshBasicMaterial({
+      map: dashTexture,
+      transparent: true,
+      opacity: 0.88,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+    const dashedMesh = new THREE.Mesh(dashedGeo, dashedMat)
+    group.add(dashedMesh)
+
+    // 3. 中途航海定位浮标圈 (Midpoint Navigational Waypoint Buoy)
+    const waypointGeo = new THREE.RingGeometry(0.32, 0.48, 16)
+    const waypointMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(colorHex),
+      transparent: true,
+      opacity: 0.65,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+    const waypointMesh = new THREE.Mesh(waypointGeo, waypointMat)
+    waypointMesh.rotation.x = -Math.PI / 2
+    const midPt = curve.getPointAt(0.5)
+    waypointMesh.position.set(midPt.x, 0.17, midPt.z)
+    group.add(waypointMesh)
+
+    // 4. 航向箭头标 (Nautical Direction Chevron)
+    const arrowGeo = new THREE.ConeGeometry(0.38, 0.85, 4)
+    arrowGeo.rotateX(-Math.PI / 2)
     const arrowMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(edge.color || '#38bdf8'),
+      color: new THREE.Color(colorHex),
       transparent: true,
-      opacity: 0.75,
+      opacity: 0.85,
     })
-    const arrowMesh = new THREE.Mesh(this.sharedArrowGeo, arrowMat)
-    arrowMesh.scale.set(0.55, 0.55, 0.55)
-    this.updateArrowTransform(arrowMesh, curve)
+    const arrowMesh = new THREE.Mesh(arrowGeo, arrowMat)
+    this.updateNauticalArrow(arrowMesh, curve)
+    group.add(arrowMesh)
 
-    return { lineMesh, arrowMesh, curve, edge, glowIntensity: 0 }
+    return {
+      group,
+      dashedMesh,
+      channelMesh,
+      waypointMesh,
+      arrowMesh,
+      curve,
+      edge,
+      glowIntensity: 0,
+      dashTexture,
+    }
   }
 
   /**
@@ -595,11 +685,21 @@ export class CausalScene3D {
     }
 
     const fromNode = this.nodeVisuals.get(fromNodeId)
+    const toNode = this.nodeVisuals.get(toNodeId)
+
+    // 观察节点灯塔：仅在产生或接收观察事实信息时放光探海！
+    if (fromNode?.assembly.triggerLighthouseSweep) {
+      fromNode.assembly.triggerLighthouseSweep()
+    }
+    if (toNode?.assembly.triggerLighthouseSweep) {
+      toNode.assembly.triggerLighthouseSweep()
+    }
 
     if (targetVisual) {
       targetVisual.glowIntensity = 1.0
-      ;(targetVisual.lineMesh.material as THREE.MeshBasicMaterial).opacity = 0.95
-      ;(targetVisual.arrowMesh.material as THREE.MeshBasicMaterial).opacity = 1.0
+      ;(targetVisual.dashedMesh.material as THREE.MeshBasicMaterial).opacity = 1.0
+      ;(targetVisual.channelMesh.material as THREE.MeshBasicMaterial).opacity = 0.45
+      ;(targetVisual.waypointMesh.material as THREE.MeshBasicMaterial).opacity = 1.0
 
       // 启航体素小帆船飞驰跨海
       const pulseId = `boat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -653,6 +753,9 @@ export class CausalScene3D {
 
     visual.glowIntensity = 1.0
     visual.assembly.triggerJump() // 目标岛民欢欣跳跃
+    if (visual.assembly.triggerLighthouseSweep) {
+      visual.assembly.triggerLighthouseSweep()
+    }
 
     if (this.shockwaves.length >= CausalScene3D.MAX_SHOCKWAVES) {
       const oldest = this.shockwaves.shift()!
@@ -782,30 +885,42 @@ export class CausalScene3D {
     for (const [id, visual] of this.edgeVisuals.entries()) {
       const isUpstreamEdge = this.upstreamEdgeIds.has(id)
       const isDownstreamEdge = this.downstreamEdgeIds.has(id)
-      const isStalk = Boolean(visual.edge.isVerticalStalk)
-      const lineMat = visual.lineMesh.material as THREE.MeshBasicMaterial
+      const dashedMat = visual.dashedMesh.material as THREE.MeshBasicMaterial
+      const channelMat = visual.channelMesh.material as THREE.MeshBasicMaterial
+      const waypointMat = visual.waypointMesh.material as THREE.MeshBasicMaterial
       const arrowMat = visual.arrowMesh.material as THREE.MeshBasicMaterial
 
       if (isUpstreamEdge) {
-        lineMat.color.set('#00f0ff')
-        lineMat.opacity = 1.0
+        dashedMat.opacity = 1.0
+        channelMat.color.set('#00f0ff')
+        channelMat.opacity = 0.5
+        waypointMat.color.set('#00f0ff')
+        waypointMat.opacity = 1.0
         arrowMat.color.set('#00f0ff')
         arrowMat.opacity = 1.0
       } else if (isDownstreamEdge) {
-        lineMat.color.set('#ffaa00')
-        lineMat.opacity = 1.0
+        dashedMat.opacity = 1.0
+        channelMat.color.set('#ffaa00')
+        channelMat.opacity = 0.5
+        waypointMat.color.set('#ffaa00')
+        waypointMat.opacity = 1.0
         arrowMat.color.set('#ffaa00')
         arrowMat.opacity = 1.0
       } else if (nodeId) {
-        lineMat.color.set('#1e293b')
-        lineMat.opacity = isStalk ? 0.12 : 0.08
-        arrowMat.opacity = 0.05
+        dashedMat.opacity = 0.15
+        channelMat.color.set('#1e293b')
+        channelMat.opacity = 0.05
+        waypointMat.opacity = 0.1
+        arrowMat.opacity = 0.1
       } else {
         const defaultColor = new THREE.Color(visual.edge.color || '#38bdf8')
-        lineMat.color.copy(defaultColor)
-        lineMat.opacity = isStalk ? 0.6 : 0.5
+        dashedMat.opacity = 0.88
+        channelMat.color.copy(defaultColor)
+        channelMat.opacity = 0.16
+        waypointMat.color.copy(defaultColor)
+        waypointMat.opacity = 0.65
         arrowMat.color.copy(defaultColor)
-        arrowMat.opacity = 0.75
+        arrowMat.opacity = 0.85
       }
     }
   }
@@ -863,15 +978,15 @@ export class CausalScene3D {
     const time = this.clock.getElapsedTime()
     this.controls.update()
 
-    // 1. 低多边形海洋水面波浪翻滚与阳光反射 (Faceted Sparkling Waves)
+    // 1. 低多边形海洋水面微幅波浪与阳光反射 (Gentle Faceted Waves)
     if (this.oceanGeometry) {
       const posAttr = this.oceanGeometry.attributes.position
       for (let i = 0; i < posAttr.count; i++) {
         const x = posAttr.getX(i)
         const z = posAttr.getZ(i)
         const waveY =
-          Math.sin(x * 0.05 + time * 1.5) * Math.cos(z * 0.05 + time * 1.2) * 0.42 +
-          Math.sin(x * 0.11 - time * 2.1 + z * 0.07) * 0.18
+          Math.sin(x * 0.04 + time * 1.2) * Math.cos(z * 0.04 + time * 1.0) * 0.08 +
+          Math.sin(x * 0.08 - time * 1.6 + z * 0.05) * 0.04
         posAttr.setY(i, waveY)
       }
       posAttr.needsUpdate = true
@@ -896,14 +1011,16 @@ export class CausalScene3D {
       }
     }
 
-    // 4. 边管网与发光渐隐
+    // 4. 航海图航线流动洋流与发光渐隐
     for (const visual of this.edgeVisuals.values()) {
+      visual.dashTexture.offset.x -= 0.005 * (1 + visual.glowIntensity * 2.8)
+
       if (visual.glowIntensity > 0) {
         visual.glowIntensity -= 0.015
         if (visual.glowIntensity < 0) visual.glowIntensity = 0
-        const opacity = 0.5 + visual.glowIntensity * 0.45
-        ;(visual.lineMesh.material as THREE.MeshBasicMaterial).opacity = opacity
-        ;(visual.arrowMesh.material as THREE.MeshBasicMaterial).opacity = opacity
+        ;(visual.dashedMesh.material as THREE.MeshBasicMaterial).opacity = 0.88 + visual.glowIntensity * 0.12
+        ;(visual.channelMesh.material as THREE.MeshBasicMaterial).opacity = 0.16 + visual.glowIntensity * 0.35
+        ;(visual.waypointMesh.material as THREE.MeshBasicMaterial).opacity = 0.65 + visual.glowIntensity * 0.35
       }
     }
 

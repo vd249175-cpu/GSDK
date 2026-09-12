@@ -46,6 +46,7 @@ export interface IslandVisualAssembly {
   rootGroup: THREE.Group
   islandMesh: THREE.Group
   lighthouseBeam?: THREE.Mesh
+  lighthouseBeamMaterial?: THREE.MeshBasicMaterial
   fishingBobber?: THREE.Mesh
   fishingVillager?: THREE.Group
   villagers: THREE.Group[]
@@ -55,6 +56,7 @@ export interface IslandVisualAssembly {
   node: CausalNode3D
   updateEcosystem: (time: number, isRunning: boolean) => void
   triggerJump: () => void
+  triggerLighthouseSweep: () => void
 }
 
 /**
@@ -80,7 +82,7 @@ export interface IslandVisualAssembly {
  */
 export function generateIslandAssembly(node: CausalNode3D): IslandVisualAssembly {
   const rootGroup = new THREE.Group()
-  rootGroup.position.set(...node.position)
+  rootGroup.position.set(0, 0, 0)
 
   const seed = hashString(node.id)
   const rng = createPRNG(seed)
@@ -94,6 +96,7 @@ export function generateIslandAssembly(node: CausalNode3D): IslandVisualAssembly
   rootGroup.add(islandMesh)
 
   let lighthouseBeam: THREE.Mesh | undefined
+  let lighthouseBeamMaterial: THREE.MeshBasicMaterial | undefined
   let fishingBobber: THREE.Mesh | undefined
   let fishingVillager: THREE.Group | undefined
   let house: THREE.Group | undefined
@@ -101,10 +104,11 @@ export function generateIslandAssembly(node: CausalNode3D): IslandVisualAssembly
   // 2. 根据节点系统角色装配标志性建筑
   if (role === 'observation') {
     // 观察类海岛：在北角悬崖建造灯塔
-    const { group: lhGroup, beam } = createLighthouseMesh()
+    const { group: lhGroup, beam, beamMaterial } = createLighthouseMesh()
     lhGroup.position.set(islandRadius * 0.42, 1.2, -islandRadius * 0.35)
     rootGroup.add(lhGroup)
     lighthouseBeam = beam
+    lighthouseBeamMaterial = beamMaterial
   } else if (role === 'execution') {
     // 执行类海岛：在南角水边建造垂钓木栈桥
     const { group: pierGroup, bobber, villager } = createFishingPierMesh()
@@ -382,15 +386,38 @@ export function generateIslandAssembly(node: CausalNode3D): IslandVisualAssembly
 
   // 8. 周期性生态动画生命周期 (Periodic Ecosystem Lifecycle)
   let jumpCooldown = 0
+  let lighthouseIntensity = 0.0
 
   function triggerJump() {
     jumpCooldown = 1.0
   }
 
+  function triggerLighthouseSweep() {
+    lighthouseIntensity = 1.0
+    if (lighthouseBeamMaterial) {
+      lighthouseBeamMaterial.visible = true
+      lighthouseBeamMaterial.opacity = 0.65
+    }
+  }
+
   function updateEcosystem(time: number, isRunning: boolean) {
-    // A. 观察节点灯塔旋转光锥
-    if (lighthouseBeam) {
-      lighthouseBeam.rotation.y += 0.02
+    // A. 观察节点灯塔：仅在发生观察事实/遥测或处于运行状态时放光探海，平时静默不放光
+    if (lighthouseBeam && lighthouseBeamMaterial) {
+      if (isRunning && lighthouseIntensity < 0.4) {
+        lighthouseIntensity = 0.55
+        lighthouseBeamMaterial.visible = true
+      }
+
+      if (lighthouseIntensity > 0) {
+        lighthouseIntensity = Math.max(0, lighthouseIntensity - 0.012)
+        lighthouseBeam.rotation.y += 0.05 // 快速扫海
+        lighthouseBeamMaterial.opacity = lighthouseIntensity * 0.65
+        if (lighthouseIntensity <= 0 && !isRunning) {
+          lighthouseBeamMaterial.visible = false
+        }
+      } else {
+        lighthouseBeamMaterial.visible = false
+      }
     }
 
     // B. 执行节点垂钓者与鱼浮起伏
@@ -535,6 +562,7 @@ export function generateIslandAssembly(node: CausalNode3D): IslandVisualAssembly
     rootGroup,
     islandMesh,
     lighthouseBeam,
+    lighthouseBeamMaterial,
     fishingBobber,
     fishingVillager,
     villagers,
@@ -544,6 +572,7 @@ export function generateIslandAssembly(node: CausalNode3D): IslandVisualAssembly
     node,
     updateEcosystem,
     triggerJump,
+    triggerLighthouseSweep,
   }
 }
 

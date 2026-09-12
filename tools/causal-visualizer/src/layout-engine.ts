@@ -1,4 +1,5 @@
 import type { CausalCommunity3D, CausalEdge3D, CausalNode3D } from './types'
+import { hashString } from './voxel-models'
 
 export interface RawNodeInput {
   nodeId: string
@@ -187,10 +188,25 @@ export function computeGraphAgnosticLayout(
     commIdx++
   }
 
-  // 计算各社区在 3D 全局空间中的星云 Pod 中心坐标
-  const commCount = communityList.length
-  const globalPodRadius = commCount <= 1 ? 0 : Math.max(22, commCount * 11)
+  // 3. 计算 2D 全域海面无重叠群岛排布 (2D Force-Directed Collision-Free Archipelago Layout)
+  interface SimNode2D {
+    id: string
+    x: number
+    z: number
+    vx: number
+    vz: number
+    safeDist: number
+    communityId: string
+    targetX?: number
+    isHub: boolean
+    role: 'observation' | 'execution' | 'domain'
+  }
 
+  const simNodes: SimNode2D[] = []
+  const commCount = communityList.length
+  const globalPodRadius = commCount <= 1 ? 0 : Math.max(34, commCount * 18)
+
+  // A. 初始化群落海域中心 (2D 海面坐标)
   communityList.forEach((comm, cIdx) => {
     if (commCount === 1) {
       comm.center = [0, 0, 0]
@@ -198,185 +214,54 @@ export function computeGraphAgnosticLayout(
       const angle = (cIdx / commCount) * Math.PI * 2
       const cx = Math.cos(angle) * globalPodRadius
       const cz = Math.sin(angle) * globalPodRadius
-      const cy = Math.sin(cIdx * 1.8) * 4.0 // 高度参差
-      comm.center = [cx, cy, cz]
+      comm.center = [cx, 0.0, cz]
     }
   })
 
-  // 3. 计算节点在 3D 空间中的排布
-  const finalNodes: CausalNode3D[] = []
-  const derivativeEdges: CausalEdge3D[] = []
-
+  // B. 节点初始位置播种 (2D 伪随机有机扩散)
   if (mode === 'community') {
-    // === 模式 A：3D 拓扑群落聚类排布（中枢纯领域核心，上浮观察层，下沉操作层） ===
     for (const comm of communityList) {
+      const [cx, , cz] = comm.center
       const members = comm.nodeIds
-      const [cx, cy, cz] = comm.center
       const hubId = comm.hubNodeId
 
-      // 分离纯领域核心节点、观察层节点 (src-*)、操作层节点 (sink-*, host-*)
-      const domainIds: string[] = []
-      const obsIds: string[] = []
-      const execIds: string[] = []
-
-      for (const mId of members) {
+      members.forEach((mId, mIdx) => {
+        const isHub = mId === hubId
         const role = inferNodeRole(mId)
-        if (role === 'observation') obsIds.push(mId)
-        else if (role === 'execution') execIds.push(mId)
-        else domainIds.push(mId)
-      }
+        const safeDist = isHub ? 16.0 : (role === 'domain' ? 14.0 : 13.5)
+        const seed = hashString(mId)
 
-      // 若群落内全为外部世界节点，将 Hub 提升为领域锚点基准
-      if (domainIds.length === 0) {
-        domainIds.push(hubId)
-        const obsIdx = obsIds.indexOf(hubId)
-        if (obsIdx !== -1) obsIds.splice(obsIdx, 1)
-        const execIdx = execIds.indexOf(hubId)
-        if (execIdx !== -1) execIds.splice(execIdx, 1)
-      }
+        let x = cx
+        let z = cz
 
-      // 1. 中枢核心层（Y=cy 核心基准平面）
-      const domainPositions = new Map<string, [number, number, number]>()
-      const otherDomains = domainIds.filter((id) => id !== hubId)
+        if (!isHub) {
+          // 黄金角发散螺旋播种，杜绝直线对齐与生硬圆环
+          const goldenAngle = mIdx * 2.39996323 + (seed % 100) * 0.02
+          const spiralR = 14.0 * Math.sqrt(mIdx + 0.5)
+          x = cx + Math.cos(goldenAngle) * spiralR
+          z = cz + Math.sin(goldenAngle) * spiralR
 
-      // Hub 置于群落几何中心
-      const hubRaw = nodeMap.get(hubId)!
-      domainPositions.set(hubId, [cx, cy, cz])
-      finalNodes.push({
-        id: hubId,
-        name: hubId,
-        color: comm.color,
-        position: [cx, cy, cz],
-        generation: hubRaw.generation !== undefined ? hubRaw.generation : 0,
-        version: hubRaw.version || 0,
-        status: (hubRaw.status as any) || 'IDLE',
-        state: hubRaw.state || {},
-        role: inferNodeRole(hubId),
-        communityId: comm.id,
-        communityName: comm.name,
-        inDegree: inDegree.get(hubId) || 0,
-        outDegree: outDegree.get(hubId) || 0,
-        isHub: true,
-      })
-
-      // 其余领域核心节点水平环形展开
-      otherDomains.forEach((dId, dIdx) => {
-        const raw = nodeMap.get(dId)!
-        const angle = (dIdx / Math.max(1, otherDomains.length)) * Math.PI * 2 + (comm.center[0] * 0.1)
-        const r = Math.min(comm.radius * 0.75, 12)
-        const dx = cx + Math.cos(angle) * r
-        const dz = cz + Math.sin(angle) * r
-        const dy = cy + (dIdx % 2 === 0 ? 0.6 : -0.6) // 轻微高低起伏
-        domainPositions.set(dId, [dx, dy, dz])
-
-        finalNodes.push({
-          id: dId,
-          name: dId,
-          color: comm.color,
-          position: [dx, dy, dz],
-          generation: raw.generation !== undefined ? raw.generation : 0,
-          version: raw.version || 0,
-          status: (raw.status as any) || 'IDLE',
-          state: raw.state || {},
-          role: inferNodeRole(dId),
-          communityId: comm.id,
-          communityName: comm.name,
-          inDegree: inDegree.get(dId) || 0,
-          outDegree: outDegree.get(dId) || 0,
-          isHub: false,
-        })
-      })
-
-      // 辅助函数：寻找最近有因果连接的领域核心节点作为垂直锚点
-      const findAnchorDomain = (targetId: string): { id: string; pos: [number, number, number] } => {
-        for (const e of rawEdges) {
-          if (e.from === targetId && domainPositions.has(e.to)) {
-            return { id: e.to, pos: domainPositions.get(e.to)! }
+          // 观察节点灯塔向外海方向轻度偏置，增强迎风远眺意境
+          if (role === 'observation' && (cx !== 0 || cz !== 0)) {
+            const outLen = Math.sqrt(cx * cx + cz * cz) || 1
+            x += (cx / outLen) * 6.0
+            z += (cz / outLen) * 6.0
           }
-          if (e.to === targetId && domainPositions.has(e.from)) {
-            return { id: e.from, pos: domainPositions.get(e.from)! }
-          }
+        } else {
+          x += ((seed % 17) - 8) * 0.2
+          z += ((seed % 19) - 9) * 0.2
         }
-        return { id: hubId, pos: domainPositions.get(hubId)! }
-      }
 
-      // 2. 观察层海岛 (位于海湾外缘海角礁盘，迎风瞭望)
-      obsIds.forEach((obsId, oIdx) => {
-        const raw = nodeMap.get(obsId)!
-        const anchor = findAnchorDomain(obsId)
-        const angle = (oIdx / Math.max(1, obsIds.length)) * Math.PI + (comm.center[0] * 0.1)
-        const dist = Math.min(comm.radius * 0.7, 10.5) + 3.0
-        const ox = anchor.pos[0] + Math.cos(angle) * dist
-        const oy = 0.6 // 悬崖礁石略微高于海面
-        const oz = anchor.pos[2] + Math.sin(angle) * dist
-
-        finalNodes.push({
-          id: obsId,
-          name: obsId,
-          color: '#0284c7', // 蔚蓝海岛色
-          position: [ox, oy, oz],
-          generation: raw.generation !== undefined ? raw.generation : 0,
-          version: raw.version || 0,
-          status: (raw.status as any) || 'IDLE',
-          state: raw.state || {},
-          role: 'observation',
-          parentDomainNodeId: anchor.id,
+        simNodes.push({
+          id: mId,
+          x,
+          z,
+          vx: 0,
+          vz: 0,
+          safeDist,
           communityId: comm.id,
-          communityName: comm.name,
-          inDegree: inDegree.get(obsId) || 0,
-          outDegree: outDegree.get(obsId) || 0,
-          isHub: false,
-        })
-
-        // 添加近岸航道细线
-        derivativeEdges.push({
-          id: `stalk-${obsId}->${anchor.id}`,
-          from: obsId,
-          to: anchor.id,
-          color: '#38bdf8',
-          active: true,
-          isVerticalStalk: true,
-          lastInfoType: 'CoastalChannel',
-        })
-      })
-
-      // 3. 操作层海岛 (位于深水良港侧，垂钓码头)
-      execIds.forEach((execId, eIdx) => {
-        const raw = nodeMap.get(execId)!
-        const anchor = findAnchorDomain(execId)
-        const angle = Math.PI + (eIdx / Math.max(1, execIds.length)) * Math.PI + (comm.center[0] * 0.1)
-        const dist = Math.min(comm.radius * 0.7, 10.5) + 3.0
-        const ex = anchor.pos[0] + Math.cos(angle) * dist
-        const ey = -0.15 // 栈桥贴近海平面
-        const ez = anchor.pos[2] + Math.sin(angle) * dist
-
-        finalNodes.push({
-          id: execId,
-          name: execId,
-          color: '#f59e0b', // 暖金港口色
-          position: [ex, ey, ez],
-          generation: raw.generation !== undefined ? raw.generation : 0,
-          version: raw.version || 0,
-          status: (raw.status as any) || 'IDLE',
-          state: raw.state || {},
-          role: 'execution',
-          parentDomainNodeId: anchor.id,
-          communityId: comm.id,
-          communityName: comm.name,
-          inDegree: inDegree.get(execId) || 0,
-          outDegree: outDegree.get(execId) || 0,
-          isHub: false,
-        })
-
-        // 添加近岸航道细线
-        derivativeEdges.push({
-          id: `stalk-${anchor.id}->${execId}`,
-          from: anchor.id,
-          to: execId,
-          color: '#f59e0b',
-          active: true,
-          isVerticalStalk: true,
-          lastInfoType: 'HarborChannel',
+          isHub,
+          role,
         })
       })
     }
@@ -425,54 +310,267 @@ export function computeGraphAgnosticLayout(
       tierBuckets.get(t)!.push(nodeId)
     }
 
-    const layerSpacing = 16
+    const layerSpacing = 22.0
     const startX = -(maxTier * layerSpacing) / 2
 
     for (let t = 0; t <= maxTier; t++) {
       const bucket = tierBuckets.get(t) || []
-      const layerX = startX + t * layerSpacing
+      const targetX = startX + t * layerSpacing
       const count = bucket.length
-      const radius = count <= 1 ? 0 : Math.max(6, Math.sqrt(count) * 4.2)
-      const angleOffset = (t * Math.PI) / 6
 
       bucket.forEach((nodeId, idx) => {
-        const raw = nodeMap.get(nodeId)!
-        let y = 0
-        let z = 0
-        if (count > 1) {
-          const angle = (idx / count) * Math.PI * 2 + angleOffset
-          y = Math.sin(angle) * radius
-          z = Math.cos(angle) * radius
-        }
-
         const comm = communityList.find((c) => c.nodeIds.includes(nodeId))
-        finalNodes.push({
+        const isHub = comm?.hubNodeId === nodeId
+        const role = inferNodeRole(nodeId)
+        const safeDist = isHub ? 16.0 : (role === 'domain' ? 14.0 : 13.5)
+        const seed = hashString(nodeId)
+
+        // 在 Z 轴方向呈有机波浪发散，杜绝生硬一条直线
+        const baseZ = (idx - (count - 1) / 2) * Math.max(16.0, Math.sqrt(count) * 12.0)
+        const jitterX = ((seed % 13) - 6) * 1.2
+        const jitterZ = ((seed % 17) - 8) * 1.5
+
+        simNodes.push({
           id: nodeId,
-          name: nodeId,
-          color: comm?.color || '#38bdf8',
-          position: [layerX, y, z],
-          generation: raw.generation !== undefined ? raw.generation : 0,
-          version: raw.version || 0,
-          status: (raw.status as any) || 'IDLE',
-          state: raw.state || {},
-          role: inferNodeRole(nodeId),
-          tier: t,
-          communityId: comm?.id,
-          communityName: comm?.name,
-          inDegree: inDegree.get(nodeId) || 0,
-          outDegree: outDegree.get(nodeId) || 0,
-          isHub: comm?.hubNodeId === nodeId,
+          x: targetX + jitterX,
+          z: baseZ + jitterZ,
+          vx: 0,
+          vz: 0,
+          safeDist,
+          communityId: comm?.id || 'default',
+          targetX,
+          isHub,
+          role,
         })
       })
     }
   }
 
-  // 4. 组装边（普通因果边 + 垂直衍生导管边）
+  // C. 2D 物理力学多轮松弛仿真 (180 Steps Velocity Verlet + Annealing)
+  const node2DMap = new Map<string, SimNode2D>()
+  simNodes.forEach((n) => node2DMap.set(n.id, n))
+  const commMap = new Map<string, CausalCommunity3D>()
+  communityList.forEach((c) => commMap.set(c.id, c))
+
+  const totalSteps = 180
+  for (let step = 0; step < totalSteps; step++) {
+    const temp = Math.max(0.04, 1.0 - (step / totalSteps) * 0.94)
+
+    // 1. 刚体硬碰撞排斥与库仑呼吸斥力 (All-Pairs Repulsion)
+    for (let i = 0; i < simNodes.length; i++) {
+      const a = simNodes[i]
+      for (let j = i + 1; j < simNodes.length; j++) {
+        const b = simNodes[j]
+        let dx = b.x - a.x
+        let dz = b.z - a.z
+        let d = Math.sqrt(dx * dx + dz * dz)
+
+        if (d < 0.001) {
+          dx = ((hashString(a.id + b.id) % 10) - 5) * 0.1 || 0.1
+          dz = ((hashString(b.id + a.id) % 10) - 5) * 0.1 || 0.1
+          d = Math.sqrt(dx * dx + dz * dz)
+        }
+
+        const minDist = (a.safeDist + b.safeDist) / 2
+
+        if (d < minDist) {
+          // 强碰撞硬弹力：绝对杜绝岛屿重叠
+          const overlap = minDist - d
+          const force = (overlap / d) * 2.6
+          const fx = force * dx
+          const fz = force * dz
+          a.vx -= fx
+          a.vz -= fz
+          b.vx += fx
+          b.vz += fz
+        } else {
+          // 开阔海域舒展斥力
+          const coulomb = Math.min(2.8, 220.0 / (d * d))
+          const fx = (coulomb * dx) / d
+          const fz = (coulomb * dz) / d
+          a.vx -= fx
+          a.vz -= fz
+          b.vx += fx
+          b.vz += fz
+        }
+      }
+    }
+
+    // 2. 因果航线连线弹簧引力 (Edge Springs)
+    for (const e of rawEdges) {
+      const a = node2DMap.get(e.from)
+      const b = node2DMap.get(e.to)
+      if (!a || !b) continue
+      const dx = b.x - a.x
+      const dz = b.z - a.z
+      const d = Math.max(0.001, Math.sqrt(dx * dx + dz * dz))
+      const targetLen = 22.0 // 理想航运水道长度
+      const spring = (d - targetLen) * 0.06
+      const fx = (spring * dx) / d
+      const fz = (spring * dz) / d
+      a.vx += fx
+      a.vz += fz
+      b.vx -= fx
+      b.vz -= fz
+    }
+
+    // 3. 群落归属向心力 / 流水线分层约束力
+    if (mode === 'community') {
+      for (const n of simNodes) {
+        const comm = commMap.get(n.communityId)
+        if (comm) {
+          const dx = comm.center[0] - n.x
+          const dz = comm.center[2] - n.z
+          n.vx += dx * 0.024
+          n.vz += dz * 0.024
+        }
+      }
+    } else {
+      for (const n of simNodes) {
+        if (n.targetX !== undefined) {
+          const dx = n.targetX - n.x
+          n.vx += dx * 0.28
+        }
+      }
+    }
+
+    // 4. 退火阻尼与位移推进
+    const maxVelocity = 5.5 * temp
+    for (const n of simNodes) {
+      const speed = Math.sqrt(n.vx * n.vx + n.vz * n.vz)
+      if (speed > maxVelocity) {
+        n.vx = (n.vx / speed) * maxVelocity
+        n.vz = (n.vz / speed) * maxVelocity
+      }
+      n.x += n.vx * 0.82
+      n.z += n.vz * 0.82
+      n.vx *= 0.58
+      n.vz *= 0.58
+    }
+  }
+
+  // D. 物理硬刚体绝对无重叠碰撞消除 (Hard Distance Clearance Enforcement)
+  for (let pass = 0; pass < 40; pass++) {
+    for (let i = 0; i < simNodes.length; i++) {
+      const a = simNodes[i]
+      for (let j = i + 1; j < simNodes.length; j++) {
+        const b = simNodes[j]
+        const dx = b.x - a.x
+        const dz = b.z - a.z
+        const d = Math.sqrt(dx * dx + dz * dz)
+        const minDist = (a.safeDist + b.safeDist) / 2
+        if (d < minDist) {
+          const pen = (minDist - d) / 2
+          const ux = d > 0.001 ? dx / d : 1
+          const uz = d > 0.001 ? dz / d : 0
+          a.x -= ux * pen
+          a.z -= uz * pen
+          b.x += ux * pen
+          b.z += uz * pen
+        }
+      }
+    }
+  }
+
+  // E. 精准动态回算群落海域领地中心与光环半径
+  for (const comm of communityList) {
+    const memberNodes = simNodes.filter((n) => comm.nodeIds.includes(n.id))
+    if (memberNodes.length === 0) continue
+    const avgX = memberNodes.reduce((acc, n) => acc + n.x, 0) / memberNodes.length
+    const avgZ = memberNodes.reduce((acc, n) => acc + n.z, 0) / memberNodes.length
+    let maxR = 6.0
+    for (const n of memberNodes) {
+      const dist = Math.sqrt((n.x - avgX) ** 2 + (n.z - avgZ) ** 2)
+      if (dist + 5.5 > maxR) maxR = dist + 5.5
+    }
+    comm.center = [avgX, 0.0, avgZ]
+    comm.radius = maxR
+  }
+
+  // F. 构筑最终 CausalNode3D 列表 (全部紧贴海平面 Y=0.0)
+  const finalNodes: CausalNode3D[] = simNodes.map((s) => {
+    const raw = nodeMap.get(s.id)!
+    const comm = commMap.get(s.communityId)
+    return {
+      id: s.id,
+      name: s.id,
+      color: comm?.color || '#38bdf8',
+      position: [s.x, 0.0, s.z],
+      generation: raw.generation !== undefined ? raw.generation : 0,
+      version: raw.version || 0,
+      status: (raw.status as any) || 'IDLE',
+      state: raw.state || {},
+      role: s.role,
+      communityId: comm?.id,
+      communityName: comm?.name,
+      inDegree: inDegree.get(s.id) || 0,
+      outDegree: outDegree.get(s.id) || 0,
+      isHub: s.isHub,
+    }
+  })
+
+  // G. 组装近岸航运导道 (Coastal Fairways) 与全局因果航线
+  const derivativeEdges: CausalEdge3D[] = []
+  if (mode === 'community') {
+    for (const comm of communityList) {
+      const commMembers = comm.nodeIds
+      const obsNodes = simNodes.filter((n) => n.communityId === comm.id && n.role === 'observation')
+      const execNodes = simNodes.filter((n) => n.communityId === comm.id && n.role === 'execution')
+      const domainNodes = simNodes.filter((n) => n.communityId === comm.id && n.role === 'domain')
+
+      const findClosestDomainId = (target: SimNode2D): string => {
+        if (domainNodes.length > 0) {
+          let closest = domainNodes[0]
+          let minDist = Infinity
+          for (const d of domainNodes) {
+            const dist = (d.x - target.x) ** 2 + (d.z - target.z) ** 2
+            if (dist < minDist) {
+              minDist = dist
+              closest = d
+            }
+          }
+          return closest.id
+        }
+        return comm.hubNodeId !== target.id ? comm.hubNodeId : (commMembers[0] || target.id)
+      }
+
+      obsNodes.forEach((obs) => {
+        const anchorId = findClosestDomainId(obs)
+        if (anchorId !== obs.id) {
+          derivativeEdges.push({
+            id: `coastal-${obs.id}->${anchorId}`,
+            from: obs.id,
+            to: anchorId,
+            color: '#38bdf8',
+            active: true,
+            isVerticalStalk: true,
+            lastInfoType: 'CoastalChannel',
+          })
+        }
+      })
+
+      execNodes.forEach((exec) => {
+        const anchorId = findClosestDomainId(exec)
+        if (anchorId !== exec.id) {
+          derivativeEdges.push({
+            id: `coastal-${anchorId}->${exec.id}`,
+            from: anchorId,
+            to: exec.id,
+            color: '#f59e0b',
+            active: true,
+            isVerticalStalk: true,
+            lastInfoType: 'HarborChannel',
+          })
+        }
+      })
+    }
+  }
+
+  // 4. 组装边（普通因果边 + 近岸航道边）
   const finalEdges: CausalEdge3D[] = rawEdges.map((e) => {
     const sourceNode = finalNodes.find((n) => n.id === e.from)
     const targetNode = finalNodes.find((n) => n.id === e.to)
     const isInterCommunity = sourceNode?.communityId !== targetNode?.communityId
-    // 跨群落连线赋予高亮能量色，群落内连线遵循源头色
     const color = isInterCommunity ? '#38bdf8' : sourceNode?.color || '#38bdf8'
     return {
       id: `${e.from}->${e.to}`,
@@ -485,7 +583,6 @@ export function computeGraphAgnosticLayout(
     }
   })
 
-  // 汇入上下衍生细线导管
   for (const dEdge of derivativeEdges) {
     if (!finalEdges.some((e) => e.id === dEdge.id)) {
       finalEdges.push(dEdge)

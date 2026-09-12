@@ -92,25 +92,31 @@ export function createVoxelIslandMesh(radius: number, seed: number, primaryColor
   const group = new THREE.Group()
   const rng = createPRNG(seed)
 
-  // 浅水环礁 (Reef Ring)
-  const reefGeo = new THREE.CylinderGeometry(radius * 1.35, radius * 1.45, 0.4, 16)
+  // 水下坚实基岩海床 (Submerged Bedrock Base - 沉于水下扎根海床，杜绝浮碟空悬感)
+  const bedrockGeo = new THREE.CylinderGeometry(radius * 1.15, radius * 0.9, 1.2, 14)
+  const bedrockMesh = new THREE.Mesh(bedrockGeo, sharedMaterials.stone)
+  bedrockMesh.position.y = -0.55
+  group.add(bedrockMesh)
+
+  // 浅水环礁海岸 (Reef / Shore Ring)
+  const reefGeo = new THREE.CylinderGeometry(radius * 1.25, radius * 1.35, 0.35, 16)
   const reefMesh = new THREE.Mesh(reefGeo, sharedMaterials.waterShallow)
   reefMesh.position.y = 0.05
   group.add(reefMesh)
 
   // 沙滩底层 (Sand Tier)
-  const sandGeo = new THREE.CylinderGeometry(radius * 1.15, radius * 1.25, 0.7, 14)
+  const sandGeo = new THREE.CylinderGeometry(radius * 1.1, radius * 1.2, 0.5, 14)
   const sandMesh = new THREE.Mesh(sandGeo, sharedMaterials.sand)
-  sandMesh.position.y = 0.35
+  sandMesh.position.y = 0.25
   group.add(sandMesh)
 
   // 草甸主地块 (Grass Main Land)
   const grassMat = primaryColor
     ? new THREE.MeshStandardMaterial({ color: new THREE.Color(primaryColor).lerp(new THREE.Color(0x38a169), 0.5), roughness: 0.8 })
     : sharedMaterials.grass
-  const grassGeo = new THREE.CylinderGeometry(radius * 0.95, radius * 1.05, 0.9, 12)
+  const grassGeo = new THREE.CylinderGeometry(radius * 0.95, radius * 1.05, 0.8, 12)
   const grassMesh = new THREE.Mesh(grassGeo, grassMat)
-  grassMesh.position.y = 0.95
+  grassMesh.position.y = 0.85
   group.add(grassMesh)
 
   // 随机小土丘/高地 (Elevation Bump)
@@ -121,7 +127,7 @@ export function createVoxelIslandMesh(radius: number, seed: number, primaryColor
     const bDist = radius * 0.4 * rng()
     const bumpGeo = new THREE.CylinderGeometry(bRadius * 0.8, bRadius, 0.6, 8)
     const bump = new THREE.Mesh(bumpGeo, grassMat)
-    bump.position.set(Math.cos(bAngle) * bDist, 1.5, Math.sin(bAngle) * bDist)
+    bump.position.set(Math.cos(bAngle) * bDist, 1.4, Math.sin(bAngle) * bDist)
     group.add(bump)
   }
 
@@ -131,7 +137,12 @@ export function createVoxelIslandMesh(radius: number, seed: number, primaryColor
 /**
  * 2. 像素灯塔（观察节点专有建筑）
  */
-export function createLighthouseMesh(): { group: THREE.Group; beam: THREE.Mesh } {
+export function createLighthouseMesh(): {
+  group: THREE.Group
+  beam: THREE.Mesh
+  beamMesh: THREE.Mesh
+  beamMaterial: THREE.MeshBasicMaterial
+} {
   const group = new THREE.Group()
 
   // 基石
@@ -172,16 +183,33 @@ export function createLighthouseMesh(): { group: THREE.Group; beam: THREE.Mesh }
   roof.position.y = platformY + 0.9
   group.add(roof)
 
-  // 旋转探海光锥 (Sweeping Light Cone)
-  const beamLength = 18.0
-  const beamGeo = new THREE.ConeGeometry(3.6, beamLength, 16, 1, true)
-  const beam = new THREE.Mesh(beamGeo, sharedMaterials.beaconBeam)
-  // 光锥尖端置于灯室，底面射向外海
-  beam.position.set(0, platformY + 0.38, 0)
-  beam.rotation.x = Math.PI / 2 // 水平照射
-  group.add(beam)
+  // 探海光锥旋转枢轴 (Lantern Room Pivot)
+  const beamPivot = new THREE.Group()
+  beamPivot.position.set(0, platformY + 0.38, 0)
 
-  return { group, beam }
+  const beamLength = 22.0
+  const beamGeo = new THREE.ConeGeometry(4.2, beamLength, 16, 1, true)
+  // 将锥体顶点精准平移至原点 (0, 0, 0)
+  beamGeo.translate(0, -beamLength / 2, 0)
+  // 将锥体旋转至沿 +Z 轴水平向外照射
+  beamGeo.rotateX(-Math.PI / 2)
+
+  // 独立光锥材质：默认静默不放光，仅在发生观察事实时动态亮起扫海
+  const beamMaterial = new THREE.MeshBasicMaterial({
+    color: 0xfef08a,
+    transparent: true,
+    opacity: 0.0,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    visible: false,
+  })
+
+  const beamMesh = new THREE.Mesh(beamGeo, beamMaterial)
+  beamPivot.add(beamMesh)
+  group.add(beamPivot)
+
+  return { group, beam: beamPivot as unknown as THREE.Mesh, beamMesh, beamMaterial }
 }
 
 /**
