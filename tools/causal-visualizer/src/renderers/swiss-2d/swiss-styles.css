@@ -77,50 +77,79 @@
   z-index: 4;
 }
 
+/* 2D 柔性软绳 (Slack-Aware Tactile Soft Rope) */
 .swiss-orthogonal-line {
   fill: none;
-  stroke: #0a0a0a; /* 纯正高反差深黑，清晰夺目 */
-  stroke-width: 2px;
+  stroke: #0a0a0a; /* 哑光墨黑，实体软绳质感 */
+  stroke-width: 2.5px;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.9;
-  transition: stroke 0.15s ease, stroke-width 0.15s ease, opacity 0.15s ease;
+  opacity: 0.92;
+  filter: drop-shadow(0 2.5px 5px rgba(0, 0, 0, 0.14));
+  transition: stroke 0.15s ease, stroke-width 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
 }
 
 .swiss-orthogonal-line.upstream {
   stroke: #002fa7; /* 国际克莱因蓝 */
-  stroke-width: 3px;
+  stroke-width: 3.2px;
   opacity: 1;
+  filter: drop-shadow(0 3px 8px rgba(0, 47, 167, 0.35));
 }
 
 .swiss-orthogonal-line.downstream {
   stroke: #ff3300; /* 先锋朱红 */
-  stroke-width: 3px;
+  stroke-width: 3.2px;
   opacity: 1;
+  filter: drop-shadow(0 3px 8px rgba(255, 51, 0, 0.35));
 }
 
 .swiss-orthogonal-line.dimmed {
-  stroke: #737373; /* 依然清晰可辨的理性深灰 */
+  stroke: #8c8c8c;
+  stroke-width: 1.8px;
+  opacity: 0.35;
+  filter: none;
+}
+
+/* 同心圆五金接线端子插孔 (Concentric Hardware Jack Sockets) */
+.swiss-jack-outer {
+  fill: #ffffff;
+  stroke: #0a0a0a;
   stroke-width: 1.5px;
-  opacity: 0.4;
+  transition: stroke 0.15s ease, fill 0.15s ease;
 }
 
-.swiss-edge-origin-dot {
+.swiss-jack-inner {
   fill: #0a0a0a;
+  transition: fill 0.15s ease;
 }
 
-.swiss-edge-origin-dot.upstream {
+.swiss-jack-outer.upstream {
+  stroke: #002fa7;
+}
+.swiss-jack-inner.upstream {
   fill: #002fa7;
 }
 
-.swiss-edge-origin-dot.downstream {
+.swiss-jack-outer.downstream {
+  stroke: #ff3300;
+}
+.swiss-jack-inner.downstream {
   fill: #ff3300;
 }
 
-/* 正交流动脉冲光标 */
+.swiss-jack-outer.dimmed {
+  stroke: #8c8c8c;
+  opacity: 0.4;
+}
+.swiss-jack-inner.dimmed {
+  fill: #8c8c8c;
+  opacity: 0.4;
+}
+
+/* 柔性软绳顺畅滑动脉冲光标 */
 .swiss-signal-pulse {
   fill: #ff3300;
-  filter: drop-shadow(0 0 4px #ff3300);
+  filter: drop-shadow(0 0 6px rgba(255, 51, 0, 0.85));
 }
 
 /* -------------------------------------------------------------

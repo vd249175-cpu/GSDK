@@ -351,7 +351,7 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
     `
     this.svgLayer.appendChild(defs)
 
-    // 2. 渲染正交 90 度连接线与起点实心端钮
+    // 2. 渲染柔性软绳连接线与同心圆五金插孔端子
     for (const edge of this.layout.edges) {
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
       g.setAttribute('id', `swiss-edge-group-${edge.id}`)
@@ -363,16 +363,46 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
       pathEl.setAttribute('marker-end', 'url(#swiss-arrow-default)')
       g.appendChild(pathEl)
 
-      // 起点实心端钮圆点
+      // 起点与终点同心圆五金端子插孔 (Concentric Hardware Jack Sockets)
       if (edge.points && edge.points.length > 0) {
         const startPt = edge.points[0]
-        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-        dot.setAttribute('cx', `${startPt.x}`)
-        dot.setAttribute('cy', `${startPt.y}`)
-        dot.setAttribute('r', '3.5')
-        dot.setAttribute('id', `swiss-dot-${edge.id}`)
-        dot.setAttribute('class', 'swiss-edge-origin-dot')
-        g.appendChild(dot)
+        const endPt = edge.points[edge.points.length - 1]
+
+        // 起点外圈五金套管
+        const startOut = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+        startOut.setAttribute('cx', `${startPt.x}`)
+        startOut.setAttribute('cy', `${startPt.y}`)
+        startOut.setAttribute('r', '4.5')
+        startOut.setAttribute('id', `swiss-jack-so-${edge.id}`)
+        startOut.setAttribute('class', 'swiss-jack-outer')
+        g.appendChild(startOut)
+
+        // 起点内芯插孔
+        const startIn = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+        startIn.setAttribute('cx', `${startPt.x}`)
+        startIn.setAttribute('cy', `${startPt.y}`)
+        startIn.setAttribute('r', '2')
+        startIn.setAttribute('id', `swiss-jack-si-${edge.id}`)
+        startIn.setAttribute('class', 'swiss-jack-inner')
+        g.appendChild(startIn)
+
+        // 终点外圈五金套管
+        const endOut = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+        endOut.setAttribute('cx', `${endPt.x}`)
+        endOut.setAttribute('cy', `${endPt.y}`)
+        endOut.setAttribute('r', '4.5')
+        endOut.setAttribute('id', `swiss-jack-eo-${edge.id}`)
+        endOut.setAttribute('class', 'swiss-jack-outer')
+        g.appendChild(endOut)
+
+        // 终点内芯插孔
+        const endIn = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+        endIn.setAttribute('cx', `${endPt.x}`)
+        endIn.setAttribute('cy', `${endPt.y}`)
+        endIn.setAttribute('r', '2')
+        endIn.setAttribute('id', `swiss-jack-ei-${edge.id}`)
+        endIn.setAttribute('class', 'swiss-jack-inner')
+        g.appendChild(endIn)
       }
 
       this.svgLayer.appendChild(g)
@@ -502,27 +532,37 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
       }
     }
 
-    // 更新正交折线与箭头样式
+    // 更新柔性软绳与端子插孔样式
     if (this.svgLayer && this.layout) {
       for (const edge of this.layout.edges) {
         const el = this.svgLayer.querySelector<SVGPathElement>(`#swiss-edge-${edge.id}`)
-        const dot = this.svgLayer.querySelector<SVGCircleElement>(`#swiss-dot-${edge.id}`)
+        const jackElements = [
+          this.svgLayer.querySelector<SVGCircleElement>(`#swiss-jack-so-${edge.id}`),
+          this.svgLayer.querySelector<SVGCircleElement>(`#swiss-jack-si-${edge.id}`),
+          this.svgLayer.querySelector<SVGCircleElement>(`#swiss-jack-eo-${edge.id}`),
+          this.svgLayer.querySelector<SVGCircleElement>(`#swiss-jack-ei-${edge.id}`),
+        ]
         if (!el) continue
 
         el.setAttribute('class', 'swiss-orthogonal-line')
-        if (dot) dot.setAttribute('class', 'swiss-edge-origin-dot')
+        jackElements.forEach((jk) => {
+          if (!jk) return
+          const isOuter = jk.id.includes('-so-') || jk.id.includes('-eo-')
+          jk.setAttribute('class', isOuter ? 'swiss-jack-outer' : 'swiss-jack-inner')
+        })
 
         if (this.upstreamEdgeIds.has(edge.id)) {
           el.classList.add('upstream')
           el.setAttribute('marker-end', 'url(#swiss-arrow-upstream)')
-          if (dot) dot.classList.add('upstream')
+          jackElements.forEach((jk) => jk?.classList.add('upstream'))
         } else if (this.downstreamEdgeIds.has(edge.id)) {
           el.classList.add('downstream')
           el.setAttribute('marker-end', 'url(#swiss-arrow-downstream)')
-          if (dot) dot.classList.add('downstream')
+          jackElements.forEach((jk) => jk?.classList.add('downstream'))
         } else if (nodeId) {
           el.classList.add('dimmed')
           el.setAttribute('marker-end', 'url(#swiss-arrow-default)')
+          jackElements.forEach((jk) => jk?.classList.add('dimmed'))
         } else {
           el.setAttribute('marker-end', 'url(#swiss-arrow-default)')
         }
