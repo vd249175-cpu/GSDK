@@ -72,32 +72,49 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
   overflow: visible;
   pointer-events: none;
+  z-index: 4;
 }
 
 .swiss-orthogonal-line {
   fill: none;
-  stroke: #a3a3a3;
-  stroke-width: 1.5px;
-  transition: stroke 0.2s ease, stroke-width 0.2s ease;
+  stroke: #0a0a0a; /* 纯正高反差深黑，清晰夺目 */
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.9;
+  transition: stroke 0.15s ease, stroke-width 0.15s ease, opacity 0.15s ease;
 }
 
 .swiss-orthogonal-line.upstream {
   stroke: #002fa7; /* 国际克莱因蓝 */
-  stroke-width: 2.5px;
+  stroke-width: 3px;
+  opacity: 1;
 }
 
 .swiss-orthogonal-line.downstream {
   stroke: #ff3300; /* 先锋朱红 */
-  stroke-width: 2.5px;
+  stroke-width: 3px;
+  opacity: 1;
 }
 
 .swiss-orthogonal-line.dimmed {
-  stroke: #e5e5e5;
-  stroke-width: 1px;
+  stroke: #737373; /* 依然清晰可辨的理性深灰 */
+  stroke-width: 1.5px;
+  opacity: 0.4;
+}
+
+.swiss-edge-origin-dot {
+  fill: #0a0a0a;
+}
+
+.swiss-edge-origin-dot.upstream {
+  fill: #002fa7;
+}
+
+.swiss-edge-origin-dot.downstream {
+  fill: #ff3300;
 }
 
 /* 正交流动脉冲光标 */

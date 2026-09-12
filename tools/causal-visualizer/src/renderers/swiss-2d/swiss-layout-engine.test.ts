@@ -140,4 +140,35 @@ describe('Swiss Modular Grid Layout Engine', () => {
     // 验证物理排斥后间距大于等于 10px，绝不重叠
     expect(Math.abs(track1X - track2X)).toBeGreaterThanOrEqual(10)
   })
+
+  it('generates non-empty, valid SVG paths without NaN or undefined for all edge categories', () => {
+    const nodes: CausalNode3D[] = [
+      createMockNode('n_obs', 'observation'),
+      createMockNode('n_dom1', 'domain'),
+      createMockNode('n_dom2', 'domain'),
+      createMockNode('n_exec', 'execution'),
+    ]
+
+    const edges: CausalEdge3D[] = [
+      { id: 'e_adj', from: 'n_obs', to: 'n_dom1', color: '#000', active: true, lastInfoType: 'Adj' },
+      { id: 'e_same', from: 'n_dom1', to: 'n_dom2', color: '#000', active: true, lastInfoType: 'Same' },
+      { id: 'e_skip', from: 'n_obs', to: 'n_exec', color: '#000', active: true, lastInfoType: 'Skip' },
+      { id: 'e_back', from: 'n_exec', to: 'n_obs', color: '#000', active: true, lastInfoType: 'Back' },
+    ]
+
+    const layout = computeSwissGridLayout(nodes, edges)
+    expect(layout.edges).toHaveLength(4)
+
+    for (const edge of layout.edges) {
+      expect(edge.points.length).toBeGreaterThanOrEqual(4)
+      expect(edge.svgPath).toMatch(/^M \d+(\.\d+)? \d+(\.\d+)?/)
+      expect(edge.svgPath).not.toContain('NaN')
+      expect(edge.svgPath).not.toContain('undefined')
+
+      for (const pt of edge.points) {
+        expect(Number.isFinite(pt.x)).toBe(true)
+        expect(Number.isFinite(pt.y)).toBe(true)
+      }
+    }
+  })
 })

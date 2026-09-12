@@ -320,16 +320,62 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
     this.svgLayer.innerHTML = ''
 
     const bounds = this.layout.bounds
-    this.svgLayer.setAttribute('width', `${bounds.width + 400}`)
-    this.svgLayer.setAttribute('height', `${bounds.height + 400}`)
+    const svgW = Math.max(3200, bounds.maxX + 500)
+    const svgH = Math.max(2400, bounds.maxY + 500)
 
-    // 渲染正交 90 度连接线
+    // 显式设置 SVG 物理宽高与 viewBox，保证在平移缩放容器中绝不坍缩为 0
+    this.svgLayer.setAttribute('width', `${svgW}`)
+    this.svgLayer.setAttribute('height', `${svgH}`)
+    this.svgLayer.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`)
+    this.svgLayer.style.width = `${svgW}px`
+    this.svgLayer.style.height = `${svgH}px`
+
+    // 保证世界容器尺寸足够包裹所有卡片与高架走廊
+    if (this.worldContainer) {
+      this.worldContainer.style.width = `${svgW}px`
+      this.worldContainer.style.height = `${svgH}px`
+    }
+
+    // 1. 创建 SVG defs 箭头标记定义 (纯正包豪斯锐角实心箭头)
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs')
+    defs.innerHTML = `
+      <marker id="swiss-arrow-default" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#0a0a0a" />
+      </marker>
+      <marker id="swiss-arrow-upstream" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#002fa7" />
+      </marker>
+      <marker id="swiss-arrow-downstream" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#ff3300" />
+      </marker>
+    `
+    this.svgLayer.appendChild(defs)
+
+    // 2. 渲染正交 90 度连接线与起点实心端钮
     for (const edge of this.layout.edges) {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+      g.setAttribute('id', `swiss-edge-group-${edge.id}`)
+
       const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path')
       pathEl.setAttribute('d', edge.svgPath)
       pathEl.setAttribute('id', `swiss-edge-${edge.id}`)
       pathEl.setAttribute('class', 'swiss-orthogonal-line')
-      this.svgLayer.appendChild(pathEl)
+      pathEl.setAttribute('marker-end', 'url(#swiss-arrow-default)')
+      g.appendChild(pathEl)
+
+      // 起点实心端钮圆点
+      if (edge.points && edge.points.length > 0) {
+        const startPt = edge.points[0]
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+        dot.setAttribute('cx', `${startPt.x}`)
+        dot.setAttribute('cy', `${startPt.y}`)
+        dot.setAttribute('r', '3.5')
+        dot.setAttribute('id', `swiss-dot-${edge.id}`)
+        dot.setAttribute('class', 'swiss-edge-origin-dot')
+        g.appendChild(dot)
+      }
+
+      this.svgLayer.appendChild(g)
     }
   }
 
@@ -456,19 +502,29 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
       }
     }
 
-    // 更新正交折线样式
+    // 更新正交折线与箭头样式
     if (this.svgLayer && this.layout) {
       for (const edge of this.layout.edges) {
         const el = this.svgLayer.querySelector<SVGPathElement>(`#swiss-edge-${edge.id}`)
+        const dot = this.svgLayer.querySelector<SVGCircleElement>(`#swiss-dot-${edge.id}`)
         if (!el) continue
 
         el.setAttribute('class', 'swiss-orthogonal-line')
+        if (dot) dot.setAttribute('class', 'swiss-edge-origin-dot')
+
         if (this.upstreamEdgeIds.has(edge.id)) {
           el.classList.add('upstream')
+          el.setAttribute('marker-end', 'url(#swiss-arrow-upstream)')
+          if (dot) dot.classList.add('upstream')
         } else if (this.downstreamEdgeIds.has(edge.id)) {
           el.classList.add('downstream')
+          el.setAttribute('marker-end', 'url(#swiss-arrow-downstream)')
+          if (dot) dot.classList.add('downstream')
         } else if (nodeId) {
           el.classList.add('dimmed')
+          el.setAttribute('marker-end', 'url(#swiss-arrow-default)')
+        } else {
+          el.setAttribute('marker-end', 'url(#swiss-arrow-default)')
         }
       }
     }
