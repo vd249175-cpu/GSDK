@@ -1544,3 +1544,134 @@ export function computeSwissGridLayout(
     bounds,
   }
 }
+
+export type CausalEdgeRole = 'upstream' | 'downstream' | 'dimmed'
+
+export interface ClassifiedCausalEdges {
+  upstreamEdgeIds: Set<string>
+  downstreamEdgeIds: Set<string>
+  directUpstreamEdgeIds: Set<string>
+  directDownstreamEdgeIds: Set<string>
+  upstreamNodeIds: Set<string>
+  downstreamNodeIds: Set<string>
+  edgeRoles: Map<string, CausalEdgeRole>
+}
+
+/**
+ * 严格判定所选节点的因果上下游连线与角色分类
+ *
+ * 核心设计准则：
+ * 1. 直连流出 (edge.from === targetId)：100% 绝对属于下游 (先锋朱红 #ff3300)
+ * 2. 直连流入 (edge.to === targetId)：100% 绝对属于上游 (国际克莱因蓝 #0047ff)
+ * 3. 环路边界防护：下游 BFS 严禁将流回 targetId 的边收为下游；上游 BFS 严禁将从 targetId 发出的边收为上游
+ * 4. 间接因果链：清晰追溯多跳前置依赖与后置派生，非因果连线一律弱化 (dimmed)
+ */
+export function classifyCausalEdges(
+  edges: Array<{ id: string; from: string; to: string }>,
+  targetId: string | null,
+): ClassifiedCausalEdges {
+  const result: ClassifiedCausalEdges = {
+    upstreamEdgeIds: new Set<string>(),
+    downstreamEdgeIds: new Set<string>(),
+    directUpstreamEdgeIds: new Set<string>(),
+    directDownstreamEdgeIds: new Set<string>(),
+    upstreamNodeIds: new Set<string>(),
+    downstreamNodeIds: new Set<string>(),
+    edgeRoles: new Map<string, CausalEdgeRole>(),
+  }
+
+  if (!targetId) {
+    for (const edge of edges) {
+      result.edgeRoles.set(edge.id, 'dimmed')
+    }
+    return result
+  }
+
+  const inEdges = new Map<string, Array<{ from: string; edgeId: string }>>()
+  const outEdges = new Map<string, Array<{ to: string; edgeId: string }>>()
+
+  for (const edge of edges) {
+    const { from, to, id } = edge
+    if (!inEdges.has(to)) inEdges.set(to, [])
+    inEdges.get(to)!.push({ from, edgeId: id })
+    if (!outEdges.has(from)) outEdges.set(from, [])
+    outEdges.get(from)!.push({ to, edgeId: id })
+
+    if (from === targetId) {
+      result.directDownstreamEdgeIds.add(id)
+    }
+    if (to === targetId) {
+      result.directUpstreamEdgeIds.add(id)
+    }
+  }
+
+  // 1. 下游扩散 (Downstream BFS)
+  const downQueue: string[] = [targetId]
+  const downVisited = new Set<string>([targetId])
+
+  while (downQueue.length > 0) {
+    const curr = downQueue.shift()!
+    const succs = outEdges.get(curr) || []
+    for (const { to, edgeId } of succs) {
+      // 环路防护：流回 targetId 的边属于直连或间接入流，严禁收录为下游边
+      if (to === targetId) continue
+
+      result.downstreamEdgeIds.add(edgeId)
+      if (!downVisited.has(to)) {
+        downVisited.add(to)
+        result.downstreamNodeIds.add(to)
+        downQueue.push(to)
+      }
+    }
+  }
+
+  // 2. 上游溯源 (Upstream BFS)
+  const upQueue: string[] = [targetId]
+  const upVisited = new Set<string>([targetId])
+
+  while (upQueue.length > 0) {
+    const curr = upQueue.shift()!
+    const preds = inEdges.get(curr) || []
+    for (const { from, edgeId } of preds) {
+      // 环路防护：从 targetId 发出的边属于直连或间接出流，严禁收录为上游边
+      if (from === targetId) continue
+
+      result.upstreamEdgeIds.add(edgeId)
+      if (!upVisited.has(from)) {
+        upVisited.add(from)
+        result.upstreamNodeIds.add(from)
+        upQueue.push(from)
+      }
+    }
+  }
+
+  // 3. 逐条边判定颜色角色
+  for (const edge of edges) {
+    const isDirectDownstream = edge.from === targetId
+    const isDirectUpstream = edge.to === targetId
+
+    if (isDirectDownstream && isDirectUpstream) {
+      result.edgeRoles.set(edge.id, 'downstream')
+    } else if (isDirectDownstream) {
+      result.edgeRoles.set(edge.id, 'downstream')
+    } else if (isDirectUpstream) {
+      result.edgeRoles.set(edge.id, 'upstream')
+    } else {
+      const isDown = result.downstreamEdgeIds.has(edge.id)
+      const isUp = result.upstreamEdgeIds.has(edge.id)
+
+      if (isDown && !isUp) {
+        result.edgeRoles.set(edge.id, 'downstream')
+      } else if (isUp && !isDown) {
+        result.edgeRoles.set(edge.id, 'upstream')
+      } else if (isDown && isUp) {
+        result.edgeRoles.set(edge.id, 'downstream')
+      } else {
+        result.edgeRoles.set(edge.id, 'dimmed')
+      }
+    }
+  }
+
+  return result
+}
+

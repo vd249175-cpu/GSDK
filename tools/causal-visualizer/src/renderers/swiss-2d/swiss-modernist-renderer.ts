@@ -1,6 +1,7 @@
 import type { CausalCommunity3D, CausalEdge3D, CausalNode3D } from '../../types'
 import type { IVisualizerRenderer, RendererCallbacks } from '../renderer-interface'
 import {
+  classifyCausalEdges,
   computeSwissGridLayout,
   type SwissDashboardLayout,
   type SwissEdgeLayout,
@@ -353,7 +354,7 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
         <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#0a0a0a" />
       </marker>
       <marker id="swiss-arrow-upstream" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#002fa7" />
+        <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#0047ff" />
       </marker>
       <marker id="swiss-arrow-downstream" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
         <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#ff3300" />
@@ -526,8 +527,13 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
     this.upstreamEdgeIds.clear()
     this.downstreamEdgeIds.clear()
 
-    if (nodeId && this.layout) {
-      this.computeCausalPaths(nodeId)
+    const classified = nodeId && this.layout ? classifyCausalEdges(this.layout.edges, nodeId) : null
+
+    if (classified) {
+      this.upstreamNodeIds = classified.upstreamNodeIds
+      this.downstreamNodeIds = classified.downstreamNodeIds
+      this.upstreamEdgeIds = classified.upstreamEdgeIds
+      this.downstreamEdgeIds = classified.downstreamEdgeIds
     }
 
     // 1. 卡片样式：仅当前选中的卡片带有 selected 标记，其他所有卡片完全保持原本黑白高反差样式，绝不更改其他卡片颜色
@@ -545,7 +551,8 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
 
     // 2. 绳子样式：上下游变色与防叠压置顶
     if (this.svgLayer && this.layout) {
-      const highlightedGroups: SVGGElement[] = []
+      const highlightedUpstreamGroups: SVGGElement[] = []
+      const highlightedDownstreamGroups: SVGGElement[] = []
 
       for (const edge of this.layout.edges) {
         const dom = this.edgeDomMap.get(edge.id)
@@ -560,25 +567,23 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
           jk.setAttribute('class', isOuter ? 'swiss-jack-outer' : 'swiss-jack-inner')
         })
 
-        if (!nodeId) {
+        if (!nodeId || !classified) {
           el.setAttribute('marker-end', 'url(#swiss-arrow-default)')
           continue
         }
 
-        // 判断是否为流入当前节点的上游绳子，或从当前节点流出的下游绳子
-        const isUpstream = edge.to === nodeId || this.upstreamEdgeIds.has(edge.id)
-        const isDownstream = edge.from === nodeId || this.downstreamEdgeIds.has(edge.id)
+        const role = classified.edgeRoles.get(edge.id) || 'dimmed'
 
-        if (isUpstream) {
-          el.classList.add('upstream')
-          el.setAttribute('marker-end', 'url(#swiss-arrow-upstream)')
-          jacks.forEach((jk) => jk.classList.add('upstream'))
-          highlightedGroups.push(group)
-        } else if (isDownstream) {
+        if (role === 'downstream') {
           el.classList.add('downstream')
           el.setAttribute('marker-end', 'url(#swiss-arrow-downstream)')
           jacks.forEach((jk) => jk.classList.add('downstream'))
-          highlightedGroups.push(group)
+          highlightedDownstreamGroups.push(group)
+        } else if (role === 'upstream') {
+          el.classList.add('upstream')
+          el.setAttribute('marker-end', 'url(#swiss-arrow-upstream)')
+          jacks.forEach((jk) => jk.classList.add('upstream'))
+          highlightedUpstreamGroups.push(group)
         } else {
           el.classList.add('dimmed')
           el.setAttribute('marker-end', 'url(#swiss-arrow-default)')
@@ -586,55 +591,13 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
         }
       }
 
-      // 置顶：将所有高亮的上下游绳子移动到 SVG 根节点的最后（DOM 渲染顺序置顶，不被任何普通绳子叠压）
-      for (const g of highlightedGroups) {
+      // 置顶：将所有高亮的上下游绳子移动到 SVG 根节点的最后（DOM 渲染顺序置顶，不被任何普通未选中绳子叠压）
+      // 先追加上游（克莱因蓝），后追加下游（先锋朱红）
+      for (const g of highlightedUpstreamGroups) {
         this.svgLayer.appendChild(g)
       }
-    }
-  }
-
-  private computeCausalPaths(targetId: string): void {
-    if (!this.layout) return
-    const inEdges = new Map<string, Array<{ from: string; edgeId: string }>>()
-    const outEdges = new Map<string, Array<{ to: string; edgeId: string }>>()
-
-    for (const edge of this.layout.edges) {
-      const { from, to, id } = edge
-      if (!inEdges.has(to)) inEdges.set(to, [])
-      inEdges.get(to)!.push({ from, edgeId: id })
-      if (!outEdges.has(from)) outEdges.set(from, [])
-      outEdges.get(from)!.push({ to, edgeId: id })
-    }
-
-    // 上游溯源 (Klein Blue)
-    const upQueue = [targetId]
-    const upVisited = new Set<string>([targetId])
-    while (upQueue.length > 0) {
-      const curr = upQueue.shift()!
-      const preds = inEdges.get(curr) || []
-      for (const { from, edgeId } of preds) {
-        this.upstreamEdgeIds.add(edgeId)
-        if (!upVisited.has(from)) {
-          upVisited.add(from)
-          this.upstreamNodeIds.add(from)
-          upQueue.push(from)
-        }
-      }
-    }
-
-    // 下游扩散 (Vermilion)
-    const downQueue = [targetId]
-    const downVisited = new Set<string>([targetId])
-    while (downQueue.length > 0) {
-      const curr = downQueue.shift()!
-      const succs = outEdges.get(curr) || []
-      for (const { to, edgeId } of succs) {
-        this.downstreamEdgeIds.add(edgeId)
-        if (!downVisited.has(to)) {
-          downVisited.add(to)
-          this.downstreamNodeIds.add(to)
-          downQueue.push(to)
-        }
+      for (const g of highlightedDownstreamGroups) {
+        this.svgLayer.appendChild(g)
       }
     }
   }

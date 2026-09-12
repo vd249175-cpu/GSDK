@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildOrganicRopeSpline, buildSoftRopePath, computeSwissGridLayout } from './swiss-layout-engine'
+import {
+  buildOrganicRopeSpline,
+  buildSoftRopePath,
+  classifyCausalEdges,
+  computeSwissGridLayout,
+} from './swiss-layout-engine'
 import type { CausalEdge3D, CausalNode3D } from '../../types'
 
 describe('Swiss Modular Grid Layout Engine', () => {
@@ -592,6 +597,89 @@ describe('Swiss Modular Grid Layout Engine', () => {
       const pt2 = ev2.points[ev2.points.length - 1]
 
       expect(pt1.x !== pt2.x || pt1.y !== pt2.y).toBe(true)
+    })
+  })
+
+  describe('classifyCausalEdges', () => {
+    it('strictly distinguishes direct upstream (blue) and downstream (red) without collision', () => {
+      const edges = [
+        { id: 'md->sqlite', from: 'node-md-parser', to: 'node-sqlite' },
+        { id: 'sqlite->gen', from: 'node-sqlite', to: 'node-generation-task' },
+        { id: 'left->sqlite', from: 'node-left', to: 'node-sqlite' },
+        { id: 'unrelated', from: 'node-other-1', to: 'node-other-2' },
+      ]
+
+      const result = classifyCausalEdges(edges, 'node-sqlite')
+
+      // 流入选定节点的所有连线必须判定为 upstream
+      expect(result.edgeRoles.get('md->sqlite')).toBe('upstream')
+      expect(result.edgeRoles.get('left->sqlite')).toBe('upstream')
+
+      // 从选定节点流出的所有连线必须判定为 downstream
+      expect(result.edgeRoles.get('sqlite->gen')).toBe('downstream')
+
+      // 无关连线弱化
+      expect(result.edgeRoles.get('unrelated')).toBe('dimmed')
+    })
+
+    it('prevents cycles and bidirectional communication from contaminating upstream/downstream colors', () => {
+      // 场景：两个节点双向交互通信，以及包含选定节点的三节点环路
+      const edges = [
+        { id: 'e_out', from: 'node-sqlite', to: 'node-generation-task' },
+        { id: 'e_in', from: 'node-generation-task', to: 'node-sqlite' },
+        { id: 'e_loop_1', from: 'node-sqlite', to: 'node-a' },
+        { id: 'e_loop_2', from: 'node-a', to: 'node-b' },
+        { id: 'e_loop_3', from: 'node-b', to: 'node-sqlite' },
+      ]
+
+      const result = classifyCausalEdges(edges, 'node-sqlite')
+
+      // 双向交互：直连发出的必须是 downstream，直连进入的必须是 upstream
+      expect(result.edgeRoles.get('e_out')).toBe('downstream')
+      expect(result.edgeRoles.get('e_in')).toBe('upstream')
+
+      // 环路链路：从 node-sqlite 发出的为 downstream，流回 node-sqlite 的为 upstream
+      expect(result.edgeRoles.get('e_loop_1')).toBe('downstream')
+      expect(result.edgeRoles.get('e_loop_2')).toBe('downstream')
+      expect(result.edgeRoles.get('e_loop_3')).toBe('upstream')
+
+      // 验证直连发出的边绝不混入 upstreamEdgeIds，直连进入的边绝不混入 downstreamEdgeIds
+      expect(result.upstreamEdgeIds.has('e_out')).toBe(false)
+      expect(result.downstreamEdgeIds.has('e_in')).toBe(false)
+    })
+
+    it('correctly traces multi-hop causal chains and dims unrelated edges', () => {
+      const edges = [
+        { id: 'e1', from: 'source', to: 'middle' },
+        { id: 'e2', from: 'middle', to: 'target' },
+        { id: 'e3', from: 'target', to: 'sink' },
+        { id: 'e4', from: 'sink', to: 'terminal' },
+        { id: 'e_other', from: 'isolated_a', to: 'isolated_b' },
+      ]
+
+      const result = classifyCausalEdges(edges, 'target')
+
+      // 上游链条
+      expect(result.edgeRoles.get('e1')).toBe('upstream')
+      expect(result.edgeRoles.get('e2')).toBe('upstream')
+
+      // 下游链条
+      expect(result.edgeRoles.get('e3')).toBe('downstream')
+      expect(result.edgeRoles.get('e4')).toBe('downstream')
+
+      // 隔离连线
+      expect(result.edgeRoles.get('e_other')).toBe('dimmed')
+    })
+
+    it('returns all dimmed when targetId is null (canvas deselected)', () => {
+      const edges = [
+        { id: 'e1', from: 'a', to: 'b' },
+        { id: 'e2', from: 'b', to: 'c' },
+      ]
+
+      const result = classifyCausalEdges(edges, null)
+      expect(result.edgeRoles.get('e1')).toBe('dimmed')
+      expect(result.edgeRoles.get('e2')).toBe('dimmed')
     })
   })
 })
