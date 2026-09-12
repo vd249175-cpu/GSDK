@@ -6,6 +6,6 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5174,
-    open: true,
+    open: 'http://127.0.0.1:5174/',
   },
 })
