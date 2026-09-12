@@ -34,7 +34,8 @@
   --vis-shadow-lg: 0 16px 40px rgba(69, 26, 3, 0.16), 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
-body, html {
+body,
+html {
   margin: 0;
   padding: 0;
   width: 100%;
@@ -53,8 +54,8 @@ body, html {
   overflow: hidden;
 }
 
-/* 柔和热带阳光与微风光晕 */
-.visualizer-root::after {
+/* 柔和热带阳光与微风光晕 (仅在海岛模式下生效) */
+.visualizer-root.island-3d::after {
   content: "";
   position: absolute;
   top: 0;
@@ -76,12 +77,70 @@ body, html {
 }
 
 /* -------------------------------------------------------------
+ * 左上角独立呈现范式切换按钮 (Top-Left Paradigm Switcher)
+ * ------------------------------------------------------------- */
+.paradigm-switcher-top-left {
+  position: absolute;
+  top: 14px;
+  left: 20px;
+  z-index: 100;
+}
+
+.btn-paradigm-switch {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 56px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* 海岛模式下的切换按钮 (深黑极简质感，醒目而不喧宾夺主) */
+.btn-paradigm-switch.island-3d {
+  background: #1c1917;
+  color: #ffffff;
+  border: 1.5px solid #44403c;
+  border-radius: 18px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.btn-paradigm-switch.island-3d:hover {
+  background: #ff3300;
+  border-color: #ff3300;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(255, 51, 0, 0.35);
+}
+
+/* 瑞士模式下的切换按钮 (纯正包豪斯黑白红块) */
+.btn-paradigm-switch.swiss-2d {
+  background: #0a0a0a;
+  color: #ffffff;
+  border: 2px solid #0a0a0a;
+  box-shadow: 4px 4px 0px #ff3300;
+  border-radius: 0px;
+}
+
+.btn-paradigm-switch.swiss-2d:hover {
+  background: #ff3300;
+  border-color: #ff3300;
+  transform: translateY(-2px);
+  box-shadow: 6px 6px 0px #0a0a0a;
+}
+
+/* -------------------------------------------------------------
  * 1. 顶部航海仪表盘总览 (Nautical Chart Header)
  * ------------------------------------------------------------- */
 .top-bar {
   position: absolute;
   top: 14px;
-  left: 20px;
+  left: 190px;
   right: 20px;
   height: 56px;
   display: flex;
@@ -167,44 +226,6 @@ body, html {
   display: flex;
   align-items: center;
   gap: 20px;
-}
-
-.btn-paradigm-toggle {
-  background: #0a0a0a;
-  color: #ffffff;
-  border: 1.5px solid #0a0a0a;
-  border-radius: 18px;
-  padding: 6px 14px;
-  font-size: 11.5px;
-  font-weight: 800;
-  font-family: inherit;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  white-space: nowrap;
-}
-
-.btn-paradigm-toggle:hover {
-  background: #ff3300;
-  border-color: #ff3300;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(255, 51, 0, 0.35);
-}
-
-.btn-paradigm-pill {
-  background: #0a0a0a !important;
-  color: #ffffff !important;
-  border-color: #0a0a0a !important;
-  font-weight: 800 !important;
-}
-
-.btn-paradigm-pill:hover {
-  background: #ff3300 !important;
-  border-color: #ff3300 !important;
-  color: #ffffff !important;
 }
 
 .stat-item {
@@ -794,13 +815,33 @@ body, html {
   white-space: nowrap;
 }
 
-.feed-item.info_sent .feed-type { color: var(--vis-ocean-blue); }
-.feed-item.state_mutated .feed-type { color: var(--vis-palm); }
-.feed-item.root_injected .feed-type { color: var(--vis-lavender); }
-.feed-item.change_start .feed-type { color: var(--vis-gold); }
-.feed-item.change_end .feed-type { color: #059669; }
-.feed-item.node_admitted .feed-type { color: var(--vis-coral); }
-.feed-item.node_evicted .feed-type { color: #dc2626; }
+.feed-item.info_sent .feed-type {
+  color: var(--vis-ocean-blue);
+}
+
+.feed-item.state_mutated .feed-type {
+  color: var(--vis-palm);
+}
+
+.feed-item.root_injected .feed-type {
+  color: var(--vis-lavender);
+}
+
+.feed-item.change_start .feed-type {
+  color: var(--vis-gold);
+}
+
+.feed-item.change_end .feed-type {
+  color: #059669;
+}
+
+.feed-item.node_admitted .feed-type {
+  color: var(--vis-coral);
+}
+
+.feed-item.node_evicted .feed-type {
+  color: #dc2626;
+}
 
 .feed-desc {
   color: var(--vis-text-body);
@@ -813,21 +854,51 @@ body, html {
  * 动画过渡与入场
  * ------------------------------------------------------------- */
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.35; transform: scale(0.85); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
 }
 
 @keyframes slide-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes pop-in {
-  from { opacity: 0; transform: scale(0.94) translateY(6px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 @keyframes banner-pop {
-  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
