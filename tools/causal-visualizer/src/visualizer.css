@@ -1,38 +1,7 @@
-:root {
-  /* 阳光热带海岛主题调色板 (Nautical Archipelago Palette) */
-  --vis-bg: #0284c7;
-  --vis-parchment: rgba(255, 253, 248, 0.94);
-  --vis-parchment-pure: #ffffff;
-  --vis-parchment-raised: #fdfbf7;
-  --vis-parchment-border: rgba(217, 180, 130, 0.55);
-  --vis-parchment-border-strong: rgba(180, 83, 9, 0.65);
-
-  /* 航海黄铜、落日金与暖木 */
-  --vis-wood-dark: #451a03;
-  --vis-wood-medium: #78350f;
-  --vis-brass: #b45309;
-  --vis-gold: #d97706;
-  --vis-amber: #f59e0b;
-
-  /* 碧海与热带群岛色彩 */
-  --vis-ocean-blue: #0284c7;
-  --vis-ocean-deep: #0369a1;
-  --vis-ocean-teal: #0d9488;
-  --vis-coral: #e11d48;
-  --vis-palm: #16a34a;
-  --vis-lavender: #7c3aed;
-
-  /* 高对比度易读文字 */
-  --vis-text-title: #1c1917;
-  --vis-text-body: #44403c;
-  --vis-text-muted: #78716c;
-  --vis-text-subtle: #a8a29e;
-
-  /* 暖调木质纸质柔和阴影 */
-  --vis-shadow-sm: 0 2px 6px rgba(69, 26, 3, 0.06);
-  --vis-shadow-md: 0 8px 24px rgba(69, 26, 3, 0.1), 0 2px 6px rgba(0, 0, 0, 0.04);
-  --vis-shadow-lg: 0 16px 40px rgba(69, 26, 3, 0.16), 0 4px 12px rgba(0, 0, 0, 0.06);
-}
+/* =========================================================================
+ * 2D 瑞士先锋主义因果看板系统全局样式 (Swiss Modernist Global Style)
+ * 纯粹理性、极简功能主义、严苛网格、包豪斯黑白朱红克莱因蓝高反差
+ * ========================================================================= */
 
 body,
 html {
@@ -41,10 +10,11 @@ html {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: var(--vis-bg);
-  color: var(--vis-text-body);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background-color: #f7f7f5;
+  color: #0a0a0a;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Arial", "PingFang SC", sans-serif;
   user-select: none;
+  -webkit-font-smoothing: antialiased;
 }
 
 .visualizer-root {
@@ -52,19 +22,7 @@ html {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-}
-
-/* 柔和热带阳光与微风光晕 (仅在海岛模式下生效) */
-.visualizer-root.island-3d::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.14) 0%, transparent 65%);
-  z-index: 2;
+  background-color: #f7f7f5;
 }
 
 .canvas-container {
@@ -77,828 +35,97 @@ html {
 }
 
 /* -------------------------------------------------------------
- * 左上角独立呈现范式切换按钮 (Top-Left Paradigm Switcher)
+ * 左上角瑞士先锋极简 HUD (Bauhaus Minimalist HUD)
  * ------------------------------------------------------------- */
-.paradigm-switcher-top-left {
+.swiss-top-hud {
   position: absolute;
-  top: 14px;
+  top: 16px;
   left: 20px;
-  z-index: 100;
-}
-
-.btn-paradigm-switch {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 56px;
-  padding: 0 16px;
-  font-size: 13px;
-  font-weight: 800;
-  font-family: inherit;
-  cursor: pointer;
-  box-sizing: border-box;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  white-space: nowrap;
-  user-select: none;
-}
-
-/* 海岛模式下的切换按钮 (深黑极简质感，醒目而不喧宾夺主) */
-.btn-paradigm-switch.island-3d {
-  background: #1c1917;
-  color: #ffffff;
-  border: 1.5px solid #44403c;
-  border-radius: 18px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
-}
-
-.btn-paradigm-switch.island-3d:hover {
-  background: #ff3300;
-  border-color: #ff3300;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(255, 51, 0, 0.35);
-}
-
-/* 瑞士模式下的切换按钮 (纯正包豪斯黑白红块) */
-.btn-paradigm-switch.swiss-2d {
-  background: #0a0a0a;
-  color: #ffffff;
-  border: 2px solid #0a0a0a;
-  box-shadow: 4px 4px 0px #ff3300;
-  border-radius: 0px;
-}
-
-.btn-paradigm-switch.swiss-2d:hover {
-  background: #ff3300;
-  border-color: #ff3300;
-  transform: translateY(-2px);
-  box-shadow: 6px 6px 0px #0a0a0a;
-}
-
-/* -------------------------------------------------------------
- * 1. 顶部航海仪表盘总览 (Nautical Chart Header)
- * ------------------------------------------------------------- */
-.top-bar {
-  position: absolute;
-  top: 14px;
-  left: 190px;
-  right: 20px;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 22px;
-  background: var(--vis-parchment);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1.5px solid var(--vis-parchment-border);
-  box-shadow: var(--vis-shadow-md);
-  border-radius: 18px;
-  z-index: 10;
-}
-
-.title-group {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.logo-badge {
-  font-size: 24px;
-  filter: drop-shadow(0 2px 4px rgba(69, 26, 3, 0.15));
-}
-
-.brand-badge {
-  font-size: 10px;
-  letter-spacing: 1px;
-  color: var(--vis-brass);
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.title-group h1 {
-  font-size: 16px;
-  font-weight: 800;
-  margin: 1px 0 0 0;
-  letter-spacing: 0.3px;
-  color: var(--vis-text-title);
-}
-
-.title-group .subtitle {
-  font-size: 11px;
-  color: var(--vis-text-muted);
-  letter-spacing: 0.1px;
-}
-
-.kernel-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 12px;
-  border-radius: 20px;
-  letter-spacing: 0.3px;
-}
-
-.kernel-badge.live {
-  background: rgba(22, 163, 74, 0.1);
-  border: 1.5px solid rgba(22, 163, 74, 0.4);
-  color: #15803d;
-  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.12);
-}
-
-.kernel-badge.waiting {
-  background: rgba(245, 158, 11, 0.12);
-  border: 1.5px solid rgba(245, 158, 11, 0.4);
-  color: #b45309;
-}
-
-.live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #16a34a;
-  box-shadow: 0 0 6px rgba(22, 163, 74, 0.6);
-  animation: pulse-dot 1.8s infinite;
-}
-
-.stats-group {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-
-.stat-item .label {
-  font-size: 9.5px;
-  text-transform: uppercase;
-  color: var(--vis-text-muted);
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  margin-bottom: 2px;
-}
-
-.stat-item .value {
-  font-size: 13.5px;
-  font-weight: 800;
-  color: var(--vis-text-title);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-
-.tier-counters {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.tier-pill {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 12px;
-  letter-spacing: 0.2px;
-}
-
-.tier-pill.domain {
-  background: #e0f2fe;
-  color: #0369a1;
-  border: 1px solid #bae6fd;
-}
-
-.tier-pill.obs {
-  background: #ccfbf1;
-  color: #0f766e;
-  border: 1px solid #99f6e4;
-}
-
-.tier-pill.exec {
-  background: #fef3c7;
-  color: #b45309;
-  border: 1px solid #fde68a;
-}
-
-/* -------------------------------------------------------------
- * 2. 聚焦小岛视角顶部导航立牌 (Island View Welcome Plaque)
- * ------------------------------------------------------------- */
-.island-view-banner {
-  position: absolute;
-  top: 80px;
-  left: 50%;
-  transform: translateX(-50%);
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 16px;
-  background: var(--vis-parchment);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 2px solid var(--vis-parchment-border-strong);
-  box-shadow: var(--vis-shadow-md);
-  border-radius: 20px;
-  padding: 8px 18px;
-  z-index: 15;
-  animation: banner-pop 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1.5px solid #0a0a0a;
+  box-shadow: 3px 3px 0px #0a0a0a;
+  pointer-events: auto;
 }
 
-.island-view-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.island-view-icon {
-  font-size: 26px;
-  line-height: 1;
-}
-
-.island-view-title-wrap {
-  display: flex;
-  flex-direction: column;
-}
-
-.island-view-title {
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--vis-text-title);
-  letter-spacing: 0.3px;
-}
-
-.island-view-tags {
+.swiss-hud-brand {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 3px;
 }
 
-.role-tag {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 6px;
+.swiss-hud-square {
+  width: 9px;
+  height: 9px;
+  background-color: #ff3300;
+  display: inline-block;
 }
 
-.role-tag.domain {
-  background: #e0f2fe;
-  border: 1px solid #7dd3fc;
-  color: #0284c7;
-}
-
-.role-tag.observation {
-  background: #ccfbf1;
-  border: 1px solid #5eead4;
-  color: #0f766e;
-}
-
-.role-tag.execution {
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
-  color: #b45309;
-}
-
-.meta-tag {
-  font-size: 10px;
-  color: var(--vis-text-muted);
-  font-weight: 600;
-}
-
-.btn-back-overview {
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 20px;
-  padding: 7px 18px;
-  font-size: 12.5px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
-}
-
-.btn-back-overview:hover {
-  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.5);
-  transform: translateY(-1px) scale(1.02);
-}
-
-/* -------------------------------------------------------------
- * 3. 小岛生态物品与村民选择胶囊栏 (Items Bar)
- * ------------------------------------------------------------- */
-.island-items-bar {
-  position: absolute;
-  top: 142px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 90vw;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--vis-parchment);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1.5px solid var(--vis-parchment-border);
-  border-radius: 24px;
-  padding: 5px 14px;
-  box-shadow: var(--vis-shadow-md);
-  z-index: 15;
-}
-
-.items-bar-label {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--vis-wood-medium);
-  white-space: nowrap;
-}
-
-.items-chips-scroll {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding: 2px 0;
-}
-
-.items-chips-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.item-chip {
-  background: #ffffff;
-  border: 1px solid rgba(217, 180, 130, 0.6);
-  border-radius: 16px;
-  padding: 4px 11px;
-  font-size: 11.5px;
-  font-family: inherit;
-  font-weight: 600;
-  color: var(--vis-text-body);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-  transition: all 0.18s ease;
-  box-shadow: var(--vis-shadow-sm);
-}
-
-.item-chip:hover {
-  background: #fef8ee;
-  border-color: var(--vis-gold);
-  color: var(--vis-wood-dark);
-  transform: translateY(-1px);
-}
-
-.item-chip.active {
-  background: var(--vis-gold);
-  border-color: var(--vis-brass);
-  color: #ffffff;
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.4);
-  transform: translateY(-1px);
-}
-
-/* -------------------------------------------------------------
- * 4. 物品/村民像素字段探针卡片 (Animal Crossing / RPG Quest Scroll)
- * ------------------------------------------------------------- */
-.item-inspect-card {
-  position: absolute;
-  right: 24px;
-  top: 80px;
-  width: 350px;
-  max-width: calc(100vw - 48px);
-  background: var(--vis-parchment);
-  border: 2px solid var(--vis-parchment-border-strong);
-  border-radius: 20px;
-  box-shadow: var(--vis-shadow-lg);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  padding: 16px;
-  z-index: 25;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  animation: pop-in 0.24s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.inspect-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  border-bottom: 1.5px solid var(--vis-parchment-border);
-  padding-bottom: 10px;
-}
-
-.inspect-title-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.inspect-big-icon {
-  font-size: 28px;
-  line-height: 1;
-}
-
-.inspect-title {
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--vis-text-title);
-  letter-spacing: 0.2px;
-  margin-bottom: 2px;
-}
-
-.inspect-category-row {
-  display: flex;
-  align-items: center;
-}
-
-.inspect-category-badge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 10px;
-}
-
-.inspect-category-badge.state_field {
-  background: #e0f2fe;
-  border: 1px solid #7dd3fc;
-  color: #0284c7;
-}
-
-.inspect-category-badge.change_villager {
-  background: #f3e8ff;
-  border: 1px solid #d8b4fe;
-  color: #7e22ce;
-}
-
-.inspect-category-badge.system_landmark {
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
-  color: #b45309;
-}
-
-.inspect-category-badge.island_flora {
-  background: #dcfce7;
-  border: 1px solid #86efac;
-  color: #15803d;
-}
-
-.inspect-close-btn {
-  background: none;
-  border: none;
-  color: var(--vis-text-muted);
-  cursor: pointer;
-  font-size: 22px;
-  line-height: 1;
-  padding: 0 4px;
-  border-radius: 4px;
-  transition: color 0.15s;
-}
-
-.inspect-close-btn:hover {
-  color: var(--vis-text-title);
-}
-
-.inspect-body {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.inspect-field-card {
-  background: #ffffff;
-  border: 1.5px solid var(--vis-parchment-border);
-  border-radius: 12px;
-  padding: 11px;
-  box-shadow: var(--vis-shadow-sm);
-}
-
-.inspect-field-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 10px;
+.swiss-hud-title {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  color: #0a0a0a;
   text-transform: uppercase;
-  color: var(--vis-text-muted);
+}
+
+.swiss-hud-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: #737373;
+}
+
+.swiss-hud-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 700;
+  color: #525252;
+}
+
+.swiss-hud-divider {
+  color: #d4d4d4;
+  font-weight: 400;
+}
+
+.swiss-hud-item {
+  color: #262626;
   letter-spacing: 0.5px;
 }
 
-.field-type {
-  color: var(--vis-ocean-blue);
-  font-weight: 800;
-}
-
-.inspect-field-key {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--vis-text-title);
-  margin: 3px 0 8px 0;
-  word-break: break-all;
-}
-
-.inspect-field-val-wrap {
-  border-top: 1px solid #f1f5f9;
-  padding-top: 8px;
-}
-
-.field-val-label {
-  font-size: 10px;
-  color: var(--vis-text-muted);
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.inspect-bool-badge {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 800;
-  padding: 2px 8px;
-  border-radius: 6px;
-}
-
-.inspect-bool-badge.true {
-  background: #16a34a;
-  color: #ffffff;
-}
-
-.inspect-bool-badge.false {
-  background: #64748b;
-  color: #ffffff;
-}
-
-.inspect-num-badge {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--vis-ocean-blue);
-}
-
-.inspect-str-badge {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--vis-wood-medium);
-  word-break: break-all;
-}
-
-.inspect-json-box {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 8px;
-  color: #0f172a;
-  font-size: 11px;
-  font-family: "JetBrains Mono", Consolas, monospace;
-  max-height: 130px;
-  overflow-y: auto;
-  margin: 2px 0 0 0;
-}
-
-.inspect-desc-box {
-  background: rgba(245, 158, 11, 0.06);
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  border-radius: 10px;
-  padding: 9px 11px;
-}
-
-.desc-text {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--vis-text-body);
-}
-
-.inspect-causal-tip {
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--vis-wood-medium);
-  background: rgba(254, 243, 199, 0.5);
-  border: 1px dashed rgba(180, 83, 9, 0.35);
-  border-radius: 10px;
-  padding: 8px 10px;
-}
-
-.inspect-causal-tip b {
-  color: var(--vis-wood-dark);
-}
-
-/* -------------------------------------------------------------
- * 5. 底部航海操舵坞 (Captain's Steering Dock)
- * ------------------------------------------------------------- */
-.bottom-dock {
-  position: absolute;
-  bottom: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  background: var(--vis-parchment);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1.5px solid var(--vis-parchment-border);
-  box-shadow: var(--vis-shadow-md);
-  border-radius: 24px;
-  z-index: 10;
-}
-
-.btn-ctrl {
-  background: #ffffff;
-  border: 1px solid rgba(217, 180, 130, 0.6);
-  border-radius: 16px;
-  padding: 7px 14px;
-  color: var(--vis-text-body);
-  font-size: 12px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
+.swiss-hud-status {
   display: flex;
   align-items: center;
   gap: 5px;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: var(--vis-shadow-sm);
-  white-space: nowrap;
-}
-
-.btn-ctrl:hover {
-  background: #fef8ee;
-  border-color: var(--vis-gold);
-  color: var(--vis-wood-dark);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(69, 26, 3, 0.12);
-}
-
-.btn-ctrl.active {
-  background: var(--vis-ocean-blue);
-  border-color: var(--vis-ocean-deep);
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
-}
-
-.dock-divider {
-  width: 1px;
-  height: 20px;
-  background: var(--vis-parchment-border);
-  margin: 0 3px;
-}
-
-/* -------------------------------------------------------------
- * 6. 航海因果日志抽屉 (Captain's Logbook Feed)
- * ------------------------------------------------------------- */
-.event-feed {
-  position: absolute;
-  bottom: 18px;
-  left: 20px;
-  width: 320px;
-  max-height: 250px;
-  background: var(--vis-parchment);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1.5px solid var(--vis-parchment-border);
-  box-shadow: var(--vis-shadow-md);
-  border-radius: 18px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  z-index: 10;
-}
-
-.feed-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 9px 14px;
-  background: rgba(254, 243, 199, 0.4);
-  border-bottom: 1px solid var(--vis-parchment-border);
-  font-size: 11.5px;
   font-weight: 800;
-  color: var(--vis-wood-dark);
+  letter-spacing: 0.8px;
 }
 
-.feed-status {
-  font-size: 10px;
-  font-weight: 700;
-  color: #16a34a;
+.swiss-hud-status.live {
+  color: #0a0a0a;
 }
 
-.feed-list {
-  padding: 8px 10px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 200px;
+.swiss-hud-status.live .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #002fa7;
+  box-shadow: 0 0 6px rgba(0, 47, 167, 0.6);
 }
 
-.feed-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 5px 8px;
-  background: #ffffff;
-  border: 1px solid rgba(217, 180, 130, 0.35);
-  border-radius: 8px;
-  font-size: 11px;
-  animation: slide-in 0.2s ease;
-  box-shadow: 0 1px 3px rgba(69, 26, 3, 0.04);
+.swiss-hud-status.offline {
+  color: #a3a3a3;
 }
 
-.feed-type {
-  font-weight: 800;
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.feed-item.info_sent .feed-type {
-  color: var(--vis-ocean-blue);
-}
-
-.feed-item.state_mutated .feed-type {
-  color: var(--vis-palm);
-}
-
-.feed-item.root_injected .feed-type {
-  color: var(--vis-lavender);
-}
-
-.feed-item.change_start .feed-type {
-  color: var(--vis-gold);
-}
-
-.feed-item.change_end .feed-type {
-  color: #059669;
-}
-
-.feed-item.node_admitted .feed-type {
-  color: var(--vis-coral);
-}
-
-.feed-item.node_evicted .feed-type {
-  color: #dc2626;
-}
-
-.feed-desc {
-  color: var(--vis-text-body);
-  font-size: 11px;
-  line-height: 1.4;
-  word-break: break-all;
-}
-
-/* -------------------------------------------------------------
- * 动画过渡与入场
- * ------------------------------------------------------------- */
-@keyframes pulse-dot {
-
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.35;
-    transform: scale(0.85);
-  }
-}
-
-@keyframes slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: scale(0.94) translateY(6px);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-@keyframes banner-pop {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
+.swiss-hud-status.offline .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #a3a3a3;
 }

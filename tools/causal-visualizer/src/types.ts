@@ -1,39 +1,5 @@
 export type CausalNodeRole = 'domain' | 'observation' | 'execution'
 
-export type InspectItemCategory =
-  | 'state_field'
-  | 'change_villager'
-  | 'system_landmark'
-  | 'island_flora'
-
-export interface InspectItemData {
-  id: string
-  nodeId: string
-  nodeName: string
-  itemType:
-    | 'villager'
-    | 'crystal'
-    | 'windmill'
-    | 'crop'
-    | 'campfire'
-    | 'sheep'
-    | 'rabbit'
-    | 'mushroom'
-    | 'flower'
-    | 'rock'
-    | 'house'
-    | 'lighthouse'
-    | 'fishingPier'
-    | 'tree'
-  itemName: string
-  itemIcon: string
-  category: InspectItemCategory
-  stateKey?: string
-  stateValue?: unknown
-  valueType?: string
-  description: string
-}
-
 export interface CausalNode3D {
   id: string
   name: string
@@ -72,28 +38,6 @@ export interface CausalEdge3D {
   isVerticalStalk?: boolean
   lastSentTime?: number
   lastInfoType?: string
-}
-
-export interface PhotonPulse {
-  id: string
-  edgeId: string
-  from: [number, number, number]
-  to: [number, number, number]
-  progress: number
-  speed: number
-  color: string
-  infoType: string
-  payloadSummary?: string
-}
-
-export interface Shockwave {
-  id: string
-  nodeId: string
-  position: [number, number, number]
-  radius: number
-  maxRadius: number
-  opacity: number
-  color: string
 }
 
 export type CausalTelemetryEvent =

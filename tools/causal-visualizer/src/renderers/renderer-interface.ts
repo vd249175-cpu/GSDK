@@ -1,15 +1,13 @@
-import type { CausalCommunity3D, CausalEdge3D, CausalNode3D, InspectItemData } from '../types'
+import type { CausalCommunity3D, CausalEdge3D, CausalNode3D } from '../types'
 
-export type ParadigmType = 'island-3d' | 'swiss-2d'
+export type ParadigmType = 'swiss-2d'
 
 export interface RendererCallbacks {
   onNodeSelect?: (nodeId: string | null) => void
-  onItemInspect?: (item: InspectItemData | null) => void
 }
 
 /**
- * 统一步进式因果呈现范式接口
- * 无论是 3D 像素海岛还是 2D 瑞士先锋主义看板，均实现此接口
+ * 2D 瑞士先锋主义因果看板视口渲染器接口
  */
 export interface IVisualizerRenderer {
   /**
@@ -18,12 +16,12 @@ export interface IVisualizerRenderer {
   mount(container: HTMLElement): void
 
   /**
-   * 同步/更新因果图拓扑与群落结构
+   * 同步/更新因果图拓扑
    */
   updateTopology(
     nodes: CausalNode3D[],
     edges: CausalEdge3D[],
-    communities: CausalCommunity3D[],
+    communities?: CausalCommunity3D[],
   ): void
 
   /**
@@ -47,24 +45,9 @@ export interface IVisualizerRenderer {
   setSelectedNode(nodeId: string | null): void
 
   /**
-   * 聚焦某个节点微观视角
-   */
-  focusNode?(nodeId: string): void
-
-  /**
    * 返回宏观全局全景视角
    */
   returnToOverview?(): void
-
-  /**
-   * 开启/关闭自动旋转（若视口支持）
-   */
-  setAutoRotate?(enabled: boolean): void
-
-  /**
-   * 获取指定节点的生态检查装配项（若视口支持）
-   */
-  getNodeAssembly?(nodeId: string): any
 
   /**
    * 视口重置尺寸

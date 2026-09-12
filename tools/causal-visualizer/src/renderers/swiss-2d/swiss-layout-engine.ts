@@ -47,6 +47,22 @@ export interface SwissDashboardLayout {
   }
 }
 
+export function inferNodeRole(nodeId: string): 'domain' | 'observation' | 'execution' {
+  if (nodeId.startsWith('src-') || nodeId.includes('observer') || nodeId.includes('poll')) {
+    return 'observation'
+  }
+  if (
+    nodeId.startsWith('sink-') ||
+    nodeId.startsWith('host-') ||
+    nodeId.includes('writer') ||
+    nodeId.includes('download') ||
+    nodeId.includes('submit')
+  ) {
+    return 'execution'
+  }
+  return 'domain'
+}
+
 /**
  * 确定性哈希伪随机数发生器 (PRNG)：根据 edgeId 生成稳定的随机数种子流
  */
