@@ -90,27 +90,34 @@ export class OceanEnvironment {
   private initClouds(): void {
     const cloudMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
-      roughness: 0.85,
+      roughness: 0.9,
       flatShading: true,
+      transparent: true,
+      opacity: 0.92,
     })
 
-    const cloudCount = 12
+    const cloudCount = 14
     for (let c = 0; c < cloudCount; c++) {
       const cloud = new THREE.Group()
       const boxCount = 3 + (c % 3)
       for (let b = 0; b < boxCount; b++) {
-        const bw = 5 + ((c * 3 + b) % 4)
-        const bh = 2.2 + (b % 2) * 0.6
-        const bd = 4 + ((c + b) % 3)
+        const bw = 6 + ((c * 3 + b) % 5)
+        const bh = 2.4 + (b % 2) * 0.8
+        const bd = 5 + ((c + b) % 4)
         const box = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), cloudMat)
-        box.position.set((b - boxCount / 2) * 3.4, (b % 2) * 0.8, ((b * 2) % 3) - 1.5)
+        box.position.set((b - boxCount / 2) * 3.8, (b % 2) * 0.9, ((b * 2) % 3) - 1.8)
         cloud.add(box)
       }
 
-      const angle = (c / cloudCount) * Math.PI * 2 + (c % 2) * 0.3
-      const dist = 70 + (c % 4) * 32
-      cloud.position.set(Math.cos(angle) * dist, 42 + (c % 3) * 6, Math.sin(angle) * dist)
-      cloud.scale.setScalar(1.2 + (c % 3) * 0.3)
+      const angle = (c / cloudCount) * Math.PI * 2
+      const radius = 135 + (c % 4) * 28
+      const height = 75 + (c % 3) * 12
+      const speed = 0.0006 + (c % 3) * 0.0003
+
+      cloud.position.set(Math.cos(angle) * radius, height, Math.sin(angle) * radius)
+      cloud.scale.setScalar(1.4 + (c % 3) * 0.4)
+      cloud.userData = { angle, radius, height, speed }
+
       this.scene.add(cloud)
       this.clouds.push(cloud)
     }
@@ -132,11 +139,13 @@ export class OceanEnvironment {
       this.oceanGeometry.computeVertexNormals()
     }
 
-    // 2. 漫天海云随风漂移
+    // 2. 高空白云随海风绕外圈缓速环游，绝不遮挡摄像机视线
     for (const cloud of this.clouds) {
-      cloud.position.x += 0.03
-      if (cloud.position.x > 260) {
-        cloud.position.x = -260
+      const data = cloud.userData as { angle: number; radius: number; height: number; speed: number }
+      if (data) {
+        data.angle += data.speed
+        cloud.position.x = Math.cos(data.angle) * data.radius
+        cloud.position.z = Math.sin(data.angle) * data.radius
       }
     }
   }
