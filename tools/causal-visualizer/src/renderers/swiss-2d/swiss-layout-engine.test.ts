@@ -111,6 +111,11 @@ describe('Swiss Modular Grid Layout Engine', () => {
       const isPenetrating = xOverlap > 0 && yOverlap > 0
       expect(isPenetrating).toBe(false)
     }
+
+    // 严苛验证：跳跃线在卡片间就近穿行，绝对没有无故向下绕行画布底部大外圈 (maxY 紧贴卡片高度)
+    const maxY = Math.max(...skipEdge.points.map((p) => p.y))
+    const domCardBottom = domCard.y + domCard.height
+    expect(maxY).toBeLessThan(domCardBottom + 60)
   })
 
   it('relaxes parallel vertical wires in the same gutter channel with physical separation', () => {

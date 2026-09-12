@@ -104,7 +104,6 @@ export function buildOrganicRopeSpline(
   }
 
   const prng = createEdgePrng(edgeId)
-  const cornerRadius = options.cornerRadius ?? 22
   const noiseScale = options.noiseScale ?? 1.0
 
   // 1. 生成每个 edge 专属的多频随机谐波参数（确定性种子，形态稳定不抽搐）
@@ -112,98 +111,116 @@ export function buildOrganicRopeSpline(
   const phi2 = prng() * Math.PI * 2
   const phi3 = prng() * Math.PI * 2
 
-  const amp1 = (4.5 + prng() * 3.5) * noiseScale // 宏观自然摆动 4.5 ~ 8.0px
-  const amp2 = (2.2 + prng() * 2.2) * noiseScale // 中观有机弯折 2.2 ~ 4.4px
-  const amp3 = (0.8 + prng() * 1.0) * noiseScale // 微观绳索肌理 0.8 ~ 1.8px
+  const amp1 = (4.0 + prng() * 3.0) * noiseScale // 宏观自然微垂
+  const amp2 = (2.0 + prng() * 2.0) * noiseScale // 中观有机弯折
+  const amp3 = (0.8 + prng() * 1.0) * noiseScale // 微观触感肌理
 
   const freq1 = 1.3 + prng() * 0.4
   const freq2 = 3.3 + prng() * 0.8
   const freq3 = 7.2 + prng() * 1.6
 
-  // 2. 构造基础骨干密集分段 (Base Guide Polyline)
-  const basePolyline: Array<{ x: number; y: number }> = []
+  // 2. 构造离散物理质点链 (Resample Waypoints into Uniform Particle Chain)
+  let totalLength = 0
+  const segLengths: number[] = []
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const len = Math.hypot(waypoints[i + 1].x - waypoints[i].x, waypoints[i + 1].y - waypoints[i].y)
+    segLengths.push(len)
+    totalLength += len
+  }
 
-  if (waypoints.length === 2) {
-    const p0 = waypoints[0]
-    const p1 = waypoints[1]
-    const dx = p1.x - p0.x
-    const dy = p1.y - p0.y
-    const dist = Math.hypot(dx, dy)
-    const steps = Math.max(28, Math.min(52, Math.round(dist / 8)))
+  const N = Math.max(36, Math.min(64, Math.round(totalLength / 12)))
+  const particles: Array<{ x: number; y: number }> = []
 
-    const c1x = p0.x + dx * 0.45
-    const c1y = p0.y + dy * 0.15
-    const c2x = p1.x - dx * 0.45
-    const c2y = p1.y - dy * 0.15
+  for (let i = 0; i < N; i++) {
+    const targetDist = (i / (N - 1)) * totalLength
+    let accumulated = 0
+    let placed = false
 
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps
-      const u = 1 - t
-      const x = u * u * u * p0.x + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * p1.x
-      const y = u * u * u * p0.y + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * p1.y
-      basePolyline.push({ x, y })
-    }
-  } else {
-    basePolyline.push({ ...waypoints[0] })
-    let prevEnd = { ...waypoints[0] }
-
-    for (let i = 1; i < waypoints.length - 1; i++) {
-      const prev = waypoints[i - 1]
-      const curr = waypoints[i]
-      const next = waypoints[i + 1]
-
-      const vIn = { x: curr.x - prev.x, y: curr.y - prev.y }
-      const vOut = { x: next.x - curr.x, y: next.y - curr.y }
-      const lenIn = Math.hypot(vIn.x, vIn.y)
-      const lenOut = Math.hypot(vOut.x, vOut.y)
-
-      if (lenIn < 1 || lenOut < 1) continue
-
-      const uIn = { x: vIn.x / lenIn, y: vIn.y / lenIn }
-      const uOut = { x: vOut.x / lenOut, y: vOut.y / lenOut }
-
-      const r = Math.min(cornerRadius, lenIn * 0.45, lenOut * 0.45)
-      const ptA = { x: curr.x - uIn.x * r, y: curr.y - uIn.y * r }
-      const ptB = { x: curr.x + uOut.x * r, y: curr.y + uOut.y * r }
-
-      // 直段采样
-      const segDist = Math.hypot(ptA.x - prevEnd.x, ptA.y - prevEnd.y)
-      const segSteps = Math.max(1, Math.round(segDist / 14))
-      for (let s = 1; s <= segSteps; s++) {
-        const st = s / segSteps
-        basePolyline.push({
-          x: prevEnd.x + (ptA.x - prevEnd.x) * st,
-          y: prevEnd.y + (ptA.y - prevEnd.y) * st,
+    for (let s = 0; s < segLengths.length; s++) {
+      if (accumulated + segLengths[s] >= targetDist || s === segLengths.length - 1) {
+        const segT = segLengths[s] > 0.001 ? (targetDist - accumulated) / segLengths[s] : 0
+        const p0 = waypoints[s]
+        const p1 = waypoints[s + 1]
+        particles.push({
+          x: p0.x + (p1.x - p0.x) * segT,
+          y: p0.y + (p1.y - p0.y) * segT,
         })
+        placed = true
+        break
       }
-
-      // 拐角采样 (贝塞尔圆弧过渡)
-      const K = 0.55228475
-      const c1 = { x: ptA.x + uIn.x * r * K, y: ptA.y + uIn.y * r * K }
-      const c2 = { x: ptB.x - uOut.x * r * K, y: ptB.y - uOut.y * r * K }
-      const cornerSteps = 8
-      for (let c = 1; c <= cornerSteps; c++) {
-        const t = c / cornerSteps
-        const u = 1 - t
-        const cx = u * u * u * ptA.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * ptB.x
-        const cy = u * u * u * ptA.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * ptB.y
-        basePolyline.push({ x: cx, y: cy })
-      }
-
-      prevEnd = ptB
+      accumulated += segLengths[s]
     }
-
-    const lastPt = waypoints[waypoints.length - 1]
-    const lastDist = Math.hypot(lastPt.x - prevEnd.x, lastPt.y - prevEnd.y)
-    const lastSteps = Math.max(1, Math.round(lastDist / 14))
-    for (let s = 1; s <= lastSteps; s++) {
-      const st = s / lastSteps
-      basePolyline.push({
-        x: prevEnd.x + (lastPt.x - prevEnd.x) * st,
-        y: prevEnd.y + (lastPt.y - prevEnd.y) * st,
-      })
+    if (!placed) {
+      particles.push({ ...waypoints[waypoints.length - 1] })
     }
   }
+
+  // 3. 纯物理排斥与张力松弛 (Pure Physical Repulsion & Tension Relaxation)
+  // 彻底摒弃独立圆角算法！曲线弯折完全由寻路通道导引、抗弯曲张力平滑与卡片障碍物排斥场自然涌现！
+  const RELAX_ITERATIONS = 35
+  const K_REPULSION = 2200
+  const SAFE_MARGIN = 14
+
+  for (let iter = 0; iter < RELAX_ITERATIONS; iter++) {
+    // 3.1 内部张力与抗弯曲拉伸松弛 (Laplacian Tension Smoothing)
+    // 质点向相邻质点中点靠拢，消除硬拐角，呈现极其柔韧自然的绳索物理形变
+    for (let i = 2; i < N - 2; i++) {
+      const midX = (particles[i - 1].x + particles[i + 1].x) * 0.5
+      const midY = (particles[i - 1].y + particles[i + 1].y) * 0.5
+      particles[i].x += (midX - particles[i].x) * 0.42
+      particles[i].y += (midY - particles[i].y) * 0.42
+    }
+
+    // 3.2 卡片障碍物边界与转角排斥力场 (Card Obstacle & Corner Repulsion Field)
+    for (let i = 2; i < N - 2; i++) {
+      const p = particles[i]
+
+      for (const card of cards) {
+        const boxLeft = card.x - SAFE_MARGIN
+        const boxRight = card.x + card.width + SAFE_MARGIN
+        const boxTop = card.y - SAFE_MARGIN
+        const boxBottom = card.y + card.height + SAFE_MARGIN
+
+        // 穿透硬排斥：严禁深入卡片禁区
+        if (p.x >= boxLeft && p.x <= boxRight && p.y >= boxTop && p.y <= boxBottom) {
+          const dL = p.x - boxLeft
+          const dR = boxRight - p.x
+          const dT = p.y - boxTop
+          const dB = boxBottom - p.y
+          const minD = Math.min(dL, dR, dT, dB)
+
+          if (minD === dL) p.x = boxLeft - 2
+          else if (minD === dR) p.x = boxRight + 2
+          else if (minD === dT) p.y = boxTop - 2
+          else p.y = boxBottom + 2
+          continue
+        }
+
+        // 外部近场排斥力场：距离卡片 28px 范围内产生径向排斥，使绳索圆润自然地环绕卡片外沿流过
+        const nearestX = Math.max(card.x, Math.min(card.x + card.width, p.x))
+        const nearestY = Math.max(card.y, Math.min(card.y + card.height, p.y))
+        const dx = p.x - nearestX
+        const dy = p.y - nearestY
+        const dist = Math.hypot(dx, dy)
+
+        if (dist > 0.001 && dist < 28) {
+          const nx = dx / dist
+          const ny = dy / dist
+          const force = (K_REPULSION / ((dist + 2) * (dist + 2))) * 0.15
+          p.x += nx * Math.min(force, 12)
+          p.y += ny * Math.min(force, 12)
+        }
+      }
+    }
+
+    // 3.3 端口切线水平咬合锚定 (Port Horizontal Tangent Pins)
+    particles[1].x = particles[0].x + 14
+    particles[1].y = particles[0].y
+    particles[N - 2].x = particles[N - 1].x - 14
+    particles[N - 2].y = particles[N - 1].y
+  }
+
+  const basePolyline = particles
 
   // 3. 沿法线方向施加多频分形随机扭动 (Organic Noise along Normal Vectors)
   const totalCount = basePolyline.length
@@ -273,13 +290,13 @@ export function buildOrganicRopeSpline(
   // 5. 三次贝塞尔曲线平滑样条重构 (Spline Reconstruction)
   // 将离散质点转化为连续光滑无折角的真实软绳 SVG 曲线
   let svgPath = `M ${perturbedPoints[0].x} ${perturbedPoints[0].y}`
-  const N = perturbedPoints.length
+  const totalPts = perturbedPoints.length
 
-  for (let i = 0; i < N - 1; i++) {
+  for (let i = 0; i < totalPts - 1; i++) {
     const p0 = perturbedPoints[Math.max(0, i - 1)]
     const p1 = perturbedPoints[i]
     const p2 = perturbedPoints[i + 1]
-    const p3 = perturbedPoints[Math.min(N - 1, i + 2)]
+    const p3 = perturbedPoints[Math.min(totalPts - 1, i + 2)]
 
     // Catmull-Rom 转三阶贝塞尔控制点公式
     const c1x = p1.x + (p2.x - p0.x) / 6
@@ -318,7 +335,7 @@ export function computeSwissGridLayout(
 ): SwissDashboardLayout {
   const CARD_WIDTH = 290
   const CARD_HEIGHT = 148
-  const ROW_GAP = 28
+  const ROW_GAP = 46
   const COL_GAP = 120
   const TOP_MARGIN = 110
   const LEFT_MARGIN = 80
@@ -424,15 +441,15 @@ export function computeSwissGridLayout(
   // 放置执行列
   placeColumn(execNodes, columns[columns.length - 1].x, columns.length - 1, 'execution')
 
-  // 5. 2D 物理通道正交排线算法（Physics-Based Orthogonal Channel Routing）
+  // 5. 2D 卡片间廊道寻路算法与排斥分层引擎 (Inter-Card Corridor Pathfinding, Layering & Repulsion)
   // 核心原则：
-  // 1. 每一层（通道）独立计算走线轨道，互不干扰；
-  // 2. 跨层跳跃连接走顶部/底部专用高架走廊（Highway Bypass），绝不穿透中间层卡片；
-  // 3. 通道内多条平行走线采用弹簧-库仑力物理松弛模型，保证均匀间距、零重叠。
+  // 1. 寻路算法：跨列连线优先在视线高度附近寻找卡片间的横向缝隙（廊道），自然穿梭，绝不向外挂高架绕远路；
+  // 2. 空间分层：对进入同一纵向通道与同一横向廊道的多根线缆排序并分配独立插槽层位；
+  // 3. 物理排斥：线缆间施加 1D 库仑斥力 + 卡片边界安全阻挡，消除重叠并保持净空；
+  // 4. 柔性软绳：向心圆角平滑过渡 + 多频谐波自然微动 + 严密咬合五金插头。
   const swissEdges: SwissEdgeLayout[] = []
   const edgeList = edges.filter((e) => !e.isVerticalStalk)
 
-  // 通道定义：Gutter c 位于 Column c 与 Column c+1 之间
   const numCols = columns.length
   const gutters: Array<{
     colIndex: number
@@ -456,33 +473,182 @@ export function computeSwissGridLayout(
     })
   }
 
-  // 节点最大 Y 与画布整体基线
-  let maxNodeY = TOP_MARGIN
-  swissNodes.forEach((n) => {
-    maxNodeY = Math.max(maxNodeY, n.y + n.height)
+  // 按列归纳卡片，按垂直 Y 升序排列
+  const columnCardsMap = new Map<number, SwissNodeLayout[]>()
+  for (let c = 0; c < numCols; c++) {
+    columnCardsMap.set(c, [])
+  }
+  for (const node of swissNodes) {
+    columnCardsMap.get(node.colIndex)?.push(node)
+  }
+  columnCardsMap.forEach((cards) => {
+    cards.sort((a, b) => a.y - b.y)
   })
 
-  // 跨层高架走廊预留区间
-  const TOP_HIGHWAY_MAX_Y = TOP_MARGIN - 18
-  const TOP_HIGHWAY_MIN_Y = 74
-  const BOTTOM_HIGHWAY_START_Y = maxNodeY + 28
-
-  // 边分类与通道任务注册
-  interface EdgeRoutingTask {
-    edge: CausalEdge3D
-    fromNode: SwissNodeLayout
-    toNode: SwissNodeLayout
-    category: 'adjacent_forward' | 'multi_forward' | 'same_column' | 'backward'
-    startX: number
-    startY: number
-    endX: number
-    endY: number
-    useTopHighway: boolean
-    gutterFromIdx: number
-    gutterToIdx: number
+  // 构建各列的横向可通行廊道集合 (Horizontal Corridors)
+  interface HorizontalCorridor {
+    id: string
+    colIndex: number
+    minY: number
+    maxY: number
+    center: number
+    safeMinY: number
+    safeMaxY: number
   }
 
-  // 4.1 动态多插孔端口分配 (Dynamic Multi-Jack Port Allocation - 彻底消除单点堆叠)
+  const columnCorridorsMap = new Map<number, HorizontalCorridor[]>()
+
+  for (let c = 0; c < numCols; c++) {
+    const cards = columnCardsMap.get(c) || []
+    const corridors: HorizontalCorridor[] = []
+
+    if (cards.length === 0) {
+      const centerY = TOP_MARGIN + 60
+      corridors.push({
+        id: `c${c}-g0`,
+        colIndex: c,
+        minY: centerY - 20,
+        maxY: centerY + 20,
+        center: centerY,
+        safeMinY: centerY - 15,
+        safeMaxY: centerY + 15,
+      })
+    } else {
+      // 1. 顶部廊道（第一张卡片上方）
+      const topY = cards[0].y
+      const topCenter = topY - 24
+      corridors.push({
+        id: `c${c}-top`,
+        colIndex: c,
+        minY: topY - 48,
+        maxY: topY,
+        center: topCenter,
+        safeMinY: topY - 36,
+        safeMaxY: topY - 12,
+      })
+
+      // 2. 卡片与卡片之间的行间缝隙廊道 (Inter-card gaps)
+      for (let r = 0; r < cards.length - 1; r++) {
+        const cardAbove = cards[r]
+        const cardBelow = cards[r + 1]
+        const gapTop = cardAbove.y + cardAbove.height
+        const gapBottom = cardBelow.y
+        const gapCenter = (gapTop + gapBottom) / 2
+        corridors.push({
+          id: `c${c}-gap-${r}`,
+          colIndex: c,
+          minY: gapTop,
+          maxY: gapBottom,
+          center: gapCenter,
+          safeMinY: gapTop + 10,
+          safeMaxY: gapBottom - 10,
+        })
+      }
+
+      // 3. 底部廊道（最后一张卡片下方紧随其后）
+      const lastCard = cards[cards.length - 1]
+      const bottomY = lastCard.y + lastCard.height
+      const bottomCenter = bottomY + 24
+      corridors.push({
+        id: `c${c}-bottom`,
+        colIndex: c,
+        minY: bottomY,
+        maxY: bottomY + 48,
+        center: bottomCenter,
+        safeMinY: bottomY + 12,
+        safeMaxY: bottomY + 36,
+      })
+    }
+
+    columnCorridorsMap.set(c, corridors)
+  }
+
+  // 1D 物理排斥松弛求解器：适用于纵向通道 X 排斥与横向廊道 Y 排斥
+  interface Wire1D {
+    id: string
+    edgeId: string
+    preferredPos: number
+    span1: number
+    span2: number
+    assignedPos: number
+  }
+
+  function relaxWires1D(
+    wires: Wire1D[],
+    minCoord: number,
+    maxCoord: number,
+    options: { minGap?: number; kRep?: number; kSpring?: number; iterations?: number } = {},
+  ): void {
+    const count = wires.length
+    if (count === 0) return
+    if (count === 1) {
+      wires[0].assignedPos = Math.round((minCoord + maxCoord) / 2)
+      return
+    }
+
+    const minGap = options.minGap ?? 12
+    const kRep = options.kRep ?? 1600
+    const kSpring = options.kSpring ?? 0.08
+    const iterations = options.iterations ?? 25
+
+    // 1. 初始分层排序：按 preferredPos 升序排布
+    wires.sort((a, b) => a.preferredPos - b.preferredPos || (a.span1 + a.span2) - (b.span1 + b.span2))
+
+    // 2. 均匀插槽分布
+    const totalSpan = maxCoord - minCoord
+    const step = totalSpan / (count + 1)
+    const positions = wires.map((_, i) => minCoord + (i + 1) * step)
+
+    // 3. 库仑力与壁障排斥迭代
+    for (let it = 0; it < iterations; it++) {
+      const forces = new Array(count).fill(0)
+
+      // 线间库仑排斥力
+      for (let i = 0; i < count - 1; i++) {
+        for (let j = i + 1; j < count; j++) {
+          const d = Math.max(positions[j] - positions[i], 2)
+          const rep = kRep / (d * d)
+          forces[i] -= rep
+          forces[j] += rep
+        }
+      }
+
+      // 边界斥力
+      for (let i = 0; i < count; i++) {
+        const dMin = Math.max(positions[i] - minCoord, 2)
+        const dMax = Math.max(maxCoord - positions[i], 2)
+        forces[i] += (kRep * 0.5) / (dMin * dMin)
+        forces[i] -= (kRep * 0.5) / (dMax * dMax)
+      }
+
+      // 弹簧居中力
+      for (let i = 0; i < count; i++) {
+        const anchor = minCoord + (i + 1) * step
+        forces[i] += -kSpring * (positions[i] - anchor)
+      }
+
+      // 更新位置
+      for (let i = 0; i < count; i++) {
+        positions[i] = Math.max(minCoord, Math.min(maxCoord, positions[i] + forces[i] * 0.25))
+      }
+
+      // 刚性最小安全距离约束
+      for (let i = 0; i < count - 1; i++) {
+        if (positions[i + 1] - positions[i] < minGap) {
+          const overlap = minGap - (positions[i + 1] - positions[i])
+          positions[i] = Math.max(minCoord, positions[i] - overlap * 0.5)
+          positions[i + 1] = Math.min(maxCoord, positions[i + 1] + overlap * 0.5)
+        }
+      }
+    }
+
+    // 4. 回填最终坐标
+    for (let i = 0; i < count; i++) {
+      wires[i].assignedPos = Math.round(positions[i])
+    }
+  }
+
+  // 4.1 动态多插孔端口分配 (Dynamic Multi-Jack Port Allocation)
   const nodeOutgoingEdges = new Map<string, CausalEdge3D[]>()
   const nodeIncomingEdges = new Map<string, CausalEdge3D[]>()
 
@@ -497,7 +663,7 @@ export function computeSwissGridLayout(
   const fromPortMap = new Map<string, { x: number; y: number }>()
   const toPortMap = new Map<string, { x: number; y: number }>()
 
-  // 计算出端口 (位于源卡片右边缘，按目标节点 Y 坐标排序，使得连线由上至下有序引出)
+  // 计算出端口 (源卡片右边缘，由上至下有序引出)
   nodeOutgoingEdges.forEach((edges, fromId) => {
     const fromNode = nodeLayoutMap.get(fromId)
     if (!fromNode) return
@@ -523,7 +689,7 @@ export function computeSwissGridLayout(
     })
   })
 
-  // 计算入端口 (按来源节点 Y 坐标排序，使得进线平滑平行)
+  // 计算入端口 (目标卡片左边缘，平滑平行进线)
   nodeIncomingEdges.forEach((edges, toId) => {
     const toNode = nodeLayoutMap.get(toId)
     if (!toNode) return
@@ -549,7 +715,52 @@ export function computeSwissGridLayout(
     })
   })
 
-  const tasks: EdgeRoutingTask[] = []
+  // 4.2 廊道寻路与线段注册
+  const gutterWiresMap = new Map<number, Wire1D[]>()
+  for (let c = 0; c < gutters.length; c++) {
+    gutterWiresMap.set(c, [])
+  }
+
+  const corridorWiresMap = new Map<string, Wire1D[]>()
+  columnCorridorsMap.forEach((corridors) => {
+    corridors.forEach((corr) => {
+      corridorWiresMap.set(corr.id, [])
+    })
+  })
+
+  // 寻路选择器：给定中间列 k，寻找与视线理想高度最近的卡片间缝隙廊道
+  const findBestCorridor = (colIdx: number, yIdeal: number): HorizontalCorridor => {
+    const corridors = columnCorridorsMap.get(colIdx) || []
+    if (corridors.length === 0) {
+      return {
+        id: `c${colIdx}-dummy`,
+        colIndex: colIdx,
+        minY: yIdeal - 20,
+        maxY: yIdeal + 20,
+        center: yIdeal,
+        safeMinY: yIdeal - 15,
+        safeMaxY: yIdeal + 15,
+      }
+    }
+    return corridors.reduce((best, cur) =>
+      Math.abs(cur.center - yIdeal) < Math.abs(best.center - yIdeal) ? cur : best,
+    )
+  }
+
+  interface EdgeRoutingPlan {
+    edge: CausalEdge3D
+    fromNode: SwissNodeLayout
+    toNode: SwissNodeLayout
+    startX: number
+    startY: number
+    endX: number
+    endY: number
+    colDiff: number
+    intermediateCorridorIds: string[]
+  }
+
+  const routingPlans: EdgeRoutingPlan[] = []
+
   for (const edge of edgeList) {
     const fromNode = nodeLayoutMap.get(edge.from)
     const toNode = nodeLayoutMap.get(edge.to)
@@ -567,324 +778,240 @@ export function computeSwissGridLayout(
     const startX = fromPort.x
     const startY = fromPort.y
     const colDiff = toNode.colIndex - fromNode.colIndex
-
-    // 同列连线特殊处理：进端口同样落在右边缘通道内，形成右侧纯通道回路，杜绝横切自身卡片
-    const isSameColumn = colDiff === 0
-    const endX = isSameColumn ? toNode.x + toNode.width : toPort.x
+    const endX = colDiff === 0 ? toNode.x + toNode.width : toPort.x
     const endY = toPort.y
 
-    let category: EdgeRoutingTask['category'] = 'adjacent_forward'
-    let useTopHighway = false
+    const intermediateCorridorIds: string[] = []
 
     if (colDiff === 1) {
-      category = 'adjacent_forward'
+      // 相邻列：仅在出发通道占用一根纵向线
+      const gIdx = fromNode.colIndex
+      const gutter = gutters[gIdx]
+      gutterWiresMap.get(gIdx)?.push({
+        id: `${edge.id}-v-${gIdx}`,
+        edgeId: edge.id,
+        preferredPos: gutter ? gutter.center : startX + 40,
+        span1: startY,
+        span2: endY,
+        assignedPos: gutter ? gutter.center : startX + 40,
+      })
     } else if (colDiff > 1) {
-      category = 'multi_forward'
-      useTopHighway = (startY + endY) / 2 <= (TOP_MARGIN + maxNodeY) / 2
-    } else if (isSameColumn) {
-      category = 'same_column'
+      // 跨列通信：寻路穿过中间各列的卡片间缝隙廊道
+      for (let k = fromNode.colIndex + 1; k < toNode.colIndex; k++) {
+        const colK = columns[k]
+        const tProgress = (colK.x + CARD_WIDTH / 2 - startX) / (endX - startX)
+        const yIdeal = startY + (endY - startY) * tProgress
+        const bestCorr = findBestCorridor(k, yIdeal)
+        intermediateCorridorIds.push(bestCorr.id)
+
+        // 注册横向廊道穿行线段需求
+        corridorWiresMap.get(bestCorr.id)?.push({
+          id: `${edge.id}-h-${k}`,
+          edgeId: edge.id,
+          preferredPos: bestCorr.center,
+          span1: startY,
+          span2: endY,
+          assignedPos: bestCorr.center,
+        })
+      }
+
+      // 出发 gutter (fromNode.colIndex)
+      const firstCorrId = intermediateCorridorIds[0]
+      let firstCorrY = startY
+      for (const corridors of columnCorridorsMap.values()) {
+        const c = corridors.find((x) => x.id === firstCorrId)
+        if (c) {
+          firstCorrY = c.center
+          break
+        }
+      }
+      const gStartIdx = fromNode.colIndex
+      const gutterStart = gutters[gStartIdx]
+      gutterWiresMap.get(gStartIdx)?.push({
+        id: `${edge.id}-v-${gStartIdx}`,
+        edgeId: edge.id,
+        preferredPos: gutterStart ? gutterStart.center - 12 : startX + 24,
+        span1: startY,
+        span2: firstCorrY,
+        assignedPos: gutterStart ? gutterStart.center - 12 : startX + 24,
+      })
+
+      // 终点前 gutter (toNode.colIndex - 1)
+      const lastCorrId = intermediateCorridorIds[intermediateCorridorIds.length - 1]
+      let lastCorrY = endY
+      for (const corridors of columnCorridorsMap.values()) {
+        const c = corridors.find((x) => x.id === lastCorrId)
+        if (c) {
+          lastCorrY = c.center
+          break
+        }
+      }
+      const gEndIdx = toNode.colIndex - 1
+      const gutterEnd = gutters[gEndIdx]
+      gutterWiresMap.get(gEndIdx)?.push({
+        id: `${edge.id}-v-${gEndIdx}`,
+        edgeId: edge.id,
+        preferredPos: gutterEnd ? gutterEnd.center + 12 : endX - 24,
+        span1: lastCorrY,
+        span2: endY,
+        assignedPos: gutterEnd ? gutterEnd.center + 12 : endX - 24,
+      })
+    } else if (colDiff === 0) {
+      // 同列折叠
+      const gIdx = Math.min(fromNode.colIndex, gutters.length - 1)
+      const gutter = gutters[gIdx]
+      gutterWiresMap.get(gIdx)?.push({
+        id: `${edge.id}-v-${gIdx}`,
+        edgeId: edge.id,
+        preferredPos: gutter ? gutter.center + 16 : startX + 36,
+        span1: startY,
+        span2: endY,
+        assignedPos: gutter ? gutter.center + 16 : startX + 36,
+      })
     } else {
-      category = 'backward'
-      useTopHighway = (startY + endY) / 2 <= (TOP_MARGIN + maxNodeY) / 2
+      // 反向回流 (colDiff < 0)
+      const gIdx = Math.min(fromNode.colIndex, gutters.length - 1)
+      const gutter = gutters[gIdx]
+      gutterWiresMap.get(gIdx)?.push({
+        id: `${edge.id}-v-${gIdx}`,
+        edgeId: edge.id,
+        preferredPos: gutter ? gutter.center : startX + 30,
+        span1: startY,
+        span2: endY,
+        assignedPos: gutter ? gutter.center : startX + 30,
+      })
     }
 
-    tasks.push({
+    routingPlans.push({
       edge,
       fromNode,
       toNode,
-      category,
       startX,
       startY,
       endX,
       endY,
-      useTopHighway,
-      gutterFromIdx: Math.min(fromNode.colIndex, numCols - 2),
-      gutterToIdx: Math.max(0, toNode.colIndex - 1),
+      colDiff,
+      intermediateCorridorIds,
     })
   }
 
-  // 为每个通道注册纵向走线线段需求
-  interface ChannelWire {
-    id: string
-    edgeId: string
-    role: 'adjacent_v' | 'exit_to_highway' | 'entry_from_highway' | 'same_col'
-    idealY1: number
-    idealY2: number
-    preferredX: number
-    assignedX: number
-  }
-
-  const channelWiresMap = new Map<number, ChannelWire[]>()
-  for (let c = 0; c < gutters.length; c++) {
-    channelWiresMap.set(c, [])
-  }
-
-  // 跨层高架横向线段需求
-  interface HighwayWire {
-    id: string
-    edgeId: string
-    isTop: boolean
-    spanLength: number
-    assignedY: number
-  }
-  const topHighwayWires: HighwayWire[] = []
-  const bottomHighwayWires: HighwayWire[] = []
-
-  tasks.forEach((t) => {
-    const gutter = gutters[t.gutterFromIdx]
-    const gCenter = gutter ? gutter.center : t.startX + 40
-
-    if (t.category === 'adjacent_forward') {
-      // 相邻列：在本地通道中占用 1 根纵向线段
-      channelWiresMap.get(t.gutterFromIdx)?.push({
-        id: `${t.edge.id}-adj`,
-        edgeId: t.edge.id,
-        role: 'adjacent_v',
-        idealY1: t.startY,
-        idealY2: t.endY,
-        preferredX: gCenter,
-        assignedX: gCenter,
-      })
-    } else if (t.category === 'multi_forward') {
-      // 跨列多层跳跃：在出发通道分配引线、高架分配横向线、在目标通道分配降落线
-      channelWiresMap.get(t.gutterFromIdx)?.push({
-        id: `${t.edge.id}-exit`,
-        edgeId: t.edge.id,
-        role: 'exit_to_highway',
-        idealY1: t.startY,
-        idealY2: t.useTopHighway ? TOP_HIGHWAY_MAX_Y : BOTTOM_HIGHWAY_START_Y,
-        preferredX: gCenter - 10,
-        assignedX: gCenter - 10,
-      })
-
-      const targetGutter = gutters[t.gutterToIdx]
-      const tCenter = targetGutter ? targetGutter.center : t.endX - 40
-      channelWiresMap.get(t.gutterToIdx)?.push({
-        id: `${t.edge.id}-entry`,
-        edgeId: t.edge.id,
-        role: 'entry_from_highway',
-        idealY1: t.useTopHighway ? TOP_HIGHWAY_MAX_Y : BOTTOM_HIGHWAY_START_Y,
-        idealY2: t.endY,
-        preferredX: tCenter + 10,
-        assignedX: tCenter + 10,
-      })
-
-      const span = Math.abs(t.toNode.colIndex - t.fromNode.colIndex)
-      if (t.useTopHighway) {
-        topHighwayWires.push({ id: t.edge.id, edgeId: t.edge.id, isTop: true, spanLength: span, assignedY: 0 })
-      } else {
-        bottomHighwayWires.push({ id: t.edge.id, edgeId: t.edge.id, isTop: false, spanLength: span, assignedY: 0 })
-      }
-    } else if (t.category === 'same_column') {
-      // 同列折叠：在右侧通道生成回线
-      channelWiresMap.get(t.gutterFromIdx)?.push({
-        id: `${t.edge.id}-same`,
-        edgeId: t.edge.id,
-        role: 'same_col',
-        idealY1: t.startY,
-        idealY2: t.endY,
-        preferredX: gCenter + 15,
-        assignedX: gCenter + 15,
-      })
-    } else if (t.category === 'backward') {
-      // 反向回流：走高架走廊
-      channelWiresMap.get(t.gutterFromIdx)?.push({
-        id: `${t.edge.id}-back-exit`,
-        edgeId: t.edge.id,
-        role: 'exit_to_highway',
-        idealY1: t.startY,
-        idealY2: t.useTopHighway ? TOP_HIGHWAY_MAX_Y : BOTTOM_HIGHWAY_START_Y,
-        preferredX: gCenter,
-        assignedX: gCenter,
-      })
-
-      channelWiresMap.get(t.gutterToIdx)?.push({
-        id: `${t.edge.id}-back-entry`,
-        edgeId: t.edge.id,
-        role: 'entry_from_highway',
-        idealY1: t.useTopHighway ? TOP_HIGHWAY_MAX_Y : BOTTOM_HIGHWAY_START_Y,
-        idealY2: t.endY,
-        preferredX: gutters[t.gutterToIdx]?.center || t.endX - 20,
-        assignedX: gutters[t.gutterToIdx]?.center || t.endX - 20,
-      })
-
-      if (t.useTopHighway) {
-        topHighwayWires.push({ id: t.edge.id, edgeId: t.edge.id, isTop: true, spanLength: 5, assignedY: 0 })
-      } else {
-        bottomHighwayWires.push({ id: t.edge.id, edgeId: t.edge.id, isTop: false, spanLength: 5, assignedY: 0 })
-      }
-    }
-  })
-
-  // -------------------------------------------------------------
-  // 物理算法求解器：1D 弹簧-库仑力排线松弛 (Spring-Coulomb Relaxation)
-  // -------------------------------------------------------------
-  function relaxChannelWires(wires: ChannelWire[], minX: number, maxX: number) {
-    const count = wires.length
-    if (count === 0) return
-    if (count === 1) {
-      wires[0].assignedX = Math.round((minX + maxX) / 2)
-      return
-    }
-
-    // 初始排序：按自然倾向 X 与中值 Y 排序，最小化交叉
-    wires.sort((a, b) => a.preferredX - b.preferredX || (a.idealY1 + a.idealY2) - (b.idealY1 + b.idealY2))
-
-    // 均匀初始锚点
-    const width = maxX - minX
-    const step = width / (count + 1)
-    const positions = wires.map((_, i) => minX + (i + 1) * step)
-
-    // 物理迭代参数
-    const ITERATIONS = 25
-    const K_REP = 1800
-    const K_SPRING = 0.08
-    const MIN_GAP = 12
-
-    for (let it = 0; it < ITERATIONS; it++) {
-      const forces = new Array(count).fill(0)
-
-      // 1. 库仑线间排斥力
-      for (let i = 0; i < count - 1; i++) {
-        for (let j = i + 1; j < count; j++) {
-          const dx = positions[j] - positions[i]
-          const dist = Math.max(dx, 4)
-          const rep = K_REP / (dist * dist)
-          forces[i] -= rep
-          forces[j] += rep
-        }
-      }
-
-      // 2. 左右卡片壁障硬排斥力
-      for (let i = 0; i < count; i++) {
-        const dLeft = Math.max(positions[i] - minX, 3)
-        const dRight = Math.max(maxX - positions[i], 3)
-        forces[i] += (K_REP * 0.5) / (dLeft * dLeft)
-        forces[i] -= (K_REP * 0.5) / (dRight * dRight)
-      }
-
-      // 3. 弹簧居中与锚点恢复力
-      for (let i = 0; i < count; i++) {
-        const anchor = minX + (i + 1) * step
-        forces[i] += -K_SPRING * (positions[i] - anchor)
-      }
-
-      // 4. 更新位置与阻尼
-      for (let i = 0; i < count; i++) {
-        positions[i] = Math.max(minX, Math.min(maxX, positions[i] + forces[i] * 0.25))
-      }
-
-      // 5. 刚性安全间隙修正 (保持最小间隔)
-      for (let i = 0; i < count - 1; i++) {
-        if (positions[i + 1] - positions[i] < MIN_GAP) {
-          const overlap = MIN_GAP - (positions[i + 1] - positions[i])
-          positions[i] = Math.max(minX, positions[i] - overlap * 0.5)
-          positions[i + 1] = Math.min(maxX, positions[i + 1] + overlap * 0.5)
-        }
-      }
-    }
-
-    // 回填结果
-    for (let i = 0; i < count; i++) {
-      wires[i].assignedX = Math.round(positions[i])
-    }
-  }
-
-  // 对所有通道并行执行物理排线松弛（每一层单独计算）
-  channelWiresMap.forEach((wires, colIdx) => {
-    const gutter = gutters[colIdx]
+  // 4.3 物理松弛：通道与廊道全面执行库仑斥力排斥与分层插槽分配
+  gutterWiresMap.forEach((wires, gIdx) => {
+    const gutter = gutters[gIdx]
     if (gutter) {
-      relaxChannelWires(wires, gutter.safeMinX, gutter.safeMaxX)
+      relaxWires1D(wires, gutter.safeMinX, gutter.safeMaxX, { minGap: 12 })
     }
   })
 
-  // 跨层高架分配（长跨度走外侧轨道，短跨度走内侧轨道，避免交叉）
-  topHighwayWires.sort((a, b) => b.spanLength - a.spanLength)
-  topHighwayWires.forEach((w, idx) => {
-    w.assignedY = Math.max(TOP_HIGHWAY_MIN_Y, TOP_HIGHWAY_MAX_Y - idx * 10)
+  corridorWiresMap.forEach((wires, corrId) => {
+    let safeMinY = 0
+    let safeMaxY = 0
+    for (const corridors of columnCorridorsMap.values()) {
+      const found = corridors.find((c) => c.id === corrId)
+      if (found) {
+        safeMinY = found.safeMinY
+        safeMaxY = found.safeMaxY
+        break
+      }
+    }
+    if (safeMaxY > safeMinY) {
+      relaxWires1D(wires, safeMinY, safeMaxY, { minGap: 10 })
+    }
   })
 
-  bottomHighwayWires.sort((a, b) => b.spanLength - a.spanLength)
-  bottomHighwayWires.forEach((w, idx) => {
-    w.assignedY = BOTTOM_HIGHWAY_START_Y + idx * 12
+  const vTrackMap = new Map<string, number>()
+  gutterWiresMap.forEach((wires) => {
+    wires.forEach((w) => vTrackMap.set(w.id, w.assignedPos))
   })
 
-  // 快速查找已分配物理坐标的映射表
-  const wireXMap = new Map<string, number>()
-  channelWiresMap.forEach((wires) => {
-    wires.forEach((w) => {
-      wireXMap.set(w.id, w.assignedX)
-    })
+  const hTrackMap = new Map<string, number>()
+  corridorWiresMap.forEach((wires) => {
+    wires.forEach((w) => hTrackMap.set(w.id, w.assignedPos))
   })
 
-  const topHighwayYMap = new Map<string, number>()
-  topHighwayWires.forEach((w) => topHighwayYMap.set(w.edgeId, w.assignedY))
-
-  const bottomHighwayYMap = new Map<string, number>()
-  bottomHighwayWires.forEach((w) => bottomHighwayYMap.set(w.edgeId, w.assignedY))
-
-  // 生成最终柔性软绳点位集合与平滑曲线指令 (Slack-Aware Soft Rope Engine)
-  tasks.forEach((t, taskIdx) => {
+  // 4.4 组装平滑锚点并生成自然软绳样条 (基于寻路通道与物理排斥松弛，零独立圆角)
+  routingPlans.forEach((plan) => {
     let waypoints: Array<{ x: number; y: number }> = []
-    let cornerRadius = 18
-    // 给不同连线分配自然的松弛呼吸余量（微曲 5px ~ 9px），彻底消除“处处紧绷感”
-    const slackOffset = (taskIdx % 3 === 0 ? 6 : taskIdx % 3 === 1 ? -6 : 8)
 
-    if (t.category === 'adjacent_forward') {
-      const trackX = wireXMap.get(`${t.edge.id}-adj`) || (t.startX + t.endX) / 2
-      // 若同一行卡片（落差极小），生成带自然松弛微弧的直接连线
-      if (Math.abs(t.startY - t.endY) < 6) {
+    if (plan.colDiff === 1) {
+      const trackX = vTrackMap.get(`${plan.edge.id}-v-${plan.fromNode.colIndex}`)
+        || (gutters[plan.fromNode.colIndex]?.center ?? (plan.startX + plan.endX) / 2)
+
+      if (Math.abs(plan.startY - plan.endY) < 6) {
         waypoints = [
-          { x: t.startX, y: t.startY },
-          { x: t.endX, y: t.endY },
+          { x: plan.startX, y: plan.startY },
+          { x: plan.endX, y: plan.endY },
         ]
       } else {
-        // 存在纵向高度差：四锚点通道走线，拐角处由 buildSoftRopePath 自动柔性倒圆
         waypoints = [
-          { x: t.startX, y: t.startY },
-          { x: trackX, y: t.startY },
-          { x: trackX, y: t.endY },
-          { x: t.endX, y: t.endY },
+          { x: plan.startX, y: plan.startY },
+          { x: trackX, y: plan.startY },
+          { x: trackX, y: plan.endY },
+          { x: plan.endX, y: plan.endY },
         ]
       }
-    } else if (t.category === 'multi_forward' || t.category === 'backward') {
-      const isBackward = t.category === 'backward'
-      const exitTrackX = isBackward
-        ? t.startX + 24
-        : wireXMap.get(`${t.edge.id}-exit`) || t.startX + 24
+    } else if (plan.colDiff > 1) {
+      const pts: Array<{ x: number; y: number }> = [{ x: plan.startX, y: plan.startY }]
+      const cs = plan.fromNode.colIndex
+      const ct = plan.toNode.colIndex
 
-      // 关键修复：当目标节点位于最左侧 Column 0 时，下降轨道必须设在画布左侧外延安全走廊 (LEFT_CORRIDOR_X = 38px)
-      // 绝不可放在 Column 0 右侧的 gutter[0]，否则连线横切整个 Column 0 卡片！
-      const LEFT_CORRIDOR_X = Math.max(28, LEFT_MARGIN - 42) // 38px
-      const entryTrackX = isBackward
-        ? (t.toNode.colIndex === 0
-            ? LEFT_CORRIDOR_X
-            : (gutters[t.toNode.colIndex - 1]?.center || t.endX - 24))
-        : (wireXMap.get(`${t.edge.id}-entry`) || t.endX - 24)
+      // 出发 gutter (cs)
+      const firstTrackX = vTrackMap.get(`${plan.edge.id}-v-${cs}`)
+        || (gutters[cs]?.center ? gutters[cs].center - 12 : plan.startX + 24)
+      const firstCorrY = hTrackMap.get(`${plan.edge.id}-h-${cs + 1}`) || plan.startY
 
-      const highwayY = t.useTopHighway
-        ? topHighwayYMap.get(t.edge.id) || TOP_HIGHWAY_MAX_Y
-        : bottomHighwayYMap.get(t.edge.id) || BOTTOM_HIGHWAY_START_Y
+      pts.push({ x: firstTrackX, y: plan.startY })
+      pts.push({ x: firstTrackX, y: firstCorrY })
 
+      // 穿过各中间列的卡片间缝隙
+      for (let k = cs + 1; k < ct; k++) {
+        const corrY = hTrackMap.get(`${plan.edge.id}-h-${k}`) || firstCorrY
+        const nextGutterIdx = k
+        const nextGutter = gutters[nextGutterIdx]
+        const nextTrackX = vTrackMap.get(`${plan.edge.id}-v-${nextGutterIdx}`)
+          || (nextGutter?.center ? nextGutter.center + 12 : plan.endX - 24)
+
+        // 穿行中间列廊道到达下一个通道
+        pts.push({ x: nextTrackX, y: corrY })
+
+        if (k < ct - 1) {
+          const nextCorrY = hTrackMap.get(`${plan.edge.id}-h-${k + 1}`) || corrY
+          pts.push({ x: nextTrackX, y: nextCorrY })
+        } else {
+          pts.push({ x: nextTrackX, y: plan.endY })
+        }
+      }
+
+      pts.push({ x: plan.endX, y: plan.endY })
+      waypoints = pts
+    } else if (plan.colDiff === 0) {
+      const gIdx = Math.min(plan.fromNode.colIndex, gutters.length - 1)
+      const trackX = vTrackMap.get(`${plan.edge.id}-v-${gIdx}`) || plan.startX + 36
       waypoints = [
-        { x: t.startX, y: t.startY },
-        { x: exitTrackX, y: t.startY },
-        { x: exitTrackX, y: highwayY },
-        { x: entryTrackX, y: highwayY },
-        { x: entryTrackX, y: t.endY },
-        { x: t.endX, y: t.endY },
+        { x: plan.startX, y: plan.startY },
+        { x: trackX, y: plan.startY },
+        { x: trackX, y: plan.endY },
+        { x: plan.endX, y: plan.endY },
       ]
-      cornerRadius = 22
-    } else if (t.category === 'same_column') {
-      // 同列折叠：在通道内形成柔性向外舒展软环，端点均在卡片右侧通道，绝不横切卡片
-      const trackX = wireXMap.get(`${t.edge.id}-same`) || t.startX + 36
+    } else {
+      // 反向回流 (backward)
+      const isCol0Target = plan.toNode.colIndex === 0
+      const LEFT_CORRIDOR_X = Math.max(28, LEFT_MARGIN - 42)
+      const exitTrackX = plan.startX + 28
+      const entryTrackX = isCol0Target
+        ? LEFT_CORRIDOR_X
+        : (gutters[plan.toNode.colIndex - 1]?.center || plan.endX - 24)
+
+      // 紧贴卡片顶部上方穿行，绝不在几百像素外的大外围游荡
+      const yTopBack = TOP_MARGIN - 24
       waypoints = [
-        { x: t.startX, y: t.startY },
-        { x: trackX, y: t.startY },
-        { x: trackX, y: t.endY },
-        { x: t.endX, y: t.endY },
+        { x: plan.startX, y: plan.startY },
+        { x: exitTrackX, y: plan.startY },
+        { x: exitTrackX, y: yTopBack },
+        { x: entryTrackX, y: yTopBack },
+        { x: entryTrackX, y: plan.endY },
+        { x: plan.endX, y: plan.endY },
       ]
-      cornerRadius = 18
     }
 
     const cardBoxes: CardAABB[] = swissNodes.map((n) => ({
@@ -894,17 +1021,17 @@ export function computeSwissGridLayout(
       height: n.height,
     }))
 
-    const { svgPath, points } = buildOrganicRopeSpline(waypoints, t.edge.id, cardBoxes, { cornerRadius })
+    const { svgPath, points } = buildOrganicRopeSpline(waypoints, plan.edge.id, cardBoxes)
 
     swissEdges.push({
-      id: t.edge.id,
-      from: t.edge.from,
-      to: t.edge.to,
-      infoType: t.edge.lastInfoType || 'info',
+      id: plan.edge.id,
+      from: plan.edge.from,
+      to: plan.edge.to,
+      infoType: plan.edge.lastInfoType || 'info',
       points,
       svgPath,
       waypoints,
-      edge: t.edge,
+      edge: plan.edge,
     })
   })
 
