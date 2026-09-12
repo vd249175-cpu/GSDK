@@ -21,6 +21,8 @@ export interface SwissEdgeLayout {
   svgPath: string
   edge: CausalEdge3D
   waypoints?: Array<{ x: number; y: number }>
+  fromSide?: 'left' | 'right' | 'top' | 'bottom'
+  toSide?: 'left' | 'right' | 'top' | 'bottom'
 }
 
 export interface SwissColumnHeader {
@@ -170,6 +172,23 @@ export function buildOrganicRopeSpline(
       const p = particles[i]
 
       for (const card of cards) {
+        // 出入端口端部合法引线保护：距端点 <= 28px 时忽略自身卡片的排斥
+        const isStartCard =
+          waypoints[0].x >= card.x - 3 &&
+          waypoints[0].x <= card.x + card.width + 3 &&
+          waypoints[0].y >= card.y - 3 &&
+          waypoints[0].y <= card.y + card.height + 3
+
+        const lastWp = waypoints[waypoints.length - 1]
+        const isTargetCard =
+          lastWp.x >= card.x - 3 &&
+          lastWp.x <= card.x + card.width + 3 &&
+          lastWp.y >= card.y - 3 &&
+          lastWp.y <= card.y + card.height + 3
+
+        if (isStartCard && p.s <= 28) continue
+        if (isTargetCard && totalLength - p.s <= 28) continue
+
         const boxLeft = card.x - SAFE_MARGIN
         const boxRight = card.x + card.width + SAFE_MARGIN
         const boxTop = card.y - SAFE_MARGIN
@@ -208,12 +227,40 @@ export function buildOrganicRopeSpline(
       }
     }
 
-    // 3.3 端口切线水平咬合锚定 (Port Horizontal Tangent Pins)
+    // 3.3 端口切线自适应咬合锚定 (Port Adaptive Tangent Pins)
     const pinOffset = Math.min(16, totalLength * 0.15)
-    particles[1].x = particles[0].x + (particles[1].x >= particles[0].x ? pinOffset : -pinOffset)
-    particles[1].y = particles[0].y
-    particles[N - 2].x = particles[N - 1].x + (particles[N - 2].x >= particles[N - 1].x ? pinOffset : -pinOffset)
-    particles[N - 2].y = particles[N - 1].y
+
+    // 起点端口切线方向：根据第一个线段是垂直还是水平自然对齐
+    const isStartVertical =
+      waypoints.length > 1 &&
+      Math.abs(waypoints[1].x - waypoints[0].x) < Math.abs(waypoints[1].y - waypoints[0].y)
+
+    if (isStartVertical) {
+      particles[1].x = particles[0].x
+      particles[1].y = particles[0].y + (waypoints[1].y >= waypoints[0].y ? pinOffset : -pinOffset)
+    } else {
+      particles[1].x = particles[0].x + (waypoints[1].x >= waypoints[0].x ? pinOffset : -pinOffset)
+      particles[1].y = particles[0].y
+    }
+
+    // 终点端口切线方向：根据最后一个线段是垂直还是水平自然对齐
+    const lastWpIdx = waypoints.length - 1
+    const isEndVertical =
+      waypoints.length > 1 &&
+      Math.abs(waypoints[lastWpIdx].x - waypoints[lastWpIdx - 1].x) <
+        Math.abs(waypoints[lastWpIdx].y - waypoints[lastWpIdx - 1].y)
+
+    if (isEndVertical) {
+      particles[N - 2].x = particles[N - 1].x
+      particles[N - 2].y =
+        particles[N - 1].y +
+        (waypoints[lastWpIdx - 1].y >= waypoints[lastWpIdx].y ? pinOffset : -pinOffset)
+    } else {
+      particles[N - 2].x =
+        particles[N - 1].x +
+        (waypoints[lastWpIdx - 1].x >= waypoints[lastWpIdx].x ? pinOffset : -pinOffset)
+      particles[N - 2].y = particles[N - 1].y
+    }
   }
 
   const basePolyline = particles
@@ -670,71 +717,177 @@ export function computeSwissGridLayout(
     }
   }
 
-  // 4.1 动态多插孔端口分配 (Dynamic Multi-Jack Port Allocation)
-  const nodeOutgoingEdges = new Map<string, CausalEdge3D[]>()
-  const nodeIncomingEdges = new Map<string, CausalEdge3D[]>()
+  // 4.1 动态四向插孔端口自然分配 (Natural Multi-Port Directional Allocation)
+  type PortSide = 'left' | 'right' | 'top' | 'bottom'
 
-  for (const edge of edgeList) {
-    if (!nodeOutgoingEdges.has(edge.from)) nodeOutgoingEdges.set(edge.from, [])
-    nodeOutgoingEdges.get(edge.from)!.push(edge)
-
-    if (!nodeIncomingEdges.has(edge.to)) nodeIncomingEdges.set(edge.to, [])
-    nodeIncomingEdges.get(edge.to)!.push(edge)
+  interface PortDemand {
+    edgeId: string
+    role: 'from' | 'to'
+    side: PortSide
+    node: SwissNodeLayout
+    otherNode: SwissNodeLayout
   }
 
-  const fromPortMap = new Map<string, { x: number; y: number }>()
-  const toPortMap = new Map<string, { x: number; y: number }>()
+  // 1. 根据端到端相对空间拓扑与因果流向，自然计算每条边的出入端口朝向
+  const edgePortDemands = new Map<string, { fromSide: PortSide; toSide: PortSide }>()
 
-  // 计算出端口 (源卡片右边缘，由上至下有序引出)
-  nodeOutgoingEdges.forEach((edges, fromId) => {
-    const fromNode = nodeLayoutMap.get(fromId)
-    if (!fromNode) return
+  for (const edge of edgeList) {
+    const fromNode = nodeLayoutMap.get(edge.from)
+    const toNode = nodeLayoutMap.get(edge.to)
+    if (!fromNode || !toNode) continue
 
-    edges.sort((a, b) => {
-      const toA = nodeLayoutMap.get(a.to)
-      const toB = nodeLayoutMap.get(b.to)
-      return (toA?.y ?? 0) - (toB?.y ?? 0)
+    const colDiff = toNode.colIndex - fromNode.colIndex
+    const rowDiff = toNode.rowIndex - fromNode.rowIndex
+
+    let fromSide: PortSide
+    let toSide: PortSide
+
+    if (colDiff > 0) {
+      // 前向跨列通信：自然由西向东，源卡片右侧引出，目标卡片左侧进入
+      fromSide = 'right'
+      toSide = 'left'
+    } else if (colDiff < 0) {
+      // 反向跨列通信：自然由东向西，源卡片左侧直接引出，目标卡片右侧直接进入（杜绝180°环卡绕圈）
+      fromSide = 'left'
+      toSide = 'right'
+    } else {
+      // 同列通信 (colDiff === 0)
+      if (Math.abs(rowDiff) === 1) {
+        // 上下紧邻卡片：直接在行间缝隙垂直对插！
+        if (rowDiff > 0) {
+          // 向下：源底进目顶
+          fromSide = 'bottom'
+          toSide = 'top'
+        } else {
+          // 向上：源顶进目底
+          fromSide = 'top'
+          toSide = 'bottom'
+        }
+      } else {
+        // 同列非相邻跨卡：利用侧边通道括号式绕行
+        if (fromNode.colIndex < numCols - 1) {
+          fromSide = 'right'
+          toSide = 'right'
+        } else {
+          fromSide = 'left'
+          toSide = 'left'
+        }
+      }
+    }
+
+    edgePortDemands.set(edge.id, { fromSide, toSide })
+  }
+
+  // 2. 收集每个节点的四面插孔需求列表
+  interface NodePortGroup {
+    left: PortDemand[]
+    right: PortDemand[]
+    top: PortDemand[]
+    bottom: PortDemand[]
+  }
+
+  const nodePortsMap = new Map<string, NodePortGroup>()
+  for (const node of swissNodes) {
+    nodePortsMap.set(node.nodeId, { left: [], right: [], top: [], bottom: [] })
+  }
+
+  for (const edge of edgeList) {
+    const fromNode = nodeLayoutMap.get(edge.from)
+    const toNode = nodeLayoutMap.get(edge.to)
+    const demand = edgePortDemands.get(edge.id)
+    if (!fromNode || !toNode || !demand) continue
+
+    nodePortsMap.get(fromNode.nodeId)?.[demand.fromSide].push({
+      edgeId: edge.id,
+      role: 'from',
+      side: demand.fromSide,
+      node: fromNode,
+      otherNode: toNode,
     })
 
-    const k = edges.length
-    const marginY = 26
-    const spanY = Math.max(12, fromNode.height - marginY * 2)
+    nodePortsMap.get(toNode.nodeId)?.[demand.toSide].push({
+      edgeId: edge.id,
+      role: 'to',
+      side: demand.toSide,
+      node: toNode,
+      otherNode: fromNode,
+    })
+  }
 
-    edges.forEach((edge, idx) => {
-      const portY = k === 1
-        ? fromNode.y + fromNode.height / 2
-        : fromNode.y + marginY + (idx / (k - 1)) * spanY
-      fromPortMap.set(edge.id, {
-        x: fromNode.x + fromNode.width,
-        y: Math.round(portY),
+  // 3. 在每条边上自然均匀排布插孔，并按对端坐标排序彻底消除近口交叉
+  const fromPortMap = new Map<string, { x: number; y: number; side: PortSide }>()
+  const toPortMap = new Map<string, { x: number; y: number; side: PortSide }>()
+
+  nodePortsMap.forEach((groups, nodeId) => {
+    const node = nodeLayoutMap.get(nodeId)
+    if (!node) return
+
+    // 垂直边缘：'left' 与 'right'
+    const layoutVerticalSide = (ports: PortDemand[], side: 'left' | 'right') => {
+      if (ports.length === 0) return
+
+      // 按对端目标 Y 坐标升序排列（高位连线走高端口，低位走低端口，杜绝交叉）
+      ports.sort((a, b) => {
+        const yA = a.otherNode.y + a.otherNode.height / 2
+        const yB = b.otherNode.y + b.otherNode.height / 2
+        if (yA !== yB) return yA - yB
+        return a.edgeId.localeCompare(b.edgeId)
       })
-    })
-  })
 
-  // 计算入端口 (目标卡片左边缘，平滑平行进线)
-  nodeIncomingEdges.forEach((edges, toId) => {
-    const toNode = nodeLayoutMap.get(toId)
-    if (!toNode) return
+      const k = ports.length
+      const marginY = k >= 5 ? 18 : 26
+      const spanY = Math.max(12, node.height - marginY * 2)
+      const portX = side === 'left' ? node.x : node.x + node.width
 
-    edges.sort((a, b) => {
-      const fromA = nodeLayoutMap.get(a.from)
-      const fromB = nodeLayoutMap.get(b.from)
-      return (fromA?.y ?? 0) - (fromB?.y ?? 0)
-    })
+      ports.forEach((port, idx) => {
+        const portY = k === 1
+          ? node.y + node.height / 2
+          : node.y + marginY + (idx / (k - 1)) * spanY
 
-    const k = edges.length
-    const marginY = 26
-    const spanY = Math.max(12, toNode.height - marginY * 2)
-
-    edges.forEach((edge, idx) => {
-      const portY = k === 1
-        ? toNode.y + toNode.height / 2
-        : toNode.y + marginY + (idx / (k - 1)) * spanY
-      toPortMap.set(edge.id, {
-        x: toNode.x,
-        y: Math.round(portY),
+        const coords = { x: portX, y: Math.round(portY), side }
+        if (port.role === 'from') {
+          fromPortMap.set(port.edgeId, coords)
+        } else {
+          toPortMap.set(port.edgeId, coords)
+        }
       })
-    })
+    }
+
+    // 水平边缘：'top' 与 'bottom'
+    const layoutHorizontalSide = (ports: PortDemand[], side: 'top' | 'bottom') => {
+      if (ports.length === 0) return
+
+      // 按对端目标 X 坐标升序排列
+      ports.sort((a, b) => {
+        const xA = a.otherNode.x + a.otherNode.width / 2
+        const xB = b.otherNode.x + b.otherNode.width / 2
+        if (xA !== xB) return xA - xB
+        return a.edgeId.localeCompare(b.edgeId)
+      })
+
+      const k = ports.length
+      const marginX = k >= 5 ? 24 : 36
+      const spanX = Math.max(20, node.width - marginX * 2)
+      const portY = side === 'top' ? node.y : node.y + node.height
+
+      ports.forEach((port, idx) => {
+        const portX = k === 1
+          ? node.x + node.width / 2
+          : node.x + marginX + (idx / (k - 1)) * spanX
+
+        const coords = { x: Math.round(portX), y: portY, side }
+        if (port.role === 'from') {
+          fromPortMap.set(port.edgeId, coords)
+        } else {
+          toPortMap.set(port.edgeId, coords)
+        }
+      })
+    }
+
+    layoutVerticalSide(groups.left, 'left')
+    layoutVerticalSide(groups.right, 'right')
+    layoutHorizontalSide(groups.top, 'top')
+    layoutHorizontalSide(groups.bottom, 'bottom')
   })
 
   // 4.2 廊道寻路与线段注册
@@ -842,9 +995,12 @@ export function computeSwissGridLayout(
     toNode: SwissNodeLayout
     startX: number
     startY: number
+    fromSide: PortSide
     endX: number
     endY: number
+    toSide: PortSide
     colDiff: number
+    rowDiff: number
     intermediateCorridorIds: string[]
   }
 
@@ -858,35 +1014,39 @@ export function computeSwissGridLayout(
     const fromPort = fromPortMap.get(edge.id) || {
       x: fromNode.x + fromNode.width,
       y: fromNode.y + fromNode.height / 2,
+      side: 'right' as PortSide,
     }
     const toPort = toPortMap.get(edge.id) || {
       x: toNode.x,
       y: toNode.y + toNode.height / 2,
+      side: 'left' as PortSide,
     }
 
     const startX = fromPort.x
     const startY = fromPort.y
-    const colDiff = toNode.colIndex - fromNode.colIndex
-    // 目标端点永远严格连接目标节点的左侧入插孔 (toPort.x = toNode.x)
+    const fromSide = fromPort.side
     const endX = toPort.x
     const endY = toPort.y
+    const toSide = toPort.side
+    const colDiff = toNode.colIndex - fromNode.colIndex
+    const rowDiff = toNode.rowIndex - fromNode.rowIndex
 
     const intermediateCorridorIds: string[] = []
 
     if (colDiff === 1) {
-      // 相邻列：仅在出发通道占用一根纵向线
+      // 1. 前向相邻列：在两列之间的通道占用纵向过渡线
       const gIdx = fromNode.colIndex
       const gutter = gutters[gIdx]
       gutterWiresMap.get(gIdx)?.push({
         id: `${edge.id}-v-${gIdx}`,
         edgeId: edge.id,
-        preferredPos: gutter ? gutter.center : startX + 40,
+        preferredPos: gutter ? gutter.center : (startX + endX) / 2,
         span1: startY,
         span2: endY,
-        assignedPos: gutter ? gutter.center : startX + 40,
+        assignedPos: gutter ? gutter.center : (startX + endX) / 2,
       })
     } else if (colDiff > 1) {
-      // 跨列前向通信：寻路穿过中间各列的卡片间缝隙廊道
+      // 2. 前向跨多列：寻路穿过中间各列的卡片间缝隙廊道
       for (let k = fromNode.colIndex + 1; k < toNode.colIndex; k++) {
         const colK = columns[k]
         const tProgress = (colK.x + CARD_WIDTH / 2 - startX) / (endX - startX)
@@ -947,188 +1107,141 @@ export function computeSwissGridLayout(
         assignedPos: gutterEnd ? gutterEnd.center + 12 : endX - 24,
       })
     } else if (colDiff === 0) {
-      // 同列折叠：通过源卡与目标卡之间的缝隙廊道循环绕行到左侧入插孔，绝不直接横切卡片！
-      const cSame = fromNode.colIndex
-      const rFrom = fromNode.rowIndex
-      const rTo = toNode.rowIndex
-      let gapCorr: HorizontalCorridor
-      if (rFrom < rTo) {
-        gapCorr = columnCorridorsMap.get(cSame)?.find((x) => x.id === `c${cSame}-gap-${rFrom}`)
-          || chooseAdjacentCorridor(fromNode, endY)
-      } else if (rFrom > rTo) {
-        gapCorr = columnCorridorsMap.get(cSame)?.find((x) => x.id === `c${cSame}-gap-${rFrom - 1}`)
-          || chooseAdjacentCorridor(fromNode, endY)
+      // 3. 同列通信 (colDiff === 0)
+      if (Math.abs(rowDiff) === 1) {
+        // 上下相邻卡片：零通道占用，直接在行间缝隙垂直对插！
       } else {
-        gapCorr = chooseAdjacentCorridor(fromNode, endY)
-      }
-      intermediateCorridorIds.push(gapCorr.id)
-
-      corridorWiresMap.get(gapCorr.id)?.push({
-        id: `${edge.id}-same-h`,
-        edgeId: edge.id,
-        preferredPos: gapCorr.center,
-        span1: startY,
-        span2: endY,
-        assignedPos: gapCorr.center,
-      })
-
-      if (cSame < numCols - 1) {
-        const gutterRight = gutters[cSame]
-        gutterWiresMap.get(cSame)?.push({
-          id: `${edge.id}-same-v-right`,
-          edgeId: edge.id,
-          preferredPos: gutterRight ? gutterRight.center + 12 : startX + 24,
-          span1: startY,
-          span2: gapCorr.center,
-          assignedPos: gutterRight ? gutterRight.center + 12 : startX + 24,
-        })
-      } else {
-        const rightClearX = columns[numCols - 1].x + CARD_WIDTH + 28
-        rightCorridorWires.push({
-          id: `${edge.id}-same-v-right`,
-          edgeId: edge.id,
-          preferredPos: rightClearX,
-          span1: startY,
-          span2: gapCorr.center,
-          assignedPos: rightClearX,
-        })
-      }
-
-      if (cSame > 0) {
-        const gutterLeft = gutters[cSame - 1]
-        gutterWiresMap.get(cSame - 1)?.push({
-          id: `${edge.id}-same-v-left`,
-          edgeId: edge.id,
-          preferredPos: gutterLeft ? gutterLeft.center - 12 : endX - 24,
-          span1: gapCorr.center,
-          span2: endY,
-          assignedPos: gutterLeft ? gutterLeft.center - 12 : endX - 24,
-        })
-      } else {
-        leftCorridorWires.push({
-          id: `${edge.id}-same-v-left`,
-          edgeId: edge.id,
-          preferredPos: LEFT_MARGIN - 36,
-          span1: gapCorr.center,
-          span2: endY,
-          assignedPos: LEFT_MARGIN - 36,
-        })
+        // 同列非相邻跨卡：利用侧边通道括号式绕行
+        const cSame = fromNode.colIndex
+        if (cSame < numCols - 1) {
+          const gutterRight = gutters[cSame]
+          gutterWiresMap.get(cSame)?.push({
+            id: `${edge.id}-same-v`,
+            edgeId: edge.id,
+            preferredPos: gutterRight ? gutterRight.center + 12 : startX + 24,
+            span1: startY,
+            span2: endY,
+            assignedPos: gutterRight ? gutterRight.center + 12 : startX + 24,
+          })
+        } else if (cSame > 0) {
+          const gutterLeft = gutters[cSame - 1]
+          gutterWiresMap.get(cSame - 1)?.push({
+            id: `${edge.id}-same-v`,
+            edgeId: edge.id,
+            preferredPos: gutterLeft ? gutterLeft.center - 12 : startX - 24,
+            span1: startY,
+            span2: endY,
+            assignedPos: gutterLeft ? gutterLeft.center - 12 : startX - 24,
+          })
+        } else {
+          leftCorridorWires.push({
+            id: `${edge.id}-same-v`,
+            edgeId: edge.id,
+            preferredPos: LEFT_MARGIN - 36,
+            span1: startY,
+            span2: endY,
+            assignedPos: LEFT_MARGIN - 36,
+          })
+        }
       }
     } else {
-      // 反向跨列通信 (colDiff < 0: 从右向左穿梭，彻底消除顶部单一总线，严禁对角穿透卡片)
+      // 4. 反向跨列通信 (colDiff < 0: 从右向左穿梭，源左侧直接出线，目标右侧直接入线，绝不环卡绕圈)
       const cs = fromNode.colIndex
       const ct = toNode.colIndex
 
-      // 1. 出发列 cs：选择源卡片上方或下方缝隙走廊
-      const exitCorr = chooseAdjacentCorridor(fromNode, endY)
-      intermediateCorridorIds.push(exitCorr.id)
-
-      corridorWiresMap.get(exitCorr.id)?.push({
-        id: `${edge.id}-back-h-${cs}`,
-        edgeId: edge.id,
-        preferredPos: exitCorr.center,
-        span1: startY,
-        span2: endY,
-        assignedPos: exitCorr.center,
-      })
-
-      // 出发通道 (cs 右侧) 垂直段
-      if (cs < numCols - 1) {
-        const gutterStart = gutters[cs]
-        gutterWiresMap.get(cs)?.push({
-          id: `${edge.id}-back-v-exit`,
+      if (cs - ct === 1) {
+        // 反向紧邻列：直接在中间的通道 gutters[ct] 垂直过渡
+        const gutter = gutters[ct]
+        gutterWiresMap.get(ct)?.push({
+          id: `${edge.id}-back-v-adj`,
           edgeId: edge.id,
-          preferredPos: gutterStart ? gutterStart.center + 12 : startX + 24,
+          preferredPos: gutter ? gutter.center : (startX + endX) / 2,
           span1: startY,
-          span2: exitCorr.center,
-          assignedPos: gutterStart ? gutterStart.center + 12 : startX + 24,
+          span2: endY,
+          assignedPos: gutter ? gutter.center : (startX + endX) / 2,
         })
       } else {
-        const rightClearX = columns[numCols - 1].x + CARD_WIDTH + 28
-        rightCorridorWires.push({
-          id: `${edge.id}-back-v-exit`,
+        // 反向跨多列：逐列向西穿梭中间各列缝隙廊道
+        for (let k = cs - 1; k > ct; k--) {
+          const colK = columns[k]
+          const tProgress = (startX - (colK.x + CARD_WIDTH / 2)) / (startX - endX)
+          const yIdeal = startY + (endY - startY) * tProgress
+          const bestCorr = findBestCorridor(k, yIdeal)
+          intermediateCorridorIds.push(bestCorr.id)
+
+          corridorWiresMap.get(bestCorr.id)?.push({
+            id: `${edge.id}-back-h-${k}`,
+            edgeId: edge.id,
+            preferredPos: bestCorr.center,
+            span1: startY,
+            span2: endY,
+            assignedPos: bestCorr.center,
+          })
+        }
+
+        // 出发通道 gutters[cs - 1] 垂直过渡段
+        const firstCorrId = intermediateCorridorIds[0]
+        let firstCorrY = startY
+        for (const corridors of columnCorridorsMap.values()) {
+          const c = corridors.find((x) => x.id === firstCorrId)
+          if (c) {
+            firstCorrY = c.center
+            break
+          }
+        }
+        const gStartIdx = cs - 1
+        const gutterStart = gutters[gStartIdx]
+        gutterWiresMap.get(gStartIdx)?.push({
+          id: `${edge.id}-back-v-start`,
           edgeId: edge.id,
-          preferredPos: rightClearX,
+          preferredPos: gutterStart ? gutterStart.center + 12 : startX - 24,
           span1: startY,
-          span2: exitCorr.center,
-          assignedPos: rightClearX,
+          span2: firstCorrY,
+          assignedPos: gutterStart ? gutterStart.center + 12 : startX - 24,
         })
-      }
 
-      // 2. 中间各列与对应 gutter 垂直过渡段
-      let prevY = exitCorr.center
-      for (let k = cs - 1; k > ct; k--) {
-        const colK = columns[k]
-        const tProgress = (colK.x + CARD_WIDTH / 2 - startX) / (endX - startX)
-        const yIdeal = startY + (endY - startY) * tProgress
-        const bestCorr = findBestCorridor(k, yIdeal)
-        intermediateCorridorIds.push(bestCorr.id)
+        // 中间通道过渡段 (若跨越超过 2 列)
+        let prevY = firstCorrY
+        for (let k = cs - 1; k > ct + 1; k--) {
+          const nextCorrId = intermediateCorridorIds[cs - 1 - (k - 1)]
+          let nextCorrY = prevY
+          for (const corridors of columnCorridorsMap.values()) {
+            const c = corridors.find((x) => x.id === nextCorrId)
+            if (c) {
+              nextCorrY = c.center
+              break
+            }
+          }
+          const gutterMid = gutters[k - 1]
+          gutterWiresMap.get(k - 1)?.push({
+            id: `${edge.id}-back-v-${k - 1}`,
+            edgeId: edge.id,
+            preferredPos: gutterMid ? gutterMid.center : 0,
+            span1: prevY,
+            span2: nextCorrY,
+            assignedPos: gutterMid ? gutterMid.center : 0,
+          })
+          prevY = nextCorrY
+        }
 
-        corridorWiresMap.get(bestCorr.id)?.push({
-          id: `${edge.id}-back-h-${k}`,
+        // 目标通道 gutters[ct] 垂直过渡段 (由最后一个廊道高度引至目标端口 endY)
+        const lastCorrId = intermediateCorridorIds[intermediateCorridorIds.length - 1]
+        let lastCorrY = endY
+        for (const corridors of columnCorridorsMap.values()) {
+          const c = corridors.find((x) => x.id === lastCorrId)
+          if (c) {
+            lastCorrY = c.center
+            break
+          }
+        }
+        const gutterCt = gutters[ct]
+        gutterWiresMap.get(ct)?.push({
+          id: `${edge.id}-back-v-end`,
           edgeId: edge.id,
-          preferredPos: bestCorr.center,
-          span1: startY,
+          preferredPos: gutterCt ? gutterCt.center - 12 : endX + 24,
+          span1: lastCorrY,
           span2: endY,
-          assignedPos: bestCorr.center,
-        })
-
-        // 在 Gutter k (列 k 右侧) 注册垂直过渡段
-        const gutterK = gutters[k]
-        gutterWiresMap.get(k)?.push({
-          id: `${edge.id}-back-v-${k}`,
-          edgeId: edge.id,
-          preferredPos: gutterK ? gutterK.center : 0,
-          span1: prevY,
-          span2: bestCorr.center,
-          assignedPos: gutterK ? gutterK.center : 0,
-        })
-        prevY = bestCorr.center
-      }
-
-      // 3. 目标列 ct 廊道：选择目标卡片紧邻走廊
-      const entryCorr = chooseAdjacentCorridor(toNode, prevY)
-      intermediateCorridorIds.push(entryCorr.id)
-
-      corridorWiresMap.get(entryCorr.id)?.push({
-        id: `${edge.id}-back-h-${ct}`,
-        edgeId: edge.id,
-        preferredPos: entryCorr.center,
-        span1: startY,
-        span2: endY,
-        assignedPos: entryCorr.center,
-      })
-
-      // 在 Gutter ct (列 ct 右侧) 注册垂直过渡段，严禁从右向左对角斜切卡片！
-      const gutterCt = gutters[ct]
-      gutterWiresMap.get(ct)?.push({
-        id: `${edge.id}-back-v-${ct}`,
-        edgeId: edge.id,
-        preferredPos: gutterCt ? gutterCt.center : 0,
-        span1: prevY,
-        span2: entryCorr.center,
-        assignedPos: gutterCt ? gutterCt.center : 0,
-      })
-
-      // 在目标列 ct 左侧通道 (ct-1 或左安全廊道) 垂直引线到 endY
-      if (ct > 0) {
-        const gutterLeft = gutters[ct - 1]
-        gutterWiresMap.get(ct - 1)?.push({
-          id: `${edge.id}-back-v-entry`,
-          edgeId: edge.id,
-          preferredPos: gutterLeft ? gutterLeft.center - 12 : endX - 24,
-          span1: entryCorr.center,
-          span2: endY,
-          assignedPos: gutterLeft ? gutterLeft.center - 12 : endX - 24,
-        })
-      } else {
-        leftCorridorWires.push({
-          id: `${edge.id}-back-v-entry`,
-          edgeId: edge.id,
-          preferredPos: LEFT_MARGIN - 36,
-          span1: entryCorr.center,
-          span2: endY,
-          assignedPos: LEFT_MARGIN - 36,
+          assignedPos: gutterCt ? gutterCt.center - 12 : endX + 24,
         })
       }
     }
@@ -1139,9 +1252,12 @@ export function computeSwissGridLayout(
       toNode,
       startX,
       startY,
+      fromSide,
       endX,
       endY,
+      toSide,
       colDiff,
+      rowDiff,
       intermediateCorridorIds,
     })
   }
@@ -1244,84 +1360,104 @@ export function computeSwissGridLayout(
       pts.push({ x: plan.endX, y: plan.endY })
       waypoints = pts
     } else if (plan.colDiff === 0) {
-      // 同列折叠：从右侧出通道绕过间隙廊道进入左侧通道接插孔，零卡片穿透
-      const cSame = plan.fromNode.colIndex
-      const rightClearX = columns[numCols - 1].x + CARD_WIDTH + 28
-      const rightTrackX = cSame < numCols - 1
-        ? (vTrackMap.get(`${plan.edge.id}-same-v-right`) || gutters[cSame]?.center || plan.startX + 28)
-        : (vTrackMap.get(`${plan.edge.id}-same-v-right`) || rightClearX)
-      const leftTrackX = cSame > 0
-        ? (vTrackMap.get(`${plan.edge.id}-same-v-left`) || gutters[cSame - 1]?.center || plan.endX - 24)
-        : (vTrackMap.get(`${plan.edge.id}-same-v-left`) || LEFT_MARGIN - 36)
-      const gapCorrY = hTrackMap.get(`${plan.edge.id}-same-h`) || (plan.startY + plan.endY) / 2
+      if (Math.abs(plan.rowDiff) === 1) {
+        // 上下相邻卡片直接垂直对插
+        if (Math.abs(plan.startX - plan.endX) < 4) {
+          waypoints = [
+            { x: plan.startX, y: plan.startY },
+            { x: plan.endX, y: plan.endY },
+          ]
+        } else {
+          const midY = (plan.startY + plan.endY) / 2
+          waypoints = [
+            { x: plan.startX, y: plan.startY },
+            { x: plan.startX, y: midY },
+            { x: plan.endX, y: midY },
+            { x: plan.endX, y: plan.endY },
+          ]
+        }
+      } else {
+        // 同列非相邻卡片：利用侧边通道平滑绕行
+        const cSame = plan.fromNode.colIndex
+        let trackX: number
+        if (cSame < numCols - 1) {
+          trackX = vTrackMap.get(`${plan.edge.id}-same-v`) || gutters[cSame]?.center || plan.startX + 28
+        } else if (cSame > 0) {
+          trackX = vTrackMap.get(`${plan.edge.id}-same-v`) || gutters[cSame - 1]?.center || plan.startX - 28
+        } else {
+          trackX = vTrackMap.get(`${plan.edge.id}-same-v`) || LEFT_MARGIN - 36
+        }
 
-      waypoints = [
-        { x: plan.startX, y: plan.startY },
-        { x: rightTrackX, y: plan.startY },
-        { x: rightTrackX, y: gapCorrY },
-        { x: leftTrackX, y: gapCorrY },
-        { x: leftTrackX, y: plan.endY },
-        { x: plan.endX, y: plan.endY },
-      ]
+        waypoints = [
+          { x: plan.startX, y: plan.startY },
+          { x: trackX, y: plan.startY },
+          { x: trackX, y: plan.endY },
+          { x: plan.endX, y: plan.endY },
+        ]
+      }
     } else {
-      // 反向跨列通信：严格正交廊道寻路，彻底消除顶部单一总线与对角斜穿卡片
-      const pts: Array<{ x: number; y: number }> = [{ x: plan.startX, y: plan.startY }]
+      // 反向跨列通信 (colDiff < 0: 从右向左穿梭，源左侧直接出线，目标右侧直接入线，绝不环卡绕圈)
       const cs = plan.fromNode.colIndex
       const ct = plan.toNode.colIndex
 
-      // 1. 出发通道 (cs 右侧)
-      const exitTrackX = vTrackMap.get(`${plan.edge.id}-back-v-exit`)
-        || (cs < numCols - 1 ? (gutters[cs]?.center ? gutters[cs].center + 12 : plan.startX + 24) : rightClearX)
-      const exitCorrY = hTrackMap.get(`${plan.edge.id}-back-h-${cs}`) || plan.startY
+      if (cs - ct === 1) {
+        // 反向紧邻列：4 锚点直连，零走廊穿行
+        const trackX = vTrackMap.get(`${plan.edge.id}-back-v-adj`)
+          || (gutters[ct]?.center ?? (plan.startX + plan.endX) / 2)
 
-      pts.push({ x: exitTrackX, y: plan.startY })
-      pts.push({ x: exitTrackX, y: exitCorrY })
-
-      // 2. 逐列向左遍历中间各列 (从 cs - 1 到 ct + 1)
-      let currY = exitCorrY
-      for (let k = cs - 1; k > ct; k--) {
-        const gutterK = gutters[k]
-        const trackX_k = vTrackMap.get(`${plan.edge.id}-back-v-${k}`)
-          || (gutterK ? gutterK.center : plan.startX - (cs - k) * 350)
-        // 穿越列 k + 1 到达 Gutter k
-        pts.push({ x: trackX_k, y: currY })
-
-        // 在 Gutter k 内部垂直过渡到该列廊道高度
-        const corrY_k = hTrackMap.get(`${plan.edge.id}-back-h-${k}`) || currY
-        if (Math.abs(currY - corrY_k) > 1) {
-          pts.push({ x: trackX_k, y: corrY_k })
-          currY = corrY_k
+        if (Math.abs(plan.startY - plan.endY) < 6) {
+          waypoints = [
+            { x: plan.startX, y: plan.startY },
+            { x: plan.endX, y: plan.endY },
+          ]
+        } else {
+          waypoints = [
+            { x: plan.startX, y: plan.startY },
+            { x: trackX, y: plan.startY },
+            { x: trackX, y: plan.endY },
+            { x: plan.endX, y: plan.endY },
+          ]
         }
+      } else {
+        // 反向跨多列：逐列向西穿梭
+        const pts: Array<{ x: number; y: number }> = [{ x: plan.startX, y: plan.startY }]
+
+        // 出发通道 gutters[cs - 1]
+        const firstTrackX = vTrackMap.get(`${plan.edge.id}-back-v-start`)
+          || (gutters[cs - 1]?.center ? gutters[cs - 1].center + 12 : plan.startX - 24)
+        const firstCorrY = hTrackMap.get(`${plan.edge.id}-back-h-${cs - 1}`) || plan.startY
+
+        pts.push({ x: firstTrackX, y: plan.startY })
+        pts.push({ x: firstTrackX, y: firstCorrY })
+
+        // 穿行中间各列廊道 (从 cs - 1 向西至 ct + 1)
+        let currY = firstCorrY
+        for (let k = cs - 1; k > ct + 1; k--) {
+          const nextGutterIdx = k - 1
+          const nextTrackX = vTrackMap.get(`${plan.edge.id}-back-v-${nextGutterIdx}`)
+            || (gutters[nextGutterIdx]?.center ?? plan.endX + (k - ct) * 350)
+          pts.push({ x: nextTrackX, y: currY })
+
+          const nextCorrY = hTrackMap.get(`${plan.edge.id}-back-h-${k - 1}`) || currY
+          if (Math.abs(currY - nextCorrY) > 1) {
+            pts.push({ x: nextTrackX, y: nextCorrY })
+            currY = nextCorrY
+          }
+        }
+
+        // 到达目标通道 gutters[ct]
+        const endTrackX = vTrackMap.get(`${plan.edge.id}-back-v-end`)
+          || (gutters[ct]?.center ? gutters[ct].center - 12 : plan.endX + 24)
+        pts.push({ x: endTrackX, y: currY })
+
+        if (Math.abs(currY - plan.endY) > 1) {
+          pts.push({ x: endTrackX, y: plan.endY })
+        }
+
+        // 接入目标卡片右侧端口
+        pts.push({ x: plan.endX, y: plan.endY })
+        waypoints = pts
       }
-
-      // 3. 到达目标列 ct 右侧的 Gutter ct
-      const gutterCt = gutters[ct]
-      const trackX_ct = vTrackMap.get(`${plan.edge.id}-back-v-${ct}`)
-        || (gutterCt ? gutterCt.center : plan.endX + 350)
-      pts.push({ x: trackX_ct, y: currY })
-
-      // 在 Gutter ct 内部垂直过渡到目标列入口廊道高度 entryCorrY
-      const entryCorrY = hTrackMap.get(`${plan.edge.id}-back-h-${ct}`) || plan.endY
-      if (Math.abs(currY - entryCorrY) > 1) {
-        pts.push({ x: trackX_ct, y: entryCorrY })
-        currY = entryCorrY
-      }
-
-      // 4. 横向穿过目标列 ct 的入口廊道到达其左侧通道
-      const entryTrackX = ct === 0
-        ? (vTrackMap.get(`${plan.edge.id}-back-v-entry`) || LEFT_MARGIN - 36)
-        : (vTrackMap.get(`${plan.edge.id}-back-v-entry`) || gutters[ct - 1]?.center || plan.endX - 24)
-      pts.push({ x: entryTrackX, y: currY })
-
-      // 5. 在目标列左侧通道垂直过渡到目标端口高度
-      if (Math.abs(currY - plan.endY) > 1) {
-        pts.push({ x: entryTrackX, y: plan.endY })
-      }
-
-      // 6. 水平进入目标端口
-      pts.push({ x: plan.endX, y: plan.endY })
-
-      waypoints = pts
     }
 
     const cardBoxes: CardAABB[] = swissNodes.map((n) => ({
@@ -1342,6 +1478,8 @@ export function computeSwissGridLayout(
       svgPath,
       waypoints,
       edge: plan.edge,
+      fromSide: plan.fromSide,
+      toSide: plan.toSide,
     })
   })
 

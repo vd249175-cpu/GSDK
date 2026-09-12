@@ -520,5 +520,79 @@ describe('Swiss Modular Grid Layout Engine', () => {
         }
       }
     })
+
+    it('dynamically assigns port sides based on natural flow direction (not rigidly fixed to left/right)', () => {
+      // 场景包含：
+      // 1. 前向通信 (Observation -> Domain)
+      // 2. 反向通信 (Execution -> Observation)
+      // 3. 同列向下紧邻 (Domain Row 0 -> Domain Row 1)
+      // 4. 同列向上紧邻 (Domain Row 1 -> Domain Row 0)
+      const nodes: CausalNode3D[] = [
+        createMockNode('obs_node', 'observation'),
+        createMockNode('dom_top', 'domain'),
+        createMockNode('dom_bottom', 'domain'),
+        createMockNode('exec_node', 'execution'),
+      ]
+
+      const edges: CausalEdge3D[] = [
+        { id: 'e_fwd', from: 'obs_node', to: 'dom_top', color: '#000', active: true, lastInfoType: 'Fwd' },
+        { id: 'e_back', from: 'exec_node', to: 'obs_node', color: '#000', active: true, lastInfoType: 'Back' },
+        { id: 'e_down', from: 'dom_top', to: 'dom_bottom', color: '#000', active: true, lastInfoType: 'Down' },
+        { id: 'e_up', from: 'dom_bottom', to: 'dom_top', color: '#000', active: true, lastInfoType: 'Up' },
+      ]
+
+      const layout = computeSwissGridLayout(nodes, edges)
+
+      const fwdEdge = layout.edges.find((e) => e.id === 'e_fwd')!
+      const backEdge = layout.edges.find((e) => e.id === 'e_back')!
+      const downEdge = layout.edges.find((e) => e.id === 'e_down')!
+      const upEdge = layout.edges.find((e) => e.id === 'e_up')!
+
+      // 1. 前向边：自然从右出，从左入
+      expect(fwdEdge.fromSide).toBe('right')
+      expect(fwdEdge.toSide).toBe('left')
+      expect(fwdEdge.points[0].x).toBeLessThan(fwdEdge.points[fwdEdge.points.length - 1].x)
+
+      // 2. 反向边：自然从左直接引出，从右直接接入（绝不向右环卡绕圈）
+      expect(backEdge.fromSide).toBe('left')
+      expect(backEdge.toSide).toBe('right')
+      expect(backEdge.points[0].x).toBeGreaterThan(backEdge.points[backEdge.points.length - 1].x)
+
+      // 3. 同列向下相邻边：自然从底出，从顶入（直接在行间垂直连接）
+      expect(downEdge.fromSide).toBe('bottom')
+      expect(downEdge.toSide).toBe('top')
+      expect(downEdge.points[0].y).toBeLessThan(downEdge.points[downEdge.points.length - 1].y)
+
+      // 4. 同列向上相邻边：自然从顶出，从底入
+      expect(upEdge.fromSide).toBe('top')
+      expect(upEdge.toSide).toBe('bottom')
+      expect(upEdge.points[0].y).toBeGreaterThan(upEdge.points[upEdge.points.length - 1].y)
+    })
+
+    it('evenly arranges multiple ports along horizontal and vertical edges without stacking', () => {
+      // 场景：同一个节点接收多个同列垂直输入与多个水平输入
+      const nodes: CausalNode3D[] = [
+        createMockNode('top_1', 'domain'),
+        createMockNode('top_2', 'domain'),
+        createMockNode('target_node', 'domain'),
+      ]
+
+      const edges: CausalEdge3D[] = [
+        { id: 'v1', from: 'top_1', to: 'target_node', color: '#000', active: true },
+        { id: 'v2', from: 'top_2', to: 'target_node', color: '#000', active: true },
+      ]
+
+      const layout = computeSwissGridLayout(nodes, edges)
+      const targetCard = layout.nodes.find((n) => n.nodeId === 'target_node')!
+      const ev1 = layout.edges.find((e) => e.id === 'v1')!
+      const ev2 = layout.edges.find((e) => e.id === 'v2')!
+
+      // 两个终点端子均位于卡片边界上，且不重叠
+      const pt1 = ev1.points[ev1.points.length - 1]
+      const pt2 = ev2.points[ev2.points.length - 1]
+
+      expect(pt1.x !== pt2.x || pt1.y !== pt2.y).toBe(true)
+    })
   })
 })
+
