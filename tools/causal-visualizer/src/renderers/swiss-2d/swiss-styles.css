@@ -32,7 +32,9 @@
   top: 0;
   left: 0;
   transform-origin: 0 0;
-  will-change: transform;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* 顶部列标与瑞士排版总览 */
@@ -85,44 +87,28 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   opacity: 0.92;
-  filter: drop-shadow(0 2.5px 5px rgba(0, 0, 0, 0.14));
-  transition: stroke 0.18s ease, stroke-width 0.18s ease, opacity 0.18s ease, filter 0.18s ease;
+  transition: stroke 0.15s ease, stroke-width 0.15s ease, opacity 0.15s ease;
 }
 
-/* 上游连线：纯正国际克莱因蓝 (Electric Klein Blue) */
+/* 上游连线：纯正高饱和国际克莱因蓝 */
 .swiss-orthogonal-line.upstream {
   stroke: #0047ff;
-  stroke-width: 3.5px;
+  stroke-width: 3.8px;
   opacity: 1;
-  filter: drop-shadow(0 0 6px rgba(0, 71, 255, 0.6)) drop-shadow(0 3px 6px rgba(0, 71, 255, 0.35));
 }
 
-.swiss-orthogonal-line.upstream.direct {
-  stroke: #0047ff;
-  stroke-width: 4.5px;
-  filter: drop-shadow(0 0 10px rgba(0, 71, 255, 0.85)) drop-shadow(0 4px 8px rgba(0, 71, 255, 0.45));
-}
-
-/* 下游连线：纯正先锋朱红 (International Vermilion Red) */
+/* 下游连线：纯正高饱和先锋朱红 */
 .swiss-orthogonal-line.downstream {
   stroke: #ff3300;
-  stroke-width: 3.5px;
+  stroke-width: 3.8px;
   opacity: 1;
-  filter: drop-shadow(0 0 6px rgba(255, 51, 0, 0.6)) drop-shadow(0 3px 6px rgba(255, 51, 0, 0.35));
 }
 
-.swiss-orthogonal-line.downstream.direct {
-  stroke: #ff3300;
-  stroke-width: 4.5px;
-  filter: drop-shadow(0 0 10px rgba(255, 51, 0, 0.85)) drop-shadow(0 4px 8px rgba(255, 51, 0, 0.45));
-}
-
-/* 未选中的非因果连线：柔和淡化 */
+/* 未选中的非因果连线：柔和淡化细线 */
 .swiss-orthogonal-line.dimmed {
-  stroke: #c2c2bc;
+  stroke: #c8c8c4;
   stroke-width: 1.4px;
-  opacity: 0.16;
-  filter: none;
+  opacity: 0.22;
 }
 
 /* 同心圆五金接线端子插孔 (Concentric Hardware Jack Sockets) */
@@ -130,51 +116,42 @@
   fill: #ffffff;
   stroke: #0a0a0a;
   stroke-width: 1.5px;
-  transition: stroke 0.18s ease, fill 0.18s ease;
+  transition: stroke 0.15s ease, fill 0.15s ease;
 }
 
 .swiss-jack-inner {
   fill: #0a0a0a;
-  transition: fill 0.18s ease;
+  transition: fill 0.15s ease;
 }
 
 .swiss-jack-outer.upstream {
   stroke: #0047ff;
-  stroke-width: 2px;
+  stroke-width: 2.5px;
 }
 .swiss-jack-inner.upstream {
   fill: #0047ff;
 }
-.swiss-jack-outer.upstream.direct {
-  stroke: #0047ff;
-  stroke-width: 2.8px;
-}
 
 .swiss-jack-outer.downstream {
   stroke: #ff3300;
-  stroke-width: 2px;
+  stroke-width: 2.5px;
 }
 .swiss-jack-inner.downstream {
   fill: #ff3300;
 }
-.swiss-jack-outer.downstream.direct {
-  stroke: #ff3300;
-  stroke-width: 2.8px;
-}
 
 .swiss-jack-outer.dimmed {
-  stroke: #c2c2bc;
-  opacity: 0.2;
+  stroke: #c8c8c4;
+  opacity: 0.25;
 }
 .swiss-jack-inner.dimmed {
-  fill: #c2c2bc;
-  opacity: 0.2;
+  fill: #c8c8c4;
+  opacity: 0.25;
 }
 
 /* 柔性软绳顺畅滑动脉冲光标 */
 .swiss-signal-pulse {
   fill: #ff3300;
-  filter: drop-shadow(0 0 6px rgba(255, 51, 0, 0.85));
 }
 
 /* -------------------------------------------------------------
@@ -192,6 +169,8 @@
   padding: 12px 14px;
   cursor: pointer;
   transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .swiss-node-card:hover {
@@ -204,21 +183,8 @@
   box-shadow: 6px 6px 0px #ff3300;
 }
 
-.swiss-node-card.upstream {
-  border-color: #002fa7;
-  box-shadow: 5px 5px 0px #002fa7;
-}
-
-.swiss-node-card.downstream {
-  border-color: #ff3300;
-  box-shadow: 5px 5px 0px #ff3300;
-}
-
-.swiss-node-card.dimmed {
-  /* 保持纯正黑白印刷高反差质感，绝不出现低对比度灰框与禁用感 */
-  border-color: #0a0a0a;
-  box-shadow: 3px 3px 0px #0a0a0a;
-  opacity: 0.82;
+.swiss-node-card.selected .swiss-card-ver {
+  color: #ff3300;
 }
 
 .swiss-node-card.impact-flash {

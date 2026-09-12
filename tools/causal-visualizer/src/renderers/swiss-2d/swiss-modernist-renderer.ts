@@ -60,6 +60,16 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
   private animFrameId?: number
   private isDisposed = false
 
+  // 缓存连线 DOM 节点，避免使用 querySelector 处理含 '->' 的特殊 ID 导致选择器语法报错
+  private edgeDomMap = new Map<
+    string,
+    {
+      group: SVGGElement
+      path: SVGPathElement
+      jacks: SVGCircleElement[]
+    }
+  >()
+
   constructor(callbacks: RendererCallbacks = {}) {
     this.callbacks = callbacks
   }
@@ -352,9 +362,11 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
     this.svgLayer.appendChild(defs)
 
     // 2. 渲染柔性软绳连接线与同心圆五金插孔端子
+    this.edgeDomMap.clear()
     for (const edge of this.layout.edges) {
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
       g.setAttribute('id', `swiss-edge-group-${edge.id}`)
+      g.setAttribute('class', 'swiss-edge-group')
 
       const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path')
       pathEl.setAttribute('d', edge.svgPath)
@@ -362,6 +374,8 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
       pathEl.setAttribute('class', 'swiss-orthogonal-line')
       pathEl.setAttribute('marker-end', 'url(#swiss-arrow-default)')
       g.appendChild(pathEl)
+
+      const jacks: SVGCircleElement[] = []
 
       // 起点与终点同心圆五金端子插孔 (Concentric Hardware Jack Sockets)
       if (edge.points && edge.points.length > 0) {
@@ -403,8 +417,11 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
         endIn.setAttribute('id', `swiss-jack-ei-${edge.id}`)
         endIn.setAttribute('class', 'swiss-jack-inner')
         g.appendChild(endIn)
+
+        jacks.push(startOut, startIn, endOut, endIn)
       }
 
+      this.edgeDomMap.set(edge.id, { group: g, path: pathEl, jacks })
       this.svgLayer.appendChild(g)
     }
   }
@@ -513,85 +530,64 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
       this.computeCausalPaths(nodeId)
     }
 
-    // 更新卡片样式
+    // 1. 卡片样式：仅当前选中的卡片带有 selected 标记，其他所有卡片完全保持原本黑白高反差样式，绝不更改其他卡片颜色
     if (this.cardsContainer && this.layout) {
       for (const item of this.layout.nodes) {
-        const el = this.cardsContainer.querySelector<HTMLElement>(`#swiss-node-${item.nodeId}`)
+        const el = document.getElementById(`swiss-node-${item.nodeId}`)
         if (!el) continue
 
         el.classList.remove('selected', 'upstream', 'downstream', 'dimmed')
         if (item.nodeId === nodeId) {
           el.classList.add('selected')
-        } else if (this.upstreamNodeIds.has(item.nodeId)) {
-          el.classList.add('upstream')
-        } else if (this.downstreamNodeIds.has(item.nodeId)) {
-          el.classList.add('downstream')
-        } else if (nodeId) {
-          el.classList.add('dimmed')
         }
       }
     }
 
-    // 更新柔性软绳与端子插孔样式，并将高亮上下游连线置顶
+    // 2. 绳子样式：上下游变色与防叠压置顶
     if (this.svgLayer && this.layout) {
-      const upstreamGroups: SVGElement[] = []
-      const downstreamGroups: SVGElement[] = []
+      const highlightedGroups: SVGGElement[] = []
 
       for (const edge of this.layout.edges) {
-        const group = this.svgLayer.querySelector<SVGGElement>(`#swiss-edge-group-${edge.id}`)
-        const el = this.svgLayer.querySelector<SVGPathElement>(`#swiss-edge-${edge.id}`)
-        const jackElements = [
-          this.svgLayer.querySelector<SVGCircleElement>(`#swiss-jack-so-${edge.id}`),
-          this.svgLayer.querySelector<SVGCircleElement>(`#swiss-jack-si-${edge.id}`),
-          this.svgLayer.querySelector<SVGCircleElement>(`#swiss-jack-eo-${edge.id}`),
-          this.svgLayer.querySelector<SVGCircleElement>(`#swiss-jack-ei-${edge.id}`),
-        ]
-        if (!el) continue
+        const dom = this.edgeDomMap.get(edge.id)
+        if (!dom) continue
 
+        const { group, path: el, jacks } = dom
+
+        // 重置为原本默认黑绳样式
         el.setAttribute('class', 'swiss-orthogonal-line')
-        jackElements.forEach((jk) => {
-          if (!jk) return
+        jacks.forEach((jk) => {
           const isOuter = jk.id.includes('-so-') || jk.id.includes('-eo-')
           jk.setAttribute('class', isOuter ? 'swiss-jack-outer' : 'swiss-jack-inner')
         })
 
-        const isDirectUpstream = edge.to === nodeId
-        const isDirectDownstream = edge.from === nodeId
+        if (!nodeId) {
+          el.setAttribute('marker-end', 'url(#swiss-arrow-default)')
+          continue
+        }
 
-        if (this.upstreamEdgeIds.has(edge.id)) {
+        // 判断是否为流入当前节点的上游绳子，或从当前节点流出的下游绳子
+        const isUpstream = edge.to === nodeId || this.upstreamEdgeIds.has(edge.id)
+        const isDownstream = edge.from === nodeId || this.downstreamEdgeIds.has(edge.id)
+
+        if (isUpstream) {
           el.classList.add('upstream')
-          if (isDirectUpstream) el.classList.add('direct')
           el.setAttribute('marker-end', 'url(#swiss-arrow-upstream)')
-          jackElements.forEach((jk) => {
-            if (!jk) return
-            jk.classList.add('upstream')
-            if (isDirectUpstream) jk.classList.add('direct')
-          })
-          if (group) upstreamGroups.push(group)
-        } else if (this.downstreamEdgeIds.has(edge.id)) {
+          jacks.forEach((jk) => jk.classList.add('upstream'))
+          highlightedGroups.push(group)
+        } else if (isDownstream) {
           el.classList.add('downstream')
-          if (isDirectDownstream) el.classList.add('direct')
           el.setAttribute('marker-end', 'url(#swiss-arrow-downstream)')
-          jackElements.forEach((jk) => {
-            if (!jk) return
-            jk.classList.add('downstream')
-            if (isDirectDownstream) jk.classList.add('direct')
-          })
-          if (group) downstreamGroups.push(group)
-        } else if (nodeId) {
+          jacks.forEach((jk) => jk.classList.add('downstream'))
+          highlightedGroups.push(group)
+        } else {
           el.classList.add('dimmed')
           el.setAttribute('marker-end', 'url(#swiss-arrow-default)')
-          jackElements.forEach((jk) => jk?.classList.add('dimmed'))
-        } else {
-          el.setAttribute('marker-end', 'url(#swiss-arrow-default)')
+          jacks.forEach((jk) => jk.classList.add('dimmed'))
         }
       }
 
-      // 置顶：将所有上游和下游高亮连接线元素移动到 SVG 根节点的最后（DOM 渲染顺序置顶）
-      for (const g of upstreamGroups) {
-        this.svgLayer.appendChild(g)
-      }
-      for (const g of downstreamGroups) {
+      // 置顶：将所有高亮的上下游绳子移动到 SVG 根节点的最后（DOM 渲染顺序置顶，不被任何普通绳子叠压）
+      for (const g of highlightedGroups) {
         this.svgLayer.appendChild(g)
       }
     }
