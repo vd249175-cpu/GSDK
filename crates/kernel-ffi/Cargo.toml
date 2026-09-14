@@ -1,0 +1,13 @@
+[package]
+name = "graphvideo-kernel-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "Stable C ABI for language-neutral GraphVideo rule-space hosts"
+license = "Apache-2.0"
+
+[lib]
+name = "graphvideo_kernel_ffi"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+graphvideo-kernel = { path = "../kernel" }

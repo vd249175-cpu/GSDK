@@ -50,6 +50,10 @@
       "types": "./analysis/index.ts",
       "default": "./analysis/index.ts"
     },
+    "./analysis/portable": {
+      "types": "./analysis/portable.ts",
+      "default": "./analysis/portable.ts"
+    },
     "./contract": {
       "types": "./contract/index.ts",
       "default": "./contract/index.ts"

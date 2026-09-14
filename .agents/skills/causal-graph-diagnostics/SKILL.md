@@ -13,7 +13,7 @@ description: >-
 
 Read `DOCUMENTS/mental-model.md`, then `DOCUMENTS/debug-guide.md`. For folding, health or community work, also read `DOCUMENTS/causal-analysis.md`. Constructed instance facts and targeted tests override documentation.
 
-The production graph has no declared edges, flows, Wrapper or observedEdges. `NativeRuleSpace.analyze` now owns a read-only instance-driven analyzer, loaded on first request; it never schedules changes. Studio Nodes are constructed through `createStudioNodes` (consumers assemble their own plugin Nodes via backend-sdk factories); derive relations from actual `ctx.send/read/write` method text plus the explicit UI boundary table `apps/local-app/analysis/links.mjs`. Do not discover Nodes by scanning source directories.
+The production graph has no declared edges, flows, Wrapper or observedEdges. `NativeRuleSpace.analyze` loads read-only analysis on first request; it never schedules changes. JS Node relations come from constructed instances and actual `ctx.send/read/write` method text. Process Nodes provide versioned `PortableAnalysisSnapshot` facts through the Rust registry; inspect their evidence provenance and `confidence` rather than guessing from language-specific names. Frontend links come from the explicit UI boundary table `apps/local-app/analysis/links.mjs`. Do not discover Nodes by scanning source directories. Cross-language frame and fact formats are in `DOCUMENTS/portable-node-protocol.md`.
 
 ## Canonical entities
 

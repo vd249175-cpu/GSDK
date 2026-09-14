@@ -16,6 +16,7 @@ GraphFramework 是运行在应用主进程内的开放因果图微内核框架�
 - **局部可理解**：生产 GraphFactory 是实际装配清单，实例分析从已构造 Node 的真实方法事实建立局部因果图，使排障和测试不依赖对全系统的记忆。
 
 微内核负责调度、一致性、取消和可观测性，零业务语义；应用 Node 负责具体业务事实和决策；只读分析层负责寻址、切片、验证和视角折叠，并由生产 `NativeRuleSpace` 按需加载。实例分析提供的是可溯源的静态证据，不替代针对性运行测试和真实物理核对。
+Rust 调度器另有 C ABI，供非 JS 宿主直接调用相同的 `admit/send/poll/settle` 操作；便携因果事实使 JS Agent 可分析外部语言节点，而不依赖其源码解析器。
 
 ## 2. 一个业务执行面
 
@@ -28,7 +29,7 @@ Electron main
   ├─ RendererGraphBridge
   ├─ NativeRuleSpace（生产与应用运行宿主）
   │  ├─ Rust mailbox/change/submission 调度（crates/kernel）
-  │  ├─ JS 业务 Node、State 与 change
+  │  ├─ JS 或进程协议业务 Node、宿主持有的 State 与 change
   │  ├─ 构造注入的 EffectAdapter
   │  └─ 按需加载的实例因果分析与折叠视角（只读）
   └─ 文件、数据库、进程与窗口宿主
@@ -170,7 +171,7 @@ renderer 图协议只有：
 
 ## 7. 实例驱动分析
 
-`@graphvideo/sdk/analysis` 对真实 Node 实例调用 `inspectNodeObjects`，读取属性和方法描述 DTO；生产 `NativeRuleSpace.analyze` 从当前已装配 Node 按需建立同一静态索引，并在增删替换或 State 字段变化后失效重建。分析不执行 Node.change 或 Effect。
+`@graphvideo/sdk/analysis` 对真实 JS Node 实例调用 `inspectNodeObjects`，读取属性和方法描述 DTO；其它语言 Node 可通过 [跨语言 Node 与分析事实协议](./portable-node-protocol.md) 提供纯数据 `PortableAnalysisSnapshot`。Rust 内核只在装配时保存该事实，生产 `NativeRuleSpace.analyze` 按需把它与 JS 实例证据合并，增删替换或 State 字段变化后失效重建。分析不执行 Node.change 或 Effect。
 
 ```text
 entry  --inject--> info@Target

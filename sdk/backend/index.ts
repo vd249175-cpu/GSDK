@@ -120,6 +120,14 @@ export {
   defineStudioPluginManifest, parseStudioPluginManifest,
 } from './plugin-manifest.mjs'
 export { NativeRuleSpace, locateNativeBinding } from './native-space'
+export async function mountProcessNode(
+  space: import('./native-space').NativeRuleSpace,
+  options: import('./process-node').ProcessNodeOptions,
+): Promise<import('./process-node').ProcessNodeHandle> {
+  const bridge = await import('./process-node')
+  return bridge.mountProcessNode(space, options)
+}
+export type { ProcessNodeOptions, ProcessNodeHandle } from './process-node'
 export type { NativeAnalysisRequest } from './native-analysis'
 export type {
   CausalTelemetryEvent,

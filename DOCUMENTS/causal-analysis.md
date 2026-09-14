@@ -6,7 +6,7 @@ type: reference
 
 ## 1. 能证明什么
 
-`@graphvideo/sdk/analysis` 从调用方已经构造的 Node 实例及显式前端联动表建立静态 `CausalIndex`。生产 `NativeRuleSpace` 按需复用同一算法分析当前已装配 Node；分析过程不扫描插件目录、不创建 Runtime、不执行 getter/change，也不介入生产调度。没有 Node 实例描述的原始 handler 会作为 `opaque-handler` Node 保留在索引中，其当前 State 字段可见，但不会凭空推断 send。
+`@graphvideo/sdk/analysis` 从调用方已经构造的 JS Node 实例及显式前端联动表建立静态 `CausalIndex`。其它语言可提供纯数据 `PortableAnalysisSnapshot`，由 `@graphvideo/sdk/analysis/portable` 的 `buildCausalIndexFromSnapshot` 建立相同索引，复用路径、折叠、健康、中心性和社区算法。生产 `NativeRuleSpace` 按需合并当前装配的两种证据；分析不扫描插件目录、不创建 Runtime、不执行 getter/change，也不介入生产调度。没有实例或便携事实的原始 handler 会作为 `opaque-handler` Node 保留，其当前 State 字段可见，但不会凭空推断 send。
 
 基础实体与关系为：
 
@@ -35,6 +35,8 @@ const report = validateCausalIndex(index)
 ```
 
 `nodeObjects` 是调用方实际构造的 Node；分析 SDK 不负责发现或装配。`frontendLinks` 明确补入应用入口和 State→UI 投影关系，`frontendServiceLinks` 记录图外服务消费者。生产宿主自动把插件已声明的 `rendererRoots` 转成无投影的入口事实；若调用方提供同一根入口的 `analysisFrontendLinks`，以显式联动表为准。State→UI 关系始终不得推测。
+
+便携事实的 JSON 帧、Rust 保存周期和外部 Node 执行协议见 [跨语言 Node 与分析事实协议](./portable-node-protocol.md)。
 
 只有静态可证明的 `Info.type` 与目标 Node 才进入 send 边。`unresolved-info-type` 和无法解析的发送目标是源码问题，不能生成 `UnknownInfo` 或根据变量名猜测。
 
@@ -89,6 +91,6 @@ SDK 提供 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 和 `A
 
 ## 6. 当前应用入口
 
-`apps/local-app/scripts/diagnose.mjs` 仍是离线入口，暴露基础索引命令 `node/change/info/state/expand/path/select/frontend/validate`，并通过 `buildAllNodesView` 提供 `health/reach`。生产 `NativeRuleSpace.analyze(request)` 则从当前装配中按需建立索引，支持 `index/instances/validate/entity/expand/path/select/view/health/reach/centrality/communities/granularCommunities/compareCommunities`。增删替换 Node 或 State 字段改变会使缓存失效；分析模块首次请求时才加载。`view` 及 Node 级指标可传 `foldDepth` 与可选 `folds`；未传 `folds` 时使用以所有当前 Node 为叶子的单层 `world` 根组。应用 Agent 控制通道的 `/analyze` 及 `node scripts/agent-control.mjs analyze request.json` 返回 JSON DTO。`analysis/config.json` 仍是离线消费方配置占位，不会被自动解析。
+`apps/local-app/scripts/diagnose.mjs` 仍是离线入口，暴露基础索引命令 `node/change/info/state/expand/path/select/frontend/validate`，并通过 `buildAllNodesView` 提供 `health/reach`。生产 `NativeRuleSpace.analyze(request)` 则从当前装配中按需建立索引，支持 `index/instances/facts/validate/entity/expand/path/select/view/health/reach/centrality/communities/granularCommunities/compareCommunities`。`instances` 返回 JS 实例描述，`facts` 返回 Rust 保存的跨语言快照。增删替换 Node 或 State 字段改变会使缓存失效；分析模块首次请求时才加载。`view` 及 Node 级指标可传 `foldDepth` 与可选 `folds`；未传 `folds` 时使用以所有当前 Node 为叶子的单层 `world` 根组。应用 Agent 控制通道的 `/analyze` 及 `node scripts/agent-control.mjs analyze request.json` 返回 JSON DTO。`analysis/config.json` 仍是离线消费方配置占位，不会被自动解析。
 
 完整使用方式见 [Node 实例因果调试指南](./debug-guide.md)。

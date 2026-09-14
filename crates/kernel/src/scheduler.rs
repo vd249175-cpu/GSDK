@@ -126,6 +126,7 @@ struct Submission {
 #[derive(Debug, Default)]
 pub struct Kernel {
     registry: Registry,
+    analysis_facts: BTreeMap<EntityId, String>,
     submissions: BTreeMap<SubmissionId, Submission>,
     drops: Vec<DroppedDelivery>,
     next_info: u64,
@@ -154,6 +155,7 @@ impl Kernel {
         for info in queue {
             self.settle_dropped(info, DropReason::Evicted);
         }
+        self.analysis_facts.remove(id);
         true
     }
     /// Hot-swap an entity in the single-flight gap: its backlog settles as
@@ -165,7 +167,38 @@ impl Kernel {
         for info in backlog {
             self.settle_dropped(info, DropReason::Evicted);
         }
+        self.analysis_facts.remove(id);
         Ok(generation)
+    }
+
+    /// Store opaque, language-neutral analysis facts for an admitted entity.
+    /// Parsing and graph analysis are deliberately outside the dispatch path.
+    pub fn set_analysis_facts(
+        &mut self,
+        id: &str,
+        generation: Generation,
+        facts_json: String,
+    ) -> Result<(), KernelError> {
+        let slot = self
+            .registry
+            .get(id)
+            .ok_or_else(|| KernelError::UnknownEntity(id.to_owned()))?;
+        if slot.generation != generation {
+            return Err(KernelError::StaleGeneration(id.to_owned()));
+        }
+        self.analysis_facts.insert(id.to_owned(), facts_json);
+        Ok(())
+    }
+
+    pub fn analysis_facts(&self, id: &str) -> Option<&str> {
+        self.analysis_facts.get(id).map(String::as_str)
+    }
+
+    pub fn all_analysis_facts(&self) -> Vec<(EntityId, String)> {
+        self.analysis_facts
+            .iter()
+            .map(|(id, facts)| (id.clone(), facts.clone()))
+            .collect()
     }
 
     /// Seal an admitted entity for replace: the queue freezes, new sends drop.

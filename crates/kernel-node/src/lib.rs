@@ -115,6 +115,12 @@ pub struct JsQueuedInfo {
     pub submission: Option<String>,
 }
 
+#[napi(object)]
+pub struct JsAnalysisFacts {
+    pub entity: String,
+    pub facts_json: String,
+}
+
 /// The rule space. Synchronous only; JS drives the pump.
 #[napi]
 pub struct RuleSpace {
@@ -186,6 +192,31 @@ impl RuleSpace {
     pub fn generation(&self, id: String) -> Result<Option<f64>> {
         let kernel = self.inner.lock().map_err(lock_error)?;
         Ok(kernel.generation(&id).map(|generation| generation as f64))
+    }
+
+    /// Registration-time metadata; never parsed or read during dispatch.
+    #[napi]
+    pub fn set_analysis_facts(
+        &self,
+        id: String,
+        generation: f64,
+        facts_json: String,
+    ) -> Result<()> {
+        let mut kernel = self.inner.lock().map_err(lock_error)?;
+        kernel
+            .set_analysis_facts(&id, generation as u64, facts_json)
+            .map_err(kernel_error_to_js)
+    }
+
+    /// Read all portable facts only when an analyzer requests them.
+    #[napi]
+    pub fn analysis_facts(&self) -> Result<Vec<JsAnalysisFacts>> {
+        let kernel = self.inner.lock().map_err(lock_error)?;
+        Ok(kernel
+            .all_analysis_facts()
+            .into_iter()
+            .map(|(entity, facts_json)| JsAnalysisFacts { entity, facts_json })
+            .collect())
     }
 
     #[napi]

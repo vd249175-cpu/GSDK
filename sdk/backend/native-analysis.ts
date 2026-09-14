@@ -1,19 +1,19 @@
 import { Node } from '@graphvideo/kernel';
 import {
   analyzeViewCentrality, analyzeViewHealth, analyzeViewReachability,
-  buildAllNodesView, buildCausalIndex, buildFoldDepthView,
+  buildAllNodesView, buildCausalIndexFromSnapshot, buildFoldDepthView,
   compareCommunitiesToView, discoverGranularCommunities, discoverViewCommunities,
   expandEntity, findCausalChain, queryEntity, selectInducedSubgraph,
   validateCausalIndex,
-} from '../analysis';
+} from '../analysis/portable';
 import type {
   AnalysisView, CausalEntity, CausalIndex, FoldDefinitionFile,
-  FrontendLinkDefinition, FrontendServiceLinkDefinition,
+  FrontendLinkDefinition, FrontendServiceLinkDefinition, PortableAnalysisSnapshot,
 } from '../analysis';
 
 interface ViewSelection { readonly foldDepth?: number; readonly folds?: FoldDefinitionFile }
 export type NativeAnalysisRequest =
-  | { readonly op: 'index' | 'instances' | 'validate' | 'granularCommunities' }
+  | { readonly op: 'index' | 'instances' | 'facts' | 'validate' | 'granularCommunities' }
   | { readonly op: 'entity' | 'expand'; readonly address: string }
   | { readonly op: 'path'; readonly addresses: readonly string[]; readonly maxDepth?: number; readonly maxPaths?: number }
   | { readonly op: 'select'; readonly nodeIds: readonly string[] }
@@ -31,23 +31,34 @@ interface LiveNode {
 /** Static instance evidence owned by the live native rule-space facade. */
 export class NativeAnalysisEngine {
   private cachedIndex?: CausalIndex;
+  private revision = 0;
 
   constructor(
     private readonly liveNodes: () => LiveNode[],
     private readonly frontendLinks: readonly FrontendLinkDefinition[] = [],
     private readonly frontendServiceLinks: readonly FrontendServiceLinkDefinition[] = [],
+    private readonly portableFacts: () => PortableAnalysisSnapshot[] = () => [],
   ) {}
 
-  invalidate(): void { this.cachedIndex = undefined; }
+  invalidate(): void { this.cachedIndex = undefined; this.revision += 1; }
 
-  private index(): CausalIndex {
+  private async index(): Promise<CausalIndex> {
     if (this.cachedIndex) return this.cachedIndex;
+    const revision = this.revision;
     const live = this.liveNodes();
-    const index = buildCausalIndex({
-      nodeObjects: live.flatMap((entry) => entry.instance instanceof Node ? [entry.instance] : []),
-      frontendLinks: this.frontendLinks,
-      frontendServiceLinks: this.frontendServiceLinks,
-    });
+    const facts = this.portableFacts();
+    const describedNodeIds = new Set(facts.map((entry) => entry.nodeId));
+    const nodeObjects = live.flatMap((entry) => !describedNodeIds.has(entry.id) && entry.instance instanceof Node ? [entry.instance] : []);
+    const jsIndex = nodeObjects.length
+      ? (await import('../analysis/scan-index')).buildCausalIndex({
+        nodeObjects, frontendLinks: this.frontendLinks,
+        frontendServiceLinks: this.frontendServiceLinks,
+      })
+      : buildCausalIndexFromSnapshot([], undefined, {
+        frontendLinks: this.frontendLinks,
+        frontendServiceLinks: this.frontendServiceLinks,
+      });
+    const index = facts.length ? buildCausalIndexFromSnapshot(facts, jsIndex) : jsIndex;
     for (const entry of live) {
       if (!index.nodes.has(entry.id)) {
         const entity: CausalEntity = {
@@ -68,12 +79,13 @@ export class NativeAnalysisEngine {
         index.states.set(address, entity);
       }
     }
+    if (revision !== this.revision) return this.index();
     this.cachedIndex = index;
     return index;
   }
 
-  private view(selection: ViewSelection): AnalysisView {
-    const base = buildAllNodesView(this.index());
+  private view(index: CausalIndex, selection: ViewSelection): AnalysisView {
+    const base = buildAllNodesView(index);
     if (selection.foldDepth === undefined && !selection.folds) return base;
     let autoRoot = 'world';
     while (base.nodes.has(autoRoot) || base.nodes.has(`fold:${autoRoot}`)) autoRoot = `_${autoRoot}`;
@@ -85,11 +97,12 @@ export class NativeAnalysisEngine {
     return buildFoldDepthView(base, folds, selection.foldDepth ?? 1);
   }
 
-  analyze(request: NativeAnalysisRequest): unknown {
-    const index = this.index();
+  async analyze(request: NativeAnalysisRequest): Promise<unknown> {
+    const index = await this.index();
     switch (request.op) {
       case 'index': return index;
       case 'instances': return index.nodeObjectFacts;
+      case 'facts': return this.portableFacts();
       case 'validate': return validateCausalIndex(index);
       case 'entity': return queryEntity(index, request.address);
       case 'expand': return expandEntity(index, request.address);
@@ -97,14 +110,14 @@ export class NativeAnalysisEngine {
         maxDepth: request.maxDepth, maxPaths: request.maxPaths,
       });
       case 'select': return selectInducedSubgraph(index, [...request.nodeIds]);
-      case 'view': return this.view(request);
-      case 'health': return analyzeViewHealth(this.view(request));
-      case 'reach': return analyzeViewReachability(this.view(request), request.nodeId);
-      case 'centrality': return analyzeViewCentrality(this.view(request));
-      case 'communities': return discoverViewCommunities(this.view(request));
+      case 'view': return this.view(index, request);
+      case 'health': return analyzeViewHealth(this.view(index, request));
+      case 'reach': return analyzeViewReachability(this.view(index, request), request.nodeId);
+      case 'centrality': return analyzeViewCentrality(this.view(index, request));
+      case 'communities': return discoverViewCommunities(this.view(index, request));
       case 'granularCommunities': return discoverGranularCommunities(index);
       case 'compareCommunities': {
-        const discoveredView = this.view(request);
+        const discoveredView = this.view(index, request);
         const referenceView = buildFoldDepthView(
           buildAllNodesView(index), request.referenceFolds, request.referenceFoldDepth,
         );

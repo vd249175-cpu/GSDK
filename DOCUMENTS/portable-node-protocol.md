@@ -1,0 +1,54 @@
+---
+type: reference
+---
+
+# 跨语言 Node 与分析事实协议
+
+生产调度仍由 Rust `Kernel` 持有。它同时暴露 Rust API、Node-API 和 `crates/kernel-ffi` 的 C ABI；不同语言宿主可通过相同的调度操作驱动 Node。当前 JS 宿主的 `mountProcessNode(space, options)` 把一个外部进程挂载为一个 Node：进程使用 UTF-8 JSON Lines，宿主把每个 `ctx` 请求交给当前 `NativeChangeContext`，因此 State Owner、单飞、Info 投递反馈、EffectAdapter 权限和错误转 Info 仍遵循同一规则。现有 JS Node 不经过进程桥接。
+
+## 1. 启动与装配
+
+进程启动后向 stdout 输出一行 `ready`，随后只输出协议帧；日志写到 stderr。每个进程拥有一个 Node。宿主收到 `ready` 后注册 Node，进程退出或协议失效时移除该 Node。
+
+```json
+{"kind":"ready","version":1,"nodeId":"python.worker","initialState":{"runs":0},"analysisFacts":{"version":1,"nodeId":"python.worker","entities":[{"address":"node:python.worker","kind":"node","id":"python.worker"}],"edges":[]}}
+```
+
+`analysisFacts` 必须与 `nodeId` 一致。它是语言无关的 `PortableAnalysisSnapshot`：`entities` 和 `edges` 使用因果索引的标准地址、关系类型与 `confidence`，可附 `location`。每种语言的适配器负责从自己的实际代码或编译产物生成事实；宿主不根据变量名猜测 send。此快照是静态证据，不证明某次运行实际走过该路径。
+
+```ts
+import { NativeRuleSpace, mountProcessNode } from '@graphvideo/backend-sdk'
+
+const space = new NativeRuleSpace()
+const worker = await mountProcessNode(space, {
+  command: 'python',
+  args: ['-u', 'path/to/worker.py'],
+  expectedNodeId: 'python.worker',
+})
+```
+
+## 2. 执行帧
+
+Rust 开始一次单飞 change 后，宿主发送 `{"kind":"change","changeId":1,"info":{"type":"RunInfo"}}`。进程可依次发 `call`，每次等待同一 `changeId/callId` 的 `result`，最后发 `settle` 或 `fail`。`changeId` 是进程协议内的请求号；Rust 因果身份保留在宿主的 `NativeChangeContext` 中。
+
+```json
+{"kind":"call","changeId":1,"callId":1,"op":"read","key":"runs"}
+{"kind":"result","changeId":1,"callId":1,"ok":true,"value":0}
+{"kind":"call","changeId":1,"callId":2,"op":"write","key":"runs","value":1}
+{"kind":"call","changeId":1,"callId":3,"op":"send","info":{"type":"DoneInfo"},"targetNodeId":"target"}
+{"kind":"settle","changeId":1}
+```
+
+可用操作为 `read`、`write`、`patchState`、`send`、`effect`。`send` 的 `result.value` 是即时 `enqueued/dropped` 投递反馈。`effect` 指定 `adapterId` 和 `request`，且只能在以 `isWorldNode` 挂载、并由宿主在 `options.adapters` 注入该 Adapter 时执行。`fail` 携带 `error` 字符串，宿主将异常交给现有错误 Info 机制。协议错误会终止进程桥接。
+
+## 3. 分析与性能
+
+Rust 内核按 Node generation 保存不透明事实 JSON，拒绝旧 generation 写入，替换或移除时清除；调度、send 和 change 结算不读取或解析它。`NativeRuleSpace.analyze` 首次请求才读取事实、装配索引并运行分析。纯数据消费者可使用 `@graphvideo/sdk/analysis/portable` 的 `buildCausalIndexFromSnapshot` 与现有路径、折叠、健康、中心性和社区算法；此入口不加载 TypeScript AST 扫描器。JS Node 没有提供事实时，生产分析仍按需扫描其真实实例。
+
+跨进程 Node 的每次 `ctx` 调用有一次 JSON Lines 往返；该成本只落在使用进程协议的 Node 上。语言运行时需要实现上述小型帧协议及因果事实生成器，不需要重写图分析算法。Rust 调度热路径不检查或解析分析事实。
+
+## 4. 非 JS 宿主
+
+`crates/kernel-ffi/include/graphvideo_kernel.h` 是稳定 C ABI 的头文件。`cargo build -p graphvideo-kernel-ffi` 生成当前平台共享库；它提供 `admit/send/inject_root/poll_next/settle_change/cancel`、代次与编辑保留位，以及注册时设置、按需读取分析事实。`gv_analysis_snapshot` 一次性取出所有已登记事实，供 JS Agent 建索引，结果由 `gv_analysis_snapshot_free` 释放。每个宿主用自己的语言执行 change 和保管 Owner State，同一个 Rust `GvKernel` handle 保证 mailbox 与单飞。返回字符串由 `gv_string_free` 释放；`gv_poll_next` 返回的 change 必须由 `gv_settle_change` 消费并结算。`gv_change_free` 只释放内存，不结算单飞 change。
+
+仓库包含 [Python ctypes 宿主样例](../crates/kernel-ffi/examples/ctypes_smoke.py)：Python 直接驱动 Rust 调度器，让两个 Python Node 通过 Info 通信，并读回便携分析事实。它不经过 JS。JS Agent 若需分析这个非 JS 宿主持有的规则空间，可从宿主取得 `PortableAnalysisSnapshot` JSON，交给 `@graphvideo/sdk/analysis/portable`；当前 C ABI 不创建远程 Agent 通道，通道由具体应用宿主决定。

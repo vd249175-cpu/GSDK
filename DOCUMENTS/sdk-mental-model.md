@@ -28,7 +28,7 @@ type: reference
 | `@graphvideo/sdk/contract` | Manifest 类型与校验（转出 backend-sdk） | 运行时 |
 | `@graphvideo/sdk/tokens`、`./ui` | 跨面板联动 Token、通用面板控件 | 业务面板 |
 
-`@graphvideo/sdk/analysis` 是 Node.js 开发期条目（实例因果分析），不进浏览器包。
+`@graphvideo/sdk/analysis` 提供 JS 实例扫描；`@graphvideo/sdk/analysis/portable` 提供只依赖纯数据快照的语言无关图算法入口，不加载 TypeScript 扫描器。两者均不进浏览器包。
 
 本仓库采用 npm workspace 源码构建。TypeScript 类型与大部分 SDK 入口直接指向源码；Electron 主进程不能直接加载 `.ts`，因此 `npm run build:runtime` 会依次生成 `core/dist/` 与 `sdk/backend/dist/`，并把当前平台的原生绑定放入 backend 运行时目录。backend 构建把 `@graphvideo/kernel` 保持为外部依赖，使直接 Kernel 消费者与 backend-sdk 共享同一份身份能力。`npm run build:native` 构建 Rust/N-API 调度内核。本仓库不提供 tarball 导出、发包或仓外脚手架流程。
 

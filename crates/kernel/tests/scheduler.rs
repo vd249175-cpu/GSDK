@@ -20,6 +20,30 @@ fn admits_entities_with_zero_generation_and_rejects_duplicates() {
 }
 
 #[test]
+fn portable_analysis_facts_follow_entity_generation_without_touching_dispatch() {
+    let mut kernel = Kernel::new();
+    kernel.admit("foreign".to_owned()).unwrap();
+    kernel
+        .set_analysis_facts("foreign", 0, "{\"version\":1}".to_owned())
+        .unwrap();
+    assert_eq!(kernel.analysis_facts("foreign"), Some("{\"version\":1}"));
+    enqueued(kernel.inject_root("foreign", "RunInfo".to_owned(), "sub/foreign".to_owned()));
+    let (active, view) = kernel.poll_next().unwrap();
+    assert_eq!(view.info_type, "RunInfo");
+    assert!(kernel.settle_change(active, ChangeOutcome::Completed));
+    kernel.replace("foreign").unwrap();
+    assert_eq!(kernel.analysis_facts("foreign"), None);
+    assert!(kernel
+        .set_analysis_facts("foreign", 0, "stale".to_owned())
+        .is_err());
+    kernel
+        .set_analysis_facts("foreign", 1, "new".to_owned())
+        .unwrap();
+    kernel.evict("foreign");
+    assert_eq!(kernel.analysis_facts("foreign"), None);
+}
+
+#[test]
 fn edit_reservation_waits_for_active_change_and_preserves_backlog() {
     let mut kernel = Kernel::new();
     kernel.admit("owner".to_owned()).unwrap();

@@ -58,6 +58,8 @@ renderer 只能调用 preload 暴露的固定命令，不能提交任意 Node ID
 
 `node scripts/agent-control.mjs analyze request.json` 可查询当前已装配 Node 的静态因果分析。例如请求 `{ "op": "view", "foldDepth": 0 }` 把默认根组合为一个折叠 Node，`foldDepth: 1` 展开为基础 Node；也可传入 `folds: { "version": 1, "root": "world", "groups": { "world": { "children": ["group-a"] }, "group-a": { "children": ["node-a", "node-b"] } } }` 指定更深的折叠层级。`health`、`reach`、`centrality` 和 `communities` 使用同一视角参数；`path`、`select`、`entity`、`expand`、`validate`、`granularCommunities` 和 `compareCommunities` 也由同一只读分析入口提供。完整语义见 [实例因果分析](./causal-analysis.md)。
 
+非 JS 插件可通过 `mountProcessNode` 挂载一个使用 JSON Lines 协议的进程 Node，并在 `ready` 帧提供 `PortableAnalysisSnapshot`。同一分析入口会合并这些事实；`facts` 查询返回原始便携快照。协议见 [跨语言 Node 与分析事实协议](./portable-node-protocol.md)。
+
 生产宿主把已声明的 `rendererRoots` 作为入口事实纳入索引。需要 State→UI 证据时，创建宿主时传入 `analysisFrontendLinks` 与可选 `analysisFrontendServiceLinks`；这些表只表达已存在的应用边界，不影响调度。
 
 插件安装意味着信任代码。后端插件与主进程拥有同一进程权限，前端插件共享 renderer，Manifest 和入口校验都不是逐插件恶意代码沙箱。只安装可信来源；需要运行不可信插件时不能依赖这里的权限声明提供进程隔离。

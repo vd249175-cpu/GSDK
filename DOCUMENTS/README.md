@@ -19,6 +19,7 @@ GraphFramework 是一个面向桌面与后端系统的因果应用微内核运�
 - [Client 与 Element SDK](./client-sdk-guide.md)：前端快照、客户端 hooks 与 Workbench Element。
 - [Node 实例因果调试](./debug-guide.md)：从精确实体定位因果断点。
 - [实例因果分析](./causal-analysis.md)：静态索引、路径、视角、健康和社区结果的证据边界。
+- [跨语言 Node 与分析事实协议](./portable-node-protocol.md)：进程 Node 帧、Rust C ABI 与便携分析快照。
 - [测试分层](./testing.md)：当前测试项目、命令与选用规则。
 - [设计系统](./design-system.md)：主题、语义 Token 与排版边界。
 - [开发准入约束](./development-constraints.md)：新增 Kernel、Node、字段与物理能力前的归属检查。

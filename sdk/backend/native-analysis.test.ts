@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Node } from '@graphvideo/kernel';
 import { mountDomainNode } from './native-node';
 import { locateNativeBinding, NativeRuleSpace } from './native-space';
+import type { PortableAnalysisSnapshot } from '../analysis/model';
 
 class Source extends Node<{ count: number }> {
   constructor() { super('source', 'Source', { count: 0 }); }
@@ -17,6 +18,31 @@ class Target extends Node<{ count: number }> {
 }
 
 describe.skipIf(!locateNativeBinding())('native rule space analysis', () => {
+  it('analyzes a foreign-language Node from kernel-owned portable facts', async () => {
+    const space = new NativeRuleSpace();
+    const facts: PortableAnalysisSnapshot = {
+      version: 1, nodeId: 'python.worker',
+      entities: [
+        { address: 'node:python.worker', kind: 'node', id: 'python.worker', name: 'Python worker' },
+        { address: 'change:python.worker::RunInfo', kind: 'change', id: 'python.worker', nodeId: 'python.worker', subId: 'RunInfo' },
+        { address: 'info:RunInfo@python.worker', kind: 'info', id: 'RunInfo', nodeId: 'python.worker', subId: 'python.worker' },
+        { address: 'info:DoneInfo@target', kind: 'info', id: 'DoneInfo', nodeId: 'target', subId: 'target' },
+      ],
+      edges: [
+        { id: 'trigger:python:run', from: 'info:RunInfo@python.worker', to: 'change:python.worker::RunInfo', type: 'trigger', confidence: 'high' },
+        { id: 'send:python:done', from: 'change:python.worker::RunInfo', to: 'info:DoneInfo@target', type: 'send', confidence: 'high' },
+      ],
+    };
+    space.register('python.worker', { runs: 0 }, () => {}, { analysisFacts: facts });
+    mountDomainNode(space, new Target());
+    expect((await space.analyze({ op: 'view' })).routes[0]).toMatchObject({
+      from: 'python.worker', to: 'target', infoType: 'DoneInfo',
+    });
+    expect((await space.analyze({ op: 'entity', address: 'change:python.worker::RunInfo' }))?.nodeId).toBe('python.worker');
+    expect((await space.analyze({ op: 'facts' }))[0].nodeId).toBe('python.worker');
+    await space.replace('python.worker', { runs: 0 }, () => {});
+    expect(await space.analyze({ op: 'entity', address: 'change:python.worker::RunInfo' })).toBeNull();
+  });
   it('embeds complete static analysis and changes fold resolution on request', async () => {
     const space = new NativeRuleSpace();
     mountDomainNode(space, new Source());

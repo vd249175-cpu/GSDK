@@ -45,6 +45,16 @@ export interface CausalEdge {
   unresolved?: boolean;
 }
 
+/** Plain-data evidence emitted by any language adapter for one admitted Node. */
+export interface PortableAnalysisSnapshot {
+  version: 1;
+  nodeId: string;
+  entities: CausalEntity[];
+  edges: CausalEdge[];
+  unresolvedInfoTypes?: CausalIndex['unresolvedInfoTypes'];
+  unresolvedSendTargets?: CausalIndex['unresolvedSendTargets'];
+}
+
 export interface FoldGroupDefinition {
   children: string[];
 }

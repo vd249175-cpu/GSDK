@@ -3,6 +3,7 @@
  * NativeRuleSpace 按需复用这些只读算法；插件装配与 UI 联动表仍由消费方提供。
  */
 export { buildCausalIndex, type ScanIndexOptions } from './scan-index';
+export { buildCausalIndexFromSnapshot, type PortableIndexOptions } from './portable-index';
 export { validateCausalIndex } from './validate-index';
 export { scanNodeChanges } from './scan-changes';
 export { inspectNodeObjects, nodeObjectFactToScannedNode } from './inspect-nodes';
@@ -23,6 +24,7 @@ export {
 export { compareCommunityPartitions, compareCommunitiesToView } from './community-comparison';
 export type {
   CausalIndex,
+  PortableAnalysisSnapshot,
   CausalEntity,
   CausalEdge,
   CausalPathResult,

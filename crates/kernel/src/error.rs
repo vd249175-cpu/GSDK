@@ -11,6 +11,8 @@ pub enum KernelError {
     DuplicateEntity(EntityId),
     /// Operating on an id that was never admitted or was evicted.
     UnknownEntity(EntityId),
+    /// Metadata arrived for an older incarnation of an admitted entity.
+    StaleGeneration(EntityId),
     /// A new instance is already bound to this space.
     AlreadyBound(EntityId),
     /// A change is still running on this entity; replace runs only in the
@@ -24,6 +26,7 @@ impl fmt::Display for KernelError {
         match self {
             KernelError::DuplicateEntity(id) => write!(f, "entity already admitted: {id}"),
             KernelError::UnknownEntity(id) => write!(f, "entity not admitted: {id}"),
+            KernelError::StaleGeneration(id) => write!(f, "entity generation changed: {id}"),
             KernelError::AlreadyBound(id) => write!(f, "entity already bound: {id}"),
             KernelError::Busy(id) => {
                 write!(
