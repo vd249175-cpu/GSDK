@@ -1,6 +1,6 @@
 /**
  * 可发布的因果分析核：纯实例 DTO + 确定性算法，无宿主装配、无文件 IO。
- * Studio 绑定（默认装配、UI 联动表、服务校验、报告生成）留在 tools/causal。
+ * NativeRuleSpace 按需复用这些只读算法；插件装配与 UI 联动表仍由消费方提供。
  */
 export { buildCausalIndex, type ScanIndexOptions } from './scan-index';
 export { validateCausalIndex } from './validate-index';
@@ -11,6 +11,7 @@ export { findCausalPaths, findCausalChain } from './path';
 export type { PathSearchOptions } from './path';
 export { selectInducedSubgraph } from './select';
 export { buildAllNodesView } from './views';
+export { buildFoldDepthView } from './fold-depth';
 export { analyzeViewHealth } from './health';
 export { analyzeViewReachability } from './reachability';
 export { shortestDirectedPaths } from './shortest-path';

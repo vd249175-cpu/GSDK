@@ -3,9 +3,9 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 const command = process.argv[2]
-const route = { inspect: '/inspect', inject: '/inject', patch: '/state/patch' }[command]
+const route = { inspect: '/inspect', analyze: '/analyze', inject: '/inject', patch: '/state/patch' }[command]
 if (!route) {
-  console.error('Usage: node scripts/agent-control.mjs inspect|inject|patch [request.json]')
+  console.error('Usage: node scripts/agent-control.mjs inspect|analyze|inject|patch [request.json]')
   process.exitCode = 2
 } else {
   try {

@@ -56,6 +56,10 @@ renderer 只能调用 preload 暴露的固定命令，不能提交任意 Node ID
 
 应用运行时，可信 Agent 可从仓库根目录执行 `node scripts/agent-control.mjs inspect`。`inject` 与 `patch` 命令再提供一个 JSON 请求文件路径，例如 `node scripts/agent-control.mjs inject request.json`；请求字段分别为 `{ "targetNodeId": "...", "info": { "type": "..." }, "reason": "..." }` 和 `{ "nodeId": "...", "patch": { ... }, "expectedGeneration": 0, "expectedVersion": 1, "reason": "..." }`。客户端从当前用户目录的 `.graphvideo/agent-control.json` 读取端口和令牌，应用关闭后删除该文件。因果事件只在宿主内存中保留最近 1000 条，不能当作持久审计库。
 
+`node scripts/agent-control.mjs analyze request.json` 可查询当前已装配 Node 的静态因果分析。例如请求 `{ "op": "view", "foldDepth": 0 }` 把默认根组合为一个折叠 Node，`foldDepth: 1` 展开为基础 Node；也可传入 `folds: { "version": 1, "root": "world", "groups": { "world": { "children": ["group-a"] }, "group-a": { "children": ["node-a", "node-b"] } } }` 指定更深的折叠层级。`health`、`reach`、`centrality` 和 `communities` 使用同一视角参数；`path`、`select`、`entity`、`expand`、`validate`、`granularCommunities` 和 `compareCommunities` 也由同一只读分析入口提供。完整语义见 [实例因果分析](./causal-analysis.md)。
+
+生产宿主把已声明的 `rendererRoots` 作为入口事实纳入索引。需要 State→UI 证据时，创建宿主时传入 `analysisFrontendLinks` 与可选 `analysisFrontendServiceLinks`；这些表只表达已存在的应用边界，不影响调度。
+
 插件安装意味着信任代码。后端插件与主进程拥有同一进程权限，前端插件共享 renderer，Manifest 和入口校验都不是逐插件恶意代码沙箱。只安装可信来源；需要运行不可信插件时不能依赖这里的权限声明提供进程隔离。
 
 ## Manifest

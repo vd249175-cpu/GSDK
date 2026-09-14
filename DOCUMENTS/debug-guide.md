@@ -68,7 +68,7 @@ npm --prefix apps/local-app run diagnose -- reach example.counter
 - EffectAdapter 是否收到预期 Request、Clock 与 AbortSignal；
 - 替换后旧 generation 的 ctx 是否已失效，新实例是否从自身初始 State 启动。
 
-原生规则空间不提供完整运行时 trace 历史。需要证明某次执行顺序时，使用最小测试记录 submission、State、Info、Effect 和 Projection，不要把静态可达性当作动态 Trace。
+原生规则空间的 Agent 控制面提供最近 1000 条因果事件及游标查询，但不是持久 trace 历史。需要证明某次执行顺序时，使用最小测试记录 submission、State、Info、Effect 和 Projection，不要把静态可达性当作动态 Trace。当前生产装配的静态索引可通过 `NativeRuleSpace.analyze` 或 `node scripts/agent-control.mjs analyze request.json` 查询，`foldDepth` 控制折叠视角分辨率。
 
 ## 5. 高频断点
 

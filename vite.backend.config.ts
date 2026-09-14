@@ -13,7 +13,7 @@ export default defineConfig({
     rollupOptions: {
       // Kernel owns identity-bearing runtime capabilities. Keep it external so
       // backend-sdk and direct Kernel consumers share exactly one module.
-      external: [/^node:/, /^@graphvideo\/kernel(?:\/.*)?$/],
+      external: [/^node:/, /^@graphvideo\/kernel(?:\/.*)?$/, /^typescript$/],
     },
     target: 'node20',
     minify: false,

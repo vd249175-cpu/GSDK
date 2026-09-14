@@ -36,6 +36,9 @@ export async function startAgentControlServer(host, { discoveryPath = agentContr
         case '/inspect':
           output = host.agentInspect(input)
           break
+        case '/analyze':
+          output = host.agentAnalyze(input)
+          break
         case '/inject':
           output = await host.agentInject(input.targetNodeId, input.info, {
             actor: 'codex/local', reason: input.reason,

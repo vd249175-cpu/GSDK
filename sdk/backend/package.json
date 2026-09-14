@@ -24,6 +24,9 @@
     "*.mts",
     "*.mjs"
   ],
+  "dependencies": {
+    "typescript": "^5.4.5"
+  },
   "peerDependencies": {
     "@graphvideo/kernel": "^1.0.0"
   }

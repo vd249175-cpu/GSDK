@@ -8,6 +8,8 @@ import {
   systemRandomSource,
   TimeRandomIdProvider,
 } from '@graphvideo/kernel';
+import type { NativeAnalysisEngine, NativeAnalysisRequest } from './native-analysis';
+import type { FrontendLinkDefinition, FrontendServiceLinkDefinition } from '../analysis';
 import type {
   Clock,
   EffectAdapter,
@@ -230,6 +232,8 @@ export interface NativeRuleSpaceOptions {
   readonly idProvider?: IdProvider;
   readonly valueCodec?: ValueCodec;
   readonly replaceTimeoutMs?: number;
+  readonly analysisFrontendLinks?: readonly FrontendLinkDefinition[];
+  readonly analysisFrontendServiceLinks?: readonly FrontendServiceLinkDefinition[];
 }
 
 export type CausalEventRecord = CausalTelemetryEvent & { readonly cursor: number };
@@ -335,6 +339,7 @@ function joinInfo(infoType: string, payloadJson?: string): NativeInfo {
  */
 export class NativeRuleSpace {
   private readonly binding: BindingSpace;
+  private analysisEngine?: NativeAnalysisEngine;
   private readonly nodes = new Map<string, RegisteredNode>();
   private readonly submissionControllers = new Map<string, AbortController>();
   private readonly projectionListeners = new Set<(projection: GraphProjection) => void>();
@@ -352,6 +357,8 @@ export class NativeRuleSpace {
   private readonly clock: Clock;
   private readonly idProvider: IdProvider;
   private readonly replaceTimeoutMs: number;
+  private readonly analysisFrontendLinks: readonly FrontendLinkDefinition[];
+  private readonly analysisFrontendServiceLinks: readonly FrontendServiceLinkDefinition[];
   public readonly valueCodec: ValueCodec;
   public errorTargetNodeId?: string;
 
@@ -363,6 +370,8 @@ export class NativeRuleSpace {
       ?? new TimeRandomIdProvider(this.clock, systemRandomSource);
     this.valueCodec = options.valueCodec ?? defaultValueCodec;
     this.replaceTimeoutMs = options.replaceTimeoutMs ?? 5000;
+    this.analysisFrontendLinks = options.analysisFrontendLinks ?? [];
+    this.analysisFrontendServiceLinks = options.analysisFrontendServiceLinks ?? [];
   }
 
   register<S extends Record<string, unknown>>(
@@ -382,6 +391,7 @@ export class NativeRuleSpace {
       dispose: options.dispose,
       nodeInstance: options.nodeInstance,
     });
+    this.analysisEngine?.invalidate();
     this.cachedTopology = undefined;
     this.topologyRevision += 1;
     this.publishProjection();
@@ -400,6 +410,7 @@ export class NativeRuleSpace {
     const removed = this.binding.evict(id);
     if (!removed) return false;
     this.nodes.delete(id);
+    this.analysisEngine?.invalidate();
     this.cachedTopology = undefined;
     this.topologyRevision += 1;
     this.queueDisposal(node);
@@ -442,6 +453,7 @@ export class NativeRuleSpace {
             dispose: registration.dispose,
             nodeInstance: registration.nodeInstance,
           });
+          this.analysisEngine?.invalidate();
           this.cachedTopology = undefined;
           this.topologyRevision += 1;
           swapped = true;
@@ -609,6 +621,22 @@ export class NativeRuleSpace {
     }));
   }
 
+  /** Query static instance evidence for the currently admitted rule space. */
+  async analyze<T = any>(request: NativeAnalysisRequest): Promise<T> {
+    if (!this.analysisEngine) {
+      const { NativeAnalysisEngine } = await import('./native-analysis');
+      this.analysisEngine = new NativeAnalysisEngine(() => [...this.nodes.entries()].map(([id, node]) => ({
+        id, state: node.state, instance: node.nodeInstance,
+      })), this.analysisFrontendLinks, this.analysisFrontendServiceLinks);
+    }
+    return this.analysisEngine.analyze(request) as T;
+  }
+
+  async analyzeDto(request: NativeAnalysisRequest): Promise<unknown> {
+    const { analysisToDto } = await import('./native-analysis');
+    return analysisToDto(await this.analyze(request));
+  }
+
   drops(): Array<{ target: string; reason: string; submission?: string }> {
     return this.binding.drops();
   }
@@ -718,6 +746,7 @@ export class NativeRuleSpace {
       const versionBefore = node.version;
       node.state = after;
       node.version += 1;
+      this.analysisEngine?.invalidate();
       interventionEvent = {
         type: 'state_intervened', actor: options.actor, reason: options.reason,
         nodeId, generation, versionBefore, versionAfter: node.version,
@@ -815,6 +844,7 @@ export class NativeRuleSpace {
         assertCurrent();
         node.state[key as string] = value;
         node.version += 1;
+        space.analysisEngine?.invalidate();
         space.publishProjection();
         space.emitTelemetry({
           type: 'state_mutated',
@@ -828,6 +858,7 @@ export class NativeRuleSpace {
         assertCurrent();
         Object.assign(node.state, patch);
         node.version += 1;
+        space.analysisEngine?.invalidate();
         space.publishProjection();
         space.emitTelemetry({
           type: 'state_mutated',

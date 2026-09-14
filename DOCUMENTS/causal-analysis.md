@@ -6,7 +6,7 @@ type: reference
 
 ## 1. 能证明什么
 
-`@graphvideo/sdk/analysis` 从调用方已经构造的 Node 实例及显式前端联动表建立静态 `CausalIndex`。分析过程不扫描插件目录、不创建 Runtime、不执行 getter/change，也不进入生产调度。
+`@graphvideo/sdk/analysis` 从调用方已经构造的 Node 实例及显式前端联动表建立静态 `CausalIndex`。生产 `NativeRuleSpace` 按需复用同一算法分析当前已装配 Node；分析过程不扫描插件目录、不创建 Runtime、不执行 getter/change，也不介入生产调度。没有 Node 实例描述的原始 handler 会作为 `opaque-handler` Node 保留在索引中，其当前 State 字段可见，但不会凭空推断 send。
 
 基础实体与关系为：
 
@@ -34,7 +34,7 @@ const index = buildCausalIndex({
 const report = validateCausalIndex(index)
 ```
 
-`nodeObjects` 是调用方实际构造的 Node；分析 SDK 不负责发现或装配。`frontendLinks` 明确补入应用入口和 State→UI 投影关系，`frontendServiceLinks` 记录图外服务消费者。
+`nodeObjects` 是调用方实际构造的 Node；分析 SDK 不负责发现或装配。`frontendLinks` 明确补入应用入口和 State→UI 投影关系，`frontendServiceLinks` 记录图外服务消费者。生产宿主自动把插件已声明的 `rendererRoots` 转成无投影的入口事实；若调用方提供同一根入口的 `analysisFrontendLinks`，以显式联动表为准。State→UI 关系始终不得推测。
 
 只有静态可证明的 `Info.type` 与目标 Node 才进入 send 边。`unresolved-info-type` 和无法解析的发送目标是源码问题，不能生成 `UnknownInfo` 或根据变量名猜测。
 
@@ -70,6 +70,7 @@ const report = validateCausalIndex(index)
 SDK 提供 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 和 `AnalysisView` 契约，并提供以下纯算法：
 
 - `buildAllNodesView`
+- `buildFoldDepthView`
 - `analyzeViewHealth`
 - `analyzeViewReachability`
 - `analyzeViewCentrality`
@@ -77,7 +78,7 @@ SDK 提供 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 和 `A
 - `discoverGranularCommunities`
 - `compareCommunityPartitions` / `compareCommunitiesToView`
 
-`buildAllNodesView` 将索引中的每个基础 Node 投影为一个视角 Node，并把 send 按来源、目标和 Info 类型聚合为保留 witness 的 route。SDK 不负责从磁盘读取或解析自定义 folds/views；其他视角仍由消费方构造。折叠只改变当前观察粒度，不修改基础因果事实或生产 Graph。
+`buildAllNodesView` 将索引中的每个基础 Node 投影为一个视角 Node，并把 send 按来源、目标和 Info 类型聚合为保留 witness 的 route。`buildFoldDepthView(base, folds, foldDepth)` 对调用方提供的层级定义做完整叶子覆盖、重复、未知 Node 和环校验：深度 0 显示根折叠组，深度 1 显示其子组或基础 Node，深度继续增加直到基础 Node。跨组 route 与组内 route 保留原始 send witness。SDK 不从磁盘读取 folds/views；折叠只改变当前观察粒度，不修改基础因果事实或生产 Graph。
 
 健康、中心性和 Louvain 社区结果只描述当前静态视角：
 
@@ -88,6 +89,6 @@ SDK 提供 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 和 `A
 
 ## 6. 当前应用入口
 
-`apps/local-app/scripts/diagnose.mjs` 暴露基础索引命令 `node/change/info/state/expand/path/select/frontend/validate`，并通过 `buildAllNodesView` 提供 `health/reach`。当前 `analysis/config.json` 只是消费方配置占位，不会被该脚本自动解析为自定义折叠视角。
+`apps/local-app/scripts/diagnose.mjs` 仍是离线入口，暴露基础索引命令 `node/change/info/state/expand/path/select/frontend/validate`，并通过 `buildAllNodesView` 提供 `health/reach`。生产 `NativeRuleSpace.analyze(request)` 则从当前装配中按需建立索引，支持 `index/instances/validate/entity/expand/path/select/view/health/reach/centrality/communities/granularCommunities/compareCommunities`。增删替换 Node 或 State 字段改变会使缓存失效；分析模块首次请求时才加载。`view` 及 Node 级指标可传 `foldDepth` 与可选 `folds`；未传 `folds` 时使用以所有当前 Node 为叶子的单层 `world` 根组。应用 Agent 控制通道的 `/analyze` 及 `node scripts/agent-control.mjs analyze request.json` 返回 JSON DTO。`analysis/config.json` 仍是离线消费方配置占位，不会被自动解析。
 
 完整使用方式见 [Node 实例因果调试指南](./debug-guide.md)。

@@ -15,7 +15,7 @@ GraphFramework 是运行在应用主进程内的开放因果图微内核框架�
 - **物理圈禁**：领域决策与文件、网络、数据库、进程和系统 I/O 分离，物理结果必须作为 Observation 回到图中；
 - **局部可理解**：生产 GraphFactory 是实际装配清单，实例分析从已构造 Node 的真实方法事实建立局部因果图，使排障和测试不依赖对全系统的记忆。
 
-微内核负责调度、一致性、取消和可观测性，零业务语义；应用 Node 负责具体业务事实和决策；分析工具负责开发期的寻址、切片、验证和视角折叠。实例分析提供的是可溯源的开发期证据，不是 TypeScript 编译器，也不替代针对性运行测试和真实物理核对。
+微内核负责调度、一致性、取消和可观测性，零业务语义；应用 Node 负责具体业务事实和决策；只读分析层负责寻址、切片、验证和视角折叠，并由生产 `NativeRuleSpace` 按需加载。实例分析提供的是可溯源的静态证据，不替代针对性运行测试和真实物理核对。
 
 ## 2. 一个业务执行面
 
@@ -29,12 +29,13 @@ Electron main
   ├─ NativeRuleSpace（生产与应用运行宿主）
   │  ├─ Rust mailbox/change/submission 调度（crates/kernel）
   │  ├─ JS 业务 Node、State 与 change
-  │  └─ 构造注入的 EffectAdapter
+  │  ├─ 构造注入的 EffectAdapter
+  │  └─ 按需加载的实例因果分析与折叠视角（只读）
   └─ 文件、数据库、进程与窗口宿主
 
 开发期与测试规约
   ├─ KernelRuntime：TypeScript 参考规约与测试 Oracle（只读规约，不再作为生产内核维护）
-  └─ @graphvideo/sdk/analysis：读取 Node 实例描述，不启动 Runtime
+  └─ @graphvideo/sdk/analysis：纯实例分析算法，不启动 Runtime；也供生产只读分析层复用
 ```
 
 Kernel 不是独立进程，没有 Socket、握手、远程挂载或第二套执行器。renderer/main 的 IPC 是桌面安全边界。
@@ -161,7 +162,7 @@ renderer 图协议只有：
 
 `graph.cancel` 中止指定 submission 的 AbortSignal：未执行 delivery 会跳过，send/effect 会停止继续推进；已写 State 和已完成物理副作用不回滚。
 
-可信主进程另有 Agent 控制面：`agentInspect` 读取 Projection、解码后的各 Node State、待投递 Info、drop ledger 和带游标的近期因果事件；`agentInject` 向任意已装配 Node 注入根 Info 并取得物理投递反馈；`agentInterveneState` 在单飞间隙以 generation/version 比较后修改 State。干预留下 `state_intervened` 事件，包含 actor、reason、修改前后 State 和版本。近期事件在宿主内存中最多保留 1000 条；游标过旧会报告 `truncated`，它不是持久审计库。
+可信主进程另有 Agent 控制面：`agentInspect` 读取 Projection、解码后的各 Node State、待投递 Info、drop ledger 和带游标的近期因果事件；`agentAnalyze` 查询当前实例的静态因果索引、折叠视角及结构指标；`agentInject` 向任意已装配 Node 注入根 Info 并取得物理投递反馈；`agentInterveneState` 在单飞间隙以 generation/version 比较后修改 State。干预留下 `state_intervened` 事件，包含 actor、reason、修改前后 State 和版本。近期事件在宿主内存中最多保留 1000 条；游标过旧会报告 `truncated`，它不是持久审计库。
 
 ## 6. 应用边界
 
@@ -169,7 +170,7 @@ renderer 图协议只有：
 
 ## 7. 实例驱动分析
 
-`@graphvideo/sdk/analysis` 对真实 Node 实例调用 `inspectNodeObjects`，读取属性和方法描述 DTO，并建立：
+`@graphvideo/sdk/analysis` 对真实 Node 实例调用 `inspectNodeObjects`，读取属性和方法描述 DTO；生产 `NativeRuleSpace.analyze` 从当前已装配 Node 按需建立同一静态索引，并在增删替换或 State 字段变化后失效重建。分析不执行 Node.change 或 Effect。
 
 ```text
 entry  --inject--> info@Target
@@ -182,7 +183,7 @@ state  --project-> ui
 
 Node 的 contains/owns 是归属，不是路径捷径。分析工具接收普通 Node，但不创建或运行 Runtime。`inspect-nodes.ts` 读取数据属性与业务方法，不调用 getter 或 change。Kernel Node 不继承分析类，也不持有图标、描述、分类或副标题等展示字段。
 
-分析契约支持 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 与 `AnalysisView`。折叠视角只改变分析粒度，不增加运行时边；`all-nodes` 与 `all-granular` 分别提供 Node 级和细颗粒分析视角。API 与证据边界见 [实例因果分析](./causal-analysis.md)。
+分析契约支持 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 与 `AnalysisView`。`foldDepth: 0` 合并根折叠组，`1` 展开一层，继续增加直到基础 Node；折叠视角只改变分析粒度，不增加运行时边。`all-nodes` 与 `all-granular` 分别提供 Node 级和细颗粒分析视角。API 与证据边界见 [实例因果分析](./causal-analysis.md)。
 
 ### 外部世界不例外
 
@@ -204,5 +205,5 @@ Node 的 contains/owns 是归属，不是路径捷径。分析工具接收普通
 7. renderer 只注入根 Info、只读取 Projection。
 8. 应用命令等待自身 submission，不等待全图。
 9. 媒体 URL 是可丢弃 DTO，磁盘路径不进入 UI。
-10. 实例分析不创建 Runtime，也不参与生产运行。
+10. 实例分析不创建 Runtime；生产规则空间仅按需执行只读分析，不介入调度或 Node change。
 11. 节点报错即因果事实：Node 执行异常永远被捕获为特殊 Info，绝不击穿环境，可在图中自由发送与流转。

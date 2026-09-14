@@ -120,6 +120,7 @@ export {
   defineStudioPluginManifest, parseStudioPluginManifest,
 } from './plugin-manifest.mjs'
 export { NativeRuleSpace, locateNativeBinding } from './native-space'
+export type { NativeAnalysisRequest } from './native-analysis'
 export type {
   CausalTelemetryEvent,
   NativeChangeContext, NativeDeliveryFeedback, NativeDeliveryStatus, NativeHandler, NativeInfo,

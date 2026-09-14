@@ -6,8 +6,25 @@ import studioPlugin from '../plugins/graphvideo.studio/backend.js'
  * 统一基于 Rust 原生微内核（crates/kernel 经 NativeRuleSpace），
  * 负责 16 个 Studio 领域节点的调度、生命周期、物理适配器依赖注入以及 Projection 导出。
  */
-export function createNativeGraphHost({ dependencies = {}, plugins = [studioPlugin], mountStudioNodes = true } = {}) {
-  const space = new NativeRuleSpace()
+export function createNativeGraphHost({
+  dependencies = {}, plugins = [studioPlugin], mountStudioNodes = true,
+  analysisFrontendLinks = [], analysisFrontendServiceLinks = [],
+} = {}) {
+  const explicitlyLinked = new Set(analysisFrontendLinks.map((link) => (
+    `${link.injection.targetNodeId}\0${link.injection.infoType}`
+  )))
+  const rendererRootLinks = plugins.flatMap((plugin) => (plugin.rendererRoots ?? []).flatMap((root) => {
+    const key = `${root.targetNodeId}\0${root.infoType}`
+    if (explicitlyLinked.has(key)) return []
+    const id = `rendererRoot:${plugin.id}:${root.targetNodeId}:${root.infoType}`
+    return [{ id, applicationMethod: id, injection: {
+      targetNodeId: root.targetNodeId, infoType: root.infoType,
+    }, projections: [] }]
+  }))
+  const space = new NativeRuleSpace({
+    analysisFrontendLinks: [...analysisFrontendLinks, ...rendererRootLinks],
+    analysisFrontendServiceLinks,
+  })
   const mountedNodes = []
 
   if (mountStudioNodes && plugins.some((p) => p?.id === studioPlugin.id)) {
@@ -86,6 +103,10 @@ export function createNativeGraphHost({ dependencies = {}, plugins = [studioPlug
         drops: space.drops(),
         causalEvents: space.readCausalEvents({ after, limit }),
       }
+    },
+
+    agentAnalyze(request) {
+      return space.analyzeDto(request)
     },
 
     async agentInject(targetNodeId, info, { actor, reason }) {

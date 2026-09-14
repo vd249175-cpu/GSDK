@@ -18,6 +18,11 @@ describe.skipIf(!binary)('native-graph-host hot reload', () => {
       const before = host.agentInspect()
       expect(before.projection.nodes[0]).toMatchObject({ nodeId: 'example.counter', version: 0 })
       expect(before.nodeStates[0]).toMatchObject({ nodeId: 'example.counter', generation: 0, version: 0, state: { count: 0 } })
+      expect((await host.agentAnalyze({ op: 'view', foldDepth: 0 })).nodes['fold:world'].sourceNodeIds)
+        .toEqual(['example.counter'])
+      expect((await host.agentAnalyze({
+        op: 'entity', address: 'entry:rendererRoot:example.hello-counter:example.counter:IncrementInfo',
+      })).kind).toBe('entry')
       const edited = await host.agentInterveneState('example.counter', { count: 5 }, {
         actor: 'agent/test', reason: 'repair', expectedGeneration: 0, expectedVersion: 0,
       })

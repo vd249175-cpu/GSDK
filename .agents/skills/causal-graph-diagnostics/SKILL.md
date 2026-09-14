@@ -1,5 +1,6 @@
 ---
 name: causal-graph-diagnostics
+type: guide
 description: >-
   Precision instance-driven diagnostics for GraphVideo's causal graph. Use for Node/Info/change/State
   lookup, folded Node/Graph views, coupling health, community discovery, causal paths,
@@ -12,7 +13,7 @@ description: >-
 
 Read `DOCUMENTS/mental-model.md`, then `DOCUMENTS/debug-guide.md`. For folding, health or community work, also read `DOCUMENTS/causal-analysis.md`. Constructed instance facts and targeted tests override documentation.
 
-The production graph has no declared edges, flows, Wrapper, observedEdges or runtime analyzer. Studio Nodes are constructed through `createStudioNodes` (consumers assemble their own plugin Nodes via backend-sdk factories); read their analysis descriptors, and derive relations from actual `ctx.send/read/write` method text plus the explicit UI boundary table `plugins/graphvideo.studio/analysis/` (`app/src/application/frontend-links.ts` is only its transitional re-export). Do not discover Nodes by scanning source directories.
+The production graph has no declared edges, flows, Wrapper or observedEdges. `NativeRuleSpace.analyze` now owns a read-only instance-driven analyzer, loaded on first request; it never schedules changes. Studio Nodes are constructed through `createStudioNodes` (consumers assemble their own plugin Nodes via backend-sdk factories); derive relations from actual `ctx.send/read/write` method text plus the explicit UI boundary table `apps/local-app/analysis/links.mjs`. Do not discover Nodes by scanning source directories.
 
 ## Canonical entities
 
@@ -40,9 +41,9 @@ Node contains/owns relations are membership only and must not create BFS shortcu
 
 ## Analysis views
 
-`analysis/folds.json` is the stable manual fold definition; its leaves are constructed Node instances. `analysis/views/*.json` only records which named folds are expanded. A folded Graph is a complete Node in that view: its State, change, Info, Effect and Send routes are merged automatically with source witnesses.
+`FoldDefinitionFile` supplies a rooted group hierarchy whose leaves cover constructed Node instances exactly once. `foldDepth: 0` shows the root group, `1` expands one level, and deeper values continue to base Nodes. A folded Graph is a complete Node in that view: its State, change, Info, Effect and Send routes are merged with source witnesses. The current app has no saved fold hierarchy; without one, runtime analysis uses a one-level `world` group.
 
-Use configured views or `all-nodes` for Node inspection, causal chains, health and Node-level community discovery. `all-granular` expands change/State/Info/Effect/entry/ui and is only for fine-grained community discovery; do not use it for routine causal chains.
+Use a supplied fold hierarchy or `all-nodes` for Node inspection, health and Node-level community discovery. Causal chains use the granular index regardless of fold depth; `all-granular` community discovery is only for fine-grained structure, not routine chains.
 
 ## Workflow
 
@@ -55,34 +56,19 @@ Use configured views or `all-nodes` for Node inspection, causal chains, health a
 7. For frontend desync, trace `entry → root Info → Owner State → ApplicationState path → consumer`.
 8. Compare natural communities with a saved fold view using NMI/ARI/F1; never rewrite folds automatically.
 9. After topology or projection changes, run instance validation and targeted tests.
-10. After adding or removing a Runtime Node, update `analysis/folds.json`; validation requires exact leaf coverage.
+10. After adding or removing a Runtime Node, update any supplied `FoldDefinitionFile`; validation requires exact leaf coverage.
 11. Treat every unresolved Info type as a source defect. `ctx.send` must expose a literal discriminant through a local object, a conditional of explicit objects, or the current narrowed `info`; helper calls may build payloads but must not hide the complete Info.
 
 ## Commands
 
 ```bash
-npm run trace -- instance [nodeId] --json
-npm run trace -- node <nodeId> --json
-npm run trace -- change <nodeId>::<InfoType> --json
-npm run trace -- info <InfoType>@<targetNodeId> --json
-npm run trace -- state <nodeId>::<field> --json
-npm run trace -- expand <address> --json
-npm run trace -- path <from-address> <to-address> --json
-npm run trace -- select <nodeId...> --json
-npm run trace -- frontend --json
-npm run trace -- views --json
-npm run trace -- graph --view <viewId> --json
-npm run trace -- node <currentNodeId> --view <viewId> --json
-npm run trace -- chain <fromNode> <toNode> --view <viewId> --json
-npm run trace -- reach <nodeId> --view <viewId> --json
-npm run trace -- health --view <viewId|all-nodes> --json
-npm run trace -- centrality --view <viewId|all-nodes> --json
-npm run trace -- cluster --view <viewId|all-nodes> --json
-npm run trace -- cluster --view all-nodes --compare <savedViewId> --json
-npm run trace -- cluster --view all-granular --json
-npm run trace -- validate --json
-npm run report:architecture
+npm --prefix apps/local-app run diagnose -- node <nodeId>
+npm --prefix apps/local-app run diagnose -- path <from-address> <to-address>
+npm --prefix apps/local-app run diagnose -- validate
+node scripts/agent-control.mjs analyze request.json
 ```
+
+The last command queries the running app through the trusted local Agent channel. Request examples: `{ "op": "view", "foldDepth": 1 }`, `{ "op": "health", "foldDepth": 1 }`, `{ "op": "path", "addresses": ["change:a::Info", "state:b::field"] }`. Other operations are listed in `DOCUMENTS/causal-analysis.md`.
 
 `unresolved-info-type` is always an error. Never convert an opaque expression, helper name, or variable name into a guessed Info entity.
 
@@ -93,7 +79,7 @@ Read `references/flat-causal-query.md` when implementing or changing selection, 
 ```bash
 npx vitest run <target-test> --silent
 npx tsc --noEmit
-npm run trace -- validate --json
+npm --prefix apps/local-app run diagnose -- validate
 ```
 
 Do not start the desktop app or use browser/computer automation for physical UI validation; leave that to the user.

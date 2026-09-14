@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { execFile } from 'node:child_process'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,6 +15,7 @@ describe('Agent control transport', () => {
     const discoveryPath = join(directory, 'control.json')
     const host = {
       agentInspect: vi.fn(() => ({ projection: { revision: 1 } })),
+      agentAnalyze: vi.fn(() => ({ id: 'fold-depth:0', nodes: { 'fold:world': {} } })),
       agentInject: vi.fn(async () => ({ feedback: { status: 'enqueued' } })),
       agentInterveneState: vi.fn(async () => ({ version: 2 })),
     }
@@ -34,6 +35,14 @@ describe('Agent control transport', () => {
         env: { ...process.env, GRAPHVIDEO_AGENT_CONTROL_FILE: discoveryPath },
       })
       expect(JSON.parse(stdout).projection.revision).toBe(1)
+      expect((await (await call('/analyze', { op: 'view', foldDepth: 0 })).json()).id).toBe('fold-depth:0')
+      expect(host.agentAnalyze).toHaveBeenCalledWith({ op: 'view', foldDepth: 0 })
+      const analysisRequestPath = join(directory, 'analysis-request.json')
+      await writeFile(analysisRequestPath, JSON.stringify({ op: 'view', foldDepth: 0 }))
+      const analyzed = await execFileAsync(process.execPath, [cliPath, 'analyze', analysisRequestPath], {
+        env: { ...process.env, GRAPHVIDEO_AGENT_CONTROL_FILE: discoveryPath },
+      })
+      expect(JSON.parse(analyzed.stdout).nodes['fold:world']).toEqual({})
       expect((await (await call('/inject', {
         targetNodeId: 'owner', info: { type: 'ProbeInfo' }, reason: 'diagnose',
       })).json()).feedback.status).toBe('enqueued')
