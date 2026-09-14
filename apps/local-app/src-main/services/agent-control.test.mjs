@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
+import { execFile } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 import { startAgentControlServer } from './agent-control.mjs'
+
+const execFileAsync = promisify(execFile)
 
 describe('Agent control transport', () => {
   it('requires the local token and routes inspect, inject and State patch to the trusted host', async () => {
@@ -24,6 +29,11 @@ describe('Agent control transport', () => {
       expect((await call('/inspect', {}, { Origin: 'http://example.test' })).status).toBe(403)
       expect((await (await call('/inspect', { after: 3 })).json()).projection.revision).toBe(1)
       expect(host.agentInspect).toHaveBeenCalledWith({ after: 3 })
+      const cliPath = fileURLToPath(new URL('../../../../scripts/agent-control.mjs', import.meta.url))
+      const { stdout } = await execFileAsync(process.execPath, [cliPath, 'inspect'], {
+        env: { ...process.env, GRAPHVIDEO_AGENT_CONTROL_FILE: discoveryPath },
+      })
+      expect(JSON.parse(stdout).projection.revision).toBe(1)
       expect((await (await call('/inject', {
         targetNodeId: 'owner', info: { type: 'ProbeInfo' }, reason: 'diagnose',
       })).json()).feedback.status).toBe('enqueued')
