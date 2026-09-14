@@ -52,6 +52,10 @@ export default defineBackendPlugin({
 
 renderer 只能调用 preload 暴露的固定命令，不能提交任意 Node ID、Info 或 submission ID。可信 main/test 可以直接调用规则空间 API。取消只作用于对应 submission；已经写入的 State 和已经完成的外部事实不回滚。
 
+可信主进程的 `NativeGraphHost` 还提供 Agent 控制面：`agentInspect({ after, limit })` 返回 Projection、解码后的各 Node State、当前待投递 Info、drop ledger 与近期因果事件；`agentInject(nodeId, info, { actor, reason })` 绕过 `rendererRoots` 向任意已装配 Node 发起普通根 submission，并返回 `enqueued/dropped` 反馈；`agentInterveneState(nodeId, patch, { actor, reason, expectedGeneration, expectedVersion })` 在目标单飞间隙修改 State。版本或代际变化会拒绝干预，排队的 Info 不丢弃。干预独立记录为 `state_intervened`，不伪装成 Node 的 change。该控制面不经 renderer IPC 或遥测 HTTP 服务公开；独立的 Agent 本机控制服务只监听 `127.0.0.1`，每次启动生成随机令牌，拒绝带浏览器 Origin 的请求。
+
+应用运行时，可信 Agent 可从仓库根目录执行 `node scripts/agent-control.mjs inspect`。`inject` 与 `patch` 命令再提供一个 JSON 请求文件路径，例如 `node scripts/agent-control.mjs inject request.json`；请求字段分别为 `{ "targetNodeId": "...", "info": { "type": "..." }, "reason": "..." }` 和 `{ "nodeId": "...", "patch": { ... }, "expectedGeneration": 0, "expectedVersion": 1, "reason": "..." }`。客户端从当前用户目录的 `.graphvideo/agent-control.json` 读取端口和令牌，应用关闭后删除该文件。因果事件只在宿主内存中保留最近 1000 条，不能当作持久审计库。
+
 插件安装意味着信任代码。后端插件与主进程拥有同一进程权限，前端插件共享 renderer，Manifest 和入口校验都不是逐插件恶意代码沙箱。只安装可信来源；需要运行不可信插件时不能依赖这里的权限声明提供进程隔离。
 
 ## Manifest

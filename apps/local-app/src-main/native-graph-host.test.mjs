@@ -11,16 +11,39 @@ const binary = locateNativeBinding()
  * 原子替换运行中的业务 Node。旧 backlog 丢弃、新逻辑秒级生效。
  */
 describe.skipIf(!binary)('native-graph-host hot reload', () => {
+  it('exposes trusted Agent inspect, arbitrary inject and versioned State intervention', async () => {
+    const host = createNativeGraphHost({ plugins: [plugin] })
+    host.mount(plugin.createNodes({}))
+    try {
+      const before = host.agentInspect()
+      expect(before.projection.nodes[0]).toMatchObject({ nodeId: 'example.counter', version: 0 })
+      expect(before.nodeStates[0]).toMatchObject({ nodeId: 'example.counter', generation: 0, version: 0, state: { count: 0 } })
+      const edited = await host.agentInterveneState('example.counter', { count: 5 }, {
+        actor: 'agent/test', reason: 'repair', expectedGeneration: 0, expectedVersion: 0,
+      })
+      expect(edited.version).toBe(1)
+      const injected = await host.agentInject('example.counter', { type: 'IncrementInfo' }, {
+        actor: 'agent/test', reason: 'verify',
+      })
+      expect(injected.feedback.status).toBe('enqueued')
+      expect(host.readCounter()).toEqual({ count: 6 })
+      expect(host.agentInspect().causalEvents.events.some((event) => event.type === 'state_intervened')).toBe(true)
+    } finally {
+      await host.dispose()
+    }
+  })
   it('生产插件跑在 Rust 调度上，v1 计数可用', async () => {
     const host = createNativeGraphHost({ plugins: [plugin] })
     host.mount(plugin.createNodes({}))
     try {
       await expect(host.injectCounter()).resolves.toEqual({ count: 1 })
       await expect(host.injectCounter()).resolves.toEqual({ count: 2 })
+      const explicit = await host.injectRoot('example.counter', { type: 'IncrementInfo' }, 'sub/explicit')
+      expect(explicit.submissionId).toBe('sub/explicit')
       expect(host.generation('example.counter')).toBe(0)
       const projection = host.readProjection()
       expect(projection.nodes).toHaveLength(1)
-      expect(projection.nodes[0]).toMatchObject({ nodeId: 'example.counter', version: 2 })
+      expect(projection.nodes[0]).toMatchObject({ nodeId: 'example.counter', version: 3 })
       expect(projection.revision).toBeGreaterThan(0)
     } finally {
       await host.dispose()

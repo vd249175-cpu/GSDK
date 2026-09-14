@@ -20,6 +20,51 @@ fn admits_entities_with_zero_generation_and_rejects_duplicates() {
 }
 
 #[test]
+fn edit_reservation_waits_for_active_change_and_preserves_backlog() {
+    let mut kernel = Kernel::new();
+    kernel.admit("owner".to_owned()).unwrap();
+    enqueued(kernel.inject_root("owner", "First".to_owned(), "sub/first".to_owned()));
+    enqueued(kernel.inject_root("owner", "Second".to_owned(), "sub/second".to_owned()));
+    let (active, _) = kernel.begin_change("owner").unwrap();
+    assert!(kernel.begin_edit("owner").is_err());
+    let queued = kernel.queued_infos();
+    assert_eq!(queued.len(), 1);
+    assert_eq!(queued[0].info_type, "Second");
+    assert!(matches!(
+        kernel.begin_change("owner"),
+        Err(BeginError::Busy(_))
+    ));
+    assert!(kernel.settle_change(active, ChangeOutcome::Completed));
+    let generation = kernel.begin_edit("owner").unwrap();
+    assert_eq!(generation, 0);
+    assert!(matches!(
+        kernel.begin_change("owner"),
+        Err(BeginError::Busy(_))
+    ));
+    assert!(kernel.replace("owner").is_err());
+    assert!(kernel.end_edit("owner", generation));
+    let (next, view) = kernel.begin_change("owner").unwrap();
+    assert_eq!(view.info_type, "Second");
+    assert!(kernel.settle_change(next, ChangeOutcome::Completed));
+    assert!(kernel.drops().is_empty());
+}
+
+#[test]
+fn abandoning_edit_reservation_unblocks_queued_change() {
+    let mut kernel = Kernel::new();
+    kernel.admit("owner".to_owned()).unwrap();
+    enqueued(kernel.inject_root("owner", "First".to_owned(), "sub/first".to_owned()));
+    enqueued(kernel.inject_root("owner", "Second".to_owned(), "sub/second".to_owned()));
+    let (active, _) = kernel.begin_change("owner").unwrap();
+    assert!(kernel.begin_edit("owner").is_err());
+    kernel.abort_edit("owner");
+    assert!(kernel.settle_change(active, ChangeOutcome::Completed));
+    let (next, view) = kernel.begin_change("owner").unwrap();
+    assert_eq!(view.info_type, "Second");
+    assert!(kernel.settle_change(next, ChangeOutcome::Completed));
+}
+
+#[test]
 fn drops_sends_to_missing_targets_without_hanging() {
     let mut kernel = Kernel::new();
     let feedback = kernel.inject_root("ghost", "PingInfo".to_owned(), "sub/1".to_owned());
@@ -337,6 +382,9 @@ fn evicted_change_settles_after_same_id_is_readmitted() {
     assert!(kernel.evict("worker"));
     assert_eq!(kernel.admit("worker".to_owned()), Ok(1));
     assert!(kernel.settle_change(token, ChangeOutcome::Completed));
-    assert_eq!(kernel.submission_state("sub/old"), Some(SubmissionState::Completed));
+    assert_eq!(
+        kernel.submission_state("sub/old"),
+        Some(SubmissionState::Completed)
+    );
     assert_eq!(kernel.pending_total(), 0);
 }

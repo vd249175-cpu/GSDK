@@ -7,6 +7,92 @@ import type { NativeChangeContext, NativeInfo } from './native-space';
 const binary = locateNativeBinding();
 
 describe.skipIf(!binary)('Native rule space (JS entities on Rust scheduling)', () => {
+  it('records pageable Info activity and injects into a node outside renderer roots', async () => {
+    const space = new NativeRuleSpace();
+    space.register('private-owner', { seen: 0 }, (_info, ctx) => {
+      ctx.write('seen', ctx.read('seen') + 1);
+    });
+    const result = space.injectAgentInfo('private-owner', { type: 'InternalInfo', value: 7 }, {
+      actor: 'agent/test', reason: 'diagnosis',
+    });
+    expect(result.feedback.status).toBe('enqueued');
+    const pending = space.readPendingInfos();
+    expect(pending).toEqual([expect.objectContaining({
+      senderNodeId: 'external-root', targetNodeId: 'private-owner',
+      info: { type: 'InternalInfo', value: 7 }, submissionId: result.submissionId,
+    })]);
+    await space.waitForSubmission(result.submissionId);
+    expect(space.getState('private-owner')).toEqual({ seen: 1 });
+    const page = space.readCausalEvents({ after: 0, limit: 20 });
+    expect(page.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'agent_info_injected', actor: 'agent/test', targetNodeId: 'private-owner' }),
+      expect.objectContaining({ type: 'change_start', nodeId: 'private-owner', infoId: pending[0].infoId }),
+    ]));
+    expect(space.readCausalEvents({ after: page.nextCursor, limit: 20 }).events).toEqual([]);
+    const dropped = space.injectAgentInfo('missing', { type: 'ProbeInfo' }, {
+      actor: 'agent/test', reason: 'diagnosis',
+    });
+    expect(dropped.feedback).toMatchObject({ status: 'dropped', reason: 'unknown-target' });
+    await space.waitForSubmission(dropped.submissionId);
+    expect(space.readCausalEvents({ after: page.nextCursor }).events).toContainEqual(expect.objectContaining({
+      type: 'agent_info_injected', targetNodeId: 'missing', status: 'dropped',
+    }));
+  });
+
+  it('edits State at the single-flight gap without dropping queued Info', async () => {
+    const space = new NativeRuleSpace();
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    let entered = false;
+    space.register('owner', { count: 0 }, async (_info, ctx) => {
+      entered = true;
+      await gate;
+      ctx.write('count', ctx.read('count') + 1);
+    });
+    const first = space.injectRoot('owner', { type: 'Work' });
+    const pumping = space.pump();
+    while (!entered) await Promise.resolve();
+    const second = space.injectRoot('owner', { type: 'Work' });
+    const edit = space.interveneState('owner', { count: 10 }, {
+      actor: 'agent/test', reason: 'repair', expectedGeneration: 0, expectedVersion: 1,
+    });
+    release();
+    const edited = await edit;
+    expect(edited.version).toBe(2);
+    await pumping;
+    await Promise.all([space.waitForSubmission(first), space.waitForSubmission(second)]);
+    expect(space.getState('owner')).toEqual({ count: 11 });
+    expect(space.drops()).toEqual([]);
+    expect(space.readCausalEvents({ after: 0 }).events).toContainEqual(expect.objectContaining({
+      type: 'state_intervened', actor: 'agent/test', nodeId: 'owner', versionBefore: 1, versionAfter: 2,
+    }));
+    await expect(space.interveneState('owner', { count: 0 }, {
+      actor: 'agent/test', reason: 'stale', expectedGeneration: 0, expectedVersion: 1,
+    })).rejects.toThrow('version conflict');
+  });
+
+  it('releases a timed-out edit reservation so queued work resumes', async () => {
+    const space = new NativeRuleSpace();
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    let entered = false;
+    space.register('owner', { count: 0 }, async (_info, ctx) => {
+      entered = true;
+      await gate;
+      ctx.write('count', ctx.read('count') + 1);
+    });
+    const first = space.injectRoot('owner', { type: 'Work' });
+    const pumping = space.pump();
+    while (!entered) await Promise.resolve();
+    const second = space.injectRoot('owner', { type: 'Work' });
+    await expect(space.interveneState('owner', { count: 20 }, {
+      actor: 'agent/test', reason: 'repair', expectedGeneration: 0, expectedVersion: 1,
+      timeoutMs: 2,
+    })).rejects.toThrow(/busy/i);
+    release();
+    await pumping;
+    await Promise.all([space.waitForSubmission(first), space.waitForSubmission(second)]);
+    expect(space.getState('owner')).toEqual({ count: 2 });
+    expect(space.drops()).toEqual([]);
+  });
   it('runs a JS fan-out chain through Rust dispatch', async () => {
     const space = new NativeRuleSpace();
     space.register('source', {}, (_info, ctx) => {

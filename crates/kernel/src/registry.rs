@@ -66,6 +66,9 @@ pub struct EntitySlot {
     pub generation: Generation,
     /// Sealed for replace: no new change may begin, queue stays frozen.
     pub sealed: bool,
+    /// An external state edit is waiting for, or owns, the single-flight gap.
+    pub edit_requested: bool,
+    pub editing: bool,
     /// FIFO mailbox.
     pub mailbox: VecDeque<QueuedInfo>,
     /// Running change, if any (single-flight).
@@ -77,6 +80,8 @@ impl EntitySlot {
         EntitySlot {
             generation,
             sealed: false,
+            edit_requested: false,
+            editing: false,
             mailbox: VecDeque::new(),
             active_change: None,
         }
@@ -132,7 +137,7 @@ impl Registry {
     pub fn replace(&mut self, id: &str) -> Result<(Generation, Vec<QueuedInfo>), KernelError> {
         let generation = match self.slots.get(id) {
             None => return Err(KernelError::UnknownEntity(id.to_owned())),
-            Some(slot) if slot.active_change.is_some() => {
+            Some(slot) if slot.active_change.is_some() || slot.edit_requested => {
                 return Err(KernelError::Busy(id.to_owned()));
             }
             Some(slot) => slot.generation + 1,

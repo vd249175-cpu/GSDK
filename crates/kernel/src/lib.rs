@@ -21,7 +21,7 @@ mod registry;
 mod scheduler;
 
 pub use error::{BeginError, KernelError};
-pub use registry::{DropReason, DroppedDelivery, Tombstone};
+pub use registry::{DropReason, DroppedDelivery, QueuedInfo, Tombstone};
 pub use scheduler::{
     ActiveChange, ChangeOutcome, ChangeView, DeliveryFeedback, Kernel, QueuedView, SubmissionState,
 };

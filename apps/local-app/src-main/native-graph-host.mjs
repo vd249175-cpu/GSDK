@@ -43,11 +43,11 @@ export function createNativeGraphHost({ dependencies = {}, plugins = [studioPlug
       if (space.generation(targetNodeId) === null) {
         throw new Error(`未找到目标节点: ${targetNodeId}`)
       }
-      const actualSubmissionId = space.injectRoot(targetNodeId, info)
+      const actualSubmissionId = space.injectRoot(targetNodeId, info, submissionId)
       await space.waitForSubmission(actualSubmissionId)
       return {
         status: 'accepted',
-        submissionId: submissionId || actualSubmissionId,
+        submissionId: actualSubmissionId,
         projection: space.readProjection(),
       }
     },
@@ -69,6 +69,33 @@ export function createNativeGraphHost({ dependencies = {}, plugins = [studioPlug
       const entry = projection.nodes.find((n) => n.nodeId === nodeId)
       if (!entry) return undefined
       return space.valueCodec.decode(entry.state)
+    },
+
+    /** Trusted main-process Agent control plane. Never route through graph:request. */
+    agentInspect({ after = 0, limit = 100 } = {}) {
+      const projection = space.readProjection()
+      return {
+        projection,
+        nodeStates: projection.nodes.map((entry) => ({
+          nodeId: entry.nodeId,
+          generation: space.generation(entry.nodeId),
+          version: entry.version,
+          state: space.valueCodec.decode(entry.state),
+        })),
+        pendingInfos: space.readPendingInfos(),
+        drops: space.drops(),
+        causalEvents: space.readCausalEvents({ after, limit }),
+      }
+    },
+
+    async agentInject(targetNodeId, info, { actor, reason }) {
+      const result = space.injectAgentInfo(targetNodeId, info, { actor, reason })
+      await space.waitForSubmission(result.submissionId)
+      return { ...result, projection: space.readProjection() }
+    },
+
+    agentInterveneState(nodeId, patch, options) {
+      return space.interveneState(nodeId, patch, options)
     },
 
     generation(nodeId) {

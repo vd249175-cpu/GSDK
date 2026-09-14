@@ -83,6 +83,8 @@ interface BindingToken {
 
 interface BindingView {
   changeId: number;
+  infoId: number;
+  causedBy?: number;
   entity: string;
   generation: number;
   infoType: string;
@@ -103,6 +105,9 @@ interface BindingSpace {
   unseal(id: string): void;
   replace(id: string): number;
   generation(id: string): number | null;
+  beginEdit(id: string): number;
+  endEdit(id: string, generation: number): boolean;
+  abortEdit(id: string): void;
   send(
     sender: string,
     infoType: string,
@@ -123,6 +128,10 @@ interface BindingSpace {
   submissionState(submission: string): string | null;
   pendingTotal(): number;
   queuedDepths(): Array<{ entity: string; depth: number }>;
+  queuedInfos(): Array<{
+    infoId: number; sender: string; target: string; infoType: string;
+    payloadJson?: string; generation: number; causedBy?: number; submission?: string;
+  }>;
   drops(): Array<{ target: string; reason: string; submission?: string }>;
   admittedEntities?(): string[];
 }
@@ -137,6 +146,28 @@ interface RegisteredNode {
 }
 
 export type CausalTelemetryEvent =
+  | {
+      readonly type: 'agent_info_injected';
+      readonly actor: string;
+      readonly reason: string;
+      readonly targetNodeId: string;
+      readonly info: NativeInfo;
+      readonly submissionId: string;
+      readonly status: NativeDeliveryStatus;
+      readonly timestamp: number;
+    }
+  | {
+      readonly type: 'state_intervened';
+      readonly actor: string;
+      readonly reason: string;
+      readonly nodeId: string;
+      readonly generation: number;
+      readonly versionBefore: number;
+      readonly versionAfter: number;
+      readonly before: Record<string, unknown>;
+      readonly after: Record<string, unknown>;
+      readonly timestamp: number;
+    }
   | {
       readonly type: 'root_injected';
       readonly targetNodeId: string;
@@ -157,6 +188,8 @@ export type CausalTelemetryEvent =
   | {
       readonly type: 'change_start';
       readonly nodeId: string;
+      readonly infoId: number;
+      readonly causedByChangeId?: number;
       readonly info: NativeInfo;
       readonly submissionId?: string;
       readonly changeId: number;
@@ -197,6 +230,26 @@ export interface NativeRuleSpaceOptions {
   readonly idProvider?: IdProvider;
   readonly valueCodec?: ValueCodec;
   readonly replaceTimeoutMs?: number;
+}
+
+export type CausalEventRecord = CausalTelemetryEvent & { readonly cursor: number };
+
+export interface StateInterventionOptions {
+  readonly actor: string;
+  readonly reason: string;
+  readonly expectedGeneration: number;
+  readonly expectedVersion: number;
+  readonly timeoutMs?: number;
+}
+
+export interface PendingNativeInfo {
+  readonly infoId: number;
+  readonly senderNodeId: string;
+  readonly targetNodeId: string;
+  readonly info: NativeInfo;
+  readonly generation: number;
+  readonly causedByChangeId?: number;
+  readonly submissionId?: string;
 }
 
 export interface NativeRegisterOptions {
@@ -286,6 +339,9 @@ export class NativeRuleSpace {
   private readonly submissionControllers = new Map<string, AbortController>();
   private readonly projectionListeners = new Set<(projection: GraphProjection) => void>();
   private readonly telemetryListeners = new Set<(event: CausalTelemetryEvent) => void>();
+  private readonly causalEvents: CausalEventRecord[] = [];
+  private causalCursor = 0;
+  private readonly interventions = new Set<string>();
   private readonly activeEntities = new Set<string>();
   private readonly replacements = new Set<string>();
   private readonly pendingDisposals = new Set<Promise<void>>();
@@ -364,7 +420,9 @@ export class NativeRuleSpace {
     registration: NativeRegisterOptions = {},
   ): Promise<number> {
     if (!this.nodes.has(id)) throw new Error(`Cannot replace missing entity: ${id}`);
-    if (this.replacements.has(id)) throw new Error(`Replace already in progress: ${id}`);
+    if (this.replacements.has(id) || this.interventions.has(id)) {
+      throw new Error(`Replace already in progress or State intervention active: ${id}`);
+    }
     const preparedState = this.cloneState(initialState);
     const old = this.nodes.get(id)!;
     const deadline = this.clock.monotonicNow() + (options.timeoutMs ?? this.replaceTimeoutMs);
@@ -436,7 +494,8 @@ export class NativeRuleSpace {
   }
 
   private emitTelemetry(event: CausalTelemetryEvent): void {
-    if (this.telemetryListeners.size === 0) return;
+    this.causalEvents.push(this.cloneState({ ...event, cursor: ++this.causalCursor }));
+    if (this.causalEvents.length > 1000) this.causalEvents.shift();
     for (const listener of this.telemetryListeners) {
       try {
         listener(event);
@@ -444,6 +503,25 @@ export class NativeRuleSpace {
         console.error('[NativeRuleSpace] Telemetry listener failed:', error);
       }
     }
+  }
+
+  readCausalEvents(options: { after?: number; limit?: number } = {}): {
+    events: CausalEventRecord[];
+    nextCursor: number;
+    truncated: boolean;
+  } {
+    const after = options.after ?? 0;
+    const limit = options.limit ?? 100;
+    if (!Number.isSafeInteger(after) || after < 0) throw new Error('Invalid causal cursor');
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new Error('Invalid causal limit');
+    const oldest = this.causalEvents[0]?.cursor ?? this.causalCursor + 1;
+    const events = this.causalEvents.filter((event) => event.cursor > after)
+      .slice(0, limit).map((event) => this.cloneState(event));
+    return {
+      events,
+      nextCursor: events.at(-1)?.cursor ?? after,
+      truncated: after < oldest - 1,
+    };
   }
 
   private publishProjection(): void {
@@ -519,6 +597,18 @@ export class NativeRuleSpace {
     return this.binding.queuedDepths();
   }
 
+  readPendingInfos(): PendingNativeInfo[] {
+    return this.binding.queuedInfos().map((entry) => ({
+      infoId: entry.infoId,
+      senderNodeId: entry.sender,
+      targetNodeId: entry.target,
+      info: joinInfo(entry.infoType, entry.payloadJson),
+      generation: entry.generation,
+      causedByChangeId: entry.causedBy,
+      submissionId: entry.submission,
+    }));
+  }
+
   drops(): Array<{ target: string; reason: string; submission?: string }> {
     return this.binding.drops();
   }
@@ -549,6 +639,106 @@ export class NativeRuleSpace {
       timestamp: this.clock.monotonicNow(),
     });
     return submission;
+  }
+
+  /** Trusted host entry: inject any Info without rendererRoots authorization. */
+  injectAgentInfo(
+    targetNodeId: string,
+    info: NativeInfo,
+    source: { actor: string; reason: string },
+  ): { submissionId: string; feedback: NativeDeliveryFeedback } {
+    if (typeof source?.actor !== 'string' || !source.actor.trim()
+      || typeof source.reason !== 'string' || !source.reason.trim()
+      || typeof info?.type !== 'string' || !info.type.trim()) {
+      throw new Error('Agent injection requires actor, reason and Info.type');
+    }
+    const submissionId = this.idProvider.nextId('submission');
+    if (this.binding.submissionState(submissionId) !== null) {
+      throw new Error(`Agent submission ID already exists: ${submissionId}`);
+    }
+    const payloadJson = splitPayload(info);
+    this.submissionControllers.set(submissionId, new AbortController());
+    const feedback = toFeedback(this.binding.injectRoot(
+      targetNodeId, info.type, payloadJson, submissionId,
+    ));
+    this.publishProjection();
+    this.emitTelemetry({
+      type: 'agent_info_injected', actor: source.actor, reason: source.reason,
+      targetNodeId, info: this.cloneState(info), submissionId,
+      status: feedback.status, timestamp: this.clock.monotonicNow(),
+    });
+    return { submissionId, feedback };
+  }
+
+  /** Privileged, version-checked State patch at the target's single-flight gap. */
+  async interveneState(
+    nodeId: string,
+    patch: Record<string, unknown>,
+    options: StateInterventionOptions,
+  ): Promise<{ nodeId: string; generation: number; version: number }> {
+    if (typeof options?.actor !== 'string' || !options.actor.trim()
+      || typeof options.reason !== 'string' || !options.reason.trim()) {
+      throw new Error('State intervention requires actor and reason');
+    }
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+      throw new Error('State intervention patch must be an object');
+    }
+    if (!Number.isSafeInteger(options.expectedGeneration) || options.expectedGeneration < 0
+      || !Number.isSafeInteger(options.expectedVersion) || options.expectedVersion < 0) {
+      throw new Error('State intervention requires non-negative expected generation and version');
+    }
+    if (this.interventions.has(nodeId) || this.replacements.has(nodeId)) {
+      throw new Error(`State intervention busy: ${nodeId}`);
+    }
+    const preparedPatch = this.cloneState(patch);
+    const deadline = this.clock.monotonicNow() + (options.timeoutMs ?? this.replaceTimeoutMs);
+    this.interventions.add(nodeId);
+    let generation: number | undefined;
+    let result!: { nodeId: string; generation: number; version: number };
+    let interventionEvent!: CausalTelemetryEvent;
+    try {
+      for (;;) {
+        try {
+          generation = this.binding.beginEdit(nodeId);
+          break;
+        } catch (error) {
+          if (!isBusyError(error) || this.clock.monotonicNow() >= deadline) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 1));
+        }
+      }
+      const node = this.nodes.get(nodeId);
+      if (!node || generation !== options.expectedGeneration) {
+        throw new Error(`State intervention generation conflict: ${nodeId}`);
+      }
+      if (node.version !== options.expectedVersion) {
+        throw new Error(`State intervention version conflict: ${nodeId}`);
+      }
+      const before = this.cloneState(node.state);
+      const after = this.cloneState({ ...node.state, ...preparedPatch });
+      const versionBefore = node.version;
+      node.state = after;
+      node.version += 1;
+      interventionEvent = {
+        type: 'state_intervened', actor: options.actor, reason: options.reason,
+        nodeId, generation, versionBefore, versionAfter: node.version,
+        before, after: this.cloneState(after), timestamp: this.clock.monotonicNow(),
+      };
+      result = { nodeId, generation, version: node.version };
+    } finally {
+      const released = generation === undefined
+        ? (this.binding.abortEdit(nodeId), true)
+        : this.binding.endEdit(nodeId, generation);
+      this.interventions.delete(nodeId);
+      queueMicrotask(() => {
+        const currentPump = this.pumpPromise;
+        if (currentPump) void currentPump.then(() => this.pump(), () => this.pump());
+        else void this.pump();
+      });
+      if (!released) throw new Error(`State intervention lease lost: ${nodeId}`);
+    }
+    this.emitTelemetry(interventionEvent);
+    this.publishProjection();
+    return result;
   }
 
   async waitForSubmission(submissionId: string): Promise<void> {
@@ -716,6 +906,8 @@ export class NativeRuleSpace {
     this.emitTelemetry({
       type: 'change_start',
       nodeId: polled.view.entity,
+      infoId: polled.view.infoId,
+      causedByChangeId: polled.view.causedBy,
       info,
       submissionId: polled.view.submission,
       changeId: polled.view.changeId,
@@ -794,22 +986,30 @@ export class NativeRuleSpace {
     if (!target || target === polled.view.entity) return;
     if (triggerType === ERROR_INFO_TYPE) return;
     if (!this.nodes.has(target)) return;
-    this.binding.send(
+    const errorInfo = {
+      type: ERROR_INFO_TYPE,
+      nodeId: polled.view.entity,
+      generation: polled.view.generation,
+      changeId: polled.view.changeId,
+      submission: polled.view.submission,
+      causeInfoType: triggerType,
+      message,
+      stack,
+    };
+    const feedback = toFeedback(this.binding.send(
       polled.view.entity,
       ERROR_INFO_TYPE,
-      JSON.stringify({
-        nodeId: polled.view.entity,
-        generation: polled.view.generation,
-        changeId: polled.view.changeId,
-        submission: polled.view.submission,
-        causeInfoType: triggerType,
-        message,
-        stack,
-      }),
+      splitPayload(errorInfo),
       target,
       polled.view.changeId,
       polled.view.submission,
-    );
+    ));
+    this.emitTelemetry({
+      type: 'info_sent', fromNodeId: polled.view.entity, toNodeId: target,
+      info: errorInfo, submissionId: polled.view.submission,
+      changeId: polled.view.changeId, status: feedback.status,
+      timestamp: this.clock.monotonicNow(),
+    });
   }
 }
 

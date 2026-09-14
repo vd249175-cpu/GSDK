@@ -70,6 +70,8 @@ pub struct JsChangeToken {
 #[napi(object)]
 pub struct JsChangeView {
     pub change_id: f64,
+    pub info_id: f64,
+    pub caused_by: Option<f64>,
     pub entity: String,
     pub generation: f64,
     pub info_type: String,
@@ -99,6 +101,18 @@ pub struct JsDroppedDelivery {
 pub struct JsQueuedDepth {
     pub entity: String,
     pub depth: f64,
+}
+
+#[napi(object)]
+pub struct JsQueuedInfo {
+    pub info_id: f64,
+    pub sender: String,
+    pub target: String,
+    pub info_type: String,
+    pub payload_json: Option<String>,
+    pub generation: f64,
+    pub caused_by: Option<f64>,
+    pub submission: Option<String>,
 }
 
 /// The rule space. Synchronous only; JS drives the pump.
@@ -174,6 +188,28 @@ impl RuleSpace {
         Ok(kernel.generation(&id).map(|generation| generation as f64))
     }
 
+    #[napi]
+    pub fn begin_edit(&self, id: String) -> Result<f64> {
+        let mut kernel = self.inner.lock().map_err(lock_error)?;
+        kernel
+            .begin_edit(&id)
+            .map(|generation| generation as f64)
+            .map_err(kernel_error_to_js)
+    }
+
+    #[napi]
+    pub fn end_edit(&self, id: String, generation: f64) -> Result<bool> {
+        let mut kernel = self.inner.lock().map_err(lock_error)?;
+        Ok(kernel.end_edit(&id, generation as u64))
+    }
+
+    #[napi]
+    pub fn abort_edit(&self, id: String) -> Result<()> {
+        let mut kernel = self.inner.lock().map_err(lock_error)?;
+        kernel.abort_edit(&id);
+        Ok(())
+    }
+
     /// Directional pulse from one entity to another.
     #[napi]
     pub fn send(
@@ -230,6 +266,8 @@ impl RuleSpace {
             },
             view: JsChangeView {
                 change_id: id_to_js(view.change_id),
+                info_id: id_to_js(view.info_id),
+                caused_by: view.caused_by.map(id_to_js),
                 entity: view.entity,
                 generation: view.generation as f64,
                 info_type: view.info_type,
@@ -305,6 +343,26 @@ impl RuleSpace {
             .map(|entry| JsQueuedDepth {
                 entity: entry.entity,
                 depth: entry.depth as f64,
+            })
+            .collect())
+    }
+
+    /// Pending Info snapshot for the trusted control plane.
+    #[napi]
+    pub fn queued_infos(&self) -> Result<Vec<JsQueuedInfo>> {
+        let kernel = self.inner.lock().map_err(lock_error)?;
+        Ok(kernel
+            .queued_infos()
+            .into_iter()
+            .map(|info| JsQueuedInfo {
+                info_id: id_to_js(info.info_id),
+                sender: info.sender,
+                target: info.target,
+                info_type: info.info_type,
+                payload_json: info.payload_json,
+                generation: info.generation as f64,
+                caused_by: info.caused_by.map(id_to_js),
+                submission: info.submission,
             })
             .collect())
     }

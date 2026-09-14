@@ -56,7 +56,7 @@ Node 是私有 State 的自治 Owner。所有具体 Node 位于已装配插件�
 
 ### State
 
-每个字段只有一个 Owner。`ctx.read/write/patchState` 只能访问当前 Node 的 State。写入立即增加 Node 版本；单飞保证同一 Node 不会并发变迁。当前实现不是可回滚数据库事务，取消不会撤销已经发生的写入。
+每个字段只有一个 Owner。普通业务变迁中，`ctx.read/write/patchState` 只能访问当前 Node 的 State。写入立即增加 Node 版本；单飞保证同一 Node 不会并发变迁。可信主进程的 Agent 控制面可以在 Rust 编辑保留位取得单飞间隙后，凭预期 generation/version 对该 Owner 的 State 做一次带审计的干预；这不是 Node 的 change，也不会自动发送 Info 或执行 Effect。当前实现不是可回滚数据库事务，取消不会撤销已经发生的写入。
 
 ### Info
 
@@ -76,7 +76,7 @@ Info → mailbox → single-flight change
      → ChangeRecord / StateDelta → Projection
 ```
 
-Node 不暴露直接 `setState`、直接 send、Transition Registry 或 Runtime 旁路。
+Node 不暴露直接 `setState`、直接 send、Transition Registry 或 Runtime 旁路。Agent 干预是主进程持有的独立控制面，不加入 Node `ctx`。
 
 ### 错误即特殊 Info（Error as Causal Info）
 
@@ -161,9 +161,11 @@ renderer 图协议只有：
 
 `graph.cancel` 中止指定 submission 的 AbortSignal：未执行 delivery 会跳过，send/effect 会停止继续推进；已写 State 和已完成物理副作用不回滚。
 
+可信主进程另有 Agent 控制面：`agentInspect` 读取 Projection、解码后的各 Node State、待投递 Info、drop ledger 和带游标的近期因果事件；`agentInject` 向任意已装配 Node 注入根 Info 并取得物理投递反馈；`agentInterveneState` 在单飞间隙以 generation/version 比较后修改 State。干预留下 `state_intervened` 事件，包含 actor、reason、修改前后 State 和版本。近期事件在宿主内存中最多保留 1000 条；游标过旧会报告 `truncated`，它不是持久审计库。
+
 ## 6. 应用边界
 
-主进程宿主把 renderer 方法翻译为经过 `rendererRoots` 校验的根 Info，或调用明确的图外桌面服务。图外服务不会被伪装成 Kernel 字段或边。当前本地应用只暴露 counter 读写与窗口控制白名单；renderer 不能指定任意 Node、Info 或 submission。
+主进程宿主把 renderer 方法翻译为经过 `rendererRoots` 校验的根 Info，或调用明确的图外桌面服务。图外服务不会被伪装成 Kernel 字段或边。当前本地应用只暴露 counter 读写与窗口控制白名单；renderer 不能指定任意 Node、Info 或 submission。Agent 控制面由独立的本机回环端口承载，使用启动时生成的随机令牌，并拒绝带浏览器 Origin 的请求；它不映射到 renderer IPC 或开放给可视化工具的遥测服务。
 
 ## 7. 实例驱动分析
 
@@ -197,7 +199,7 @@ Node 的 contains/owns 是归属，不是路径捷径。分析工具接收普通
 2. 每个 State 字段只有一个 Owner。
 3. Node 间只通过实际 `ctx.send` 通信。
 4. 同一 Node 的 change 严格 single-flight；单个 change 可并发等待独立 Effect，该约束不限制外部任务同时在途。
-5. State 和 send 只能经过当前 change ctx。
+5. 普通 Node 的 State 写入和 send 只能经过当前 change ctx；可信主进程 Agent 可以经单飞编辑保留位进行显式、带版本校验与审计的 State 干预，也可以作为外部根注入 Info。
 6. 纯领域 Node 零物理副作用；WorldNode 严格分为执行类（`ExecutionWorldNode`）与观察类（`ObservationWorldNode`），观察与执行职责必须物理分离。
 7. renderer 只注入根 Info、只读取 Projection。
 8. 应用命令等待自身 submission，不等待全图。

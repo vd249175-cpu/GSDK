@@ -4,6 +4,7 @@ import { createServer } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNativeGraphHost } from './native-graph-host.mjs'
+import { startAgentControlServer } from './services/agent-control.mjs'
 import { NodeGenerationAdapter } from './effects/node-generation-adapter.js'
 import studioPlugin from '../plugins/graphvideo.studio/backend.js'
 import {
@@ -53,6 +54,7 @@ import {
 
 const here = dirname(fileURLToPath(import.meta.url))
 const appRoot = join(here, '..')
+let agentControl = null
 
 function loadEnvFile(filePath) {
   if (!existsSync(filePath)) return
@@ -299,12 +301,7 @@ function registerIpcHandlers() {
   ipcMain.handle('graph:request', async (_event, { method, input }) => {
     switch (method) {
       case 'graph.injectRootInfo': {
-        const result = await host.injectRoot(input.targetNodeId, input.info, input.submissionId)
-        return {
-          status: 'accepted',
-          submissionId: input.submissionId || 'root-sub',
-          projection: host.readProjection(),
-        }
+        return host.injectRoot(input.targetNodeId, input.info, input.submissionId)
       }
       case 'graph.projection.read':
         return { projection: host.readProjection() }
@@ -519,6 +516,11 @@ if (!gotLock) {
   app.whenReady().then(async () => {
     registerIpcHandlers()
     startTelemetryLoopbackServer(51888)
+    try {
+      agentControl = await startAgentControlServer(host)
+    } catch (error) {
+      console.error('[GraphVideo] Agent control failed to start:', error)
+    }
     protocol.handle('graphvideo-asset', handleAssetRequest)
     await createWindow()
   })
@@ -526,6 +528,7 @@ if (!gotLock) {
 
 app.on('window-all-closed', () => {
   projectExternalSync.stop()
+  void agentControl?.close()
   try {
     telemetryServer?.close()
   } catch {}

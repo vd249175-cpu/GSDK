@@ -35,6 +35,9 @@ pub enum ChangeOutcome {
 pub struct ChangeView {
     /// Running change identity.
     pub change_id: ChangeId,
+    /// Info that opened this change.
+    pub info_id: u64,
+    pub caused_by: Option<ChangeId>,
     /// Entity executing the change.
     pub entity: EntityId,
     /// Entity generation at begin time.
@@ -188,6 +191,45 @@ impl Kernel {
         self.registry.generation(id)
     }
 
+    /// Reserve the next single-flight gap for a synchronous host State edit.
+    /// Mailbox deliveries continue to enqueue while the reservation waits.
+    pub fn begin_edit(&mut self, id: &str) -> Result<Generation, KernelError> {
+        let slot = self
+            .registry
+            .get_mut(id)
+            .ok_or_else(|| KernelError::UnknownEntity(id.to_owned()))?;
+        if slot.sealed || slot.editing {
+            return Err(KernelError::Busy(id.to_owned()));
+        }
+        slot.edit_requested = true;
+        if slot.active_change.is_some() {
+            return Err(KernelError::Busy(id.to_owned()));
+        }
+        slot.editing = true;
+        Ok(slot.generation)
+    }
+
+    /// Release a completed edit, validating that the same slot still exists.
+    pub fn end_edit(&mut self, id: &str, generation: Generation) -> bool {
+        let Some(slot) = self.registry.get_mut(id) else {
+            return false;
+        };
+        if !slot.editing || slot.generation != generation {
+            return false;
+        }
+        slot.editing = false;
+        slot.edit_requested = false;
+        true
+    }
+
+    /// Abandon a pending reservation after a timeout or failed preparation.
+    pub fn abort_edit(&mut self, id: &str) {
+        if let Some(slot) = self.registry.get_mut(id) {
+            slot.editing = false;
+            slot.edit_requested = false;
+        }
+    }
+
     pub fn send(
         &mut self,
         sender: EntityId,
@@ -306,7 +348,7 @@ impl Kernel {
             if slot.sealed {
                 return Err(BeginError::Sealed(id));
             }
-            if slot.active_change.is_some() {
+            if slot.active_change.is_some() || slot.edit_requested {
                 return Err(BeginError::Busy(id));
             }
             slot.mailbox
@@ -329,6 +371,8 @@ impl Kernel {
         slot.active_change = Some(change_id);
         let view = ChangeView {
             change_id,
+            info_id: info.info_id,
+            caused_by: info.caused_by,
             entity: id.clone(),
             generation: info.generation,
             info_type: info.info_type.clone(),
@@ -483,6 +527,16 @@ impl Kernel {
                     depth: slot.mailbox.len(),
                 })
             })
+            .collect()
+    }
+
+    /// Snapshot of pending Info, including payload and causal identity.
+    pub fn queued_infos(&self) -> Vec<QueuedInfo> {
+        self.registry
+            .ordered_ids()
+            .into_iter()
+            .filter_map(|id| self.registry.get(&id))
+            .flat_map(|slot| slot.mailbox.iter().cloned())
             .collect()
     }
 
