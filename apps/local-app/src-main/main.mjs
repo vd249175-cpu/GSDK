@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { createNativeGraphHost } from './native-graph-host.mjs'
 import { startAgentControlServer } from './services/agent-control.mjs'
 import { NodeGenerationAdapter } from './effects/node-generation-adapter.js'
+import { createElectronWindowAdapter } from './effects/electron-window-adapter.mjs'
 import studioPlugin from '../plugins/graphvideo.studio/backend.js'
 import {
   openLocalProject,
@@ -97,6 +98,7 @@ protocol.registerSchemesAsPrivileged([
 
 let activeProjectRoot = null
 let mainWindow = null
+let pendingCloseObservation = Promise.resolve()
 
 // 广播通知到所有渲染窗口
 function broadcast(channel, payload) {
@@ -117,27 +119,53 @@ const generationAdapter = new NodeGenerationAdapter({
   comfyApiKey: process.env.COMFY_API_KEY || process.env.COMFY_CLOUD_API_KEY || '',
 })
 
-// 初始化基于 Rust 原生微内核 (NativeRuleSpace) 的 Studio 宿主
-const host = createNativeGraphHost({
-  dependencies: {
-    generationAdapterOperation: generationAdapter,
-    sqlitePersistAdapter: {
-      id: 'effect:adapter:sqlite-metadata',
-      async execute(request, context) {
-        if (!activeProjectRoot) throw new Error('SQLite Remote Effect 需要已打开项目')
-        return persistGraphMetadata(activeProjectRoot, request?.records)
-      },
-    },
-    projectStructurePersistAdapter: {
-      id: 'effect:adapter:project-structure',
-      async execute(request, context) {
-        if (!activeProjectRoot) throw new Error('Project Structure Effect 需要已打开项目')
-        return saveProjectStructure(activeProjectRoot, request)
-      },
-    },
-  },
-  plugins: [studioPlugin],
+const electronWindowAdapter = createElectronWindowAdapter({
+  openWindow: (config) => createWindow(config),
+  getWindow: () => mainWindow,
 })
+
+// Only the single-instance owner mounts the Rust-backed Studio graph.
+let host = null
+function initializeGraphHost() {
+  return createNativeGraphHost({
+    dependencies: {
+      electronWindowAdapter,
+      generationAdapterOperation: generationAdapter,
+      sqlitePersistAdapter: {
+        id: 'effect:adapter:sqlite-metadata',
+        async execute(request, context) {
+          if (!activeProjectRoot) throw new Error('SQLite Remote Effect 需要已打开项目')
+          return persistGraphMetadata(activeProjectRoot, request?.records)
+        },
+      },
+      projectStructurePersistAdapter: {
+        id: 'effect:adapter:project-structure',
+        async execute(request, context) {
+          if (!activeProjectRoot) throw new Error('Project Structure Effect 需要已打开项目')
+          return saveProjectStructure(activeProjectRoot, request)
+        },
+      },
+    },
+    plugins: [studioPlugin],
+  })
+}
+
+async function submitDesktopInfo(info) {
+  const submissionId = host.space.injectRoot('host-el', info)
+  await host.space.waitForSubmission(submissionId)
+}
+
+function submitDesktopInfoFromEvent(info) {
+  void submitDesktopInfo(info).catch((error) => {
+    console.error('[GraphVideo] Desktop lifecycle Info failed:', error)
+  })
+}
+
+function reopenDesktopFromEvent() {
+  void pendingCloseObservation.then(() => submitDesktopInfo({ type: 'DesktopStartRequestedInfo' })).catch((error) => {
+    console.error('[GraphVideo] Desktop reopen Info failed:', error)
+  })
+}
 
 async function openProjectAtPath(projectPath) {
   loadEnvFile(join(projectPath, '.env'))
@@ -284,13 +312,10 @@ function startTelemetryLoopbackServer(port = 51888) {
 // 注册 IPC 通道
 function registerIpcHandlers() {
   // 窗口基础控制
-  ipcMain.on('window:minimize', () => mainWindow?.minimize())
-  ipcMain.on('window:toggle-maximize', () => {
-    if (mainWindow?.isMaximized()) mainWindow.unmaximize()
-    else mainWindow?.maximize()
-  })
-  ipcMain.on('window:close', () => mainWindow?.close())
-  ipcMain.on('window:reload', () => mainWindow?.webContents.reload())
+  ipcMain.on('window:minimize', () => submitDesktopInfoFromEvent({ type: 'WindowActionTaskInfo', action: 'MINIMIZE' }))
+  ipcMain.on('window:toggle-maximize', () => submitDesktopInfoFromEvent({ type: 'WindowActionTaskInfo', action: 'TOGGLE_MAXIMIZE' }))
+  ipcMain.on('window:close', () => submitDesktopInfoFromEvent({ type: 'DesktopCloseRequestedInfo' }))
+  ipcMain.on('window:reload', () => submitDesktopInfoFromEvent({ type: 'WindowActionTaskInfo', action: 'RELOAD' }))
 
   // 广播微内核原生因果遥测（供 3D 拓扑流看板与分析工具实时观察）
   host.subscribeCausalTelemetry((event) => {
@@ -469,48 +494,68 @@ function registerIpcHandlers() {
   ipcMain.handle('os:stop-app', async () => ({}))
 }
 
-async function createWindow() {
+async function createWindow(config = {}) {
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow
   const isMac = process.platform === 'darwin'
-  mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
+  const window = new BrowserWindow({
+    width: config.width ?? 1440,
+    height: config.height ?? 900,
     minWidth: 1024,
     minHeight: 700,
-    frame: false,
+    frame: config.frameless === undefined ? false : !config.frameless,
     titleBarStyle: isMac ? 'hidden' : undefined,
     trafficLightPosition: isMac ? { x: 12, y: 11 } : undefined,
     backgroundColor: '#0c0e12',
+    title: config.title ?? 'GraphVideo Desktop',
     webPreferences: {
       preload: join(here, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   })
+  mainWindow = window
 
-  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+  window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     console.log(`[Renderer L${level}] ${message} (${sourceId}:${line})`)
   })
 
-  mainWindow.on('closed', () => {
-    mainWindow = null
+  window.on('closed', () => {
+    if (mainWindow === window) mainWindow = null
+    const submissionId = host.space.injectRoot('src-electron-window', { type: 'ElectronWindowClosedObservedInfo' })
+    pendingCloseObservation = host.space.waitForSubmission(submissionId).catch((error) => {
+      console.error('[GraphVideo] Window close observation failed:', error)
+    })
   })
 
-  if (process.env.VITE_DEV_SERVER_URL) {
-    await mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
-  } else {
-    await mainWindow.loadFile(join(here, '../renderer-dist/index.html'))
+  try {
+    if (process.env.VITE_DEV_SERVER_URL) {
+      await window.loadURL(process.env.VITE_DEV_SERVER_URL)
+    } else {
+      await window.loadFile(join(here, '../renderer-dist/index.html'))
+    }
+  } catch (error) {
+    if (!window.isDestroyed()) window.destroy()
+    throw error
   }
+  return window
 }
 
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
 } else {
+  host = initializeGraphHost()
   app.on('second-instance', () => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
+    } else {
+      reopenDesktopFromEvent()
     }
+  })
+
+  app.on('activate', () => {
+    if (!mainWindow) reopenDesktopFromEvent()
   })
 
   app.whenReady().then(async () => {
@@ -522,16 +567,12 @@ if (!gotLock) {
       console.error('[GraphVideo] Agent control failed to start:', error)
     }
     protocol.handle('graphvideo-asset', handleAssetRequest)
-    await createWindow()
+    await submitDesktopInfo({ type: 'DesktopStartRequestedInfo' })
+  }).catch((error) => {
+    console.error('[GraphVideo] Desktop bootstrap failed:', error)
   })
 }
 
 app.on('window-all-closed', () => {
-  projectExternalSync.stop()
-  void agentControl?.close()
-  try {
-    telemetryServer?.close()
-  } catch {}
-  void host.dispose()
-  if (process.platform !== 'darwin') app.quit()
+  // Closing the desktop viewport does not terminate its graph host or Rust scheduler.
 })

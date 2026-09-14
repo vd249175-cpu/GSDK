@@ -41,6 +41,8 @@ Electron main
 
 Kernel 不是独立进程，没有 Socket、握手、远程挂载或第二套执行器。renderer/main 的 IPC 是桌面安全边界。
 
+桌面窗口的生命周期现由 Studio 图推进：主进程在 ready 后向 `host-el` 注入 `DesktopStartRequestedInfo`，关闭窗口的 UI 命令注入 `DesktopCloseRequestedInfo`；`host-el` 将物理动作定向发送给 `sink-electron-window`，其 EffectAdapter 执行 BrowserWindow 操作，`src-electron-window` 把执行结果和系统 `closed` 事件转为 Observation Info，最终由 `host-el` 更新 State。关闭所有窗口不销毁 `NativeRuleSpace`，Electron 主进程和其加载的 Rust N-API 调度器继续运行，可由第二次启动或系统 activate 重新开窗。当前 Rust 调度器仍驻留 Electron 主进程；若整个主进程被结束，Rust 调度器也会结束，尚无独立 Rust 守护进程或进程级自动恢复。
+
 ## 3. 三层权限
 
 | 层 | 目录 | 权限 |
