@@ -4,7 +4,7 @@ import studioPlugin from '../plugins/graphvideo.studio/backend.js'
 /**
  * 原生微内核图宿主 (NativeGraphHost)：
  * 统一基于 Rust 原生微内核（crates/kernel 经 NativeRuleSpace），
- * 负责 16 个 Studio 领域节点的调度、生命周期、物理适配器依赖注入以及 Projection 导出。
+ * 负责 Studio 节点的调度、生命周期、物理适配器依赖注入以及 Projection 导出。
  */
 export function createNativeGraphHost({
   dependencies = {}, plugins = [studioPlugin], mountStudioNodes = true,
@@ -27,8 +27,9 @@ export function createNativeGraphHost({
   })
   const mountedNodes = []
 
-  if (mountStudioNodes && plugins.some((p) => p?.id === studioPlugin.id)) {
-    const studioNodes = studioPlugin.createNodes({ dependencies })
+  const mountedStudioPlugin = plugins.find((p) => p?.id === studioPlugin.id)
+  if (mountStudioNodes && mountedStudioPlugin) {
+    const studioNodes = mountedStudioPlugin.createNodes({ dependencies })
     for (const node of studioNodes) {
       mountDomainNode(space, node)
       mountedNodes.push(node)

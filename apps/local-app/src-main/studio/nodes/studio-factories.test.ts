@@ -3,13 +3,13 @@ import { KernelRuntime } from '@graphvideo/kernel';
 import { createStudioNodes } from './studio-factories';
 
 describe('Studio Node factories', () => {
-  it('elaborates a fresh flat 16-node batch on every call', () => {
+  it('elaborates a fresh flat 18-node batch on every call', () => {
     const first = createStudioNodes({});
     const second = createStudioNodes({});
 
-    expect(first).toHaveLength(16);
+    expect(first).toHaveLength(18);
     expect(first.map((node) => node.id)).toEqual(second.map((node) => node.id));
-    expect(new Set(first.map((node) => node.id)).size).toBe(16);
+    expect(new Set(first.map((node) => node.id)).size).toBe(18);
     first.forEach((node, index) => {
       expect(second[index]).not.toBe(node);
       expect(second[index].getState()).not.toBe(node.getState());
@@ -26,6 +26,9 @@ describe('Studio Node factories', () => {
     expect(byId.has('node-sqlite')).toBe(true);
     expect(byId.has('node-generation-task')).toBe(true);
     expect(byId.has('host-el')).toBe(true);
+    expect(byId.get('host-el')?.isWorldNode).toBe(false);
+    expect((byId.get('sink-electron-window') as { worldKind?: string })?.worldKind).toBe('execution');
+    expect((byId.get('src-electron-window') as { worldKind?: string })?.worldKind).toBe('observation');
     for (const retiredId of [
       'node-agent-console',
       'sink-pty-stdin',
@@ -41,7 +44,7 @@ describe('Studio Node factories', () => {
     expect((byId.get('node-md-source') as any).parserTarget).toBeUndefined();
 
     const runtime = new KernelRuntime().mount(...nodes);
-    expect(runtime.nodes.size).toBe(16);
+    expect(runtime.nodes.size).toBe(18);
   });
 
   it('lets each constructed Node inspect its static configuration without running change', () => {

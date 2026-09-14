@@ -9,7 +9,7 @@ import {
 
 export type { StudioNodeDependencies } from './studio-node-groups'
 
-/** The production composition factory creating all 16 Studio Nodes. */
+/** The production composition factory creating all 18 Studio Nodes. */
 export const createStudioNodes = defineGraphFactory(
   (dependencies: StudioNodeDependencies = {}) => [
     ...createAuthoringNodes(dependencies),

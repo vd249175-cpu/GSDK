@@ -6,7 +6,7 @@ import type {
   GenerationAdapterOperationObservation,
   GenerationAdapterOperationRequest,
 } from '../effects/generation-adapter-operation';
-import { ElectronHostNode } from './electron-host';
+import { ElectronHostNode, ElectronWindowExecutionNode, ElectronWindowObservationNode } from './electron-host';
 import { FileSystemSourceNode } from './file-system';
 import { SecurityGateNode } from './generation-security';
 import { GenerationDownloadSinkNode } from './generation-download';
@@ -97,9 +97,15 @@ export const createGenerationDownloadNode = defineNodeFactory(
   ),
 );
 export const createElectronHostNode = defineNodeFactory(
-  (dependencies: StudioNodeDependencies) => new ElectronHostNode(
-    'host-el', '应用级桌面渲染宿主', dependencies.electronWindowAdapter,
+  (_dependencies: StudioNodeDependencies) => new ElectronHostNode(),
+);
+export const createElectronWindowExecutionNode = defineNodeFactory(
+  (dependencies: StudioNodeDependencies) => new ElectronWindowExecutionNode(
+    'sink-electron-window', '桌面窗口执行端', dependencies.electronWindowAdapter,
   ),
+);
+export const createElectronWindowObservationNode = defineNodeFactory(
+  (_dependencies: StudioNodeDependencies) => new ElectronWindowObservationNode(),
 );
 
 export const createAuthoringNodes = defineGraphFactory(
@@ -135,6 +141,8 @@ export const createGenerationNodes = defineGraphFactory(
 export const createPlatformNodes = defineGraphFactory(
   (dependencies: StudioNodeDependencies) => [
     createElectronHostNode(dependencies),
+    createElectronWindowExecutionNode(dependencies),
+    createElectronWindowObservationNode(dependencies),
   ],
 );
 
