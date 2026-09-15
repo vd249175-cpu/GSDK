@@ -17,6 +17,8 @@ sdk/
 
 当前本地应用在 `src-main/main.mjs` 中显式导入插件，调用 `plugin.createNodes({})` 后挂载到唯一 `NativeRuleSpace`。`products/default.json` 记录产品选择，但当前没有动态插件安装器或运行时目录扫描器。renderer 不加载后端模块，也不持有 Kernel。
 
+正式插件与同事自行开发的自动化插件使用完全相同的运行接口；“核心”只表示发布与维护归属，不是另一种内核插件类型。发布包的不可修改边界、独立插件扩展方式、OKF 说明和折叠建议见[插件发布与协作契约](./plugin-collaboration-contract.md)。
+
 开发期 `@graphvideo/sdk/analysis` 提供 `findAnalysisNodeChain(view, nodeIds, maxPaths?, maxDepth?)` 和 `findCausalChain(index, addresses, options?)`，按输入顺序检查每一相邻段。结果包含 `waypoints/segments/connected/failedSegmentIndexes`，失败段保留 `reversePaths`；段序号从 0 开始。既有两点 `findAnalysisNodePaths/findCausalPaths` 继续可用。`selectInducedSubgraph` 额外返回 `boundaryIn/boundaryOut/rootInfos/entryPoints/exitPoints`，实体成员不包含外部 Owner。以上 API 只使用本次分析的派生事实，不用于证明某次 submission 的执行顺序，不进入 renderer 生产依赖。
 
 各路径结果的 `diagnostics` 包含 `status`（found/depth-limited/unreachable）、`shortestDistance`、路径 `truncated` 与 `frontier`；失败段的 `reverseDiagnostics` 给出反向证据，未执行反查时为 null。`maxPaths` 必须是正安全整数，`maxDepth` 必须是非负安全整数；不存在的端点报错。Node 端点只展开为本 Node 的 change/State，不引入成员捷径。开发期实例描述通过 `inspectNodeObjects(nodes)` 获取，`AnalysisInstanceDescriptor` 类型来自分析 SDK；后端 Node 基类不承载反射或展示字段。
