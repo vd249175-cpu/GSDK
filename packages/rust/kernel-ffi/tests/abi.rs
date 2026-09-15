@@ -109,3 +109,33 @@ fn c_abi_analysis_matches_the_shared_rust_compute() {
     let bad = gv_analyze(c("{\"op\":\"nope\"}").as_ptr(), facts.as_ptr());
     assert!(bad.is_null());
 }
+
+/// The C ABI entry accepts the contract golden bundle and returns the same
+/// route DTO as the authoritative compute: entries differ, bytes do not.
+#[test]
+fn c_abi_analysis_accepts_the_contract_golden_frame() {
+    let path = format!(
+        "{}/../../contract/golden-frames/analysis-basic.json",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let frame: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path).expect("contract golden frame"))
+            .expect("contract golden JSON");
+    let mut bundled = frame["facts"].clone();
+    bundled["frontendLinks"] = frame["context"]["frontendLinks"].clone();
+    bundled["frontendServiceLinks"] = frame["context"]["frontendServiceLinks"].clone();
+    let request = c(&frame["request"].to_string());
+    let facts = c(&bundled.to_string());
+    let raw = gv_analyze(request.as_ptr(), facts.as_ptr());
+    assert!(!raw.is_null());
+    let text = unsafe { CStr::from_ptr(raw).to_str().unwrap().to_owned() };
+    unsafe { gv_analysis_free(raw) };
+    let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let routes: Vec<&str> = value["routes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|route| route["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(routes, vec!["route:a->b:TickInfo", "route:b->b:TickInfo"]);
+}

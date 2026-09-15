@@ -150,3 +150,33 @@ fn golden_view_health_centrality_community_fold_and_path() {
         json!(2)
     );
 }
+
+#[test]
+fn contract_golden_frame_matches_the_inline_fixture() {
+    let path = format!(
+        "{}/../../contract/golden-frames/analysis-basic.json",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let frame: Value =
+        serde_json::from_str(&std::fs::read_to_string(path).expect("contract golden frame"))
+            .expect("contract golden JSON");
+    let view = graphvideo_analysis::analyze_json(
+        &frame["request"],
+        &frame["facts"],
+        &frame["context"],
+    )
+    .expect("contract analysis request");
+    let routes: Vec<String> = view["routes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|route| route["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(
+        routes,
+        vec![
+            "route:a->b:TickInfo".to_owned(),
+            "route:b->b:TickInfo".to_owned(),
+        ]
+    );
+}

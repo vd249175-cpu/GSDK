@@ -1,3 +1,4 @@
+use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::process::{Child, Command, Stdio};
@@ -338,4 +339,67 @@ fn state_and_causal_queue_survive_a_client_disconnect() {
     assert_eq!(projection["nodes"]["source"]["state"]["count"], 1);
     assert_eq!(projection["nodes"]["sink"]["state"]["seen"], 1);
     assert_eq!(projection["submissions"]["s1"]["status"], "completed");
+}
+
+fn contract_frame(name: &str) -> Value {
+    let path = format!(
+        "{}/../../contract/golden-frames/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    serde_json::from_str(&fs::read_to_string(path).expect("contract golden frame"))
+        .expect("contract golden JSON")
+}
+
+#[test]
+fn contract_daemon_counter_cycle_replays_to_its_projection() {
+    let frame = contract_frame("daemon-counter-cycle.json");
+    let daemon = Daemon::start();
+    let mut client = daemon.connect();
+    let mut poll_change = Value::Null;
+    for step in frame["requests"].as_array().unwrap() {
+        let mut args = step["args"].clone();
+        if args.get("changeId").and_then(Value::as_str) == Some("$poll.change.changeId") {
+            args["changeId"] = poll_change["change"]["changeId"].clone();
+        }
+        let result = client.call(step["op"].as_str().unwrap(), args);
+        if step["op"] == "poll" {
+            poll_change = result.clone();
+        }
+        if step["op"] == "projection" {
+            assert_eq!(result["nodes"]["owner"]["state"], frame["expect"]["projection"]["nodes"]["owner"]["state"]);
+            assert_eq!(result["nodes"]["owner"]["version"], frame["expect"]["projection"]["nodes"]["owner"]["version"]);
+        }
+    }
+}
+
+#[test]
+fn contract_analysis_basic_returns_the_shared_route_dto() {
+    let frame = contract_frame("analysis-basic.json");
+    let daemon = Daemon::start();
+    let mut client = daemon.connect();
+    for snapshot in frame["facts"]["snapshots"].as_array().unwrap() {
+        client.call(
+            "admit",
+            json!({
+                "nodeId": snapshot["nodeId"],
+                "initialState": {},
+                "analysisFacts": snapshot,
+            }),
+        );
+    }
+    client.call(
+        "setAnalysisContext",
+        json!({
+            "frontendLinks": frame["context"]["frontendLinks"],
+            "frontendServiceLinks": frame["context"]["frontendServiceLinks"],
+        }),
+    );
+    let view = client.call("analyze", json!({"request": frame["request"]}));
+    let routes: Vec<&str> = view["routes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|route| route["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(routes, vec!["route:a->b:TickInfo", "route:b->b:TickInfo"]);
 }
