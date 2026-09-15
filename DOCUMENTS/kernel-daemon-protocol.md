@@ -52,7 +52,11 @@ const client = await connectKernelDaemon({ address, token })
 {"version":1,"id":2,"token":"...","op":"admit","nodeId":"counter","initialState":{"count":0},"analysisFacts":{"version":1,"nodeId":"counter","entities":[],"edges":[]},"effectCapabilities":[]}
 ```
 
-`evict` 删除 Node 和 State；`replace` 只在单飞间隙替换 generation，并使用新的初始 State。`projection` 返回当前所有 Node 的 State、version、generation 以及 submission 状态。`analysisFacts` 返回 daemon 保存的不透明便携事实，调度热路径不解析它们。
+`evict` 删除 Node 和 State；`replace` 只在单飞间隙替换 generation，丢弃旧 backlog、释放旧租约，并使用新的初始 State。它不会继承或迁移旧 State、保留跨代消息、无缝切换 worker，也不会在新版本失败时自动回滚。这些破坏性断代语义是刻意设计，不是协议缺失：内核不判断不同版本的 State schema、Info 契约或物理 Effect 是否兼容。
+
+Git 拉取、目录发现、编译器与依赖定位、自动安装/构建、进程启动和文件监听均属于可选外层宿主。daemon 只接受已经启动并通过 DTO 协议连接的 worker；业务需要恢复数据时，应以显式 Info 建模。
+
+`projection` 返回当前所有 Node 的 State、version、generation 以及 submission 状态。`analysisFacts` 返回 daemon 保存的不透明便携事实，调度热路径不解析它们。
 
 可信 Agent 的 State 干预必须携带预期版本：
 

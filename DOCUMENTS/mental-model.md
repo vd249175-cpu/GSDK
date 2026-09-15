@@ -122,6 +122,12 @@ single-flight 保护的是 Owner State 的变迁，不是业务任务或物理�
 
 因此，一个 Node 实例并不意味着只能存在一个外部在途任务。无论外部任务如何并行，Owner State 仍只能由 Owner Node 在后续单飞 change 中更新。
 
+### generation 替换是刻意断代
+
+Node 热替换不是连续发布事务，而是明确的 generation 因果边界。`replace` 等待旧 Node 到达单飞间隙，随后丢弃旧 mailbox backlog、使旧 worker 租约失效，并用新实例声明的初始 State 干净启动。旧 State 不自动继承或迁移，旧 Info 不跨 generation 重放，新版本失败也不自动回滚；这些丢失与不回滚语义是有意设计，不是待补缺陷。
+
+内核无法在零业务语义前提下判断两个版本的 State schema、Info 契约或已发生物理 Effect 是否兼容。需要保留或恢复业务事实时，应由业务通过显式 Info 建模；需要 Git 拉取、目录发现、编译器和依赖定位、安装、构建、启动或文件监听时，应由可选外层宿主完成。Rust 微内核不承担这些开发与部署职责。
+
 ### WorldNode 与 EffectAdapter
 
 纯领域 Node 不执行 I/O。所有物理操作圈禁在 `WorldNode`，且 **WorldNode 必须分为执行与观察两类，两者职责严格物理分离**：
@@ -210,3 +216,5 @@ Node 的 contains/owns 是归属，不是路径捷径。分析工具接收普通
 9. 媒体 URL 是可丢弃 DTO，磁盘路径不进入 UI。
 10. 实例分析不创建 Runtime；生产规则空间仅按需执行只读分析，不介入调度或 Node change。
 11. 节点报错即因果事实：Node 执行异常永远被捕获为特殊 Info，绝不击穿环境，可在图中自由发送与流转。
+12. generation 替换刻意丢弃旧 backlog、重置 State、使旧租约失效且不自动回滚；内核不提供 State 自动继承/迁移、无缝切换或跨代消息保留。
+13. Git、目录、编译器、依赖、安装、构建和进程启动属于可选外层宿主，不进入 Rust 微内核。
