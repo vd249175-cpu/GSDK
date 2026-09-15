@@ -29,6 +29,10 @@ GraphFramework 是一个面向桌面与后端系统的因果应用微内核运�
 
 - [OKF 文档包约定](./okf.md)：frontmatter 与当前事实文档规则。
 
+## 重构计划
+
+- [包分发阶段目录重构计划](./package-distribution-restructure-plan.md)：目标根目录、JS/Python SDK、Rust 包归位、app/plugins 拆分与分阶段验收。
+
 ## 常用验证
 
 ```bash
