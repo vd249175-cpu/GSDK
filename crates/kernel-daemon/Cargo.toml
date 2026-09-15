@@ -1,0 +1,10 @@
+[package]
+name = "graphvideo-kernel-daemon"
+version = "0.1.0"
+edition = "2021"
+description = "Business-agnostic persistent GraphVideo rule-space host"
+license = "Apache-2.0"
+
+[dependencies]
+graphvideo-kernel = { path = "../kernel" }
+serde_json = "1.0"
