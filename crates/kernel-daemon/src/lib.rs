@@ -123,6 +123,8 @@ pub struct PendingAnalysis {
     pub context: Value,
     /// The analysis request DTO (`view`, `path`, `health`, ...; no `instances`).
     pub request: Value,
+    /// Revision bound at snapshot time; the only key the result may fill.
+    pub revision: u64,
     /// Revision-keyed hit; the server returns it without running compute.
     pub cached: Option<Value>,
 }
@@ -205,17 +207,19 @@ impl Space {
 
     /// View cache key: revision plus the canonical request DTO. State values
     /// never enter the key because analysis only observes State keys.
-    fn cache_key(&self, request: &Value) -> String {
-        format!("{}\0{request}", self.analysis_revision)
+    fn cache_key(revision: u64, request: &Value) -> String {
+        format!("{revision}\0{request}")
     }
 
-    pub fn store_analysis(&mut self, request: &Value, result: Value) {
+    /// Fill the cache only under the snapshot's own revision. A result
+    /// computed from an older snapshot can never match a newer lookup.
+    pub fn store_analysis(&mut self, revision: u64, request: &Value, result: Value) {
         if self.analysis_cache.len() >= 16 {
             if let Some(first) = self.analysis_cache.keys().next().cloned() {
                 self.analysis_cache.remove(&first);
             }
         }
-        self.analysis_cache.insert(self.cache_key(request), result);
+        self.analysis_cache.insert(Self::cache_key(revision, request), result);
     }
 
     /// Validate portable facts before they touch the Node: schema, node
@@ -292,6 +296,7 @@ impl Space {
             .iter()
             .map(|(id, node)| (id.clone(), Value::Object(node.state.clone())))
             .collect();
+        let revision = self.analysis_revision;
         Ok(PendingAnalysis {
             id: request.get("id").cloned().unwrap_or(Value::Null),
             facts: json!({"snapshots": snapshots, "liveStates": live_states}),
@@ -299,8 +304,9 @@ impl Space {
                 "frontendLinks": self.frontend_links.clone(),
                 "frontendServiceLinks": self.frontend_service_links.clone(),
             }),
-            cached: self.analysis_cache.get(&self.cache_key(&inner)).cloned(),
+            cached: self.analysis_cache.get(&Self::cache_key(revision, &inner)).cloned(),
             request: inner,
+            revision,
         })
     }
 }
@@ -530,13 +536,13 @@ impl Space {
                     Some(info.to_string()),
                     submission.clone(),
                 );
-                let feedback = feedback(outcome);
+                let result = feedback(outcome.clone());
                 self.submissions.insert(
                     submission.clone(),
                     SubmissionRequest {
                         target: target.to_owned(),
                         info: info.clone(),
-                        feedback: feedback.clone(),
+                        feedback: result.clone(),
                     },
                 );
                 let mut fields = Map::new();
@@ -544,7 +550,14 @@ impl Space {
                 fields.insert("infoType".to_owned(), Value::String(kind.to_owned()));
                 fields.insert("submissionId".to_owned(), Value::String(submission));
                 self.push_event("root_injected", fields);
-                Ok(json!({"duplicate":false,"feedback":feedback}))
+                if let DeliveryFeedback::Dropped(reason) = outcome {
+                    let mut dropped = Map::new();
+                    dropped.insert("targetNodeId".to_owned(), Value::String(target.to_owned()));
+                    dropped.insert("infoType".to_owned(), Value::String(kind.to_owned()));
+                    dropped.insert("reason".to_owned(), Value::String(format!("{reason:?}")));
+                    self.push_event("delivery_dropped", dropped);
+                }
+                Ok(json!({"duplicate":false,"feedback":result}))
             }
             "poll" => {
                 if !session.active.is_empty() {
@@ -587,6 +600,16 @@ impl Space {
                     .as_deref()
                     .and_then(|value| serde_json::from_str::<Value>(value).ok())
                     .unwrap_or_else(|| json!({"type":view.info_type}));
+                let mut started = Map::new();
+                started.insert("nodeId".to_owned(), Value::String(view.entity.clone()));
+                started.insert("changeId".to_owned(), json!(change_id));
+                started.insert("infoId".to_owned(), json!(view.info_id));
+                started.insert("infoType".to_owned(), Value::String(view.info_type.clone()));
+                started.insert("sender".to_owned(), Value::String(view.sender.clone()));
+                if let Some(submission) = view.submission.clone() {
+                    started.insert("submissionId".to_owned(), Value::String(submission));
+                }
+                self.push_event("change_started", started);
                 let response = json!({"change":{
                     "changeId":change_id,"infoId":view.info_id,"nodeId":view.entity,
                     "generation":view.generation,"sender":view.sender,"info":info,
@@ -654,7 +677,18 @@ impl Space {
                                     Value::String(submission.clone()),
                                 );
                             }
-                            self.push_event("info_sent", fields);
+                            match outcome {
+                                DeliveryFeedback::Enqueued => {
+                                    self.push_event("info_sent", fields);
+                                }
+                                DeliveryFeedback::Dropped(reason) => {
+                                    fields.insert(
+                                        "reason".to_owned(),
+                                        Value::String(format!("{reason:?}")),
+                                    );
+                                    self.push_event("delivery_dropped", fields);
+                                }
+                            }
                         }
                     }
                 }
@@ -666,6 +700,11 @@ impl Space {
                 } else if !self.kernel.settle_change(token, ChangeOutcome::Completed) {
                     return Err("change settlement rejected".into());
                 }
+                let mut settled = Map::new();
+                settled.insert("nodeId".to_owned(), Value::String(entity.clone()));
+                settled.insert("changeId".to_owned(), json!(change_id));
+                settled.insert("version".to_owned(), json!(self.nodes[&entity].version));
+                self.push_event("change_settled", settled);
                 Ok(json!({"results":results,"version":self.nodes[&entity].version,"settled":true}))
             }
             "requestEffect" => {
@@ -856,8 +895,14 @@ impl Space {
                 Ok(json!({"nodeId":id,"generation":generation,"version":version,"state":state}))
             }
             "cancel" => {
-                let submission = required_str(request, "submissionId")?;
-                Ok(json!({"cancelled":self.kernel.cancel(submission)}))
+                let submission = required_str(request, "submissionId")?.to_owned();
+                let cancelled = self.kernel.cancel(&submission);
+                if cancelled {
+                    let mut fields = Map::new();
+                    fields.insert("submissionId".to_owned(), Value::String(submission));
+                    self.push_event("submission_cancelled", fields);
+                }
+                Ok(json!({"cancelled":cancelled}))
             }
             "setAnalysisContext" => {
                 let links = Self::context_array(request, "frontendLinks")?;
@@ -914,23 +959,30 @@ impl Space {
                     Some(info.to_string()),
                     submission.clone(),
                 );
-                let feedback = feedback(outcome);
+                let result = feedback(outcome.clone());
                 self.submissions.insert(
                     submission.clone(),
                     SubmissionRequest {
                         target: target.clone(),
                         info: info.clone(),
-                        feedback: feedback.clone(),
+                        feedback: result.clone(),
                     },
                 );
                 let mut fields = Map::new();
                 fields.insert("actor".to_owned(), Value::String(actor));
                 fields.insert("reason".to_owned(), Value::String(reason));
-                fields.insert("targetNodeId".to_owned(), Value::String(target));
-                fields.insert("infoType".to_owned(), Value::String(kind));
+                fields.insert("targetNodeId".to_owned(), Value::String(target.clone()));
+                fields.insert("infoType".to_owned(), Value::String(kind.clone()));
                 fields.insert("submissionId".to_owned(), Value::String(submission));
                 self.push_event("agent_injected", fields);
-                Ok(json!({"duplicate":false,"feedback":feedback}))
+                if let DeliveryFeedback::Dropped(reason) = outcome {
+                    let mut dropped = Map::new();
+                    dropped.insert("targetNodeId".to_owned(), Value::String(target));
+                    dropped.insert("infoType".to_owned(), Value::String(kind));
+                    dropped.insert("reason".to_owned(), Value::String(format!("{reason:?}")));
+                    self.push_event("delivery_dropped", dropped);
+                }
+                Ok(json!({"duplicate":false,"feedback":result}))
             }
             "agentInterveneState" => {
                 let actor = required_str(request, "actor")?.to_owned();
@@ -966,6 +1018,14 @@ impl Space {
     }
 
     fn fail_change(&mut self, token: ActiveChange, message: &str) {
+        let mut failed = Map::new();
+        failed.insert("nodeId".to_owned(), Value::String(token.entity().to_owned()));
+        failed.insert("changeId".to_owned(), json!(token.change_id()));
+        failed.insert("message".to_owned(), Value::String(message.to_owned()));
+        if let Some(submission) = token.submission().cloned() {
+            failed.insert("submissionId".to_owned(), Value::String(submission));
+        }
+        self.push_event("change_failed", failed);
         let source = token.entity().to_owned();
         if let Some(target) = self
             .error_target
@@ -1023,7 +1083,8 @@ impl Space {
                     .into(),
             );
         }
-        if let Some(hit) = self.analysis_cache.get(&self.cache_key(inner)).cloned() {
+        let revision = self.analysis_revision;
+        if let Some(hit) = self.analysis_cache.get(&Self::cache_key(revision, inner)).cloned() {
             return Ok(hit);
         }
         let snapshots: Vec<Value> = self
@@ -1043,7 +1104,7 @@ impl Space {
             "frontendServiceLinks": self.frontend_service_links.clone(),
         });
         let result = graphvideo_analysis::analyze_json(inner, &facts, &context)?;
-        self.store_analysis(inner, result.clone());
+        self.store_analysis(revision, inner, result.clone());
         Ok(result)
     }
 
@@ -1395,5 +1456,111 @@ mod tests {
                 "expectedGeneration": 0, "expectedVersion": 0}),
         );
         assert_eq!(space.analysis_revision, before);
+    }
+
+    #[test]
+    fn change_cycle_drop_and_cancel_leave_a_dynamic_event_trail() {
+        let (mut space, mut session) = setup();
+        let mut worker = Session::new(2);
+        call(
+            &mut space,
+            &mut session,
+            "admit",
+            json!({"nodeId": "a", "initialState": {}}),
+        );
+        call(&mut space, &mut worker, "claim", json!({"nodeIds": ["a"]}));
+        call(
+            &mut space,
+            &mut session,
+            "agentInject",
+            json!({"actor": "agent/test", "reason": "cycle",
+                "submissionId": "agent/cycle", "targetNodeId": "a",
+                "info": {"type": "TickInfo"}}),
+        );
+        let polled = call(&mut space, &mut worker, "poll", json!({}));
+        let change_id = polled["result"]["change"]["changeId"].as_u64().unwrap();
+        // Unknown targets never run: the drop is a causal fact, not silence.
+        let committed = call(
+            &mut space,
+            &mut worker,
+            "commit",
+            json!({"changeId": change_id, "operations": [
+                {"op": "send", "targetNodeId": "ghost",
+                    "info": {"type": "TickInfo"}},
+            ]}),
+        );
+        assert_eq!(committed["ok"], json!(true));
+        assert_eq!(
+            committed["result"]["results"][0]["status"],
+            json!("dropped")
+        );
+        call(
+            &mut space,
+            &mut session,
+            "cancel",
+            json!({"submissionId": "agent/cycle"}),
+        );
+        let inspect = call(&mut space, &mut session, "agentInspect", json!({}));
+        let kinds: Vec<String> = inspect["result"]["events"]["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|event| {
+                event.get("kind").and_then(Value::as_str).map(str::to_owned)
+            })
+            .collect();
+        for expected in [
+            "agent_injected",
+            "change_started",
+            "delivery_dropped",
+            "change_settled",
+            "submission_cancelled",
+
+        ] {
+            assert!(kinds.contains(&expected.to_owned()), "missing {expected}");
+        }
+        // The drop ledger stays queryable alongside the event trail.
+        let drops = inspect["result"]["drops"].as_array().unwrap();
+        assert!(drops.iter().any(|drop_| drop_["targetNodeId"] == json!("ghost")));
+    }
+
+    #[test]
+    fn cached_views_never_survive_a_revision_bump() {
+        let (mut space, mut session) = setup();
+        call(
+            &mut space,
+            &mut session,
+            "admit",
+            json!({"nodeId": "a", "initialState": {"count": 0},
+                "analysisFacts": facts("a")}),
+        );
+        let first =
+            call(&mut space, &mut session, "analyze", json!({"request": {"op": "view"}}));
+        assert!(first["result"]["nodes"].get("a").is_some());
+        assert!(first["result"]["nodes"].get("b").is_none());
+        // Value-only writes keep the revision: the cached view is reused.
+        let revision = space.analysis_revision;
+        call(
+            &mut space,
+            &mut session,
+            "intervene",
+            json!({"nodeId": "a", "patch": {"count": 1},
+                "expectedGeneration": 0, "expectedVersion": 0}),
+        );
+        assert_eq!(space.analysis_revision, revision);
+        let cached =
+            call(&mut space, &mut session, "analyze", json!({"request": {"op": "view"}}));
+        assert_eq!(cached["result"], first["result"]);
+        // Structural change bumps the revision: the same request rebuilds.
+        call(
+            &mut space,
+            &mut session,
+            "admit",
+            json!({"nodeId": "b", "initialState": {}, "analysisFacts": facts("b")}),
+        );
+        assert!(space.analysis_revision > revision);
+        let rebuilt =
+            call(&mut space, &mut session, "analyze", json!({"request": {"op": "view"}}));
+        assert!(rebuilt["result"]["nodes"].get("b").is_some());
     }
 }

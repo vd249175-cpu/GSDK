@@ -76,6 +76,9 @@ Agent 控制面复用同一套 Rust 原语，观测与干预都经过 DTO：
 ```
 
 `agentInspect` 返回 Projection（含 `analysisRevision`）、pending Info、drops、active changes、Node/Effect 租约、pending Effects、submission 状态与因果事件页（内存上限 1000 条，默认 100 条、最大 1000 条，`nextCursor` + `truncated` 语义）。`agentInject` 仍经正常 mailbox/submission 执行并保持重试幂等；`agentInterveneState` 仅支持 Patch，在单飞编辑间隙原子提交并记录前后版本。既有 `inject/intervene/admit/evict/replace/cancel` 保持兼容。控制面只走 loopback + token，不暴露给 renderer。
+
+动态事件与一致性快照是验收红线：执行热路径只更新轻量 revision 与事件，不解析事实、不运行分析。事件覆盖 mailbox、change、submission、drop、Effect 与干预全周期（`root_injected/agent_injected/info_sent/change_started/change_settled/change_failed/delivery_dropped/effect_requested/effect_completed/state_intervened/node_admitted/node_replaced/node_evicted/submission_cancelled/analysis_context_updated`），全部进入同一个 1000 条有界环。分析与观测按请求克隆不可变快照（事实 + 上下文 + State，单次临界区完成），随后释放调度锁再计算；同一快照绑定一个 revision，绝不混合两个 revision。缓存只用于加速：未命中按需重建并按 `(analysisRevision, request)` 回填，revision 不匹配时绝不返回旧结果；`foldDepth/folds` 每次查询动态传入。
+
 可信 Agent 的 State 干预必须携带预期版本（兼容 `intervene` 与新 `agentInterveneState`，后者另需 `actor`/`reason` 并记录审计事件）：
 
 ```json

@@ -85,9 +85,12 @@ fn handle_analyze(
     }
     match graphvideo_analysis::analyze_json(&job.request, &job.facts, &job.context) {
         Ok(result) if result.to_string().len() <= MAX_ANALYSIS_RESPONSE_BYTES => {
+            // Stored under the snapshot's revision key: if the space moved on
+            // during compute, this entry simply never matches a future lookup
+            // and can never serve a stale result.
             let (lock, _) = &**shared;
             let mut space = lock.lock().unwrap_or_else(|poison| poison.into_inner());
-            space.store_analysis(&job.request, result.clone());
+            space.store_analysis(job.revision, &job.request, result.clone());
             json!({"id":job.id,"ok":true,"result":result})
         }
         Ok(_) => json!({"id":job.id,"ok":false,"error":"analysis response exceeds size limit"}),
