@@ -1,6 +1,8 @@
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { afterEach, describe, expect, it } from 'vitest';
 import { connectKernelDaemon } from './daemon-client';
@@ -12,7 +14,10 @@ const executable = resolve(
     ? 'graphvideo-kernel-daemon.exe'
     : 'graphvideo-kernel-daemon',
 );
+const portablePythonNode = fileURLToPath(new URL('./fixtures/daemon-portable-python-node.py', import.meta.url));
+const pythonAvailable = spawnSync('python', ['--version'], { windowsHide: true }).status === 0;
 const children: ChildProcessWithoutNullStreams[] = [];
+const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(children.splice(0).map((child) => new Promise<void>((resolveExit) => {
@@ -20,6 +25,7 @@ afterEach(async () => {
     child.kill();
     if (child.exitCode !== null) resolveExit();
   })));
+  for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 
 async function startDaemon(): Promise<{ child: ChildProcessWithoutNullStreams; address: string; token: string }> {
@@ -40,7 +46,47 @@ async function startDaemon(): Promise<{ child: ChildProcessWithoutNullStreams; a
   return { child, address: ready.address, token };
 }
 
-describe.skipIf(!existsSync(executable))('Rust daemon with JS Node worker', () => {
+describe.skipIf(!existsSync(executable))('Rust daemon with external workers', () => {
+  it.skipIf(!pythonAvailable)('executes a standard-library Python Node copied to an arbitrary directory', async () => {
+    const daemon = await startDaemon();
+    const control = await connectKernelDaemon(daemon);
+    const checkout = mkdtempSync(join(tmpdir(), 'graphvideo-portable-node-'));
+    temporaryDirectories.push(checkout);
+    const entry = join(checkout, 'worker.py');
+    copyFileSync(portablePythonNode, entry);
+    try {
+      await control.admit('portable.python', { runs: 0 });
+      const worker = spawn('python', ['-u', 'worker.py'], {
+        cwd: checkout,
+        env: {
+          ...process.env,
+          GRAPHVIDEO_DAEMON_ADDRESS: daemon.address,
+          GRAPHVIDEO_DAEMON_TOKEN: daemon.token,
+        },
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+      children.push(worker);
+      let stderr = '';
+      worker.stderr.on('data', (data: Buffer) => { stderr += data.toString('utf8'); });
+      const exited = new Promise<void>((resolveExit, reject) => {
+        worker.once('error', reject);
+        worker.once('exit', (code) => code === 0
+          ? resolveExit()
+          : reject(new Error(`portable Python Node exited with ${code}: ${stderr}`)));
+      });
+      await control.inject('portable.python', { type: 'RunInfo' }, 'portable/python/e2e');
+      await exited;
+      const projection = await control.projection() as any;
+      expect(projection.nodes['portable.python']).toMatchObject({
+        state: { runs: 1 }, version: 1, generation: 0,
+      });
+      expect(projection.submissions['portable/python/e2e'].status).toBe('completed');
+    } finally {
+      control.close();
+    }
+  });
+
   it('executes a JS change while Rust retains authoritative State and submission settlement', async () => {
     const daemon = await startDaemon();
     const control = await connectKernelDaemon(daemon);
