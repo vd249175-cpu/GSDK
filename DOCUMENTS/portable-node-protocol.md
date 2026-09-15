@@ -52,3 +52,5 @@ Rust 内核按 Node generation 保存不透明事实 JSON，拒绝旧 generation
 `crates/kernel-ffi/include/graphvideo_kernel.h` 是稳定 C ABI 的头文件。`cargo build -p graphvideo-kernel-ffi` 生成当前平台共享库；它提供 `admit/send/inject_root/poll_next/settle_change/cancel`、代次与编辑保留位，以及注册时设置、按需读取分析事实。`gv_analysis_snapshot` 一次性取出所有已登记事实，供 JS Agent 建索引，结果由 `gv_analysis_snapshot_free` 释放。每个宿主用自己的语言执行 change 和保管 Owner State，同一个 Rust `GvKernel` handle 保证 mailbox 与单飞。返回字符串由 `gv_string_free` 释放；`gv_poll_next` 返回的 change 必须由 `gv_settle_change` 消费并结算。`gv_change_free` 只释放内存，不结算单飞 change。
 
 仓库包含 [Python ctypes 宿主样例](../crates/kernel-ffi/examples/ctypes_smoke.py)：Python 直接驱动 Rust 调度器，让两个 Python Node 通过 Info 通信，并读回便携分析事实。它不经过 JS。JS Agent 若需分析这个非 JS 宿主持有的规则空间，可从宿主取得 `PortableAnalysisSnapshot` JSON，交给 `@graphvideo/sdk/analysis/portable`；当前 C ABI 不创建远程 Agent 通道，通道由具体应用宿主决定。
+
+独立进程宿主见 [常驻 Rust 图宿主协议](./kernel-daemon-protocol.md)。它把权威 JSON State 和版本移入 Rust daemon，并把普通 change 压缩为一次 `poll` 和一次批量 `commit`；因此与本页现有 JS `mountProcessNode` 的逐次 `ctx` 往返是两条不同的宿主路径。生产 Studio 尚未迁入 daemon。

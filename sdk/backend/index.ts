@@ -136,3 +136,7 @@ export type {
 } from './native-space'
 export { describeDomainNode, mountDomainNode, replaceDomainNode } from './native-node'
 export type { DescribedDomainNode } from './native-node'
+export { KernelDaemonClient, connectKernelDaemon } from './daemon-client'
+export type {
+  DaemonChangeOperation, DaemonPolledChange, KernelDaemonClientOptions,
+} from './daemon-client'
