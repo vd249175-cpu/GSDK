@@ -11,7 +11,7 @@ type: guide
 
 ## 目录体系
 
-- `crates/kernel` & `crates/kernel-node` — **生产调度微内核**：Rust 原生实现（Mailbox、Generation、Single-flight 调度、有界准入与热替换、确定性投递结算）；通过 N-API 提供原生绑定。
+- `packages/rust/kernel` & `packages/rust/kernel-node` — **生产调度微内核**：Rust 原生实现（Mailbox、Generation、Single-flight 调度、有界准入与热替换、确定性投递结算）；通过 N-API 提供原生绑定。
 - `core/` — `@graphvideo/kernel`：零业务语义核心规约与类型契约（Node、WorldNode 物理隔离、Info 协议、Context 能力、Projection 编解码）。TS 运行时冻结为参考规约（Executable Specification / Test Oracle），生产主干统一收敛至 Rust 原生内核。
 - `sdk/` — `@graphvideo/sdk`：通用开发者套件与门面：
   - `sdk/backend/`：原生规则空间（`NativeRuleSpace`）、后端插件 Manifest 与 Node 挂载桥接。

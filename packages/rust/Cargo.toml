@@ -1,0 +1,3 @@
+[workspace]
+members = ["kernel", "kernel-node", "kernel-ffi", "kernel-daemon", "analysis"]
+resolver = "2"

@@ -22,7 +22,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-const roots = ['core', 'sdk', 'crates', 'tools', 'apps', 'app', 'plugins', 'packages']
+const roots = ['core', 'sdk', 'tools', 'apps', 'app', 'plugins', 'packages']
   .map((d) => path.join(root, d)).filter((d) => fs.existsSync(d));
 const files = roots.flatMap((d) => (fs.statSync(d).isDirectory() ? walk(d) : [d]));
 
@@ -41,8 +41,8 @@ for (const file of files) {
     if (rel.startsWith('packages/') && (abs.includes('/app/') || abs.includes('/plugins/'))) {
       report('packages-must-not-import-app-or-plugins', rel, i + 1, text.trim());
     }
-    // current trees: core/sdk/crates/tools must not reach into apps
-    if ((inRel('core') || inRel('sdk') || inRel('crates') || inRel('tools')) && inTree('apps')) {
+    // packages/** must not reach into apps; legacy trees neither
+    if ((inRel('core') || inRel('sdk') || inRel('tools') || inRel('packages')) && inTree('apps')) {
       report('sdk-must-not-import-app', rel, i + 1, text.trim());
     }
     // plugin must not import app internals (apps/local-app/{src-main,renderer}) or another plugin

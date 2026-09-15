@@ -13,7 +13,8 @@ const platformTag = process.platform === 'win32'
 if (!platformTag) throw new Error(`Unsupported native target: ${process.platform}-${process.arch}`)
 const source = resolve(
   root,
-  'crates',
+  'packages',
+  'rust',
   'kernel-node',
   `graphvideo-kernel-node.${platformTag}.node`,
 )

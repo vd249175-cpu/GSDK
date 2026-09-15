@@ -14,7 +14,7 @@ type: reference
 | `unit` | `sdk/**/*.test.{ts,mjs}`，排除 workbench | backend（含 NativeRuleSpace 门面）、testing、analysis、contract 等机制 | `npm run test:unit -- --silent` |
 | `ui` | `sdk/workbench/**/*.test.{ts,tsx}` | Workbench、Element 生命周期、样式边界 | `npm run test:ui -- --silent` |
 | `local-app` | `apps/local-app/plugins`、`src-main` | 业务插件、NativeRuleSpace 原生宿主与热替换 | `npm run test:app` |
-| Rust | `crates/kernel/tests` | 原生生产调度微内核：登记、队列、结算、取消、代次与替换 | `cargo test --workspace` |
+| Rust | `packages/rust/kernel/tests` | 原生生产调度微内核：登记、队列、结算、取消、代次与替换 | `cargo test --workspace` |
 
 根 `npm test -- --silent` 运行 core/unit/ui；`npm run verify:app` 还会构建 native/runtime，并执行 renderer 边界、应用类型、应用测试、因果校验、Electron 原生加载和 renderer build。
 

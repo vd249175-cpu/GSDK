@@ -9,7 +9,7 @@ description: GSDK 业务插件规范、当前插件拓扑全景清单（包含 N
 本文件是 GSDK 上层业务插件的**单一事实来源（Single Source of Truth）**。它完整记录了当前所有业务插件的拓扑、Node 职责、因果流转（Info）、状态所有权与前端 Element 映射。
 
 > **核心原则**：
-> 1. **内核已稳定冻结**：底层 Rust 调度微内核 (`crates/kernel`)、`NativeRuleSpace` 与微内核规约 (`core/src`) 已全面稳定。日常功能迭代、UI 改造或模型接入**禁止且无需翻看或修改内核代码**。
+> 1. **内核已稳定冻结**：底层 Rust 调度微内核 (`packages/rust/kernel`)、`NativeRuleSpace` 与微内核规约 (`core/src`) 已全面稳定。日常功能迭代、UI 改造或模型接入**禁止且无需翻看或修改内核代码**。
 > 2. **全栈通过 SDK 交互**：后端主进程与插件统一使用 `@graphvideo/sdk`，前端仅通过 SDK Client 提供的快照与命令进行交互。
 > 3. **插件平权**：内置业务插件（如 `graphvideo.studio`）与第三方插件采用完全相同的 Manifest、装配接口与执行生命周期。
 
@@ -34,7 +34,7 @@ description: GSDK 业务插件规范、当前插件拓扑全景清单（包含 N
                           │ 挂载至 NativeRuleSpace
 ┌─────────────────────────▼──────────────────────────────┐
 │             底座内核 (已冻结稳定，无需翻看)            │
-│   Rust 生产微内核 (crates/kernel) + core/src 规约       │
+│   Rust 生产微内核 (packages/rust/kernel) + core/src 规约       │
 └────────────────────────────────────────────────────────┘
 ```
 

@@ -294,8 +294,8 @@ export function locateNativeBinding(): string | null {
   const fileName = `graphvideo-kernel-node.${platformTag}.node`;
   const candidates = [
     resolve(here, 'native', fileName),
-    resolve(here, '..', '..', 'crates', 'kernel-node', fileName),
-    resolve(here, '..', '..', '..', 'crates', 'kernel-node', fileName),
+    resolve(here, '..', '..', 'packages', 'rust', 'kernel-node', fileName),
+    resolve(here, '..', '..', '..', 'packages', 'rust', 'kernel-node', fileName),
   ];
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
@@ -304,7 +304,7 @@ function loadBinding(): NativeBinding {
   const path = locateNativeBinding();
   if (!path) {
     throw new Error(
-      'Native rule space not built: run cargo build -p graphvideo-kernel-node and copy the cdylib to crates/kernel-node/',
+      'Native rule space not built: run cargo build -p graphvideo-kernel-node and copy the cdylib to packages/rust/kernel-node/',
     );
   }
   const require = createRequire(import.meta.url);
@@ -328,7 +328,7 @@ function splitPayload(info: NativeInfo): string {
   return JSON.stringify(payload);
 }
 function isBusyError(error: unknown): boolean {
-  // Coupled to `KernelError::Busy` Display in crates/kernel/src/error.rs.
+  // Coupled to `KernelError::Busy` Display in packages/rust/kernel/src/error.rs.
   const message = error instanceof Error ? error.message : String(error);
   return /\bbusy\b/i.test(message);
 }

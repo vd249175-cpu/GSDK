@@ -4,7 +4,7 @@ type: reference
 
 # 跨语言 Node 与分析事实协议
 
-生产调度仍由 Rust `Kernel` 持有。它同时暴露 Rust API、Node-API 和 `crates/kernel-ffi` 的 C ABI；不同语言宿主可通过相同的调度操作驱动 Node。当前 JS 宿主的 `mountProcessNode(space, options)` 把一个外部进程挂载为一个 Node：进程使用 UTF-8 JSON Lines，宿主把每个 `ctx` 请求交给当前 `NativeChangeContext`，因此 State Owner、单飞、Info 投递反馈、EffectAdapter 权限和错误转 Info 仍遵循同一规则。现有 JS Node 不经过进程桥接。
+生产调度仍由 Rust `Kernel` 持有。它同时暴露 Rust API、Node-API 和 `packages/rust/kernel-ffi` 的 C ABI；不同语言宿主可通过相同的调度操作驱动 Node。当前 JS 宿主的 `mountProcessNode(space, options)` 把一个外部进程挂载为一个 Node：进程使用 UTF-8 JSON Lines，宿主把每个 `ctx` 请求交给当前 `NativeChangeContext`，因此 State Owner、单飞、Info 投递反馈、EffectAdapter 权限和错误转 Info 仍遵循同一规则。现有 JS Node 不经过进程桥接。
 
 ## 1. 启动与装配
 
@@ -49,8 +49,8 @@ Rust 内核按 Node generation 保存事实，`admit/replace` 前校验 schema�
 
 ## 4. 非 JS 宿主
 
-`crates/kernel-ffi/include/graphvideo_kernel.h` 是稳定 C ABI 的头文件。`cargo build -p graphvideo-kernel-ffi` 生成当前平台共享库；它提供 `admit/send/inject_root/poll_next/settle_change/cancel`、代次与编辑保留位，以及注册时设置、按需读取分析事实。`gv_analysis_snapshot` 一次性取出所有已登记事实，结果由 `gv_analysis_snapshot_free` 释放；`gv_analyze` 对传入的便携事实执行与 daemon 相同的 Rust 分析，结果由 `gv_analysis_free` 释放。每个宿主用自己的语言执行 change 和保管 Owner State，同一个 Rust `GvKernel` handle 保证 mailbox 与单飞。其它返回字符串由 `gv_string_free` 释放；`gv_poll_next` 返回的 change 必须由 `gv_settle_change` 消费并结算。`gv_change_free` 只释放内存，不结算单飞 change。
+`packages/rust/kernel-ffi/include/graphvideo_kernel.h` 是稳定 C ABI 的头文件。`cargo build -p graphvideo-kernel-ffi` 生成当前平台共享库；它提供 `admit/send/inject_root/poll_next/settle_change/cancel`、代次与编辑保留位，以及注册时设置、按需读取分析事实。`gv_analysis_snapshot` 一次性取出所有已登记事实，结果由 `gv_analysis_snapshot_free` 释放；`gv_analyze` 对传入的便携事实执行与 daemon 相同的 Rust 分析，结果由 `gv_analysis_free` 释放。每个宿主用自己的语言执行 change 和保管 Owner State，同一个 Rust `GvKernel` handle 保证 mailbox 与单飞。其它返回字符串由 `gv_string_free` 释放；`gv_poll_next` 返回的 change 必须由 `gv_settle_change` 消费并结算。`gv_change_free` 只释放内存，不结算单飞 change。
 
-仓库包含 [Python ctypes 宿主样例](../crates/kernel-ffi/examples/ctypes_smoke.py)：Python 直接驱动 Rust 调度器，让两个 Python Node 通过 Info 通信，并读回便携分析事实。它不经过 JS。非 JS 宿主可以直接调用 `gv_analyze`，也可以把 `PortableAnalysisSnapshot` 交给 daemon；C ABI 本身不创建远程 Agent 控制通道，通道与宿主 State 观测由具体应用宿主决定。
+仓库包含 [Python ctypes 宿主样例](../packages/rust/kernel-ffi/examples/ctypes_smoke.py)：Python 直接驱动 Rust 调度器，让两个 Python Node 通过 Info 通信，并读回便携分析事实。它不经过 JS。非 JS 宿主可以直接调用 `gv_analyze`，也可以把 `PortableAnalysisSnapshot` 交给 daemon；C ABI 本身不创建远程 Agent 控制通道，通道与宿主 State 观测由具体应用宿主决定。
 
 独立进程宿主见 [常驻 Rust 图宿主协议](./kernel-daemon-protocol.md)。它把权威 JSON State 和版本移入 Rust daemon，通过 generation 绑定的 Node 租约定向分发 change，并把普通 change 压缩为一次 `poll` 和一次批量 `commit`；物理 Effect 由能力绑定的外部 provider 执行，Rust 只转发不透明 DTO。因此它与本页现有 JS `mountProcessNode` 的逐次 `ctx` 往返是两条不同的宿主路径。生产 Studio 尚未迁入 daemon。

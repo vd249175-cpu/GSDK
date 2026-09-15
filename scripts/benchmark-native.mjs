@@ -14,7 +14,7 @@ const platformTag = process.platform === 'win32'
       : null
 if (!platformTag) throw new Error(`Unsupported native target: ${process.platform}-${process.arch}`)
 const bindingPath = process.env.GRAPHVIDEO_NATIVE_NODE
-  ?? resolve(root, 'crates', 'kernel-node', `graphvideo-kernel-node.${platformTag}.node`)
+  ?? resolve(root, 'packages', 'rust', 'kernel-node', `graphvideo-kernel-node.${platformTag}.node`)
 if (!existsSync(bindingPath)) throw new Error(`Native binding missing: ${bindingPath}`)
 
 const require = createRequire(import.meta.url)

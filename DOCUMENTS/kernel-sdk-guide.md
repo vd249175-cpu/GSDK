@@ -242,14 +242,14 @@ npm --prefix apps/local-app run diagnose -- validate
 ## 7. 原生规则空间宿主（Rust 调度 + 多语言 Node）
 
 `@graphvideo/backend-sdk` 的 `NativeRuleSpace` 把调度事实（实体登记、mailbox、
-单飞、submission 结算、丢弃台账）交 Rust `crates/kernel` 持有，业务 State 由宿主保管，
+单飞、submission 结算、丢弃台账）交 Rust `packages/rust/kernel` 持有，业务 State 由宿主保管，
 change 代码可在 JS 或进程协议 Node 中执行。Rust 与宿主不各存一份权威业务 State。JS 插件 `Node` 经 `mountDomainNode`/`describeDomainNode` 桥接挂载，
 `change` 签名零改动：`read/write/patchState/send` 直通（投递反馈结构与
 `DeliveryFeedback` 一致），`span` 内联执行（原生路径不记录 trace span），
 `WorldNode` 通过构造注入的 EffectAdapter 执行，并接收宿主 Clock 与 submission AbortSignal。
 
 非 JS Node 使用 `mountProcessNode` 的 JSON Lines 协议挂载；外部进程仍通过当前 change 的 `read/write/patchState/send/effect` 请求访问宿主能力。协议及跨语言分析事实格式见 [跨语言 Node 与分析事实协议](./portable-node-protocol.md)。现有 JS Node 不进入进程桥接路径。
-宿主语言也可通过 `crates/kernel-ffi` 的 C ABI 直接驱动同一个 Rust 调度契约；C 头文件和 Python ctypes 样例见同一协议文档。
+宿主语言也可通过 `packages/rust/kernel-ffi` 的 C ABI 直接驱动同一个 Rust 调度契约；C 头文件和 Python ctypes 样例见同一协议文档。
 
 热替换走与 TS 参考同一线性化语义：`space.replace(id)` 在单飞间隙内丢弃旧
 backlog（按 `Evicted` 结算）、代次 +1、干净槽启动；遇 Busy 有界重试（默认

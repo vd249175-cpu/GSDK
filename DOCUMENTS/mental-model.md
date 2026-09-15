@@ -16,7 +16,7 @@ GraphFramework 是运行在应用主进程内的开放因果图微内核框架�
 - **局部可理解**：生产 GraphFactory 是实际装配清单，实例分析从已构造 Node 的真实方法事实建立局部因果图，使排障和测试不依赖对全系统的记忆。
 
 微内核负责调度、一致性、取消和可观测性，零业务语义；应用 Node 负责具体业务事实和决策；只读分析层负责寻址、切片、验证和视角折叠，并由生产 `NativeRuleSpace` 按需加载。实例分析提供的是可溯源的静态证据，不替代针对性运行测试和真实物理核对。
-Rust 调度器另有 C ABI，供非 JS 宿主直接调用相同的 `admit/send/poll/settle` 操作；便携因果事实使 JS Agent 可分析外部语言节点，而不依赖其源码解析器。`crates/kernel-daemon` 直接复用同一个 Rust 调度 crate，提供业务无关的独立进程宿主，持有通用 JSON State 与版本，并用 `poll + commit` 协议承载任意语言的 change；当前 Studio 生产装配尚未切换到该进程。
+Rust 调度器另有 C ABI，供非 JS 宿主直接调用相同的 `admit/send/poll/settle` 操作；便携因果事实使 JS Agent 可分析外部语言节点，而不依赖其源码解析器。`packages/rust/kernel-daemon` 直接复用同一个 Rust 调度 crate，提供业务无关的独立进程宿主，持有通用 JSON State 与版本，并用 `poll + commit` 协议承载任意语言的 change；当前 Studio 生产装配尚未切换到该进程。
 
 ## 2. 一个业务执行面
 
@@ -28,7 +28,7 @@ Electron renderer
 Electron main
   ├─ RendererGraphBridge
   ├─ NativeRuleSpace（生产与应用运行宿主）
-  │  ├─ Rust mailbox/change/submission 调度（crates/kernel）
+  │  ├─ Rust mailbox/change/submission 调度（packages/rust/kernel）
   │  ├─ JS 或进程协议业务 Node、宿主持有的 State 与 change
   │  ├─ 构造注入的 EffectAdapter
   │  └─ JS 实例事实提取 → Rust N-API 因果分析与折叠视角（只读）
@@ -39,7 +39,7 @@ Electron main
   └─ @graphvideo/sdk/analysis：JS 实例事实生成器、分析 DTO 与显式离线纯算法，不启动 Runtime
 ```
 
-当前 Studio 生产 Graph 仍由 Electron main 内的 `NativeRuleSpace` 承载，renderer/main 的 IPC 是桌面安全边界。新增的 `kernel-daemon` 是可选的独立规则空间宿主，使用带版本和凭证的 loopback JSON Lines 协议；它复用同一个 `crates/kernel` 调度器，不形成第二套执行语义。
+当前 Studio 生产 Graph 仍由 Electron main 内的 `NativeRuleSpace` 承载，renderer/main 的 IPC 是桌面安全边界。新增的 `kernel-daemon` 是可选的独立规则空间宿主，使用带版本和凭证的 loopback JSON Lines 协议；它复用同一个 `packages/rust/kernel` 调度器，不形成第二套执行语义。
 
 桌面窗口的生命周期现由 Studio 图推进：主进程在 ready 后向 `host-el` 注入 `DesktopStartRequestedInfo`，关闭窗口的 UI 命令注入 `DesktopCloseRequestedInfo`；`host-el` 将物理动作定向发送给 `sink-electron-window`，其 EffectAdapter 执行 BrowserWindow 操作，`src-electron-window` 把执行结果和系统 `closed` 事件转为 Observation Info，最终由 `host-el` 更新 State。关闭所有窗口不销毁 `NativeRuleSpace`，Electron 主进程和其加载的 Rust N-API 调度器继续运行，可由第二次启动或系统 activate 重新开窗。独立的通用 Rust daemon 已可运行，但当前 Studio 仍驻留 Electron 主进程；生产迁移完成前，结束 Electron 主进程仍会结束这份 Studio 图。
 
@@ -47,7 +47,7 @@ Electron main
 
 | 层 | 目录 | 权限 |
 | :--- | :--- | :--- |
-| 原生调度微内核 | `crates/kernel`、`crates/kernel-node` | 生产持有 mailbox、generation、single-flight 调度、submission 结算、hot replace |
+| 原生调度微内核 | `packages/rust/kernel`、`packages/rust/kernel-node` | 生产持有 mailbox、generation、single-flight 调度、submission 结算、hot replace |
 | 核心规约与类型底座 | `core/src` | Node/WorldNode、Info、Context、State、Projection 编解码、参考规约；零业务语义 |
 | 业务插件与物理宿主 | `apps/local-app/plugins`、`apps/local-app/src-main` | 定义业务 Node，通过 EffectAdapter 接触物理世界，挂载至 NativeRuleSpace |
 | UI 工作台与投影 | `sdk/workbench/src`、`sdk/client`、`apps/local-app/renderer` | 发送固定命令，读取投影 DTO，不执行 Node |

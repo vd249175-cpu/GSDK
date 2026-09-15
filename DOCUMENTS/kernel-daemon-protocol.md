@@ -4,7 +4,7 @@ type: reference
 
 # 常驻 Rust 图宿主协议
 
-`graphvideo-kernel-daemon` 是业务无关的独立进程。它直接复用 `crates/kernel`，持有 Node 注册表、mailbox、submission、权威 JSON State、State 版本和便携分析事实。它不包含 Studio、Electron、项目、媒体或任何业务 Info 名称，也不执行业务 `change`。
+`graphvideo-kernel-daemon` 是业务无关的独立进程。它直接复用 `packages/rust/kernel`，持有 Node 注册表、mailbox、submission、权威 JSON State、State 版本和便携分析事实。它不包含 Studio、Electron、项目、媒体或任何业务 Info 名称，也不执行业务 `change`。
 
 当前阶段提供可测试的常驻宿主和语言无关执行边界；Studio 生产装配仍运行在 Electron 内的 `NativeRuleSpace`，尚未切换到 daemon。
 
