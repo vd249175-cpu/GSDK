@@ -14,6 +14,7 @@ struct NodeRecord {
     state: Map<String, Value>,
     version: u64,
     generation: u64,
+    effect_capabilities: BTreeSet<String>,
 }
 
 struct SubmissionRequest {
@@ -27,10 +28,28 @@ struct Lease {
     generation: u64,
 }
 
+enum EffectStatus {
+    Queued,
+    Active(u64),
+    Completed { ok: bool, value: Value },
+}
+
+struct EffectRecord {
+    id: u64,
+    requester_session: u64,
+    change_id: u64,
+    node_id: String,
+    generation: u64,
+    adapter_id: String,
+    request: Value,
+    status: EffectStatus,
+}
+
 pub struct Session {
     id: u64,
     active: HashMap<u64, ActiveChange>,
     claims: BTreeSet<String>,
+    effect_claims: BTreeSet<String>,
 }
 
 impl Session {
@@ -39,15 +58,27 @@ impl Session {
             id,
             active: HashMap::new(),
             claims: BTreeSet::new(),
+            effect_claims: BTreeSet::new(),
         }
     }
 
     pub fn disconnect(&mut self, space: &mut Space) {
+        space.effects.retain(|_, effect| {
+            if effect.requester_session == self.id {
+                return false;
+            }
+            if matches!(effect.status, EffectStatus::Active(id) if id == self.id) {
+                effect.status = EffectStatus::Queued;
+            }
+            true
+        });
         for (_, token) in self.active.drain() {
             space.fail_change(token, "Node worker disconnected");
         }
         space.leases.retain(|_, lease| lease.session_id != self.id);
+        space.effect_leases.retain(|_, owner| *owner != self.id);
         self.claims.clear();
+        self.effect_claims.clear();
     }
 }
 
@@ -57,6 +88,9 @@ pub struct Space {
     nodes: BTreeMap<String, NodeRecord>,
     submissions: BTreeMap<String, SubmissionRequest>,
     leases: BTreeMap<String, Lease>,
+    effect_leases: BTreeMap<String, u64>,
+    effects: BTreeMap<u64, EffectRecord>,
+    next_effect_id: u64,
     error_target: Option<String>,
 }
 
@@ -87,6 +121,23 @@ fn state_object(value: &Value, key: &str) -> Result<Map<String, Value>, String> 
         .and_then(Value::as_object)
         .cloned()
         .ok_or_else(|| format!("{key} must be an object"))
+}
+
+fn string_set(value: Option<&Value>, key: &str) -> Result<BTreeSet<String>, String> {
+    let Some(value) = value else {
+        return Ok(BTreeSet::new());
+    };
+    value
+        .as_array()
+        .ok_or_else(|| format!("{key} must be an array"))?
+        .iter()
+        .map(|item| {
+            item.as_str()
+                .filter(|text| !text.is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| format!("{key} must contain nonempty strings"))
+        })
+        .collect()
 }
 
 fn feedback(value: DeliveryFeedback) -> Value {
@@ -121,10 +172,14 @@ impl Space {
                 "nodes":self.nodes.len(),
                 "pending":self.kernel.pending_total(),
                 "leases":self.leases.len(),
+                "effectLeases":self.effect_leases.len(),
+                "effects":self.effects.len(),
             })),
             "admit" => {
                 let id = required_str(request, "nodeId")?.to_owned();
                 let state = state_object(request, "initialState")?;
+                let effect_capabilities =
+                    string_set(request.get("effectCapabilities"), "effectCapabilities")?;
                 let facts = request
                     .get("analysisFacts")
                     .filter(|v| !v.is_null())
@@ -145,6 +200,7 @@ impl Space {
                         state,
                         version: 0,
                         generation,
+                        effect_capabilities,
                     },
                 );
                 Ok(json!({"generation":generation}))
@@ -161,6 +217,8 @@ impl Space {
             "replace" => {
                 let id = required_str(request, "nodeId")?.to_owned();
                 let state = state_object(request, "initialState")?;
+                let effect_capabilities =
+                    string_set(request.get("effectCapabilities"), "effectCapabilities")?;
                 let generation = self.kernel.replace(&id).map_err(|e| e.to_string())?;
                 if let Some(facts) = request.get("analysisFacts").filter(|v| !v.is_null()) {
                     self.kernel
@@ -173,6 +231,7 @@ impl Space {
                         state,
                         version: 0,
                         generation,
+                        effect_capabilities,
                     },
                 );
                 self.leases.remove(&id);
@@ -241,6 +300,36 @@ impl Space {
                     }
                 }
                 Ok(json!({"nodeIds":session.claims}))
+            }
+            "claimEffects" => {
+                let ids = string_set(request.get("adapterIds"), "adapterIds")?;
+                if ids.is_empty() {
+                    return Err("adapterIds must not be empty".into());
+                }
+                for id in &ids {
+                    if self
+                        .effect_leases
+                        .get(id)
+                        .is_some_and(|owner| *owner != session.id)
+                    {
+                        return Err(format!("EffectAdapter is already claimed: {id}"));
+                    }
+                }
+                for id in ids {
+                    self.effect_leases.insert(id.clone(), session.id);
+                    session.effect_claims.insert(id);
+                }
+                Ok(json!({"adapterIds":session.effect_claims}))
+            }
+            "releaseEffects" => {
+                let ids = string_set(request.get("adapterIds"), "adapterIds")?;
+                for id in ids {
+                    if self.effect_leases.get(&id) == Some(&session.id) {
+                        self.effect_leases.remove(&id);
+                        session.effect_claims.remove(&id);
+                    }
+                }
+                Ok(json!({"adapterIds":session.effect_claims}))
             }
             "inject" => {
                 let target = required_str(request, "targetNodeId")?;
@@ -376,6 +465,109 @@ impl Space {
                     return Err("change settlement rejected".into());
                 }
                 Ok(json!({"results":results,"version":self.nodes[&entity].version,"settled":true}))
+            }
+            "requestEffect" => {
+                let change_id = request
+                    .get("changeId")
+                    .and_then(Value::as_u64)
+                    .ok_or("changeId must be an integer")?;
+                let adapter_id = required_str(request, "adapterId")?.to_owned();
+                let token = session
+                    .active
+                    .get(&change_id)
+                    .ok_or("change is not owned by this connection")?;
+                let node = self
+                    .nodes
+                    .get(token.entity())
+                    .ok_or("node is not admitted")?;
+                if !node.effect_capabilities.contains(&adapter_id) {
+                    return Err("EffectAdapter capability was not granted to this Node".into());
+                }
+                if !self.effect_leases.contains_key(&adapter_id) {
+                    return Err("EffectAdapter has no connected provider".into());
+                }
+                self.next_effect_id += 1;
+                let id = self.next_effect_id;
+                self.effects.insert(
+                    id,
+                    EffectRecord {
+                        id,
+                        requester_session: session.id,
+                        change_id,
+                        node_id: token.entity().to_owned(),
+                        generation: token.generation(),
+                        adapter_id,
+                        request: request.get("request").cloned().unwrap_or(Value::Null),
+                        status: EffectStatus::Queued,
+                    },
+                );
+                Ok(json!({"effectId":id}))
+            }
+            "awaitEffect" => {
+                let effect_id = request
+                    .get("effectId")
+                    .and_then(Value::as_u64)
+                    .ok_or("effectId must be an integer")?;
+                let effect = self
+                    .effects
+                    .get(&effect_id)
+                    .ok_or("Effect request is not pending")?;
+                if effect.requester_session != session.id {
+                    return Err("Effect request is owned by another connection".into());
+                }
+                let completed = match &effect.status {
+                    EffectStatus::Completed { ok, value } => Some((*ok, value.clone())),
+                    _ => None,
+                };
+                let Some((ok, value)) = completed else {
+                    return Ok(Value::Null);
+                };
+                self.effects.remove(&effect_id);
+                Ok(json!({"ok":ok,"value":value}))
+            }
+            "pollEffect" => {
+                if session.effect_claims.is_empty() {
+                    return Err("claim at least one EffectAdapter before polling".into());
+                }
+                let candidate = self.effects.iter().find_map(|(id, effect)| {
+                    (matches!(effect.status, EffectStatus::Queued)
+                        && session.effect_claims.contains(&effect.adapter_id)
+                        && self.effect_leases.get(&effect.adapter_id) == Some(&session.id))
+                    .then_some(*id)
+                });
+                let Some(effect_id) = candidate else {
+                    return Ok(Value::Null);
+                };
+                let effect = self.effects.get_mut(&effect_id).unwrap();
+                effect.status = EffectStatus::Active(session.id);
+                Ok(json!({
+                    "effectId":effect.id,"changeId":effect.change_id,"nodeId":effect.node_id,
+                    "generation":effect.generation,"adapterId":effect.adapter_id,"request":effect.request,
+                }))
+            }
+            "completeEffect" => {
+                let effect_id = request
+                    .get("effectId")
+                    .and_then(Value::as_u64)
+                    .ok_or("effectId must be an integer")?;
+                let ok = request
+                    .get("ok")
+                    .and_then(Value::as_bool)
+                    .ok_or("ok must be a boolean")?;
+                let effect = self
+                    .effects
+                    .get_mut(&effect_id)
+                    .ok_or("Effect request is not pending")?;
+                if !matches!(effect.status, EffectStatus::Active(id) if id == session.id) {
+                    return Err("Effect request is not owned by this provider".into());
+                }
+                let value = if ok {
+                    request.get("observation").cloned().unwrap_or(Value::Null)
+                } else {
+                    Value::String(required_str(request, "error")?.to_owned())
+                };
+                effect.status = EffectStatus::Completed { ok, value };
+                Ok(json!({"effectId":effect_id,"completed":true}))
             }
             "projection" => {
                 let nodes: BTreeMap<_, _> = self.nodes.iter().map(|(id, node)| (id.clone(), json!({

@@ -49,7 +49,7 @@ const client = await connectKernelDaemon({ address, token })
 装配 Node 时只提交语言无关初始 State 和可选分析事实：
 
 ```json
-{"version":1,"id":2,"token":"...","op":"admit","nodeId":"counter","initialState":{"count":0},"analysisFacts":{"version":1,"nodeId":"counter","entities":[],"edges":[]}}
+{"version":1,"id":2,"token":"...","op":"admit","nodeId":"counter","initialState":{"count":0},"analysisFacts":{"version":1,"nodeId":"counter","entities":[],"edges":[]},"effectCapabilities":[]}
 ```
 
 `evict` 删除 Node 和 State；`replace` 只在单飞间隙替换 generation，并使用新的初始 State。`projection` 返回当前所有 Node 的 State、version、generation 以及 submission 状态。`analysisFacts` 返回 daemon 保存的不透明便携事实，调度热路径不解析它们。
@@ -93,9 +93,22 @@ worker 可在 `commit` 中传 `error`；连接在持有 change 时断开也会�
 
 JS worker 可用 `runDaemonNodeWorker` 把本地 handler 映射到同一协议。它从 State 快照提供本地 `read/write/patchState/send` Context，并自动批量 commit。该 helper 是一种语言适配器；Python、Rust 或其他语言实现相同帧即可，不需要 JS 参与执行。
 
+## EffectAdapter 能力
+
+需要物理 I/O 的执行 Node 在 `admit` 时声明允许使用的通用 `effectCapabilities`。物理宿主通过独立连接调用 `claimEffects` 独占一个或多个 adapter ID，再以 `pollEffect` 领取不透明请求，并用 `completeEffect` 返回 Observation 或错误。Node change 使用 `requestEffect` 和 `awaitEffect` 等待结果：
+
+```json
+{"version":1,"id":7,"token":"...","op":"requestEffect","changeId":1,"adapterId":"vendor/device-v1","request":{"command":"..."}}
+{"version":1,"id":8,"token":"...","op":"completeEffect","effectId":1,"ok":true,"observation":{"status":"done"}}
+```
+
+daemon 只校验 Node 是否持有该 adapter ID 的能力、provider 是否在线以及 effect 的连接所有权；它不解释 adapter 名称、request 或 Observation。provider 断开时，已领取但未完成的 effect 会重新排队；Node worker 断开时，其未完成 effect 会被取消，并按 change 断线错误结算。
+
+JS 物理宿主可用 `runDaemonEffectProvider` 适配现有 EffectAdapter。Effect 往返只出现在执行物理 I/O 的 change 中；纯领域 change 仍保持 `poll + commit` 两次往返。
+
 ## 当前边界
 
 - daemon 退出后尚不能从磁盘恢复 State、mailbox 和 submission；恢复日志属于下一阶段。
 - 当前一个 worker 连接同时只持有一条 active change；横向并行通过多个 worker 连接实现，同一 Node 仍保持 single-flight。
-- EffectAdapter 仍未进入 daemon 协议。下一阶段会让执行节点通过带能力的 Effect 端点调用物理宿主，业务含义继续留在内核之外。
+- Effect provider 当前使用进程存活期的连接租约；尚未加入 effect 幂等键和 daemon 重启后的物理操作恢复。
 - daemon 不负责启动 Electron。未来由图内业务节点决定桌面生命周期，由物理适配器执行进程和窗口动作。

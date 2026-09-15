@@ -9,6 +9,7 @@ export interface DaemonNodeChangeContext<S extends Record<string, unknown>> {
   write<K extends keyof S>(key: K, value: S[K]): void;
   patchState(patch: Partial<S>): void;
   send(info: { readonly type: string; readonly [key: string]: unknown }, targetNodeId: string): void;
+  effect<T = unknown>(adapterId: string, request: unknown): Promise<T>;
 }
 
 export type DaemonNodeHandler<S extends Record<string, unknown> = Record<string, unknown>> = (
@@ -21,6 +22,8 @@ export interface DaemonNodeWorkerClient {
   release(nodeIds: readonly string[]): Promise<unknown>;
   poll(waitMs?: number): Promise<DaemonPolledChange | null>;
   commit(changeId: number, operations: readonly DaemonChangeOperation[], error?: string): Promise<unknown>;
+  requestEffect(changeId: number, adapterId: string, request: unknown): Promise<{ effectId: number }>;
+  awaitEffect(effectId: number, waitMs?: number): Promise<{ ok: boolean; value: unknown } | null>;
 }
 
 export interface DaemonNodeWorkerOptions {
@@ -32,6 +35,8 @@ export interface DaemonNodeWorkerOptions {
 function localContext<S extends Record<string, unknown>>(
   snapshot: Readonly<S>,
   operations: DaemonChangeOperation[],
+  client: DaemonNodeWorkerClient | KernelDaemonClient,
+  changeId: number,
 ): DaemonNodeChangeContext<S> {
   const state = { ...snapshot } as S;
   return {
@@ -46,6 +51,15 @@ function localContext<S extends Record<string, unknown>>(
     },
     send(info, targetNodeId) {
       operations.push({ op: 'send', info, targetNodeId });
+    },
+    async effect<T>(adapterId: string, request: unknown): Promise<T> {
+      const { effectId } = await client.requestEffect(changeId, adapterId, request);
+      for (;;) {
+        const result = await client.awaitEffect(effectId);
+        if (!result) continue;
+        if (!result.ok) throw new Error(String(result.value));
+        return result.value as T;
+      }
     },
   };
 }
@@ -71,7 +85,9 @@ export async function runDaemonNodeWorker(
       let error: string | undefined;
       try {
         if (!handler) throw new Error(`No handler for claimed Node: ${polled.change.nodeId}`);
-        await handler(polled.change.info, localContext(polled.state, operations));
+        await handler(polled.change.info, localContext(
+          polled.state, operations, client, polled.change.changeId,
+        ));
       } catch (cause) {
         error = cause instanceof Error ? cause.message : String(cause);
       }

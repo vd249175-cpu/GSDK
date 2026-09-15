@@ -26,6 +26,15 @@ export interface DaemonPolledChange {
   readonly state: Readonly<Record<string, unknown>>;
 }
 
+export interface DaemonPolledEffect {
+  readonly effectId: number;
+  readonly changeId: number;
+  readonly nodeId: string;
+  readonly generation: number;
+  readonly adapterId: string;
+  readonly request: unknown;
+}
+
 interface PendingRequest {
   resolve(value: unknown): void;
   reject(error: Error): void;
@@ -92,9 +101,9 @@ export class KernelDaemonClient {
     });
   }
 
-  health() { return this.request<{ pid: number; nodes: number; pending: number; leases: number }>('health'); }
-  admit(nodeId: string, initialState: Record<string, unknown>, analysisFacts?: unknown) {
-    return this.request<{ generation: number }>('admit', { nodeId, initialState, analysisFacts });
+  health() { return this.request<{ pid: number; nodes: number; pending: number; leases: number; effectLeases: number; effects: number }>('health'); }
+  admit(nodeId: string, initialState: Record<string, unknown>, analysisFacts?: unknown, effectCapabilities: readonly string[] = []) {
+    return this.request<{ generation: number }>('admit', { nodeId, initialState, analysisFacts, effectCapabilities });
   }
   inject(targetNodeId: string, info: { type: string; [key: string]: unknown }, submissionId: string) {
     return this.request('inject', { targetNodeId, info, submissionId });
@@ -104,6 +113,18 @@ export class KernelDaemonClient {
   poll(waitMs = 0) { return this.request<DaemonPolledChange | null>('poll', { waitMs }); }
   commit(changeId: number, operations: readonly DaemonChangeOperation[], error?: string) {
     return this.request('commit', { changeId, operations, error });
+  }
+  claimEffects(adapterIds: readonly string[]) { return this.request('claimEffects', { adapterIds }); }
+  releaseEffects(adapterIds: readonly string[]) { return this.request('releaseEffects', { adapterIds }); }
+  requestEffect(changeId: number, adapterId: string, request: unknown) {
+    return this.request<{ effectId: number }>('requestEffect', { changeId, adapterId, request });
+  }
+  awaitEffect(effectId: number, waitMs = 30_000) {
+    return this.request<{ ok: boolean; value: unknown } | null>('awaitEffect', { effectId, waitMs });
+  }
+  pollEffect(waitMs = 0) { return this.request<DaemonPolledEffect | null>('pollEffect', { waitMs }); }
+  completeEffect(effectId: number, result: { ok: true; observation: unknown } | { ok: false; error: string }) {
+    return this.request('completeEffect', { effectId, ...result });
   }
   projection() { return this.request('projection'); }
   analysisFacts() { return this.request('analysisFacts'); }

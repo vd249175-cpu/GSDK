@@ -72,13 +72,17 @@ fn handle_request(
                 return json!({"id":request.get("id"),"ok":false,"error":"internal request failure"});
             }
         };
-        let should_wait = request.get("op").and_then(Value::as_str) == Some("poll")
+        let waitable = matches!(
+            request.get("op").and_then(Value::as_str),
+            Some("poll" | "pollEffect" | "awaitEffect")
+        );
+        let should_wait = waitable
             && response.get("ok") == Some(&Value::Bool(true))
             && response.get("result") == Some(&Value::Null)
             && wait_ms > 0
             && Instant::now() < deadline;
         if !should_wait {
-            if request.get("op").and_then(Value::as_str) != Some("poll") {
+            if !waitable {
                 changed.notify_all();
             }
             return response;

@@ -30,7 +30,7 @@ type: reference
 
 `@graphvideo/sdk/analysis` 提供 JS 实例扫描；`@graphvideo/sdk/analysis/portable` 提供只依赖纯数据快照的语言无关图算法入口，不加载 TypeScript 扫描器。两者均不进浏览器包。
 
-`@graphvideo/backend-sdk` 还提供 `connectKernelDaemon` 和 `runDaemonNodeWorker`：前者连接业务无关的独立 Rust 图宿主，后者把 JS change handler 适配为通用 `claim → poll → commit` 协议。其他语言直接实现相同 DTO 协议即可；daemon 不依赖 JS 业务代码。
+`@graphvideo/backend-sdk` 还提供 `connectKernelDaemon`、`runDaemonNodeWorker` 和 `runDaemonEffectProvider`：前者连接业务无关的独立 Rust 图宿主，后两者分别把 JS change handler 与物理 EffectAdapter 适配为通用租约协议。其他语言直接实现相同 DTO 协议即可；daemon 不依赖 JS 业务代码，也不解释 adapter 的业务含义。
 
 本仓库采用 npm workspace 源码构建。TypeScript 类型与大部分 SDK 入口直接指向源码；Electron 主进程不能直接加载 `.ts`，因此 `npm run build:runtime` 会依次生成 `core/dist/` 与 `sdk/backend/dist/`，并把当前平台的原生绑定放入 backend 运行时目录。backend 构建把 `@graphvideo/kernel` 保持为外部依赖，使直接 Kernel 消费者与 backend-sdk 共享同一份身份能力。`npm run build:native` 构建 Rust/N-API 调度内核。本仓库不提供 tarball 导出、发包或仓外脚手架流程。
 

@@ -138,9 +138,13 @@ export { describeDomainNode, mountDomainNode, replaceDomainNode } from './native
 export type { DescribedDomainNode } from './native-node'
 export { KernelDaemonClient, connectKernelDaemon } from './daemon-client'
 export type {
-  DaemonChangeOperation, DaemonPolledChange, KernelDaemonClientOptions,
+  DaemonChangeOperation, DaemonPolledChange, DaemonPolledEffect, KernelDaemonClientOptions,
 } from './daemon-client'
 export { runDaemonNodeWorker } from './daemon-node'
 export type {
   DaemonNodeChangeContext, DaemonNodeHandler, DaemonNodeWorkerClient, DaemonNodeWorkerOptions,
 } from './daemon-node'
+export { runDaemonEffectProvider } from './daemon-effect'
+export type {
+  DaemonEffectAdapter, DaemonEffectContext, DaemonEffectProviderClient, DaemonEffectProviderOptions,
+} from './daemon-effect'

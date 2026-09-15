@@ -173,7 +173,16 @@ fn node_claim_is_exclusive_and_released_when_the_worker_disconnects() {
     let conflict = contender.request("claim", json!({"nodeIds":["worker.node"]}));
     assert_eq!(conflict["ok"], false);
     drop(owner);
-    contender.call("claim", json!({"nodeIds":["worker.node"]}));
+    let mut reclaimed = false;
+    for _ in 0..20 {
+        let response = contender.request("claim", json!({"nodeIds":["worker.node"]}));
+        if response["ok"] == true {
+            reclaimed = true;
+            break;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(reclaimed, "worker lease was not released after disconnect");
     assert_eq!(contender.call("health", json!({}))["leases"], 1);
 }
 
@@ -197,6 +206,62 @@ fn long_poll_wakes_when_another_client_injects_work() {
 }
 
 #[test]
+fn effect_capability_brokers_opaque_requests_without_business_semantics() {
+    let daemon = Daemon::start();
+    let mut control = daemon.connect();
+    control.call(
+        "admit",
+        json!({
+            "nodeId":"world","initialState":{"result":null},
+            "effectCapabilities":["fixture/effect"]
+        }),
+    );
+    control.call(
+        "inject",
+        json!({
+            "targetNodeId":"world","info":{"type":"RunInfo"},"submissionId":"effect/1"
+        }),
+    );
+    let mut worker = daemon.connect();
+    worker.call("claim", json!({"nodeIds":["world"]}));
+    let change = worker.call("poll", json!({}));
+
+    let unavailable = worker.request("requestEffect", json!({
+        "changeId":change["change"]["changeId"],"adapterId":"fixture/effect","request":{"value":4}
+    }));
+    assert_eq!(unavailable["ok"], false);
+
+    let mut provider = daemon.connect();
+    provider.call("claimEffects", json!({"adapterIds":["fixture/effect"]}));
+    let requested = worker.call("requestEffect", json!({
+        "changeId":change["change"]["changeId"],"adapterId":"fixture/effect","request":{"value":4}
+    }));
+    let effect = provider.call("pollEffect", json!({}));
+    assert_eq!(effect["adapterId"], "fixture/effect");
+    assert_eq!(effect["request"]["value"], 4);
+    provider.call(
+        "completeEffect",
+        json!({
+            "effectId":effect["effectId"],"ok":true,"observation":{"value":8}
+        }),
+    );
+    let observed = worker.call("awaitEffect", json!({"effectId":requested["effectId"]}));
+    assert_eq!(observed, json!({"ok":true,"value":{"value":8}}));
+    worker.call(
+        "commit",
+        json!({
+            "changeId":change["change"]["changeId"],"operations":[
+                {"op":"write","key":"result","value":observed["value"]}
+            ]
+        }),
+    );
+    assert_eq!(
+        control.call("projection", json!({}))["nodes"]["world"]["state"]["result"]["value"],
+        8
+    );
+}
+
+#[test]
 fn disconnecting_mid_change_releases_single_flight_and_routes_an_error_info() {
     let daemon = Daemon::start();
     let mut worker = daemon.connect();
@@ -216,7 +281,7 @@ fn disconnecting_mid_change_releases_single_flight_and_routes_an_error_info() {
 
     let mut recovery = daemon.connect();
     recovery.call("claim", json!({"nodeIds":["errors"]}));
-    let error = recovery.call("poll", json!({}));
+    let error = recovery.call("poll", json!({"waitMs":1000}));
     assert_eq!(error["change"]["nodeId"], "errors");
     assert_eq!(error["change"]["info"]["type"], "@error/NodeFailed");
     assert_eq!(error["change"]["info"]["nodeId"], "owner");

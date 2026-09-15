@@ -14,6 +14,8 @@ class FixtureClient implements DaemonNodeWorkerClient {
   async claim(nodeIds: readonly string[]) { this.claimed = nodeIds; }
   async release(nodeIds: readonly string[]) { this.released = nodeIds; }
   async poll() { return this.changes.shift() ?? null; }
+  async requestEffect() { throw new Error('no fixture EffectAdapter'); }
+  async awaitEffect() { return null; }
   async commit(changeId: number, operations: readonly DaemonChangeOperation[], error?: string) {
     this.commits.push({ changeId, operations, error });
     this.stop.abort();
