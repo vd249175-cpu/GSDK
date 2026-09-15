@@ -43,7 +43,7 @@ Rust 开始一次单飞 change 后，宿主发送 `{"kind":"change","changeId":1
 
 ## 3. 分析与性能
 
-Rust 内核按 Node generation 保存事实，`admit/replace` 前校验 schema、`nodeId` 绑定与尺寸，拒绝旧 generation 写入，替换或移除时清除；调度、send 和 change 结算不读取或解析它。`graphvideo-analysis` 是跨语言协议的权威分析计算实现：daemon `analyze`、N-API `analyzeJson` 与 C ABI `gv_analyze` 调用同一个 Rust crate，不复制算法。`NativeAnalysisEngine.analyzeViaRust` 把请求 DTO 转发到该实现；尚未迁入 daemon 的 Studio 仍保留本地 TS `analyze()` 兼容路径，用于 JS 实例事实与现有公开分析 API。纯数据消费者也可用 `@graphvideo/sdk/analysis/portable`；此入口不加载 TypeScript AST 扫描器。JS Node 没有提供事实时，实例兼容路径仍可按需扫描其真实实例；daemon 则把该 Node 标成 `opaque-handler`，只合成可见 State 字段，不推断 send/read/write。
+Rust 内核按 Node generation 保存事实，`admit/replace` 前校验 schema、`nodeId` 绑定与尺寸，拒绝旧 generation 写入，替换或移除时清除；调度、send 和 change 结算不读取或解析它。`graphvideo-analysis` 是跨语言协议的权威分析计算实现：daemon `analyze`、N-API `analyzeJson` 与 C ABI `gv_analyze` 调用同一个 Rust crate，不复制算法。`NativeRuleSpace.analyze` 已直接使用 N-API；JS 只把已构造实例扫描为便携事实，查询、路径、折叠和指标不再回落到 TS。显式离线消费者仍可使用 `@graphvideo/sdk/analysis` 的纯函数。没有便携事实的原始 handler 会被标成 `opaque-handler`，只合成可见 State 字段，不推断 send/read/write。
 
 `NativeRuleSpace.analyze` 首次请求才读取事实、装配索引并运行分析。跨进程 Node 的每次 `ctx` 调用有一次 JSON Lines 往返；该成本只落在使用进程协议的 Node 上。语言运行时需要实现上述小型帧协议及因果事实生成器，不需要重写图分析算法。Rust 调度热路径不检查或解析分析事实。
 

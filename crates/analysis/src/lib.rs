@@ -46,7 +46,6 @@ fn index_to_json(index: &Index) -> Value {
         "uiPaths": partition("ui", false),
         "frontendLinks": index.frontend_links,
         "frontendServiceLinks": index.frontend_service_links,
-        "nodeObjectFacts": [],
         "unresolvedInfoTypes": index.unresolved_info_types,
         "unresolvedSendTargets": index.unresolved_send_targets,
     })
@@ -159,7 +158,6 @@ pub fn validate_snapshot(value: &Value) -> Result<Value, String> {
 
 /// Core entry: one analysis request over portable facts + context.
 /// `facts = {snapshots, liveStates}`, `context = {frontendLinks, frontendServiceLinks}`.
-/// No `instances` op: JS instance evidence never crosses the Rust protocol.
 pub fn analyze_json(request: &Value, facts: &Value, context: &Value) -> Result<Value, String> {
     let (snapshots, live_states) = facts_parts(facts)?;
     let (links, service_links) = context_parts(context)?;
@@ -252,10 +250,6 @@ pub fn analyze_json(request: &Value, facts: &Value, context: &Value) -> Result<V
                 &reference,
             )?)
         }
-        "instances" => Err(
-            "instances is a JS-only diagnostic and is not part of the Rust analysis protocol"
-                .into(),
-        ),
         _ => Err(format!("Unknown analysis operation: {op}")),
     }
 }
@@ -304,13 +298,6 @@ mod tests {
     }
 
     #[test]
-    fn instances_op_stays_js_only() {
-        let (facts, context) = facts(json!([]));
-        let error = analyze_json(&json!({"op": "instances"}), &facts, &context).unwrap_err();
-        assert!(error.contains("JS-only"));
-    }
-
-    #[test]
     fn index_uses_the_complete_language_neutral_dto() {
         let snapshot = json!({
             "version": 1,
@@ -353,7 +340,6 @@ mod tests {
             "uiPaths",
             "frontendLinks",
             "frontendServiceLinks",
-            "nodeObjectFacts",
             "unresolvedInfoTypes",
             "unresolvedSendTargets",
         ] {

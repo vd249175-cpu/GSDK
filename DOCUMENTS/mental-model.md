@@ -31,12 +31,12 @@ Electron main
   │  ├─ Rust mailbox/change/submission 调度（crates/kernel）
   │  ├─ JS 或进程协议业务 Node、宿主持有的 State 与 change
   │  ├─ 构造注入的 EffectAdapter
-  │  └─ 按需加载的实例因果分析与折叠视角（只读）
+  │  └─ JS 实例事实提取 → Rust N-API 因果分析与折叠视角（只读）
   └─ 文件、数据库、进程与窗口宿主
 
 开发期与测试规约
   ├─ KernelRuntime：TypeScript 参考规约与测试 Oracle（只读规约，不再作为生产内核维护）
-  └─ @graphvideo/sdk/analysis：纯实例分析算法，不启动 Runtime；也供生产只读分析层复用
+  └─ @graphvideo/sdk/analysis：JS 实例事实生成器、分析 DTO 与显式离线纯算法，不启动 Runtime
 ```
 
 当前 Studio 生产 Graph 仍由 Electron main 内的 `NativeRuleSpace` 承载，renderer/main 的 IPC 是桌面安全边界。新增的 `kernel-daemon` 是可选的独立规则空间宿主，使用带版本和凭证的 loopback JSON Lines 协议；它复用同一个 `crates/kernel` 调度器，不形成第二套执行语义。
@@ -179,7 +179,7 @@ renderer 图协议只有：
 
 ## 7. 实例驱动分析
 
-`@graphvideo/sdk/analysis` 对真实 JS Node 实例调用 `inspectNodeObjects`，读取属性和方法描述 DTO；其它语言 Node 可通过 [跨语言 Node 与分析事实协议](./portable-node-protocol.md) 提供纯数据 `PortableAnalysisSnapshot`。分析事实的生成器属于各语言外层；语言无关的权威计算入口属于 Rust `graphvideo-analysis`，daemon `analyze`、N-API 与 C ABI 共享同一实现，`instances` 不进入通用协议。Rust 内核只在装配时保存该事实并在 `admit/replace` 前校验。当前尚未迁入 daemon 的 Studio `NativeRuleSpace.analyze` 仍保留 TS 实例分析兼容路径，随 Node 增删替换或 State 字段变化失效重建；它不是跨语言协议的另一份实现。分析不执行 Node.change 或 Effect。
+`@graphvideo/sdk/analysis` 对真实 JS Node 实例调用 `inspectNodeObjects`，把属性和方法证据转换为每 Node 的 `PortableAnalysisSnapshot`；其它语言 Node 通过 [跨语言 Node 与分析事实协议](./portable-node-protocol.md) 提供相同纯数据。事实生成器属于各语言外层；语言无关的权威计算入口属于 Rust `graphvideo-analysis`，daemon `analyze`、N-API 与 C ABI 共享同一实现。`NativeRuleSpace.analyze` 已迁至 N-API，不再执行 TS 查询、折叠或指标兼容算法，返回与 daemon 相同的 JSON DTO；JS 实例描述可通过显式 `inspectNodeObjects` 离线读取，不属于内核分析操作。Rust 内核只在装配时保存外部 Node 事实并在 `admit/replace` 前校验。分析不执行 Node.change 或 Effect。
 
 ```text
 entry  --inject--> info@Target

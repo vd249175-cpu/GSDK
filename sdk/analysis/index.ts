@@ -1,12 +1,14 @@
 /**
  * 可发布的因果分析核：纯实例 DTO + 确定性算法，无宿主装配、无文件 IO。
- * NativeRuleSpace 按需复用这些只读算法；插件装配与 UI 联动表仍由消费方提供。
+ * NativeRuleSpace 只复用这里的 JS 实例事实提取，并把便携事实交给 Rust
+ * 分析接口；本文件中的纯算法保留给显式离线分析调用方。
  */
 export { buildCausalIndex, type ScanIndexOptions } from './scan-index';
 export { buildCausalIndexFromSnapshot, type PortableIndexOptions } from './portable-index';
 export { validateCausalIndex } from './validate-index';
 export { scanNodeChanges } from './scan-changes';
 export { inspectNodeObjects, nodeObjectFactToScannedNode } from './inspect-nodes';
+export { extractPortableAnalysisSnapshots } from './portable-facts';
 export { queryEntity, expandEntity } from './query';
 export { findCausalPaths, findCausalChain } from './path';
 export type { PathSearchOptions } from './path';

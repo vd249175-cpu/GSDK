@@ -430,7 +430,7 @@ fn lock_error(_: std::sync::PoisonError<std::sync::MutexGuard<'_, Kernel>>) -> n
 ///
 /// `request_json` is one analysis request DTO (`index|facts|validate|entity|
 /// expand|path|select|view|health|reach|centrality|communities|
-/// granularCommunities|compareCommunities`; no `instances` op). `facts_json`
+/// granularCommunities|compareCommunities`). `facts_json`
 /// carries `{snapshots:[], liveStates:{}}` plus optional `frontendLinks` and
 /// `frontendServiceLinks` context arrays (a bare snapshot array is also
 /// accepted and runs with empty context). Returns key-sorted result JSON.

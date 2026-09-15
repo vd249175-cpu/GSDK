@@ -410,8 +410,8 @@ pub unsafe extern "C" fn gv_string_free(value: *mut c_char) {
 }
 
 /// Authoritative analysis compute over portable facts, shared with the daemon
-/// and the N-API facade. `request_json` is one analysis request DTO (no
-/// `instances` op); `facts_json` carries `{snapshots:[], liveStates:{}}` plus
+/// and the N-API facade. `request_json` is one supported analysis request DTO;
+/// `facts_json` carries `{snapshots:[], liveStates:{}}` plus
 /// optional `frontendLinks` / `frontendServiceLinks` context arrays (a bare
 /// snapshot array is also accepted). Returns key-sorted result JSON, or NULL
 /// on invalid input; free with `gv_analysis_free`. No algorithms live here.

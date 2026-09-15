@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Node } from '@graphvideo/kernel';
 import { mountDomainNode } from './native-node';
+import { NativeAnalysisEngine } from './native-analysis';
 import { locateNativeBinding, NativeRuleSpace } from './native-space';
 import type { PortableAnalysisSnapshot } from '../analysis/model';
 
@@ -16,6 +17,30 @@ class Target extends Node<{ count: number }> {
     if (info.type === 'WorkInfo') ctx.write('count', ctx.read('count') + 1);
   }
 }
+
+describe('Rust analysis adapter cache', () => {
+  it('reuses results across State value writes and rebuilds for structural changes', async () => {
+    const state: Record<string, unknown> = { count: 0 };
+    let calls = 0;
+    const engine = new NativeAnalysisEngine(
+      () => {
+        calls += 1;
+        return '{}';
+      },
+      () => [{ id: 'opaque', state }],
+    );
+    await engine.analyze({ op: 'view' });
+    state.count = 1;
+    await engine.analyze({ op: 'view' });
+    expect(calls).toBe(1);
+    state.added = true;
+    await engine.analyze({ op: 'view' });
+    expect(calls).toBe(2);
+    engine.invalidate();
+    await engine.analyze({ op: 'view' });
+    expect(calls).toBe(3);
+  });
+});
 
 describe.skipIf(!locateNativeBinding())('native rule space analysis', () => {
   it('analyzes a foreign-language Node from kernel-owned portable facts', async () => {
@@ -47,20 +72,22 @@ describe.skipIf(!locateNativeBinding())('native rule space analysis', () => {
     const space = new NativeRuleSpace();
     mountDomainNode(space, new Source());
     mountDomainNode(space, new Target());
+    expect((await space.analyze({ op: 'facts' })).map((entry: { nodeId: string }) => entry.nodeId))
+      .toEqual(['source', 'target']);
     const collapsed = await space.analyze({ op: 'view', foldDepth: 0 });
-    expect(collapsed.nodes.size).toBe(1);
+    expect(Object.keys(collapsed.nodes)).toHaveLength(1);
     expect(collapsed.routes[0].internal).toBe(true);
     const expanded = await space.analyze({ op: 'view', foldDepth: 1 });
-    expect([...expanded.nodes.keys()]).toEqual(['source', 'target']);
+    expect(Object.keys(expanded.nodes)).toEqual(['source', 'target']);
     expect(expanded.routes[0]).toMatchObject({ from: 'source', to: 'target', infoType: 'WorkInfo' });
     const folds = {
       version: 1 as const, root: 'world', groups: {
         world: { children: ['pair'] }, pair: { children: ['source', 'target'] },
       },
     };
-    expect([...(await space.analyze({ op: 'view', folds, foldDepth: 1 })).nodes.keys()])
+    expect(Object.keys((await space.analyze({ op: 'view', folds, foldDepth: 1 })).nodes))
       .toEqual(['fold:pair']);
-    expect([...(await space.analyze({ op: 'view', folds, foldDepth: 2 })).nodes.keys()])
+    expect(Object.keys((await space.analyze({ op: 'view', folds, foldDepth: 2 })).nodes))
       .toEqual(['source', 'target']);
     expect((await space.analyze({ op: 'health', foldDepth: 1 })).nodeCount).toBe(2);
     expect((await space.analyze({ op: 'reach', nodeId: 'source', foldDepth: 1 })).downstream)
@@ -82,15 +109,21 @@ describe.skipIf(!locateNativeBinding())('native rule space analysis', () => {
     const space = new NativeRuleSpace();
     mountDomainNode(space, new Source());
     space.register('opaque', { initial: 1 }, () => {});
-    expect((await space.analyze({ op: 'view', foldDepth: 1 })).nodes.has('opaque')).toBe(true);
+    expect((await space.analyze({ op: 'view', foldDepth: 1 })).nodes).toHaveProperty('opaque');
     await space.interveneState('opaque', { added: 2 }, {
       actor: 'agent/test', reason: 'repair', expectedGeneration: 0, expectedVersion: 0,
     });
     expect((await space.analyze({ op: 'entity', address: 'state:opaque::added' }))?.nodeId).toBe('opaque');
     space.unregister('source');
-    expect((await space.analyze({ op: 'view', foldDepth: 1 })).nodes.has('source')).toBe(false);
+    expect((await space.analyze({ op: 'view', foldDepth: 1 })).nodes).not.toHaveProperty('source');
     await space.replace('opaque', { replacement: true }, () => {});
     expect((await space.analyze({ op: 'entity', address: 'state:opaque::replacement' }))?.nodeId).toBe('opaque');
     expect(await space.analyze({ op: 'entity', address: 'state:opaque::added' })).toBeNull();
+  });
+
+  it('rejects the removed JS instances compatibility operation', async () => {
+    const space = new NativeRuleSpace();
+    await expect(space.analyze({ op: 'instances' } as never))
+      .rejects.toThrow('Unknown analysis operation: instances');
   });
 });

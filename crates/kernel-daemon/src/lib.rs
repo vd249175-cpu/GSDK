@@ -121,7 +121,7 @@ pub struct PendingAnalysis {
     pub facts: Value,
     /// `{frontendLinks, frontendServiceLinks}` context DTO.
     pub context: Value,
-    /// The analysis request DTO (`view`, `path`, `health`, ...; no `instances`).
+    /// The analysis request DTO (`view`, `path`, `health`, ...).
     pub request: Value,
     /// Revision bound at snapshot time; the only key the result may fill.
     pub revision: u64,
@@ -283,12 +283,6 @@ impl Space {
             return Err("unauthorized".into());
         }
         let inner = request.get("request").ok_or("request is required")?.clone();
-        if inner.get("op").and_then(Value::as_str) == Some("instances") {
-            return Err(
-                "instances is a JS-only diagnostic and is not part of the Rust analysis protocol"
-                    .into(),
-            );
-        }
         let snapshots: Vec<Value> = self
             .kernel
             .all_analysis_facts()
@@ -1097,12 +1091,6 @@ impl Space {
     }
 
     fn analyze_inline(&mut self, inner: &Value) -> Result<Value, String> {
-        if inner.get("op").and_then(Value::as_str) == Some("instances") {
-            return Err(
-                "instances is a JS-only diagnostic and is not part of the Rust analysis protocol"
-                    .into(),
-            );
-        }
         let revision = self.analysis_revision;
         if let Some(hit) = self
             .analysis_cache

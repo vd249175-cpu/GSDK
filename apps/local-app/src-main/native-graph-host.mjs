@@ -107,7 +107,7 @@ export function createNativeGraphHost({
     },
 
     agentAnalyze(request) {
-      return space.analyzeDto(request)
+      return space.analyze(request)
     },
 
     async agentInject(targetNodeId, info, { actor, reason }) {

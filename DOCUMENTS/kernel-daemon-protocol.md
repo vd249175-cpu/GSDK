@@ -65,7 +65,7 @@ Git 拉取、目录发现、编译器与依赖定位、自动安装/构建、进
 {"version":1,"id":10,"token":"...","op":"analyze","request":{"op":"view","foldDepth":2}}
 ```
 
-`analyze` 的 `request` 与 `@graphvideo/sdk/analysis` 的便携查询同构（`index/facts/validate/entity/expand/path/select/view/health/reach/centrality/communities/granularCommunities/compareCommunities`；`instances` 是 JS 实例诊断，不进入 Rust 协议）。缺省 `folds` 时使用覆盖全部 Node 的单层 `world` 根组；Map 结果一律按键排序编码。daemon 在短锁内克隆不可变快照，释放调度锁后执行分析；`admit/replace/evict`、上下文变化与新增 State key 增加 `analysisRevision`，普通 State 值变化不失效；单次折叠（64 组/5000 叶）与响应（512 KiB）超限返回协议错误，不影响 daemon。
+`analyze` 的 `request` 与统一便携查询 DTO 同构（`index/facts/validate/entity/expand/path/select/view/health/reach/centrality/communities/granularCommunities/compareCommunities`）。缺省 `folds` 时使用覆盖全部 Node 的单层 `world` 根组；对象键按字节序编码。daemon 在短锁内克隆不可变快照，释放调度锁后执行分析；`admit/replace/evict`、上下文变化与新增 State key 增加 `analysisRevision`，普通 State 值变化不失效；单次折叠（64 组/5000 叶）与响应（512 KiB）超限返回协议错误，不影响 daemon。
 
 Agent 控制面复用同一套 Rust 原语，观测与干预都经过 DTO：
 

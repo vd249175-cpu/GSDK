@@ -33,9 +33,9 @@ describe.skipIf(!binding)('N-API shared analysis compute', () => {
     expect(result.routes[0]).toMatchObject({ routeCount: 1, internal: false });
   });
 
-  it('rejects the JS-only instances op like every other Rust entry', () => {
+  it('rejects operations outside the unified Rust protocol', () => {
     expect(() => binding!.analyzeJson(
-      JSON.stringify({ op: 'instances' }),
+      JSON.stringify({ op: 'legacyQuery' }),
       JSON.stringify({ snapshots, liveStates: {} }),
     )).toThrow();
   });

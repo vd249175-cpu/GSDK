@@ -15,7 +15,6 @@ import type {
   EffectAdapter,
   GraphProjection,
   IdProvider,
-  Node,
   ValueCodec,
 } from '@graphvideo/kernel';
 
@@ -138,6 +137,11 @@ interface BindingSpace {
   }>;
   drops(): Array<{ target: string; reason: string; submission?: string }>;
   admittedEntities?(): string[];
+}
+
+interface NativeBinding {
+  readonly space: BindingSpace;
+  readonly analyzeJson: (requestJson: string, factsJson: string) => string;
 }
 
 interface RegisteredNode {
@@ -296,7 +300,7 @@ export function locateNativeBinding(): string | null {
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
 
-function loadBinding(): BindingSpace {
+function loadBinding(): NativeBinding {
   const path = locateNativeBinding();
   if (!path) {
     throw new Error(
@@ -304,8 +308,14 @@ function loadBinding(): BindingSpace {
     );
   }
   const require = createRequire(import.meta.url);
-  const module = require(path) as { RuleSpace: new () => BindingSpace };
-  return new module.RuleSpace();
+  const module = require(path) as {
+    RuleSpace: new () => BindingSpace;
+    analyzeJson: (requestJson: string, factsJson: string) => string;
+  };
+  if (typeof module.analyzeJson !== 'function') {
+    throw new Error('Native rule space binding is missing the Rust analyzeJson interface');
+  }
+  return { space: new module.RuleSpace(), analyzeJson: module.analyzeJson };
 }
 
 function toFeedback(feedback: BindingFeedback): NativeDeliveryFeedback {
@@ -352,6 +362,7 @@ function encodeAnalysisFacts(id: string, facts?: PortableAnalysisSnapshot): stri
  */
 export class NativeRuleSpace {
   private readonly binding: BindingSpace;
+  private readonly nativeAnalyzeJson: (requestJson: string, factsJson: string) => string;
   private analysisEngine?: NativeAnalysisEngine;
   private readonly nodes = new Map<string, RegisteredNode>();
   private readonly submissionControllers = new Map<string, AbortController>();
@@ -376,7 +387,9 @@ export class NativeRuleSpace {
   public errorTargetNodeId?: string;
 
   constructor(options: NativeRuleSpaceOptions = {}) {
-    this.binding = loadBinding();
+    const native = loadBinding();
+    this.binding = native.space;
+    this.nativeAnalyzeJson = native.analyzeJson;
     this.errorTargetNodeId = options.errorTargetNodeId;
     this.clock = options.clock ?? systemClock;
     this.idProvider = options.idProvider
@@ -643,11 +656,11 @@ export class NativeRuleSpace {
     }));
   }
 
-  /** Query static instance evidence for the currently admitted rule space. */
+  /** Query the shared Rust analysis engine over current portable facts. */
   async analyze<T = any>(request: NativeAnalysisRequest): Promise<T> {
     if (!this.analysisEngine) {
       const { NativeAnalysisEngine } = await import('./native-analysis');
-      this.analysisEngine = new NativeAnalysisEngine(() => [...this.nodes.entries()].map(([id, node]) => ({
+      this.analysisEngine = new NativeAnalysisEngine(this.nativeAnalyzeJson, () => [...this.nodes.entries()].map(([id, node]) => ({
         id, state: node.state, instance: node.nodeInstance,
       })), this.analysisFrontendLinks, this.analysisFrontendServiceLinks, () =>
         this.binding.analysisFacts().map(({ entity, factsJson }) => {
@@ -657,11 +670,6 @@ export class NativeRuleSpace {
         }));
     }
     return this.analysisEngine.analyze(request) as T;
-  }
-
-  async analyzeDto(request: NativeAnalysisRequest): Promise<unknown> {
-    const { analysisToDto } = await import('./native-analysis');
-    return analysisToDto(await this.analyze(request));
   }
 
   drops(): Array<{ target: string; reason: string; submission?: string }> {
@@ -773,7 +781,6 @@ export class NativeRuleSpace {
       const versionBefore = node.version;
       node.state = after;
       node.version += 1;
-      this.analysisEngine?.invalidate();
       interventionEvent = {
         type: 'state_intervened', actor: options.actor, reason: options.reason,
         nodeId, generation, versionBefore, versionAfter: node.version,
@@ -871,7 +878,6 @@ export class NativeRuleSpace {
         assertCurrent();
         node.state[key as string] = value;
         node.version += 1;
-        space.analysisEngine?.invalidate();
         space.publishProjection();
         space.emitTelemetry({
           type: 'state_mutated',
@@ -885,7 +891,6 @@ export class NativeRuleSpace {
         assertCurrent();
         Object.assign(node.state, patch);
         node.version += 1;
-        space.analysisEngine?.invalidate();
         space.publishProjection();
         space.emitTelemetry({
           type: 'state_mutated',
