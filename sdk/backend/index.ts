@@ -140,3 +140,7 @@ export { KernelDaemonClient, connectKernelDaemon } from './daemon-client'
 export type {
   DaemonChangeOperation, DaemonPolledChange, KernelDaemonClientOptions,
 } from './daemon-client'
+export { runDaemonNodeWorker } from './daemon-node'
+export type {
+  DaemonNodeChangeContext, DaemonNodeHandler, DaemonNodeWorkerClient, DaemonNodeWorkerOptions,
+} from './daemon-node'

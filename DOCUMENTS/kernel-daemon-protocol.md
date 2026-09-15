@@ -42,7 +42,7 @@ const client = await connectKernelDaemon({ address, token })
 {"id":1,"ok":true,"result":{"pid":1234,"nodes":0,"pending":0}}
 ```
 
-同一连接允许多个请求在途，客户端按 `id` 关联响应。请求错误返回 `ok:false`，不会终止 daemon。
+客户端按 `id` 关联响应；daemon 在每条连接上按接收顺序处理请求。长轮询 worker 应使用独立连接，控制面请求使用另一条连接。请求错误返回 `ok:false`，不会终止 daemon。
 
 ## Node 与 State
 
@@ -72,10 +72,16 @@ const client = await connectKernelDaemon({ address, token })
 
 相同 ID、目标和 Info 的重复注入返回原投递反馈，不再次入队；同一 ID 携带不同内容会被拒绝。
 
-任何语言的 Node worker 使用 `poll` 取得一条 change 和该 Owner 的只读 State 快照。执行完成后，把所有写入和 send 作为一个批次提交：
+Node worker 必须先通过 `claim` 独占它实现的 Node；租约绑定当前连接和 Node generation，连接断开、Node 替换或移除都会释放租约。其他 worker 不能领取这些 Node 的 change：
 
 ```json
-{"version":1,"id":5,"token":"...","op":"commit","changeId":1,"operations":[
+{"version":1,"id":5,"token":"...","op":"claim","nodeIds":["counter"]}
+```
+
+任何语言的 worker 随后使用 `poll` 定向取得一条 change 和该 Owner 的只读 State 快照。`waitMs` 可请求最长 30 秒的有界长轮询；新 Info 入队时 daemon 会立即唤醒等待者，空闲时不产生高频请求。执行完成后，把所有写入和 send 作为一个批次提交：
+
+```json
+{"version":1,"id":6,"token":"...","op":"commit","changeId":1,"operations":[
   {"op":"write","key":"count","value":1},
   {"op":"send","targetNodeId":"observer","info":{"type":"CountChangedInfo","count":1}}
 ]}
@@ -85,9 +91,11 @@ daemon 先完整校验操作，再在同一临界区依次执行并结算 change
 
 worker 可在 `commit` 中传 `error`；连接在持有 change 时断开也会产生同等错误。daemon 将错误作为 `@error/NodeFailed` Info 发送到通过 `setErrorTarget` 配置的通用错误节点，然后正常结算原 change，避免单飞永久占用。
 
+JS worker 可用 `runDaemonNodeWorker` 把本地 handler 映射到同一协议。它从 State 快照提供本地 `read/write/patchState/send` Context，并自动批量 commit。该 helper 是一种语言适配器；Python、Rust 或其他语言实现相同帧即可，不需要 JS 参与执行。
+
 ## 当前边界
 
 - daemon 退出后尚不能从磁盘恢复 State、mailbox 和 submission；恢复日志属于下一阶段。
-- `poll` 当前从整个规则空间领取下一条 change。生产多语言 worker 装配需要增加 Node 租约和定向领取，防止一个 worker 取得不属于它的 Node。
+- 当前一个 worker 连接同时只持有一条 active change；横向并行通过多个 worker 连接实现，同一 Node 仍保持 single-flight。
 - EffectAdapter 仍未进入 daemon 协议。下一阶段会让执行节点通过带能力的 Effect 端点调用物理宿主，业务含义继续留在内核之外。
 - daemon 不负责启动 Electron。未来由图内业务节点决定桌面生命周期，由物理适配器执行进程和窗口动作。

@@ -1,9 +1,11 @@
 //! Business-agnostic owner of a persistent rule space and JSON State.
 //! Node bodies run in clients; only generic causal operations live here.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use graphvideo_kernel::{ActiveChange, ChangeOutcome, DeliveryFeedback, Kernel, SubmissionState};
+use graphvideo_kernel::{
+    ActiveChange, BeginError, ChangeOutcome, DeliveryFeedback, Kernel, SubmissionState,
+};
 use serde_json::{json, Map, Value};
 
 const ERROR_INFO_TYPE: &str = "@error/NodeFailed";
@@ -20,16 +22,32 @@ struct SubmissionRequest {
     feedback: Value,
 }
 
-#[derive(Default)]
+struct Lease {
+    session_id: u64,
+    generation: u64,
+}
+
 pub struct Session {
+    id: u64,
     active: HashMap<u64, ActiveChange>,
+    claims: BTreeSet<String>,
 }
 
 impl Session {
-    pub fn abandon(&mut self, space: &mut Space) {
+    pub fn new(id: u64) -> Self {
+        Self {
+            id,
+            active: HashMap::new(),
+            claims: BTreeSet::new(),
+        }
+    }
+
+    pub fn disconnect(&mut self, space: &mut Space) {
         for (_, token) in self.active.drain() {
             space.fail_change(token, "Node worker disconnected");
         }
+        space.leases.retain(|_, lease| lease.session_id != self.id);
+        self.claims.clear();
     }
 }
 
@@ -38,6 +56,7 @@ pub struct Space {
     kernel: Kernel,
     nodes: BTreeMap<String, NodeRecord>,
     submissions: BTreeMap<String, SubmissionRequest>,
+    leases: BTreeMap<String, Lease>,
     error_target: Option<String>,
 }
 
@@ -101,6 +120,7 @@ impl Space {
                 "pid":std::process::id(),
                 "nodes":self.nodes.len(),
                 "pending":self.kernel.pending_total(),
+                "leases":self.leases.len(),
             })),
             "admit" => {
                 let id = required_str(request, "nodeId")?.to_owned();
@@ -120,7 +140,7 @@ impl Space {
                     }
                 }
                 self.nodes.insert(
-                    id,
+                    id.clone(),
                     NodeRecord {
                         state,
                         version: 0,
@@ -135,6 +155,7 @@ impl Space {
                     return Err("node is not admitted".into());
                 }
                 self.nodes.remove(id);
+                self.leases.remove(id);
                 Ok(json!({"evicted":true}))
             }
             "replace" => {
@@ -147,14 +168,79 @@ impl Space {
                         .map_err(|e| e.to_string())?;
                 }
                 self.nodes.insert(
-                    id,
+                    id.clone(),
                     NodeRecord {
                         state,
                         version: 0,
                         generation,
                     },
                 );
+                self.leases.remove(&id);
                 Ok(json!({"generation":generation}))
+            }
+            "claim" => {
+                let ids = request
+                    .get("nodeIds")
+                    .and_then(Value::as_array)
+                    .ok_or("nodeIds must be an array")?
+                    .iter()
+                    .map(|value| {
+                        value
+                            .as_str()
+                            .filter(|id| !id.is_empty())
+                            .map(str::to_owned)
+                            .ok_or_else(|| "nodeIds must contain nonempty strings".to_owned())
+                    })
+                    .collect::<Result<BTreeSet<_>, _>>()?;
+                if ids.is_empty() {
+                    return Err("nodeIds must not be empty".into());
+                }
+                for id in &ids {
+                    let node = self.nodes.get(id).ok_or("claimed node is not admitted")?;
+                    if self
+                        .leases
+                        .get(id)
+                        .is_some_and(|lease| lease.session_id != session.id)
+                    {
+                        return Err(format!("node is already claimed: {id}"));
+                    }
+                    if self.kernel.generation(id) != Some(node.generation) {
+                        return Err(format!("node generation is stale: {id}"));
+                    }
+                }
+                for id in ids {
+                    let generation = self.nodes[&id].generation;
+                    self.leases.insert(
+                        id.clone(),
+                        Lease {
+                            session_id: session.id,
+                            generation,
+                        },
+                    );
+                    session.claims.insert(id);
+                }
+                Ok(json!({"nodeIds":session.claims}))
+            }
+            "release" => {
+                if !session.active.is_empty() {
+                    return Err("cannot release while a change is active".into());
+                }
+                let ids = request
+                    .get("nodeIds")
+                    .and_then(Value::as_array)
+                    .ok_or("nodeIds must be an array")?;
+                for value in ids {
+                    let id = value.as_str().ok_or("nodeIds must contain strings")?;
+                    if self
+                        .leases
+                        .get(id)
+                        .is_some_and(|lease| lease.session_id == session.id)
+                    {
+                        self.leases.remove(id);
+                        session.claims.remove(id);
+                    }
+                }
+                Ok(json!({"nodeIds":session.claims}))
             }
             "inject" => {
                 let target = required_str(request, "targetNodeId")?;
@@ -188,7 +274,30 @@ impl Space {
                 if !session.active.is_empty() {
                     return Err("settle the active change before polling".into());
                 }
-                let Some((token, view)) = self.kernel.poll_next() else {
+                if session.claims.is_empty() {
+                    return Err("claim at least one node before polling".into());
+                }
+                let mut polled = None;
+                for id in session.claims.clone() {
+                    let valid_lease = self.leases.get(&id).is_some_and(|lease| {
+                        lease.session_id == session.id
+                            && self.nodes.get(&id).map(|node| node.generation)
+                                == Some(lease.generation)
+                    });
+                    if !valid_lease {
+                        session.claims.remove(&id);
+                        continue;
+                    }
+                    match self.kernel.begin_change(&id) {
+                        Ok(change) => {
+                            polled = Some(change);
+                            break;
+                        }
+                        Err(BeginError::Empty(_) | BeginError::Busy(_) | BeginError::Sealed(_)) => {
+                        }
+                    }
+                }
+                let Some((token, view)) = polled else {
                     return Ok(Value::Null);
                 };
                 let change_id = view.change_id;

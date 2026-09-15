@@ -19,7 +19,7 @@ describe('KernelDaemonClient', () => {
         requests.push(request);
         const delay = request.op === 'health' ? 10 : 0;
         setTimeout(() => socket.write(`${JSON.stringify({
-          id: request.id, ok: true, result: request.op === 'health' ? { pid: 7, nodes: 0, pending: 0 } : { pending: 0 },
+          id: request.id, ok: true, result: request.op === 'health' ? { pid: 7, nodes: 0, pending: 0, leases: 0 } : { pending: 0 },
         })}\n`), delay);
       });
     });

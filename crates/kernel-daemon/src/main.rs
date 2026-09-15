@@ -2,13 +2,17 @@
 
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use graphvideo_kernel_daemon::{Session, Space};
 use serde_json::{json, Value};
 
 const MAX_FRAME_BYTES: usize = 1024 * 1024;
+const MAX_POLL_WAIT_MS: u64 = 30_000;
+type SharedSpace = Arc<(Mutex<Space>, Condvar)>;
 
 fn read_frame(reader: &mut impl BufRead) -> io::Result<Option<Vec<u8>>> {
     let mut frame = Vec::new();
@@ -44,33 +48,70 @@ fn read_frame(reader: &mut impl BufRead) -> io::Result<Option<Vec<u8>>> {
     }
 }
 
-fn serve_client(stream: TcpStream, shared: Arc<Mutex<Space>>, token: Arc<String>) {
+fn handle_request(
+    shared: &SharedSpace,
+    session: &mut Session,
+    request: &Value,
+    token: &str,
+) -> Value {
+    let wait_ms = request
+        .get("waitMs")
+        .and_then(Value::as_u64)
+        .unwrap_or(0)
+        .min(MAX_POLL_WAIT_MS);
+    let deadline = Instant::now() + Duration::from_millis(wait_ms);
+    loop {
+        let (lock, changed) = &**shared;
+        let mut space = lock.lock().unwrap_or_else(|poison| poison.into_inner());
+        let response = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            space.handle(session, request, token)
+        })) {
+            Ok(response) => response,
+            Err(_) => {
+                session.disconnect(&mut space);
+                return json!({"id":request.get("id"),"ok":false,"error":"internal request failure"});
+            }
+        };
+        let should_wait = request.get("op").and_then(Value::as_str) == Some("poll")
+            && response.get("ok") == Some(&Value::Bool(true))
+            && response.get("result") == Some(&Value::Null)
+            && wait_ms > 0
+            && Instant::now() < deadline;
+        if !should_wait {
+            if request.get("op").and_then(Value::as_str) != Some("poll") {
+                changed.notify_all();
+            }
+            return response;
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        let (next, timeout) = changed
+            .wait_timeout(space, remaining)
+            .unwrap_or_else(|poison| poison.into_inner());
+        drop(next);
+        if timeout.timed_out() {
+            return response;
+        }
+    }
+}
+
+fn serve_client(stream: TcpStream, shared: SharedSpace, token: Arc<String>, session_id: u64) {
     let _ = stream.set_nodelay(true);
     let mut reader = BufReader::new(stream.try_clone().expect("clone stream"));
     let mut writer = stream;
-    let mut session = Session::default();
+    let mut session = Session::new(session_id);
     while let Ok(Some(frame)) = read_frame(&mut reader) {
         let response = match serde_json::from_slice::<Value>(&frame) {
-            Ok(request) => {
-                let mut space = shared.lock().unwrap_or_else(|poison| poison.into_inner());
-                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    space.handle(&mut session, &request, &token)
-                })) {
-                    Ok(response) => response,
-                    Err(_) => {
-                        session.abandon(&mut space);
-                        json!({"id":request.get("id"),"ok":false,"error":"internal request failure"})
-                    }
-                }
-            }
+            Ok(request) => handle_request(&shared, &mut session, &request, &token),
             Err(_) => json!({"id":null,"ok":false,"error":"invalid JSON frame"}),
         };
         if writeln!(writer, "{response}").is_err() {
             break;
         }
     }
-    let mut space = shared.lock().unwrap_or_else(|poison| poison.into_inner());
-    session.abandon(&mut space);
+    let (lock, changed) = &*shared;
+    let mut space = lock.lock().unwrap_or_else(|poison| poison.into_inner());
+    session.disconnect(&mut space);
+    changed.notify_all();
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -90,14 +131,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         json!({"version":1,"address":listener.local_addr()?.to_string(),"pid":std::process::id()})
     );
     io::stdout().flush()?;
-    let shared = Arc::new(Mutex::new(Space::default()));
+    let shared = Arc::new((Mutex::new(Space::default()), Condvar::new()));
     let token = Arc::new(token);
+    let next_session_id = AtomicU64::new(1);
     for incoming in listener.incoming() {
         match incoming {
             Ok(stream) => {
                 let shared = Arc::clone(&shared);
                 let token = Arc::clone(&token);
-                thread::spawn(move || serve_client(stream, shared, token));
+                let session_id = next_session_id.fetch_add(1, Ordering::Relaxed);
+                thread::spawn(move || serve_client(stream, shared, token, session_id));
             }
             Err(error) => eprintln!("[kernel-daemon] accept error: {error}"),
         }

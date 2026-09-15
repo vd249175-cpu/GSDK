@@ -92,14 +92,16 @@ export class KernelDaemonClient {
     });
   }
 
-  health() { return this.request<{ pid: number; nodes: number; pending: number }>('health'); }
+  health() { return this.request<{ pid: number; nodes: number; pending: number; leases: number }>('health'); }
   admit(nodeId: string, initialState: Record<string, unknown>, analysisFacts?: unknown) {
     return this.request<{ generation: number }>('admit', { nodeId, initialState, analysisFacts });
   }
   inject(targetNodeId: string, info: { type: string; [key: string]: unknown }, submissionId: string) {
     return this.request('inject', { targetNodeId, info, submissionId });
   }
-  poll() { return this.request<DaemonPolledChange | null>('poll'); }
+  claim(nodeIds: readonly string[]) { return this.request<{ nodeIds: string[] }>('claim', { nodeIds }); }
+  release(nodeIds: readonly string[]) { return this.request<{ nodeIds: string[] }>('release', { nodeIds }); }
+  poll(waitMs = 0) { return this.request<DaemonPolledChange | null>('poll', { waitMs }); }
   commit(changeId: number, operations: readonly DaemonChangeOperation[], error?: string) {
     return this.request('commit', { changeId, operations, error });
   }

@@ -1,6 +1,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::process::{Child, Command, Stdio};
+use std::thread;
 use std::time::Duration;
 
 use serde_json::{json, Value};
@@ -94,6 +95,7 @@ fn unauthorized_and_invalid_changes_do_not_mutate_state() {
         "admit",
         json!({"nodeId":"owner","initialState":{"count":0}}),
     );
+    client.call("claim", json!({"nodeIds":["owner"]}));
     let first = client.call(
         "inject",
         json!({
@@ -161,12 +163,47 @@ fn state_intervention_uses_generation_and_version_preconditions() {
 }
 
 #[test]
+fn node_claim_is_exclusive_and_released_when_the_worker_disconnects() {
+    let daemon = Daemon::start();
+    let mut owner = daemon.connect();
+    owner.call("admit", json!({"nodeId":"worker.node","initialState":{}}));
+    owner.call("claim", json!({"nodeIds":["worker.node"]}));
+
+    let mut contender = daemon.connect();
+    let conflict = contender.request("claim", json!({"nodeIds":["worker.node"]}));
+    assert_eq!(conflict["ok"], false);
+    drop(owner);
+    contender.call("claim", json!({"nodeIds":["worker.node"]}));
+    assert_eq!(contender.call("health", json!({}))["leases"], 1);
+}
+
+#[test]
+fn long_poll_wakes_when_another_client_injects_work() {
+    let daemon = Daemon::start();
+    let mut control = daemon.connect();
+    control.call("admit", json!({"nodeId":"worker.node","initialState":{}}));
+    let mut worker = daemon.connect();
+    worker.call("claim", json!({"nodeIds":["worker.node"]}));
+    let waiting = thread::spawn(move || worker.call("poll", json!({"waitMs":1000})));
+    thread::sleep(Duration::from_millis(25));
+    control.call(
+        "inject",
+        json!({
+            "targetNodeId":"worker.node","info":{"type":"RunInfo"},"submissionId":"wake/1"
+        }),
+    );
+    let change = waiting.join().unwrap();
+    assert_eq!(change["change"]["nodeId"], "worker.node");
+}
+
+#[test]
 fn disconnecting_mid_change_releases_single_flight_and_routes_an_error_info() {
     let daemon = Daemon::start();
     let mut worker = daemon.connect();
     worker.call("admit", json!({"nodeId":"owner","initialState":{}}));
     worker.call("admit", json!({"nodeId":"errors","initialState":{}}));
     worker.call("setErrorTarget", json!({"nodeId":"errors"}));
+    worker.call("claim", json!({"nodeIds":["owner"]}));
     worker.call(
         "inject",
         json!({
@@ -178,6 +215,7 @@ fn disconnecting_mid_change_releases_single_flight_and_routes_an_error_info() {
     drop(worker);
 
     let mut recovery = daemon.connect();
+    recovery.call("claim", json!({"nodeIds":["errors"]}));
     let error = recovery.call("poll", json!({}));
     assert_eq!(error["change"]["nodeId"], "errors");
     assert_eq!(error["change"]["info"]["type"], "@error/NodeFailed");
@@ -202,6 +240,7 @@ fn state_and_causal_queue_survive_a_client_disconnect() {
         json!({"nodeId":"source","initialState":{"count":0}}),
     );
     first.call("admit", json!({"nodeId":"sink","initialState":{"seen":0}}));
+    first.call("claim", json!({"nodeIds":["source"]}));
     first.call(
         "inject",
         json!({"targetNodeId":"source","info":{"type":"IncrementInfo"},"submissionId":"s1"}),
@@ -220,6 +259,7 @@ fn state_and_causal_queue_survive_a_client_disconnect() {
 
     let mut second = daemon.connect();
     assert_eq!(second.call("health", json!({}))["pid"], pid);
+    second.call("claim", json!({"nodeIds":["sink"]}));
     let sink = second.call("poll", json!({}));
     assert_eq!(sink["change"]["nodeId"], "sink");
     assert_eq!(sink["change"]["info"]["count"], 1);
