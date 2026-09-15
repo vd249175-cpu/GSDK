@@ -183,4 +183,15 @@ impl Registry {
     pub fn ordered_ids(&self) -> Vec<EntityId> {
         self.slots.keys().cloned().collect()
     }
+
+    /// Live single-flight executions: (entity, change, generation).
+    pub fn active_changes(&self) -> Vec<(EntityId, ChangeId, Generation)> {
+        self.slots
+            .iter()
+            .filter_map(|(id, slot)| {
+                slot.active_change
+                    .map(|change| (id.clone(), change, slot.generation))
+            })
+            .collect()
+    }
 }

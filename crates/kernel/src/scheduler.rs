@@ -588,6 +588,11 @@ impl Kernel {
         self.registry.ordered_ids()
     }
 
+    /// Live single-flight executions: (entity, change, generation).
+    pub fn active_changes(&self) -> Vec<(EntityId, ChangeId, Generation)> {
+        self.registry.active_changes()
+    }
+
     // -- internals -----------------------------------------------------------
 
     fn take_info_id(&mut self) -> u64 {

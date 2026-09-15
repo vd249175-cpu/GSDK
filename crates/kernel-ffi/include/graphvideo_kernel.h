@@ -72,6 +72,15 @@ GvAnalysisSnapshot *gv_analysis_snapshot(GvKernel *kernel);
 void gv_analysis_snapshot_free(GvAnalysisSnapshot *snapshot);
 void gv_string_free(char *value);
 
+/* Authoritative analysis compute over portable facts, shared with the daemon
+ * and the N-API facade. request_json is one analysis request DTO (no
+ * `instances` op); facts_json carries {snapshots:[], liveStates:{}} plus
+ * optional frontendLinks / frontendServiceLinks context arrays (a bare
+ * snapshot array is also accepted). Returns key-sorted result JSON, or NULL
+ * on invalid input; free with gv_analysis_free. No algorithms live here. */
+char *gv_analyze(const char *request_json, const char *facts_json);
+void gv_analysis_free(char *value);
+
 #ifdef __cplusplus
 }
 #endif

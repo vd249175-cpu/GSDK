@@ -6,7 +6,7 @@ type: reference
 
 ## 1. 能证明什么
 
-`@graphvideo/sdk/analysis` 从调用方已经构造的 JS Node 实例及显式前端联动表建立静态 `CausalIndex`。其它语言可提供纯数据 `PortableAnalysisSnapshot`，由 `@graphvideo/sdk/analysis/portable` 的 `buildCausalIndexFromSnapshot` 建立相同索引，复用路径、折叠、健康、中心性和社区算法。生产 `NativeRuleSpace` 按需合并当前装配的两种证据；分析不扫描插件目录、不创建 Runtime、不执行 getter/change，也不介入生产调度。没有实例或便携事实的原始 handler 会作为 `opaque-handler` Node 保留，其当前 State 字段可见，但不会凭空推断 send。
+`@graphvideo/sdk/analysis` 从调用方已经构造的 JS Node 实例及显式前端联动表建立静态 `CausalIndex`。其它语言可提供纯数据 `PortableAnalysisSnapshot`，由 `@graphvideo/sdk/analysis/portable` 的 `buildCausalIndexFromSnapshot` 建立相同索引，复用路径、折叠、健康、中心性和社区算法。权威计算在 Rust `graphvideo-analysis` crate：daemon `analyze`、N-API `analyzeJson`、C ABI `gv_analyze` 共享同一实现，`KernelDaemonClient.analyze/setAnalysisContext` 与 `NativeAnalysisEngine.analyzeViaRust` 只做 DTO 转发；`instances` 是 JS 实例描述，不进入 Rust 协议。生产 `NativeRuleSpace` 按需合并当前装配的两种证据；分析不扫描插件目录、不创建 Runtime、不执行 getter/change，也不介入生产调度。没有实例或便携事实的原始 handler 会作为 `opaque-handler` Node 保留，其当前 State 字段可见，但不会凭空推断 send。
 
 基础实体与关系为：
 
@@ -91,6 +91,6 @@ SDK 提供 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 和 `A
 
 ## 6. 当前应用入口
 
-`apps/local-app/scripts/diagnose.mjs` 仍是离线入口，暴露基础索引命令 `node/change/info/state/expand/path/select/frontend/validate`，并通过 `buildAllNodesView` 提供 `health/reach`。生产 `NativeRuleSpace.analyze(request)` 则从当前装配中按需建立索引，支持 `index/instances/facts/validate/entity/expand/path/select/view/health/reach/centrality/communities/granularCommunities/compareCommunities`。`instances` 返回 JS 实例描述，`facts` 返回 Rust 保存的跨语言快照。增删替换 Node 或 State 字段改变会使缓存失效；分析模块首次请求时才加载。`view` 及 Node 级指标可传 `foldDepth` 与可选 `folds`；未传 `folds` 时使用以所有当前 Node 为叶子的单层 `world` 根组。应用 Agent 控制通道的 `/analyze` 及 `node scripts/agent-control.mjs analyze request.json` 返回 JSON DTO。`analysis/config.json` 仍是离线消费方配置占位，不会被自动解析。
+`apps/local-app/scripts/diagnose.mjs` 仍是离线入口，暴露基础索引命令 `node/change/info/state/expand/path/select/frontend/validate`，并通过 `buildAllNodesView` 提供 `health/reach`。生产 `NativeRuleSpace.analyze(request)` 则从当前装配中按需建立索引，支持 `index/instances/facts/validate/entity/expand/path/select/view/health/reach/centrality/communities/granularCommunities/compareCommunities`。`instances` 返回 JS 实例描述，`facts` 返回 Rust 保存的跨语言快照。daemon `analyze` 支持除 `instances` 外的全部操作，`agentInspect` 另提供 Projection、pending Info、drops、租约、pending Effects、submission 与事件游标。增删替换 Node、分析上下文变化或 State 字段改变会使缓存失效（`analysisRevision`），普通 State 值变化不失效；分析模块首次请求时才加载。`view` 及 Node 级指标可传 `foldDepth` 与可选 `folds`；未传 `folds` 时使用以所有当前 Node 为叶子的单层 `world` 根组。应用 Agent 控制通道的 `/analyze` 及 `node scripts/agent-control.mjs analyze request.json` 返回 JSON DTO。`analysis/config.json` 仍是离线消费方配置占位，不会被自动解析。
 
 完整使用方式见 [Node 实例因果调试指南](./debug-guide.md)。

@@ -43,9 +43,9 @@ Rust 开始一次单飞 change 后，宿主发送 `{"kind":"change","changeId":1
 
 ## 3. 分析与性能
 
-Rust 内核按 Node generation 保存不透明事实 JSON，拒绝旧 generation 写入，替换或移除时清除；调度、send 和 change 结算不读取或解析它。`NativeRuleSpace.analyze` 首次请求才读取事实、装配索引并运行分析。纯数据消费者可使用 `@graphvideo/sdk/analysis/portable` 的 `buildCausalIndexFromSnapshot` 与现有路径、折叠、健康、中心性和社区算法；此入口不加载 TypeScript AST 扫描器。JS Node 没有提供事实时，生产分析仍按需扫描其真实实例。
+Rust 内核按 Node generation 保存事实，`admit/replace` 前校验 schema、`nodeId` 绑定与尺寸，拒绝旧 generation 写入，替换或移除时清除；调度、send 和 change 结算不读取或解析它。`graphvideo-analysis` 是唯一的分析计算实现：daemon `analyze`、N-API `analyzeJson` 与 C ABI `gv_analyze` 调用同一个 Rust crate，不复制算法。`NativeAnalysisEngine.analyzeViaRust` 把请求 DTO 转发到该实现；本地 TS `analyze()` 仅保留为实例事实提取与 DTO  fallback，不再是权威。纯数据消费者仍可用 `@graphvideo/sdk/analysis/portable` 的 `buildCausalIndexFromSnapshot` 与现有路径、折叠、健康、中心性和社区算法；此入口不加载 TypeScript AST 扫描器。JS Node 没有提供事实时，生产分析仍按需扫描其真实实例（`opaque-handler` 合成可见 State 实体，不推断 send/read/write）。
 
-跨进程 Node 的每次 `ctx` 调用有一次 JSON Lines 往返；该成本只落在使用进程协议的 Node 上。语言运行时需要实现上述小型帧协议及因果事实生成器，不需要重写图分析算法。Rust 调度热路径不检查或解析分析事实。
+`NativeRuleSpace.analyze` 首次请求才读取事实、装配索引并运行分析。跨进程 Node 的每次 `ctx` 调用有一次 JSON Lines 往返；该成本只落在使用进程协议的 Node 上。语言运行时需要实现上述小型帧协议及因果事实生成器，不需要重写图分析算法。Rust 调度热路径不检查或解析分析事实。
 
 ## 4. 非 JS 宿主
 

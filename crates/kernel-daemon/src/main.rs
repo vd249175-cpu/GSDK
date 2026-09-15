@@ -48,12 +48,62 @@ fn read_frame(reader: &mut impl BufRead) -> io::Result<Option<Vec<u8>>> {
     }
 }
 
+/// Analysis runs off the scheduling lock: clone the immutable facts snapshot
+/// in a short critical section, then execute centrality/community algorithms
+/// without blocking mailbox progress. Oversize responses are protocol errors
+/// and never affect the daemon.
+const MAX_ANALYSIS_RESPONSE_BYTES: usize = 512 * 1024;
+
+fn handle_analyze(
+    shared: &SharedSpace,
+    session: &mut Session,
+    request: &Value,
+    token: &str,
+) -> Value {
+    let job = {
+        let (lock, _) = &**shared;
+        let mut space = lock.lock().unwrap_or_else(|poison| poison.into_inner());
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            space.prepare_analyze(session, request, token)
+        })) {
+            Ok(Ok(job)) => job,
+            Ok(Err(error)) => {
+                let id = request.get("id").cloned().unwrap_or(Value::Null);
+                return json!({"id":id,"ok":false,"error":error});
+            }
+            Err(_) => {
+                let (lock, _) = &**shared;
+                let mut space = lock.lock().unwrap_or_else(|poison| poison.into_inner());
+                session.disconnect(&mut space);
+                let id = request.get("id").cloned().unwrap_or(Value::Null);
+                return json!({"id":id,"ok":false,"error":"internal request failure"});
+            }
+        }
+    };
+    if let Some(hit) = job.cached {
+        return json!({"id":job.id,"ok":true,"result":hit});
+    }
+    match graphvideo_analysis::analyze_json(&job.request, &job.facts, &job.context) {
+        Ok(result) if result.to_string().len() <= MAX_ANALYSIS_RESPONSE_BYTES => {
+            let (lock, _) = &**shared;
+            let mut space = lock.lock().unwrap_or_else(|poison| poison.into_inner());
+            space.store_analysis(&job.request, result.clone());
+            json!({"id":job.id,"ok":true,"result":result})
+        }
+        Ok(_) => json!({"id":job.id,"ok":false,"error":"analysis response exceeds size limit"}),
+        Err(error) => json!({"id":job.id,"ok":false,"error":error}),
+    }
+}
+
 fn handle_request(
     shared: &SharedSpace,
     session: &mut Session,
     request: &Value,
     token: &str,
 ) -> Value {
+    if request.get("op").and_then(Value::as_str) == Some("analyze") {
+        return handle_analyze(shared, session, request, token);
+    }
     let wait_ms = request
         .get("waitMs")
         .and_then(Value::as_u64)

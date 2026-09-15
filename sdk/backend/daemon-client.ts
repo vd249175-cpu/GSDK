@@ -105,6 +105,12 @@ export class KernelDaemonClient {
   admit(nodeId: string, initialState: Record<string, unknown>, analysisFacts?: unknown, effectCapabilities: readonly string[] = []) {
     return this.request<{ generation: number }>('admit', { nodeId, initialState, analysisFacts, effectCapabilities });
   }
+  evict(nodeId: string) {
+    return this.request<{ evicted: boolean }>('evict', { nodeId });
+  }
+  replace(nodeId: string, initialState: Record<string, unknown>, analysisFacts?: unknown, effectCapabilities: readonly string[] = []) {
+    return this.request<{ generation: number }>('replace', { nodeId, initialState, analysisFacts, effectCapabilities });
+  }
   inject(targetNodeId: string, info: { type: string; [key: string]: unknown }, submissionId: string) {
     return this.request('inject', { targetNodeId, info, submissionId });
   }
@@ -132,6 +138,22 @@ export class KernelDaemonClient {
     return this.request('intervene', { nodeId, patch, expectedGeneration, expectedVersion });
   }
   cancel(submissionId: string) { return this.request('cancel', { submissionId }); }
+  /** Authoritative Rust analysis: pure DTO passthrough, no local computation. */
+  analyze(request: Record<string, unknown>) {
+    return this.request('analyze', { request });
+  }
+  setAnalysisContext(frontendLinks: readonly unknown[] = [], frontendServiceLinks: readonly unknown[] = []) {
+    return this.request('setAnalysisContext', { frontendLinks, frontendServiceLinks });
+  }
+  agentInspect(after?: number, limit?: number) {
+    return this.request('agentInspect', { ...(after !== undefined ? { after } : {}), ...(limit !== undefined ? { limit } : {}) });
+  }
+  agentInject(actor: string, reason: string, submissionId: string, targetNodeId: string, info: Record<string, unknown>) {
+    return this.request('agentInject', { actor, reason, submissionId, targetNodeId, info });
+  }
+  agentInterveneState(actor: string, reason: string, nodeId: string, patch: Record<string, unknown>, expectedGeneration: number, expectedVersion: number) {
+    return this.request('agentInterveneState', { actor, reason, nodeId, patch, expectedGeneration, expectedVersion });
+  }
 
   close(): void {
     if (this.closed) return;

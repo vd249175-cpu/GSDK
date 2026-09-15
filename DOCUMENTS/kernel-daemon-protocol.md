@@ -56,15 +56,33 @@ const client = await connectKernelDaemon({ address, token })
 
 Git 拉取、目录发现、编译器与依赖定位、自动安装/构建、进程启动和文件监听均属于可选外层宿主。daemon 只接受已经启动并通过 DTO 协议连接的 worker；业务需要恢复数据时，应以显式 Info 建模。
 
-`projection` 返回当前所有 Node 的 State、version、generation 以及 submission 状态。`analysisFacts` 返回 daemon 保存的不透明便携事实，调度热路径不解析它们。
+`projection` 返回当前所有 Node 的 State、version、generation 以及 submission 状态。`analysisFacts` 返回 daemon 保存的不透明便携事实，调度热路径不解析它们。事实在改变 Node 之前校验：`admit`/`replace` 要求 `analysisFacts.version == 1`、`nodeId` 与目标一致、实体/边在 5000/20000 上限内且单快照不超过 256 KiB；非法事实直接拒绝，不留下半装配 Node。`replace` 只使用新版本提交的事实，旧事实、旧 State、旧 backlog 与旧租约同时消失，不自动回滚。
 
-可信 Agent 的 State 干预必须携带预期版本：
+语言无关的分析上下文与查询由 Rust 统一计算：
+
+```json
+{"version":1,"id":9,"token":"...","op":"setAnalysisContext","frontendLinks":[],"frontendServiceLinks":[]}
+{"version":1,"id":10,"token":"...","op":"analyze","request":{"op":"view","foldDepth":2}}
+```
+
+`analyze` 的 `request` 与 `@graphvideo/sdk/analysis` 的便携查询同构（`index/facts/validate/entity/expand/path/select/view/health/reach/centrality/communities/granularCommunities/compareCommunities`；`instances` 是 JS 实例诊断，不进入 Rust 协议）。缺省 `folds` 时使用覆盖全部 Node 的单层 `world` 根组；Map 结果一律按键排序编码。daemon 在短锁内克隆不可变快照，释放调度锁后执行分析；`admit/replace/evict`、上下文变化与新增 State key 增加 `analysisRevision`，普通 State 值变化不失效；单次折叠（64 组/5000 叶）与响应（512 KiB）超限返回协议错误，不影响 daemon。
+
+Agent 控制面复用同一套 Rust 原语，观测与干预都经过 DTO：
+
+```json
+{"version":1,"id":11,"token":"...","op":"agentInspect","after":0,"limit":100}
+{"version":1,"id":12,"token":"...","op":"agentInject","actor":"agent/codex","reason":"probe","submissionId":"agent/1","targetNodeId":"owner","info":{"type":"ProbeInfo"}}
+{"version":1,"id":13,"token":"...","op":"agentInterveneState","actor":"agent/codex","reason":"repair","nodeId":"owner","patch":{"count":2},"expectedGeneration":0,"expectedVersion":1}
+```
+
+`agentInspect` 返回 Projection（含 `analysisRevision`）、pending Info、drops、active changes、Node/Effect 租约、pending Effects、submission 状态与因果事件页（内存上限 1000 条，默认 100 条、最大 1000 条，`nextCursor` + `truncated` 语义）。`agentInject` 仍经正常 mailbox/submission 执行并保持重试幂等；`agentInterveneState` 仅支持 Patch，在单飞编辑间隙原子提交并记录前后版本。既有 `inject/intervene/admit/evict/replace/cancel` 保持兼容。控制面只走 loopback + token，不暴露给 renderer。
+可信 Agent 的 State 干预必须携带预期版本（兼容 `intervene` 与新 `agentInterveneState`，后者另需 `actor`/`reason` 并记录审计事件）：
 
 ```json
 {"version":1,"id":3,"token":"...","op":"intervene","nodeId":"counter","patch":{"count":5},"expectedGeneration":0,"expectedVersion":0}
 ```
 
-版本不匹配时整个请求失败，State 不变。
+版本不匹配时整个请求失败，State 不变。干预仅支持 Patch，不支持整对象替换。
 
 ## Info、change 与批量提交
 

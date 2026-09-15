@@ -83,3 +83,29 @@ fn c_abi_drives_changes_and_exposes_generation_scoped_analysis_facts() {
     ));
     gv_kernel_free(kernel);
 }
+
+/// The generic JSON analysis entry shares the daemon's crate call: the same
+/// request over the same facts returns the same key-sorted route DTO.
+#[test]
+fn c_abi_analysis_matches_the_shared_rust_compute() {
+    let request = c("{\"op\":\"view\"}");
+    let facts = c("{\"snapshots\":[{\"version\":1,\"nodeId\":\"a\",\"entities\":[{\"address\":\"node:a\",\"kind\":\"node\",\"id\":\"a\"},{\"address\":\"change:a::TickInfo\",\"kind\":\"change\",\"id\":\"a\",\"nodeId\":\"a\",\"subId\":\"TickInfo\"},{\"address\":\"info:TickInfo@b\",\"kind\":\"info\",\"id\":\"TickInfo\",\"nodeId\":\"b\",\"subId\":\"b\"}],\"edges\":[{\"id\":\"e1\",\"from\":\"change:a::TickInfo\",\"to\":\"info:TickInfo@b\",\"type\":\"send\",\"confidence\":\"high\"}]}],\"liveStates\":{\"a\":{\"count\":0},\"b\":{}}}");
+    let raw = gv_analyze(request.as_ptr(), facts.as_ptr());
+    assert!(!raw.is_null());
+    let text = unsafe { CStr::from_ptr(raw).to_str().unwrap().to_owned() };
+    gv_analysis_free(raw);
+    let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let routes: Vec<&str> = value["routes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|route| route["id"].as_str().unwrap())
+        .collect();
+    // `b` is synthesized from live State as an opaque handler; the send
+    // route survives with its witness.
+    assert_eq!(routes, vec!["route:a->b:TickInfo"]);
+    assert_eq!(value["routes"][0]["routeCount"], serde_json::json!(1));
+    // Invalid input is NULL, never a daemon party trick: no crash, no string.
+    let bad = gv_analyze(c("{\"op\":\"nope\"}").as_ptr(), facts.as_ptr());
+    assert!(bad.is_null());
+}

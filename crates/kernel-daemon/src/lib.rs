@@ -1,7 +1,7 @@
 //! Business-agnostic owner of a persistent rule space and JSON State.
 //! Node bodies run in clients; only generic causal operations live here.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 use graphvideo_kernel::{
     ActiveChange, BeginError, ChangeOutcome, DeliveryFeedback, Kernel, SubmissionState,
@@ -9,6 +9,14 @@ use graphvideo_kernel::{
 use serde_json::{json, Map, Value};
 
 const ERROR_INFO_TYPE: &str = "@error/NodeFailed";
+/// Raw per-Node facts larger than this are rejected before touching the Node.
+const MAX_FACT_BYTES: usize = 256 * 1024;
+/// Analysis responses larger than this are rejected as protocol errors.
+const MAX_ANALYSIS_RESPONSE_BYTES: usize = 512 * 1024;
+/// Frontend context arrays longer than this are rejected as protocol errors.
+const MAX_CONTEXT_ITEMS: usize = 1024;
+/// Bounded in-memory causal event ring for the Agent control plane.
+const MAX_EVENTS: usize = 1000;
 
 struct NodeRecord {
     state: Map<String, Value>,
@@ -92,6 +100,31 @@ pub struct Space {
     effects: BTreeMap<u64, EffectRecord>,
     next_effect_id: u64,
     error_target: Option<String>,
+    /// Bumped on admit/replace/evict/analysis-context change/new State key.
+    /// Plain State value changes do not invalidate cached analysis views.
+    analysis_revision: u64,
+    /// Views keyed by `(analysisRevision, request)`; cleared on every bump.
+    analysis_cache: BTreeMap<String, Value>,
+    frontend_links: Vec<Value>,
+    frontend_service_links: Vec<Value>,
+    state_keys: BTreeMap<String, BTreeSet<String>>,
+    events: VecDeque<Value>,
+    next_cursor: u64,
+}
+
+/// Owned, immutable analysis input cloned under the scheduling lock so the
+/// caller can run `graphvideo-analysis` after releasing it.
+pub struct PendingAnalysis {
+    /// Echoed protocol request id for the response envelope.
+    pub id: Value,
+    /// `{snapshots, liveStates}` facts DTO.
+    pub facts: Value,
+    /// `{frontendLinks, frontendServiceLinks}` context DTO.
+    pub context: Value,
+    /// The analysis request DTO (`view`, `path`, `health`, ...; no `instances`).
+    pub request: Value,
+    /// Revision-keyed hit; the server returns it without running compute.
+    pub cached: Option<Value>,
 }
 
 enum Operation {
@@ -148,6 +181,129 @@ fn feedback(value: DeliveryFeedback) -> Value {
         }
     }
 }
+impl Space {
+    fn push_event(&mut self, kind: &str, fields: Map<String, Value>) {
+        let mut event = Map::new();
+        event.insert("cursor".to_owned(), json!(self.next_cursor));
+        event.insert("kind".to_owned(), Value::String(kind.to_owned()));
+        for (key, value) in fields {
+            event.insert(key, value);
+        }
+        self.next_cursor += 1;
+        self.events.push_back(Value::Object(event));
+        while self.events.len() > MAX_EVENTS {
+            self.events.pop_front();
+        }
+    }
+
+    fn bump_analysis_revision(&mut self) {
+        self.analysis_revision += 1;
+        // Cached views only depend on facts, context and State keys, so a
+        // revision bump is the single invalidation signal.
+        self.analysis_cache.clear();
+    }
+
+    /// View cache key: revision plus the canonical request DTO. State values
+    /// never enter the key because analysis only observes State keys.
+    fn cache_key(&self, request: &Value) -> String {
+        format!("{}\0{request}", self.analysis_revision)
+    }
+
+    pub fn store_analysis(&mut self, request: &Value, result: Value) {
+        if self.analysis_cache.len() >= 16 {
+            if let Some(first) = self.analysis_cache.keys().next().cloned() {
+                self.analysis_cache.remove(&first);
+            }
+        }
+        self.analysis_cache.insert(self.cache_key(request), result);
+    }
+
+    /// Validate portable facts before they touch the Node: schema, node
+    /// binding, size and generation-independent snapshot checks.
+    fn checked_facts(&self, node_id: &str, facts: &Value) -> Result<String, String> {
+        let text = facts.to_string();
+        if text.len() > MAX_FACT_BYTES {
+            return Err("analysisFacts exceeds size limit".into());
+        }
+        let snapshot: Value =
+            serde_json::from_str(&text).map_err(|_| "analysisFacts must be a JSON object".to_owned())?;
+        if snapshot.get("nodeId").and_then(Value::as_str) != Some(node_id) {
+            return Err("analysisFacts.nodeId must match the admitted Node".into());
+        }
+        graphvideo_analysis::validate_snapshot(&snapshot)
+            .map_err(|error| format!("invalid analysisFacts: {error}"))?;
+        Ok(text)
+    }
+
+    fn track_state_keys(&mut self, node_id: &str) {
+        if let Some(node) = self.nodes.get(node_id) {
+            let keys: BTreeSet<String> = node.state.keys().cloned().collect();
+            let known = self.state_keys.entry(node_id.to_owned()).or_default();
+            if keys.difference(known).next().is_some() {
+                *known = keys;
+                self.bump_analysis_revision();
+            }
+        }
+    }
+
+    fn context_array(request: &Value, key: &str) -> Result<Vec<Value>, String> {
+        match request.get(key) {
+            None | Some(Value::Null) => Ok(Vec::new()),
+            Some(Value::Array(items)) => {
+                if items.len() > MAX_CONTEXT_ITEMS {
+                    return Err(format!("{key} exceeds item limit"));
+                }
+                Ok(items.clone())
+            }
+            Some(_) => Err(format!("{key} must be an array")),
+        }
+    }
+
+    /// Clone an immutable analysis snapshot under the scheduling lock. The
+    /// caller runs `graphvideo-analysis` after releasing the lock so
+    /// centrality/community computation never blocks the mailbox.
+    pub fn prepare_analyze(
+        &mut self,
+        _session: &mut Session,
+        request: &Value,
+        token: &str,
+    ) -> Result<PendingAnalysis, String> {
+        if request.get("version") != Some(&json!(1)) {
+            return Err("unsupported protocol version".into());
+        }
+        if request.get("token").and_then(Value::as_str) != Some(token) {
+            return Err("unauthorized".into());
+        }
+        let inner = request.get("request").ok_or("request is required")?.clone();
+        if inner.get("op").and_then(Value::as_str) == Some("instances") {
+            return Err(
+                "instances is a JS-only diagnostic and is not part of the Rust analysis protocol"
+                    .into(),
+            );
+        }
+        let snapshots: Vec<Value> = self
+            .kernel
+            .all_analysis_facts()
+            .into_iter()
+            .filter_map(|(_, text)| serde_json::from_str::<Value>(&text).ok())
+            .collect();
+        let live_states: BTreeMap<String, Value> = self
+            .nodes
+            .iter()
+            .map(|(id, node)| (id.clone(), Value::Object(node.state.clone())))
+            .collect();
+        Ok(PendingAnalysis {
+            id: request.get("id").cloned().unwrap_or(Value::Null),
+            facts: json!({"snapshots": snapshots, "liveStates": live_states}),
+            context: json!({
+                "frontendLinks": self.frontend_links.clone(),
+                "frontendServiceLinks": self.frontend_service_links.clone(),
+            }),
+            cached: self.analysis_cache.get(&self.cache_key(&inner)).cloned(),
+            request: inner,
+        })
+    }
+}
 
 impl Space {
     pub fn handle(&mut self, session: &mut Session, request: &Value, token: &str) -> Value {
@@ -180,20 +336,22 @@ impl Space {
                 let state = state_object(request, "initialState")?;
                 let effect_capabilities =
                     string_set(request.get("effectCapabilities"), "effectCapabilities")?;
+                // Schema, node binding and snapshot checks run before the Node
+                // exists, so invalid facts never leave a half-admitted Node.
                 let facts = request
                     .get("analysisFacts")
                     .filter(|v| !v.is_null())
-                    .cloned();
+                    .map(|facts| self.checked_facts(&id, facts))
+                    .transpose()?;
                 let generation = self.kernel.admit(id.clone()).map_err(|e| e.to_string())?;
                 if let Some(facts) = facts {
-                    if let Err(error) =
-                        self.kernel
-                            .set_analysis_facts(&id, generation, facts.to_string())
-                    {
+                    if let Err(error) = self.kernel.set_analysis_facts(&id, generation, facts) {
                         self.kernel.evict(&id);
                         return Err(error.to_string());
                     }
                 }
+                let keys: BTreeSet<String> = state.keys().cloned().collect();
+                self.state_keys.insert(id.clone(), keys);
                 self.nodes.insert(
                     id.clone(),
                     NodeRecord {
@@ -203,6 +361,11 @@ impl Space {
                         effect_capabilities,
                     },
                 );
+                self.bump_analysis_revision();
+                let mut fields = Map::new();
+                fields.insert("nodeId".to_owned(), Value::String(id.clone()));
+                fields.insert("generation".to_owned(), json!(generation));
+                self.push_event("node_admitted", fields);
                 Ok(json!({"generation":generation}))
             }
             "evict" => {
@@ -212,6 +375,11 @@ impl Space {
                 }
                 self.nodes.remove(id);
                 self.leases.remove(id);
+                self.state_keys.remove(id);
+                self.bump_analysis_revision();
+                let mut fields = Map::new();
+                fields.insert("nodeId".to_owned(), Value::String(id.to_owned()));
+                self.push_event("node_evicted", fields);
                 Ok(json!({"evicted":true}))
             }
             "replace" => {
@@ -219,12 +387,21 @@ impl Space {
                 let state = state_object(request, "initialState")?;
                 let effect_capabilities =
                     string_set(request.get("effectCapabilities"), "effectCapabilities")?;
+                // Destructive generation semantics: validate the new facts
+                // before discarding the old backlog, State and leases.
+                let facts = request
+                    .get("analysisFacts")
+                    .filter(|v| !v.is_null())
+                    .map(|facts| self.checked_facts(&id, facts))
+                    .transpose()?;
                 let generation = self.kernel.replace(&id).map_err(|e| e.to_string())?;
-                if let Some(facts) = request.get("analysisFacts").filter(|v| !v.is_null()) {
+                if let Some(facts) = facts {
                     self.kernel
-                        .set_analysis_facts(&id, generation, facts.to_string())
+                        .set_analysis_facts(&id, generation, facts)
                         .map_err(|e| e.to_string())?;
                 }
+                let keys: BTreeSet<String> = state.keys().cloned().collect();
+                self.state_keys.insert(id.clone(), keys);
                 self.nodes.insert(
                     id.clone(),
                     NodeRecord {
@@ -235,6 +412,11 @@ impl Space {
                     },
                 );
                 self.leases.remove(&id);
+                self.bump_analysis_revision();
+                let mut fields = Map::new();
+                fields.insert("nodeId".to_owned(), Value::String(id.clone()));
+                fields.insert("generation".to_owned(), json!(generation));
+                self.push_event("node_replaced", fields);
                 Ok(json!({"generation":generation}))
             }
             "claim" => {
@@ -350,13 +532,18 @@ impl Space {
                 );
                 let feedback = feedback(outcome);
                 self.submissions.insert(
-                    submission,
+                    submission.clone(),
                     SubmissionRequest {
                         target: target.to_owned(),
                         info: info.clone(),
                         feedback: feedback.clone(),
                     },
                 );
+                let mut fields = Map::new();
+                fields.insert("targetNodeId".to_owned(), Value::String(target.to_owned()));
+                fields.insert("infoType".to_owned(), Value::String(kind.to_owned()));
+                fields.insert("submissionId".to_owned(), Value::String(submission));
+                self.push_event("root_injected", fields);
                 Ok(json!({"duplicate":false,"feedback":feedback}))
             }
             "poll" => {
@@ -436,7 +623,7 @@ impl Space {
                     match operation {
                         Operation::Write(key, value) => {
                             let node = self.nodes.get_mut(&entity).unwrap();
-                            node.state.insert(key, value);
+                            node.state.insert(key.clone(), value);
                             node.version += 1;
                             results.push(Value::Null);
                         }
@@ -449,16 +636,31 @@ impl Space {
                         Operation::Send(target, kind, info) => {
                             let outcome = self.kernel.send_json(
                                 entity.clone(),
-                                kind,
+                                kind.clone(),
                                 Some(info.to_string()),
                                 &target,
                                 Some(change_id),
                                 token.submission().cloned(),
                             );
-                            results.push(feedback(outcome));
+                            results.push(feedback(outcome.clone()));
+                            let mut fields = Map::new();
+                            fields.insert("nodeId".to_owned(), Value::String(entity.clone()));
+                            fields.insert("changeId".to_owned(), json!(change_id));
+                            fields.insert("targetNodeId".to_owned(), Value::String(target));
+                            fields.insert("infoType".to_owned(), Value::String(kind));
+                            if let Some(submission) = token.submission() {
+                                fields.insert(
+                                    "submissionId".to_owned(),
+                                    Value::String(submission.clone()),
+                                );
+                            }
+                            self.push_event("info_sent", fields);
                         }
                     }
                 }
+                // Only a new State key invalidates cached analysis views;
+                // plain value changes keep the current revision.
+                self.track_state_keys(&entity);
                 if let Some(message) = request.get("error").and_then(Value::as_str) {
                     self.fail_change(token, message);
                 } else if !self.kernel.settle_change(token, ChangeOutcome::Completed) {
@@ -488,19 +690,28 @@ impl Space {
                 }
                 self.next_effect_id += 1;
                 let id = self.next_effect_id;
+                let node_id = token.entity().to_owned();
+                let generation = token.generation();
+                let adapter = adapter_id.clone();
                 self.effects.insert(
                     id,
                     EffectRecord {
                         id,
                         requester_session: session.id,
                         change_id,
-                        node_id: token.entity().to_owned(),
-                        generation: token.generation(),
-                        adapter_id,
+                        node_id: node_id.clone(),
+                        generation,
+                        adapter_id: adapter.clone(),
                         request: request.get("request").cloned().unwrap_or(Value::Null),
                         status: EffectStatus::Queued,
                     },
                 );
+                let mut fields = Map::new();
+                fields.insert("effectId".to_owned(), json!(id));
+                fields.insert("changeId".to_owned(), json!(change_id));
+                fields.insert("nodeId".to_owned(), Value::String(node_id));
+                fields.insert("adapterId".to_owned(), Value::String(adapter));
+                self.push_event("effect_requested", fields);
                 Ok(json!({"effectId":id}))
             }
             "awaitEffect" => {
@@ -567,6 +778,10 @@ impl Space {
                     Value::String(required_str(request, "error")?.to_owned())
                 };
                 effect.status = EffectStatus::Completed { ok, value };
+                let mut fields = Map::new();
+                fields.insert("effectId".to_owned(), json!(effect_id));
+                fields.insert("completed".to_owned(), json!(ok));
+                self.push_event("effect_completed", fields);
                 Ok(json!({"effectId":effect_id,"completed":true}))
             }
             "projection" => {
@@ -625,29 +840,126 @@ impl Space {
                     .get("expectedVersion")
                     .and_then(Value::as_u64)
                     .ok_or("expectedVersion must be an integer")?;
-                let current = self.nodes.get(&id).ok_or("node is not admitted")?;
-                if current.generation != expected_generation || current.version != expected_version
-                {
-                    return Err("state version conflict".into());
-                }
-                let generation = self.kernel.begin_edit(&id).map_err(|e| e.to_string())?;
-                if generation != expected_generation {
-                    self.kernel.abort_edit(&id);
-                    return Err("state generation conflict".into());
-                }
-                let node = self.nodes.get_mut(&id).unwrap();
-                node.state.extend(patch);
-                node.version += 1;
-                if !self.kernel.end_edit(&id, generation) {
-                    return Err("state intervention settlement rejected".into());
-                }
-                Ok(
-                    json!({"nodeId":id,"generation":generation,"version":node.version,"state":node.state}),
-                )
+                let (generation, version, before, after) =
+                    self.patch_state(&id, patch, expected_generation, expected_version)?;
+                self.track_state_keys(&id);
+                let mut fields = Map::new();
+                fields.insert("nodeId".to_owned(), Value::String(id.clone()));
+                fields.insert("actor".to_owned(), Value::String("legacy/intervene".to_owned()));
+                fields.insert("generation".to_owned(), json!(generation));
+                fields.insert("versionBefore".to_owned(), json!(expected_version));
+                fields.insert("versionAfter".to_owned(), json!(version));
+                fields.insert("stateBefore".to_owned(), Value::Object(before));
+                fields.insert("stateAfter".to_owned(), Value::Object(after));
+                self.push_event("state_intervened", fields);
+                let state = self.nodes[&id].state.clone();
+                Ok(json!({"nodeId":id,"generation":generation,"version":version,"state":state}))
             }
             "cancel" => {
                 let submission = required_str(request, "submissionId")?;
                 Ok(json!({"cancelled":self.kernel.cancel(submission)}))
+            }
+            "setAnalysisContext" => {
+                let links = Self::context_array(request, "frontendLinks")?;
+                let service_links = Self::context_array(request, "frontendServiceLinks")?;
+                self.frontend_links = links;
+                self.frontend_service_links = service_links;
+                self.bump_analysis_revision();
+                let mut fields = Map::new();
+                fields.insert("frontendLinks".to_owned(), json!(self.frontend_links.len()));
+                fields.insert(
+                    "frontendServiceLinks".to_owned(),
+                    json!(self.frontend_service_links.len()),
+                );
+                fields.insert("analysisRevision".to_owned(), json!(self.analysis_revision));
+                self.push_event("analysis_context_updated", fields);
+                Ok(json!({"analysisRevision":self.analysis_revision}))
+            }
+            "analyze" => {
+                // Inline path for embedded/test callers. The TCP server in
+                // main.rs instead uses `prepare_analyze` and runs the same
+                // crate call after releasing the scheduling lock.
+                let inner = request.get("request").ok_or("request is required")?.clone();
+                let result = self.analyze_inline(&inner)?;
+                if result.to_string().len() > MAX_ANALYSIS_RESPONSE_BYTES {
+                    return Err("analysis response exceeds size limit".into());
+                }
+                Ok(result)
+            }
+            "agentInspect" => {
+                let after = request.get("after").and_then(Value::as_u64).unwrap_or(0);
+                let limit = request
+                    .get("limit")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(100)
+                    .clamp(1, 1000) as usize;
+                Ok(self.inspect(after, limit))
+            }
+            "agentInject" => {
+                let actor = required_str(request, "actor")?.to_owned();
+                let reason = required_str(request, "reason")?.to_owned();
+                let target = required_str(request, "targetNodeId")?.to_owned();
+                let info = request.get("info").ok_or("info is required")?.clone();
+                let kind = info_type(&info)?.to_owned();
+                let submission = required_str(request, "submissionId")?.to_owned();
+                if let Some(previous) = self.submissions.get(&submission) {
+                    if previous.target != target || previous.info != info {
+                        return Err("submissionId was already used for another injection".into());
+                    }
+                    return Ok(json!({"duplicate":true,"feedback":previous.feedback}));
+                }
+                let outcome = self.kernel.inject_root_json(
+                    &target,
+                    kind.clone(),
+                    Some(info.to_string()),
+                    submission.clone(),
+                );
+                let feedback = feedback(outcome);
+                self.submissions.insert(
+                    submission.clone(),
+                    SubmissionRequest {
+                        target: target.clone(),
+                        info: info.clone(),
+                        feedback: feedback.clone(),
+                    },
+                );
+                let mut fields = Map::new();
+                fields.insert("actor".to_owned(), Value::String(actor));
+                fields.insert("reason".to_owned(), Value::String(reason));
+                fields.insert("targetNodeId".to_owned(), Value::String(target));
+                fields.insert("infoType".to_owned(), Value::String(kind));
+                fields.insert("submissionId".to_owned(), Value::String(submission));
+                self.push_event("agent_injected", fields);
+                Ok(json!({"duplicate":false,"feedback":feedback}))
+            }
+            "agentInterveneState" => {
+                let actor = required_str(request, "actor")?.to_owned();
+                let reason = required_str(request, "reason")?.to_owned();
+                let id = required_str(request, "nodeId")?.to_owned();
+                let patch = state_object(request, "patch")?;
+                let expected_generation = request
+                    .get("expectedGeneration")
+                    .and_then(Value::as_u64)
+                    .ok_or("expectedGeneration must be an integer")?;
+                let expected_version = request
+                    .get("expectedVersion")
+                    .and_then(Value::as_u64)
+                    .ok_or("expectedVersion must be an integer")?;
+                let (generation, version, before, after) =
+                    self.patch_state(&id, patch, expected_generation, expected_version)?;
+                self.track_state_keys(&id);
+                let mut fields = Map::new();
+                fields.insert("nodeId".to_owned(), Value::String(id.clone()));
+                fields.insert("actor".to_owned(), Value::String(actor));
+                fields.insert("reason".to_owned(), Value::String(reason));
+                fields.insert("generation".to_owned(), json!(generation));
+                fields.insert("versionBefore".to_owned(), json!(expected_version));
+                fields.insert("versionAfter".to_owned(), json!(version));
+                fields.insert("stateBefore".to_owned(), Value::Object(before));
+                fields.insert("stateAfter".to_owned(), Value::Object(after));
+                self.push_event("state_intervened", fields);
+                let state = self.nodes[&id].state.clone();
+                Ok(json!({"nodeId":id,"generation":generation,"version":version,"state":state}))
             }
             _ => Err("unknown operation".into()),
         }
@@ -673,6 +985,186 @@ impl Space {
         }
         self.kernel.settle_change(token, ChangeOutcome::Completed);
     }
+    /// Patch-only State intervention in the single-flight gap. Returns
+    /// (generation, version, stateBefore, stateAfter). Whole-object replace
+    /// is rejected: callers send an explicit object patch instead.
+    #[allow(clippy::type_complexity)]
+    fn patch_state(
+        &mut self,
+        id: &str,
+        patch: Map<String, Value>,
+        expected_generation: u64,
+        expected_version: u64,
+    ) -> Result<(u64, u64, Map<String, Value>, Map<String, Value>), String> {
+        let current = self.nodes.get(id).ok_or("node is not admitted")?;
+        if current.generation != expected_generation || current.version != expected_version {
+            return Err("state version conflict".into());
+        }
+        let before = current.state.clone();
+        let generation = self.kernel.begin_edit(id).map_err(|e| e.to_string())?;
+        if generation != expected_generation {
+            self.kernel.abort_edit(id);
+            return Err("state generation conflict".into());
+        }
+        let node = self.nodes.get_mut(id).unwrap();
+        node.state.extend(patch);
+        node.version += 1;
+        let (version, after) = (node.version, node.state.clone());
+        if !self.kernel.end_edit(id, generation) {
+            return Err("state intervention settlement rejected".into());
+        }
+        Ok((generation, version, before, after))
+    }
+
+    fn analyze_inline(&mut self, inner: &Value) -> Result<Value, String> {
+        if inner.get("op").and_then(Value::as_str) == Some("instances") {
+            return Err(
+                "instances is a JS-only diagnostic and is not part of the Rust analysis protocol"
+                    .into(),
+            );
+        }
+        if let Some(hit) = self.analysis_cache.get(&self.cache_key(inner)).cloned() {
+            return Ok(hit);
+        }
+        let snapshots: Vec<Value> = self
+            .kernel
+            .all_analysis_facts()
+            .into_iter()
+            .filter_map(|(_, text)| serde_json::from_str::<Value>(&text).ok())
+            .collect();
+        let live_states: BTreeMap<String, Value> = self
+            .nodes
+            .iter()
+            .map(|(id, node)| (id.clone(), Value::Object(node.state.clone())))
+            .collect();
+        let facts = json!({"snapshots": snapshots, "liveStates": live_states});
+        let context = json!({
+            "frontendLinks": self.frontend_links.clone(),
+            "frontendServiceLinks": self.frontend_service_links.clone(),
+        });
+        let result = graphvideo_analysis::analyze_json(inner, &facts, &context)?;
+        self.store_analysis(inner, result.clone());
+        Ok(result)
+    }
+
+    /// Consistency read for the Agent control plane: Projection, pending
+    /// Info, drops, active changes, leases, pending Effects, submissions and
+    /// a cursor-paged slice of the bounded causal event ring.
+    fn inspect(&self, after: u64, limit: usize) -> Value {
+        let nodes: BTreeMap<String, Value> = self
+            .nodes
+            .iter()
+            .map(|(id, node)| {
+                (
+                    id.clone(),
+                    json!({
+                        "state": node.state, "version": node.version,
+                        "generation": node.generation,
+                    }),
+                )
+            })
+            .collect();
+        let pending: Vec<Value> = self
+            .kernel
+            .queued_infos()
+            .into_iter()
+            .map(|info| {
+                json!({
+                    "nodeId": info.target, "infoId": info.info_id,
+                    "infoType": info.info_type, "sender": info.sender,
+                    "generation": info.generation, "causedBy": info.caused_by,
+                    "submissionId": info.submission,
+                })
+            })
+            .collect();
+        let drops: Vec<Value> = self
+            .kernel
+            .drops()
+            .iter()
+            .map(|drop_| {
+                json!({
+                    "targetNodeId": drop_.target, "generation": drop_.generation,
+                    "submissionId": drop_.submission,
+                    "reason": format!("{:?}", drop_.reason),
+                })
+            })
+            .collect();
+        let active: Vec<Value> = self
+            .kernel
+            .active_changes()
+            .into_iter()
+            .map(|(entity, change_id, generation)| {
+                json!({"nodeId": entity, "changeId": change_id, "generation": generation})
+            })
+            .collect();
+        let leases: BTreeMap<String, Value> = self
+            .leases
+            .iter()
+            .map(|(id, lease)| {
+                (id.clone(), json!({"sessionId": lease.session_id, "generation": lease.generation}))
+            })
+            .collect();
+        let pending_effects: Vec<Value> = self
+            .effects
+            .values()
+            .map(|effect| {
+                let status = match &effect.status {
+                    EffectStatus::Queued => json!("queued"),
+                    EffectStatus::Active(owner) => json!({"active": owner}),
+                    EffectStatus::Completed { ok, .. } => json!({"completed": ok}),
+                };
+                json!({
+                    "effectId": effect.id, "changeId": effect.change_id,
+                    "nodeId": effect.node_id, "generation": effect.generation,
+                    "adapterId": effect.adapter_id, "status": status,
+                })
+            })
+            .collect();
+        let submissions: BTreeMap<String, Value> = self
+            .submissions
+            .keys()
+            .map(|id| {
+                let status = match self.kernel.submission_state(id) {
+                    Some(SubmissionState::Open { pending }) => {
+                        json!({"status": "open", "pending": pending})
+                    }
+                    Some(SubmissionState::Completed) => json!({"status": "completed"}),
+                    Some(SubmissionState::Cancelled) => json!({"status": "cancelled"}),
+                    Some(SubmissionState::Failed(message)) => {
+                        json!({"status": "failed", "message": message})
+                    }
+                    None => json!({"status": "unknown"}),
+                };
+                (id.clone(), status)
+            })
+            .collect();
+        let oldest = self.events.front().and_then(|event| event.get("cursor")).and_then(Value::as_u64);
+        // `truncated` reports that events at or before `after` were already
+        // evicted from the bounded ring; the caller must re-read from scratch.
+        let truncated = oldest.is_some_and(|cursor| after.saturating_add(1) < cursor);
+        let page: Vec<Value> = self
+            .events
+            .iter()
+            .filter(|event| {
+                event.get("cursor").and_then(Value::as_u64).is_some_and(|cursor| cursor > after)
+            })
+            .take(limit)
+            .cloned()
+            .collect();
+        let next_cursor = page
+            .last()
+            .and_then(|event| event.get("cursor"))
+            .and_then(Value::as_u64)
+            .unwrap_or(after);
+        json!({
+            "projection": {"nodes": nodes, "pending": self.kernel.pending_total(),
+                "analysisRevision": self.analysis_revision},
+            "pending": pending, "drops": drops, "activeChanges": active,
+            "leases": leases, "effectLeases": self.effect_leases.clone(),
+            "pendingEffects": pending_effects, "submissions": submissions,
+            "events": {"events": page, "nextCursor": next_cursor, "truncated": truncated},
+        })
+    }
 }
 
 fn parse_operation(value: &Value) -> Result<Operation, String> {
@@ -692,5 +1184,216 @@ fn parse_operation(value: &Value) -> Result<Operation, String> {
             Ok(Operation::Send(target, kind, info))
         }
         _ => Err("unknown change operation".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TOKEN: &str = "test-token-at-least-16-bytes";
+
+    fn setup() -> (Space, Session) {
+        (Space::default(), Session::new(1))
+    }
+
+    fn call(space: &mut Space, session: &mut Session, op: &str, payload: Value) -> Value {
+        let mut request = payload.as_object().cloned().unwrap_or_default();
+        request.insert("version".to_owned(), json!(1));
+        request.insert("id".to_owned(), json!(1));
+        request.insert("token".to_owned(), Value::String(TOKEN.to_owned()));
+        request.insert("op".to_owned(), Value::String(op.to_owned()));
+        space.handle(session, &Value::Object(request), TOKEN)
+    }
+
+    fn facts(node_id: &str) -> Value {
+        json!({
+            "version": 1, "nodeId": node_id,
+            "entities": [{"address": format!("node:{node_id}"), "kind": "node", "id": node_id}],
+            "edges": [],
+        })
+    }
+
+    #[test]
+    fn invalid_facts_are_rejected_before_admit() {
+        let (mut space, mut session) = setup();
+        let bad = json!({"version": 1, "nodeId": "other", "entities": [], "edges": []});
+        let response = call(
+            &mut space,
+            &mut session,
+            "admit",
+            json!({"nodeId": "counter", "initialState": {}, "analysisFacts": bad}),
+        );
+        assert_eq!(response["ok"], json!(false));
+        // No half-admitted Node remains behind the rejection.
+        assert!(!space.nodes.contains_key("counter"));
+        assert!(space.kernel.generation("counter").is_none());
+    }
+
+    #[test]
+    fn replace_discards_old_facts_state_and_backlog() {
+        let (mut space, mut session) = setup();
+        assert_eq!(
+            call(
+                &mut space,
+                &mut session,
+                "admit",
+                json!({"nodeId": "counter", "initialState": {"count": 1},
+                    "analysisFacts": facts("counter")}),
+            )["ok"],
+            json!(true)
+        );
+        assert_eq!(space.kernel.all_analysis_facts().len(), 1);
+        let response = call(
+            &mut space,
+            &mut session,
+            "replace",
+            json!({"nodeId": "counter", "initialState": {"count": 0}}),
+        );
+        assert_eq!(response["ok"], json!(true));
+        // No facts carried over, State reset, generation bumped, no rollback.
+        assert!(space.kernel.all_analysis_facts().is_empty());
+        assert_eq!(space.nodes["counter"].version, 0);
+        assert_eq!(space.nodes["counter"].generation, 1);
+        assert!(space.kernel.queued_infos().is_empty());
+    }
+
+    #[test]
+    fn agent_inject_is_idempotent_and_conflicts_on_reuse() {
+        let (mut space, mut session) = setup();
+        call(
+            &mut space,
+            &mut session,
+            "admit",
+            json!({"nodeId": "owner", "initialState": {}}),
+        );
+        let payload = json!({"actor": "agent/test", "reason": "probe",
+            "submissionId": "agent/1", "targetNodeId": "owner", "info": {"type": "ProbeInfo"}});
+        let first = call(&mut space, &mut session, "agentInject", payload.clone());
+        assert_eq!(first["result"]["duplicate"], json!(false));
+        let replay = call(&mut space, &mut session, "agentInject", payload);
+        assert_eq!(replay["result"]["duplicate"], json!(true));
+        let conflict = call(
+            &mut space,
+            &mut session,
+            "agentInject",
+            json!({"actor": "agent/test", "reason": "probe",
+                "submissionId": "agent/1", "targetNodeId": "owner", "info": {"type": "OtherInfo"}}),
+        );
+        assert_eq!(conflict["ok"], json!(false));
+    }
+
+    #[test]
+    fn agent_state_patch_checks_versions_and_records_audit() {
+        let (mut space, mut session) = setup();
+        call(
+            &mut space,
+            &mut session,
+            "admit",
+            json!({"nodeId": "owner", "initialState": {"count": 1}}),
+        );
+        let ok = call(
+            &mut space,
+            &mut session,
+            "agentInterveneState",
+            json!({"actor": "agent/test", "reason": "repair", "nodeId": "owner",
+                "patch": {"count": 2}, "expectedGeneration": 0, "expectedVersion": 0}),
+        );
+        assert_eq!(ok["result"]["version"], json!(1));
+        assert_eq!(space.nodes["owner"].state["count"], json!(2));
+        let stale = call(
+            &mut space,
+            &mut session,
+            "agentInterveneState",
+            json!({"actor": "agent/test", "reason": "repair", "nodeId": "owner",
+                "patch": {"count": 3}, "expectedGeneration": 0, "expectedVersion": 0}),
+        );
+        assert_eq!(stale["ok"], json!(false));
+        assert_eq!(space.nodes["owner"].state["count"], json!(2));
+        let inspect = call(&mut space, &mut session, "agentInspect", json!({}));
+        let kinds: Vec<String> = inspect["result"]["events"]["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|event| event.get("kind").and_then(Value::as_str).map(str::to_owned))
+            .collect();
+        assert!(kinds.contains(&"state_intervened".to_owned()));
+    }
+
+    #[test]
+    fn agent_inspect_pages_events_with_truncation() {
+        let (mut space, mut session) = setup();
+        call(
+            &mut space,
+            &mut session,
+            "admit",
+            json!({"nodeId": "owner", "initialState": {}}),
+        );
+        // Overflow the 1000-entry ring so the cursor reports truncation.
+        for index in 0..1005 {
+            call(
+                &mut space,
+                &mut session,
+                "agentInject",
+                json!({"actor": "agent/test", "reason": "flood",
+                    "submissionId": format!("agent/{index}"),
+                    "targetNodeId": "owner", "info": {"type": "ProbeInfo"}}),
+            );
+        }
+        let page = call(
+            &mut space,
+            &mut session,
+            "agentInspect",
+            json!({"after": 0, "limit": 100}),
+        );
+        let events = &page["result"]["events"];
+        assert_eq!(events["events"].as_array().unwrap().len(), 100);
+        assert_eq!(events["truncated"], json!(true));
+        let next = events["nextCursor"].as_u64().unwrap();
+        let tail = call(
+            &mut space,
+            &mut session,
+            "agentInspect",
+            json!({"after": next, "limit": 1000}),
+        );
+        assert_eq!(tail["result"]["events"]["truncated"], json!(false));
+    }
+
+    #[test]
+    fn inline_analyze_serves_views_over_admitted_facts() {
+        let (mut space, mut session) = setup();
+        call(
+            &mut space,
+            &mut session,
+            "admit",
+            json!({"nodeId": "a", "initialState": {"count": 0},
+                "analysisFacts": {
+                    "version": 1, "nodeId": "a",
+                    "entities": [
+                        {"address": "node:a", "kind": "node", "id": "a"},
+                        {"address": "change:a::TickInfo", "kind": "change",
+                            "id": "a", "nodeId": "a", "subId": "TickInfo"},
+                    ],
+                    "edges": [],
+                }}),
+        );
+        let view = call(
+            &mut space,
+            &mut session,
+            "analyze",
+            json!({"request": {"op": "view"}}),
+        );
+        assert_eq!(view["ok"], json!(true));
+        assert!(view["result"]["nodes"].get("a").is_some());
+        // New State keys bump the revision; value writes do not.
+        let before = space.analysis_revision;
+        call(
+            &mut space,
+            &mut session,
+            "intervene",
+            json!({"nodeId": "a", "patch": {"count": 1},
+                "expectedGeneration": 0, "expectedVersion": 0}),
+        );
+        assert_eq!(space.analysis_revision, before);
     }
 }

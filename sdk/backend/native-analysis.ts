@@ -28,7 +28,14 @@ interface LiveNode {
   readonly instance?: unknown;
 }
 
-/** Static instance evidence owned by the live native rule-space facade. */
+/** Static instance evidence owned by the live native rule-space facade.
+ *
+ * The portable TS runtime here is NOT authoritative: it only extracts JS
+ * instance facts and converts results to DTOs. Authoritative analysis compute
+ * lives in the Rust `graphvideo-analysis` crate (reached via the daemon
+ * `analyze` op or the N-API / C ABI `analyzeJson` / `gv_analyze` entries).
+ * Local `analyze()` is kept as a fallback so fixtures match the same DTOs.
+ */
 export class NativeAnalysisEngine {
   private cachedIndex?: CausalIndex;
   private revision = 0;
@@ -128,16 +135,37 @@ export class NativeAnalysisEngine {
       default: throw new Error(`Unknown analysis operation: ${(request as { op?: unknown }).op}`);
     }
   }
+  /**
+   * Forward an analysis request to the authoritative Rust compute plane via a
+   * connected daemon client. `instances` stays local-only and never crosses
+   * the protocol: it describes live JS objects that have no portable form.
+   */
+  async analyzeViaRust(
+    daemonClient: { analyze(request: Record<string, unknown>): Promise<unknown> },
+    request: NativeAnalysisRequest,
+  ): Promise<unknown> {
+    if (request.op === 'instances') return this.analyze(request);
+    const { op, ...params } = request as NativeAnalysisRequest & Record<string, unknown>;
+    return daemonClient.analyze({ op, ...params });
+  }
 }
 
-/** Turn Map-based analysis results into stable JSON DTOs for Agent transport. */
+/** Turn Map-based analysis results into stable JSON DTOs for Agent transport.
+ *
+ * Objects are encoded with keys sorted in byte/codepoint order so local TS
+ * fallback output matches the Rust crate's key-sorted JSON exactly.
+ */
 export function analysisToDto(value: unknown): unknown {
   if (value instanceof Map) {
-    return Object.fromEntries([...value.entries()].map(([key, item]) => [key, analysisToDto(item)]));
+    return Object.fromEntries([...value.entries()]
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+      .map(([key, item]) => [key, analysisToDto(item)]));
   }
   if (Array.isArray(value)) return value.map(analysisToDto);
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, analysisToDto(item)]));
+    return Object.fromEntries(Object.entries(value)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+      .map(([key, item]) => [key, analysisToDto(item)]));
   }
   return value;
 }

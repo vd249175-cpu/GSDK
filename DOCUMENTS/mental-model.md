@@ -171,7 +171,7 @@ renderer 图协议只有：
 
 `graph.cancel` 中止指定 submission 的 AbortSignal：未执行 delivery 会跳过，send/effect 会停止继续推进；已写 State 和已完成物理副作用不回滚。
 
-可信主进程另有 Agent 控制面：`agentInspect` 读取 Projection、解码后的各 Node State、待投递 Info、drop ledger 和带游标的近期因果事件；`agentAnalyze` 查询当前实例的静态因果索引、折叠视角及结构指标；`agentInject` 向任意已装配 Node 注入根 Info 并取得物理投递反馈；`agentInterveneState` 在单飞间隙以 generation/version 比较后修改 State。干预留下 `state_intervened` 事件，包含 actor、reason、修改前后 State 和版本。近期事件在宿主内存中最多保留 1000 条；游标过旧会报告 `truncated`，它不是持久审计库。
+可信主进程另有 Agent 控制面：`agentInspect` 读取 Projection、解码后的各 Node State、待投递 Info、drop ledger 和带游标的近期因果事件；`agentAnalyze` 查询当前实例的静态因果索引、折叠视角及结构指标；`agentInject` 向任意已装配 Node 注入根 Info 并取得物理投递反馈；`agentInterveneState` 在单飞间隙以 generation/version 比较后修改 State。干预留下 `state_intervened` 事件，包含 actor、reason、修改前后 State 和版本。近期事件在宿主内存中最多保留 1000 条；游标过旧会报告 `truncated`，它不是持久审计库。通用 Rust daemon 把同一控制面做成语言无关协议（`agentInspect/agentInject/agentInterveneState`），Node、Agent、Electron 与各语言 SDK 都只是外部 DTO 客户端；Agent State 干预仅支持 Patch。
 
 ## 6. 应用边界
 
@@ -179,7 +179,7 @@ renderer 图协议只有：
 
 ## 7. 实例驱动分析
 
-`@graphvideo/sdk/analysis` 对真实 JS Node 实例调用 `inspectNodeObjects`，读取属性和方法描述 DTO；其它语言 Node 可通过 [跨语言 Node 与分析事实协议](./portable-node-protocol.md) 提供纯数据 `PortableAnalysisSnapshot`。Rust 内核只在装配时保存该事实，生产 `NativeRuleSpace.analyze` 按需把它与 JS 实例证据合并，增删替换或 State 字段变化后失效重建。分析不执行 Node.change 或 Effect。
+`@graphvideo/sdk/analysis` 对真实 JS Node 实例调用 `inspectNodeObjects`，读取属性和方法描述 DTO；其它语言 Node 可通过 [跨语言 Node 与分析事实协议](./portable-node-protocol.md) 提供纯数据 `PortableAnalysisSnapshot`。分析事实的生成器属于各语言外层，分析计算属于 Rust `graphvideo-analysis`（daemon `analyze`、N-API 与 C ABI 共享同一实现，`instances` 不进入通用协议）。Rust 内核只在装配时保存该事实并在 `admit/replace` 前校验，生产 `NativeRuleSpace.analyze` 按需把它与 JS 实例证据合并，增删替换或 State 字段变化后失效重建。分析不执行 Node.change 或 Effect。
 
 ```text
 entry  --inject--> info@Target

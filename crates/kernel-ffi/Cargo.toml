@@ -11,3 +11,5 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 graphvideo-kernel = { path = "../kernel" }
+graphvideo-analysis = { path = "../analysis" }
+serde_json = "1"

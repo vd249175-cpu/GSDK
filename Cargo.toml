@@ -1,3 +1,2 @@
 [workspace]
-members = ["crates/kernel", "crates/kernel-node", "crates/kernel-ffi", "crates/kernel-daemon"]
-resolver = "2"
+members = ["crates/kernel", "crates/kernel-node", "crates/kernel-ffi", "crates/kernel-daemon", "crates/analysis"]

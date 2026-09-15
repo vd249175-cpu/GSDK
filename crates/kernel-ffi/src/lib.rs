@@ -388,3 +388,51 @@ pub extern "C" fn gv_string_free(value: *mut c_char) {
         }
     }
 }
+
+/// Authoritative analysis compute over portable facts, shared with the daemon
+/// and the N-API facade. `request_json` is one analysis request DTO (no
+/// `instances` op); `facts_json` carries `{snapshots:[], liveStates:{}}` plus
+/// optional `frontendLinks` / `frontendServiceLinks` context arrays (a bare
+/// snapshot array is also accepted). Returns key-sorted result JSON, or NULL
+/// on invalid input; free with `gv_analysis_free`. No algorithms live here.
+#[no_mangle]
+pub extern "C" fn gv_analyze(request_json: *const c_char, facts_json: *const c_char) -> *mut c_char {
+    let (Some(request_text), Some(facts_text)) = (input(request_json), input(facts_json)) else {
+        return ptr::null_mut();
+    };
+    let (Ok(request), Ok(facts_value)) = (
+        serde_json::from_str::<serde_json::Value>(&request_text),
+        serde_json::from_str::<serde_json::Value>(&facts_text),
+    ) else {
+        return ptr::null_mut();
+    };
+    let (facts, context) = split_facts_context(&facts_value);
+    match graphvideo_analysis::analyze_json(&request, &facts, &context) {
+        Ok(value) => output(value.to_string()),
+        Err(_) => ptr::null_mut(),
+    }
+}
+
+fn split_facts_context(value: &serde_json::Value) -> (serde_json::Value, serde_json::Value) {
+    if value.is_array() {
+        return (
+            serde_json::json!({"snapshots": value, "liveStates": {}}),
+            serde_json::json!({"frontendLinks": [], "frontendServiceLinks": []}),
+        );
+    }
+    let facts = serde_json::json!({
+        "snapshots": value.get("snapshots").cloned().unwrap_or_else(|| serde_json::json!([])),
+        "liveStates": value.get("liveStates").cloned().unwrap_or_else(|| serde_json::json!({})),
+    });
+    let context = serde_json::json!({
+        "frontendLinks": value.get("frontendLinks").cloned().unwrap_or_else(|| serde_json::json!([])),
+        "frontendServiceLinks": value.get("frontendServiceLinks").cloned().unwrap_or_else(|| serde_json::json!([])),
+    });
+    (facts, context)
+}
+
+/// Free a string returned by `gv_analyze`. Aliases `gv_string_free`.
+#[no_mangle]
+pub extern "C" fn gv_analysis_free(value: *mut c_char) {
+    gv_string_free(value);
+}

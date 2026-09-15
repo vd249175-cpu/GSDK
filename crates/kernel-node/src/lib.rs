@@ -425,3 +425,43 @@ impl RuleSpace {
 fn lock_error(_: std::sync::PoisonError<std::sync::MutexGuard<'_, Kernel>>) -> napi::Error {
     napi::Error::new(Status::GenericFailure, "rule space lock poisoned")
 }
+
+/// Authoritative analysis compute shared with the daemon and the C ABI.
+///
+/// `request_json` is one analysis request DTO (`index|facts|validate|entity|
+/// expand|path|select|view|health|reach|centrality|communities|
+/// granularCommunities|compareCommunities`; no `instances` op). `facts_json`
+/// carries `{snapshots:[], liveStates:{}}` plus optional `frontendLinks` and
+/// `frontendServiceLinks` context arrays (a bare snapshot array is also
+/// accepted and runs with empty context). Returns key-sorted result JSON.
+/// No algorithms live here: this is a thin string wrapper over the shared
+/// `graphvideo-analysis` crate call.
+#[napi]
+pub fn analyze_json(request_json: String, facts_json: String) -> Result<String> {
+    let request: serde_json::Value = serde_json::from_str(&request_json)
+        .map_err(|error| napi::Error::new(Status::InvalidArg, format!("invalid request JSON: {error}")))?;
+    let facts_value: serde_json::Value = serde_json::from_str(&facts_json)
+        .map_err(|error| napi::Error::new(Status::InvalidArg, format!("invalid facts JSON: {error}")))?;
+    let (facts, context) = split_facts_context(&facts_value);
+    graphvideo_analysis::analyze_json(&request, &facts, &context)
+        .map(|value| value.to_string())
+        .map_err(|error| napi::Error::new(Status::GenericFailure, error))
+}
+
+fn split_facts_context(value: &serde_json::Value) -> (serde_json::Value, serde_json::Value) {
+    if value.is_array() {
+        return (
+            serde_json::json!({"snapshots": value, "liveStates": {}}),
+            serde_json::json!({"frontendLinks": [], "frontendServiceLinks": []}),
+        );
+    }
+    let facts = serde_json::json!({
+        "snapshots": value.get("snapshots").cloned().unwrap_or_else(|| serde_json::json!([])),
+        "liveStates": value.get("liveStates").cloned().unwrap_or_else(|| serde_json::json!({})),
+    });
+    let context = serde_json::json!({
+        "frontendLinks": value.get("frontendLinks").cloned().unwrap_or_else(|| serde_json::json!([])),
+        "frontendServiceLinks": value.get("frontendServiceLinks").cloned().unwrap_or_else(|| serde_json::json!([])),
+    });
+    (facts, context)
+}
