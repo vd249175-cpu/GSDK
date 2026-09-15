@@ -179,7 +179,7 @@ renderer 图协议只有：
 
 ## 7. 实例驱动分析
 
-`@graphvideo/sdk/analysis` 对真实 JS Node 实例调用 `inspectNodeObjects`，读取属性和方法描述 DTO；其它语言 Node 可通过 [跨语言 Node 与分析事实协议](./portable-node-protocol.md) 提供纯数据 `PortableAnalysisSnapshot`。分析事实的生成器属于各语言外层，分析计算属于 Rust `graphvideo-analysis`（daemon `analyze`、N-API 与 C ABI 共享同一实现，`instances` 不进入通用协议）。Rust 内核只在装配时保存该事实并在 `admit/replace` 前校验，生产 `NativeRuleSpace.analyze` 按需把它与 JS 实例证据合并，增删替换或 State 字段变化后失效重建。分析不执行 Node.change 或 Effect。
+`@graphvideo/sdk/analysis` 对真实 JS Node 实例调用 `inspectNodeObjects`，读取属性和方法描述 DTO；其它语言 Node 可通过 [跨语言 Node 与分析事实协议](./portable-node-protocol.md) 提供纯数据 `PortableAnalysisSnapshot`。分析事实的生成器属于各语言外层；语言无关的权威计算入口属于 Rust `graphvideo-analysis`，daemon `analyze`、N-API 与 C ABI 共享同一实现，`instances` 不进入通用协议。Rust 内核只在装配时保存该事实并在 `admit/replace` 前校验。当前尚未迁入 daemon 的 Studio `NativeRuleSpace.analyze` 仍保留 TS 实例分析兼容路径，随 Node 增删替换或 State 字段变化失效重建；它不是跨语言协议的另一份实现。分析不执行 Node.change 或 Effect。
 
 ```text
 entry  --inject--> info@Target

@@ -438,10 +438,12 @@ fn lock_error(_: std::sync::PoisonError<std::sync::MutexGuard<'_, Kernel>>) -> n
 /// `graphvideo-analysis` crate call.
 #[napi]
 pub fn analyze_json(request_json: String, facts_json: String) -> Result<String> {
-    let request: serde_json::Value = serde_json::from_str(&request_json)
-        .map_err(|error| napi::Error::new(Status::InvalidArg, format!("invalid request JSON: {error}")))?;
-    let facts_value: serde_json::Value = serde_json::from_str(&facts_json)
-        .map_err(|error| napi::Error::new(Status::InvalidArg, format!("invalid facts JSON: {error}")))?;
+    let request: serde_json::Value = serde_json::from_str(&request_json).map_err(|error| {
+        napi::Error::new(Status::InvalidArg, format!("invalid request JSON: {error}"))
+    })?;
+    let facts_value: serde_json::Value = serde_json::from_str(&facts_json).map_err(|error| {
+        napi::Error::new(Status::InvalidArg, format!("invalid facts JSON: {error}"))
+    })?;
     let (facts, context) = split_facts_context(&facts_value);
     graphvideo_analysis::analyze_json(&request, &facts, &context)
         .map(|value| value.to_string())

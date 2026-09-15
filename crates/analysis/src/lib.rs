@@ -10,7 +10,47 @@ use std::collections::BTreeMap;
 
 use serde_json::{json, Value};
 
-use model::build_index;
+use model::{build_index, entity_to_json, Index};
+
+fn index_to_json(index: &Index) -> Value {
+    let entities: BTreeMap<String, Value> = index
+        .entities
+        .iter()
+        .map(|(address, entity)| (address.clone(), entity_to_json(entity)))
+        .collect();
+    let partition = |kind: &str, nodes_by_id: bool| -> BTreeMap<String, Value> {
+        index
+            .entities
+            .values()
+            .filter(|entity| entity.kind == kind)
+            .map(|entity| {
+                let key = if nodes_by_id {
+                    entity.id.clone()
+                } else {
+                    entity.address.clone()
+                };
+                (key, entity_to_json(entity))
+            })
+            .collect()
+    };
+    json!({
+        "timestamp": 0,
+        "entities": entities,
+        "edges": index.edges.iter().map(model::edge_to_json).collect::<Vec<_>>(),
+        "nodes": partition("node", true),
+        "changes": partition("change", false),
+        "states": partition("state", false),
+        "infos": partition("info", false),
+        "effects": partition("effect", false),
+        "entries": partition("entry", false),
+        "uiPaths": partition("ui", false),
+        "frontendLinks": index.frontend_links,
+        "frontendServiceLinks": index.frontend_service_links,
+        "nodeObjectFacts": [],
+        "unresolvedInfoTypes": index.unresolved_info_types,
+        "unresolvedSendTargets": index.unresolved_send_targets,
+    })
+}
 
 fn parse_usize(value: Option<&Value>, name: &str) -> Result<Option<usize>, String> {
     match value {
@@ -23,10 +63,7 @@ fn parse_usize(value: Option<&Value>, name: &str) -> Result<Option<usize>, Strin
     }
 }
 
-fn view_selection(
-    index: &model::Index,
-    request: &Value,
-) -> Result<views::View, String> {
+fn view_selection(index: &model::Index, request: &Value) -> Result<views::View, String> {
     let base = views::build_all_nodes(index);
     let folds = request.get("folds");
     let fold_depth = parse_usize(request.get("foldDepth"), "foldDepth")?;
@@ -38,18 +75,14 @@ fn view_selection(
         Some(value) if !value.is_null() => value.clone(),
         _ => {
             let mut auto = "world".to_owned();
-            while base.nodes.contains_key(&auto)
-                || base.nodes.contains_key(&format!("fold:{auto}"))
+            while base.nodes.contains_key(&auto) || base.nodes.contains_key(&format!("fold:{auto}"))
             {
                 auto = format!("_{auto}");
             }
             let mut leaves: Vec<String> = base.nodes.keys().cloned().collect();
             leaves.sort();
             let mut groups = serde_json::Map::new();
-            groups.insert(
-                auto.clone(),
-                json!({"children": leaves}),
-            );
+            groups.insert(auto.clone(), json!({"children": leaves}));
             json!({"version": 1, "root": auto, "groups": groups})
         }
     };
@@ -69,16 +102,26 @@ fn facts_parts(
         return Err("snapshot count exceeds limit".into());
     }
     let mut live = BTreeMap::new();
-    if let Some(states) = facts.get("liveStates").and_then(Value::as_object) {
-        for (node_id, state) in states {
-            let fields = state
-                .as_object()
-                .ok_or_else(|| "facts.liveStates values must be objects".to_owned())?;
-            live.insert(
-                node_id.clone(),
-                fields.iter().map(|(key, value)| (key.clone(), value.clone())).collect(),
-            );
-    }
+    match facts.get("liveStates") {
+        None | Some(Value::Null) => {}
+        Some(Value::Object(states)) => {
+            for (node_id, state) in states {
+                if node_id.is_empty() {
+                    return Err("facts.liveStates keys must be nonempty Node IDs".to_owned());
+                }
+                let fields = state
+                    .as_object()
+                    .ok_or_else(|| "facts.liveStates values must be objects".to_owned())?;
+                live.insert(
+                    node_id.clone(),
+                    fields
+                        .keys()
+                        .map(|key| (key.clone(), Value::Null))
+                        .collect(),
+                );
+            }
+        }
+        Some(_) => return Err("facts.liveStates must be an object".to_owned()),
     }
     Ok((snapshots, live))
 }
@@ -126,12 +169,7 @@ pub fn analyze_json(request: &Value, facts: &Value, context: &Value) -> Result<V
         .and_then(Value::as_str)
         .ok_or_else(|| "request.op is required".to_owned())?;
     match op {
-        "index" => Ok(json!({
-            "timestamp": 0,
-            "entities": index.entities.values().map(model::entity_to_json).collect::<Vec<_>>(),
-            "edges": index.edges.iter().map(model::edge_to_json).collect::<Vec<_>>(),
-            "nodes": index.nodes.iter().cloned().collect::<Vec<_>>(),
-        })),
+        "index" => Ok(index_to_json(&index)),
         "facts" => Ok(Value::Array(snapshots)),
         "validate" => Ok(query::validate_index(&index, &snapshots)),
         "entity" => {
@@ -187,8 +225,14 @@ pub fn analyze_json(request: &Value, facts: &Value, context: &Value) -> Result<V
                 .ok_or_else(|| "reach.nodeId is required".to_owned())?;
             Ok(metrics::analyze_reach(&view, node)?)
         }
-        "centrality" => Ok(metrics::analyze_centrality(&view_selection(&index, request)?, request)?),
-        "communities" => Ok(metrics::discover_view(&view_selection(&index, request)?, request)?),
+        "centrality" => Ok(metrics::analyze_centrality(
+            &view_selection(&index, request)?,
+            request,
+        )?),
+        "communities" => Ok(metrics::discover_view(
+            &view_selection(&index, request)?,
+            request,
+        )?),
         "granularCommunities" => Ok(metrics::discover_granular(&index, request)?),
         "compareCommunities" => {
             let discovered_view = view_selection(&index, request)?;
@@ -197,15 +241,21 @@ pub fn analyze_json(request: &Value, facts: &Value, context: &Value) -> Result<V
                 .get("referenceFolds")
                 .ok_or_else(|| "compareCommunities.referenceFolds is required".to_owned())?;
             let reference_depth =
-                parse_usize(request.get("referenceFoldDepth"), "referenceFoldDepth")?
-                    .ok_or_else(|| {
-                        "compareCommunities.referenceFoldDepth is required".to_owned()
-                    })?;
+                parse_usize(request.get("referenceFoldDepth"), "referenceFoldDepth")?.ok_or_else(
+                    || "compareCommunities.referenceFoldDepth is required".to_owned(),
+                )?;
             let base = views::build_all_nodes(&index);
             let reference = views::build_fold_view(&base, reference_folds, reference_depth)?;
-            Ok(metrics::compare_to_view(&discovered, &discovered_view, &reference)?)
+            Ok(metrics::compare_to_view(
+                &discovered,
+                &discovered_view,
+                &reference,
+            )?)
         }
-        "instances" => Err("instances is a JS-only diagnostic and is not part of the Rust analysis protocol".into()),
+        "instances" => Err(
+            "instances is a JS-only diagnostic and is not part of the Rust analysis protocol"
+                .into(),
+        ),
         _ => Err(format!("Unknown analysis operation: {op}")),
     }
 }
@@ -214,7 +264,7 @@ pub fn analyze_json(request: &Value, facts: &Value, context: &Value) -> Result<V
 mod tests {
     use serde_json::json;
 
-    use super::analyze_json;
+    use super::{analyze_json, validate_snapshot};
 
     fn facts(snapshots: serde_json::Value) -> (serde_json::Value, serde_json::Value) {
         (
@@ -235,9 +285,12 @@ mod tests {
     #[test]
     fn unknown_node_selection_is_rejected() {
         let (facts, context) = facts(json!([]));
-        let error =
-            analyze_json(&json!({"op": "select", "nodeIds": ["ghost"]}), &facts, &context)
-                .unwrap_err();
+        let error = analyze_json(
+            &json!({"op": "select", "nodeIds": ["ghost"]}),
+            &facts,
+            &context,
+        )
+        .unwrap_err();
         assert!(error.contains("Node not found"));
     }
 
@@ -255,6 +308,86 @@ mod tests {
         let (facts, context) = facts(json!([]));
         let error = analyze_json(&json!({"op": "instances"}), &facts, &context).unwrap_err();
         assert!(error.contains("JS-only"));
+    }
+
+    #[test]
+    fn index_uses_the_complete_language_neutral_dto() {
+        let snapshot = json!({
+            "version": 1,
+            "nodeId": "worker",
+            "entities": [
+                {"address": "node:worker", "kind": "node", "id": "worker"},
+                {"address": "change:worker::RunInfo", "kind": "change", "id": "worker",
+                    "nodeId": "worker", "subId": "RunInfo"},
+                {"address": "state:worker::count", "kind": "state", "id": "worker",
+                    "nodeId": "worker", "subId": "count"},
+                {"address": "info:RunInfo@worker", "kind": "info", "id": "RunInfo",
+                    "nodeId": "worker", "subId": "worker"}
+            ],
+            "edges": [{"id": "trigger", "from": "info:RunInfo@worker",
+                "to": "change:worker::RunInfo", "type": "trigger", "confidence": "high"}],
+            "unresolvedInfoTypes": [{"sourceChange": "change:worker::RunInfo",
+                "targetNodeId": null, "infoExpression": "dynamic"}],
+            "unresolvedSendTargets": []
+        });
+        let facts = json!({"snapshots": [snapshot], "liveStates": {"worker": {"count": null}}});
+        let context = json!({
+            "frontendLinks": [{"id": "run", "applicationMethod": "run",
+                "injection": {"targetNodeId": "worker", "infoType": "RunInfo"},
+                "projections": [{"ownerNodeId": "worker", "ownerField": "count",
+                    "applicationStatePath": "worker.count", "consumers": ["Counter"]}]}],
+            "frontendServiceLinks": [{"id": "clock", "applicationMethod": "now",
+                "provider": "clock", "consumers": ["Counter"]}]
+        });
+        let result = analyze_json(&json!({"op": "index"}), &facts, &context).unwrap();
+
+        for key in [
+            "entities",
+            "edges",
+            "nodes",
+            "changes",
+            "states",
+            "infos",
+            "effects",
+            "entries",
+            "uiPaths",
+            "frontendLinks",
+            "frontendServiceLinks",
+            "nodeObjectFacts",
+            "unresolvedInfoTypes",
+            "unresolvedSendTargets",
+        ] {
+            assert!(result.get(key).is_some(), "missing index field {key}");
+        }
+        assert_eq!(result["nodes"]["worker"]["address"], json!("node:worker"));
+        assert_eq!(result["entries"]["entry:run"]["name"], json!("run"));
+        assert_eq!(
+            result["uiPaths"]["ui:worker.count"]["meta"]["consumers"],
+            json!(["Counter"])
+        );
+        assert_eq!(result["unresolvedInfoTypes"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn portable_snapshot_rejects_cross_owner_facts_and_relations() {
+        let bad_owner = json!({"version": 1, "nodeId": "a", "entities": [
+            {"address": "node:a", "kind": "node", "id": "a"},
+            {"address": "state:b::count", "kind": "state", "id": "b",
+                "nodeId": "b", "subId": "count"}
+        ], "edges": []});
+        assert!(validate_snapshot(&bad_owner)
+            .unwrap_err()
+            .contains("impersonates another source Node"));
+
+        let dangling = json!({"version": 1, "nodeId": "a", "entities": [
+            {"address": "node:a", "kind": "node", "id": "a"},
+            {"address": "change:a::RunInfo", "kind": "change", "id": "a",
+                "nodeId": "a", "subId": "RunInfo"}
+        ], "edges": [{"id": "send", "from": "change:a::RunInfo",
+            "to": "info:RunInfo@b", "type": "send", "confidence": "high"}]});
+        assert!(validate_snapshot(&dangling)
+            .unwrap_err()
+            .contains("Invalid causal relation"));
     }
 
     fn two_node_facts() -> (serde_json::Value, serde_json::Value) {

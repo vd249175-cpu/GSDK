@@ -93,7 +93,10 @@ pub extern "C" fn gv_abi_version() -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn gv_kernel_free(handle: *mut GvKernel) {
+/// # Safety
+/// `handle` must be null or the unique live pointer returned by
+/// `gv_kernel_new`; it must not be used after this call.
+pub unsafe extern "C" fn gv_kernel_free(handle: *mut GvKernel) {
     if !handle.is_null() {
         // SAFETY: the caller transfers its one live handle back here.
         unsafe {
@@ -239,7 +242,10 @@ pub extern "C" fn gv_poll_next(handle: *mut GvKernel) -> *mut GvChange {
 }
 
 #[no_mangle]
-pub extern "C" fn gv_settle_change(
+/// # Safety
+/// `change` must be the unique unconsumed pointer returned by `gv_poll_next`.
+/// All string pointers must be null or valid NUL-terminated UTF-8 strings.
+pub unsafe extern "C" fn gv_settle_change(
     handle: *mut GvKernel,
     change: *mut GvChange,
     failed_message: *const c_char,
@@ -270,12 +276,17 @@ fn free_change_fields(change: &GvChange) {
         change.payload_json,
         change.submission,
     ] {
-        gv_string_free(value);
+        // SAFETY: every field was allocated by output / optional_output and
+        // this helper is called exactly once while consuming the change.
+        unsafe { gv_string_free(value) };
     }
 }
 
 #[no_mangle]
-pub extern "C" fn gv_change_free(change: *mut GvChange) {
+/// # Safety
+/// `change` must be null or the unique unconsumed pointer returned by
+/// `gv_poll_next`; it must not be used after this call.
+pub unsafe extern "C" fn gv_change_free(change: *mut GvChange) {
     if !change.is_null() {
         // SAFETY: the caller returns one unconsumed polled change.
         let change = unsafe { Box::from_raw(change) };
@@ -364,7 +375,10 @@ pub extern "C" fn gv_analysis_snapshot(handle: *mut GvKernel) -> *mut GvAnalysis
 }
 
 #[no_mangle]
-pub extern "C" fn gv_analysis_snapshot_free(snapshot: *mut GvAnalysisSnapshot) {
+/// # Safety
+/// `snapshot` must be null or the unique pointer returned by
+/// `gv_analysis_snapshot`; it must not be used after this call.
+pub unsafe extern "C" fn gv_analysis_snapshot_free(snapshot: *mut GvAnalysisSnapshot) {
     if snapshot.is_null() {
         return;
     }
@@ -374,13 +388,19 @@ pub extern "C" fn gv_analysis_snapshot_free(snapshot: *mut GvAnalysisSnapshot) {
     // SAFETY: entries was created by Box::into_raw on a boxed slice.
     let entries = unsafe { Box::from_raw(entries) };
     for entry in entries.iter() {
-        gv_string_free(entry.entity);
-        gv_string_free(entry.facts_json);
+        // SAFETY: both strings are owned by this consumed snapshot entry.
+        unsafe {
+            gv_string_free(entry.entity);
+            gv_string_free(entry.facts_json);
+        }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn gv_string_free(value: *mut c_char) {
+/// # Safety
+/// `value` must be null or the unique pointer returned by a `gv_*` string
+/// function; it must not be used after this call.
+pub unsafe extern "C" fn gv_string_free(value: *mut c_char) {
     if !value.is_null() {
         // SAFETY: this pointer was returned by output / optional_output.
         unsafe {
@@ -396,7 +416,10 @@ pub extern "C" fn gv_string_free(value: *mut c_char) {
 /// snapshot array is also accepted). Returns key-sorted result JSON, or NULL
 /// on invalid input; free with `gv_analysis_free`. No algorithms live here.
 #[no_mangle]
-pub extern "C" fn gv_analyze(request_json: *const c_char, facts_json: *const c_char) -> *mut c_char {
+pub extern "C" fn gv_analyze(
+    request_json: *const c_char,
+    facts_json: *const c_char,
+) -> *mut c_char {
     let (Some(request_text), Some(facts_text)) = (input(request_json), input(facts_json)) else {
         return ptr::null_mut();
     };
@@ -432,7 +455,12 @@ fn split_facts_context(value: &serde_json::Value) -> (serde_json::Value, serde_j
 }
 
 /// Free a string returned by `gv_analyze`. Aliases `gv_string_free`.
+///
+/// # Safety
+/// `value` must be null or the unique pointer returned by `gv_analyze`; it
+/// must not be used after this call.
 #[no_mangle]
-pub extern "C" fn gv_analysis_free(value: *mut c_char) {
-    gv_string_free(value);
+pub unsafe extern "C" fn gv_analysis_free(value: *mut c_char) {
+    // SAFETY: this function has the same ownership contract as the alias.
+    unsafe { gv_string_free(value) };
 }

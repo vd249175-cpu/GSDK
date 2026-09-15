@@ -8,9 +8,7 @@ use serde_json::{json, Value};
 
 use crate::model::{edge_to_json, entity_to_json, Index};
 
-const CAUSAL_TYPES: [&str; 6] = [
-    "inject", "trigger", "send", "write", "read-by", "project",
-];
+const CAUSAL_TYPES: [&str; 6] = ["inject", "trigger", "send", "write", "read-by", "project"];
 
 pub fn query_entity(index: &Index, address: &str) -> Result<Option<Value>, String> {
     if let Some(entity) = index.entities.get(address) {
@@ -98,7 +96,9 @@ pub fn expand_entity(index: &Index, address: &str) -> Result<Option<Value>, Stri
                 json!({"edge": edge, "entity": index.entities.get(to).map(entity_to_json).unwrap_or(Value::Null)})
             })
             .collect();
-        return Ok(Some(json!({"target": target, "inbound": inbound, "outbound": outbound})));
+        return Ok(Some(
+            json!({"target": target, "inbound": inbound, "outbound": outbound}),
+        ));
     }
     let mut inbound = Vec::new();
     let mut outbound = Vec::new();
@@ -110,11 +110,14 @@ pub fn expand_entity(index: &Index, address: &str) -> Result<Option<Value>, Stri
         }
         if edge.from == target_address {
             if let Some(entity) = index.entities.get(&edge.to) {
-                outbound.push(json!({"edge": edge_to_json(edge), "entity": entity_to_json(entity)}));
+                outbound
+                    .push(json!({"edge": edge_to_json(edge), "entity": entity_to_json(entity)}));
             }
         }
     }
-    Ok(Some(json!({"target": target, "inbound": inbound, "outbound": outbound})))
+    Ok(Some(
+        json!({"target": target, "inbound": inbound, "outbound": outbound}),
+    ))
 }
 
 fn bfs_distances(
@@ -286,8 +289,12 @@ fn shortest_paths(
     let shortest = shortest.unwrap_or(0);
     let mut paths = Vec::new();
     let mut truncated = false;
-    let mut unique_targets: Vec<String> =
-        targets.iter().cloned().collect::<BTreeSet<_>>().into_iter().collect();
+    let mut unique_targets: Vec<String> = targets
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
     unique_targets.sort();
     'outer: for target in unique_targets {
         if depth.get(&target).copied() != Some(shortest) {
@@ -303,8 +310,7 @@ fn shortest_paths(
                     truncated = true;
                     break 'outer;
                 }
-                let vertices: Vec<String> =
-                    stack.iter().map(|(v, _)| v.clone()).rev().collect();
+                let vertices: Vec<String> = stack.iter().map(|(v, _)| v.clone()).rev().collect();
                 let edges: Vec<Value> = path_edges
                     .iter()
                     .rev()
@@ -387,7 +393,11 @@ pub fn find_paths(
             let steps: Vec<Value> = vertices
                 .iter()
                 .map(|address| {
-                    index.entities.get(address).map(entity_to_json).unwrap_or(Value::Null)
+                    index
+                        .entities
+                        .get(address)
+                        .map(entity_to_json)
+                        .unwrap_or(Value::Null)
                 })
                 .collect();
             json!({"steps": steps, "edges": edges, "length": edges_len(&vertices)})
@@ -515,9 +525,7 @@ pub fn select_subgraph(index: &Index, node_ids: &[String]) -> Result<Value, Stri
         .iter()
         .filter(|entity| {
             entity.get("kind").and_then(Value::as_str) == Some("info")
-                && !sourced.contains(
-                    entity.get("address").and_then(Value::as_str).unwrap_or(""),
-                )
+                && !sourced.contains(entity.get("address").and_then(Value::as_str).unwrap_or(""))
         })
         .cloned()
         .collect();
@@ -525,7 +533,10 @@ pub fn select_subgraph(index: &Index, node_ids: &[String]) -> Result<Value, Stri
         .iter()
         .filter_map(|edge| edge.get("to").and_then(Value::as_str).map(str::to_owned))
         .chain(root_infos.iter().filter_map(|entity| {
-            entity.get("address").and_then(Value::as_str).map(str::to_owned)
+            entity
+                .get("address")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
         }))
         .collect();
     let exit_addresses: BTreeSet<String> = boundary_out
@@ -574,9 +585,11 @@ pub fn validate_index(index: &Index, snapshots: &[Value]) -> Value {
             .map(Vec::as_slice)
             .unwrap_or(&[])
         {
-            issues.push(json!({"severity": "error", "code": "unresolved-send-target",
+            issues.push(
+                json!({"severity": "error", "code": "unresolved-send-target",
                 "message": "Unresolved send target expression",
-                "entityAddress": item.get("sourceChange").and_then(Value::as_str)}));
+                "entityAddress": item.get("sourceChange").and_then(Value::as_str)}),
+            );
         }
     }
     for edge in &index.edges {
@@ -599,29 +612,43 @@ pub fn validate_index(index: &Index, snapshots: &[Value]) -> Value {
             .and_then(Value::as_str)
             .unwrap_or("");
         if !index.nodes.contains(target) {
-            issues.push(json!({"severity": "error", "code": "unknown-frontend-target",
-                "message": format!("Frontend link targets unknown Node: {target}")}));
+            issues.push(
+                json!({"severity": "error", "code": "unknown-frontend-target",
+                "message": format!("Frontend link targets unknown Node: {target}")}),
+            );
         }
         let trigger = format!("change:{target}::{info_type}");
         if !index.entities.contains_key(&trigger) {
-            issues.push(json!({"severity": "warning", "code": "missing-frontend-trigger",
+            issues.push(
+                json!({"severity": "warning", "code": "missing-frontend-trigger",
                 "message": format!("Frontend trigger has no change evidence: {trigger}"),
-                "entityAddress": trigger}));
+                "entityAddress": trigger}),
+            );
         }
         if let Some(projections) = link.get("projections").and_then(Value::as_array) {
             for projection in projections {
-                let owner = projection.get("ownerNodeId").and_then(Value::as_str).unwrap_or("");
-                let field = projection.get("ownerField").and_then(Value::as_str).unwrap_or("");
+                let owner = projection
+                    .get("ownerNodeId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let field = projection
+                    .get("ownerField")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
                 let state = format!("state:{owner}::{field}");
                 if !index.entities.contains_key(&state) {
-                    issues.push(json!({"severity": "warning", "code": "missing-frontend-state",
+                    issues.push(
+                        json!({"severity": "warning", "code": "missing-frontend-state",
                         "message": format!("Frontend projection has no state evidence: {state}"),
-                        "entityAddress": state}));
+                        "entityAddress": state}),
+                    );
                 }
             }
         }
     }
-    let valid = !issues.iter().any(|issue| issue.get("severity").and_then(Value::as_str) == Some("error"));
+    let valid = !issues
+        .iter()
+        .any(|issue| issue.get("severity").and_then(Value::as_str) == Some("error"));
     json!({"valid": valid, "issues": issues})
 }
 

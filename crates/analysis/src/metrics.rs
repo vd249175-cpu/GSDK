@@ -18,7 +18,12 @@ struct DirectedGraph {
 }
 
 fn build_directed(vertices: &[String], source: &[(String, String, f64)]) -> DirectedGraph {
-    let mut ordered: Vec<String> = vertices.iter().cloned().collect::<BTreeSet<_>>().into_iter().collect();
+    let mut ordered: Vec<String> = vertices
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
     ordered.sort();
     let vertex_set: BTreeSet<&str> = ordered.iter().map(String::as_str).collect();
     let mut merged: BTreeMap<(String, String), f64> = BTreeMap::new();
@@ -46,7 +51,12 @@ fn build_directed(vertices: &[String], source: &[(String, String, f64)]) -> Dire
         outbound.get_mut(from).unwrap().insert(to.clone(), *weight);
         inbound.get_mut(to).unwrap().insert(from.clone(), *weight);
     }
-    DirectedGraph { vertices: ordered, edges, outbound, inbound }
+    DirectedGraph {
+        vertices: ordered,
+        edges,
+        outbound,
+        inbound,
+    }
 }
 
 fn weakly_connected(graph: &DirectedGraph) -> Vec<Vec<String>> {
@@ -77,9 +87,8 @@ fn weakly_connected(graph: &DirectedGraph) -> Vec<Vec<String>> {
         members.sort();
         components.push(members);
     }
-    components.sort_by(|a: &Vec<String>, b: &Vec<String>| {
-        b.len().cmp(&a.len()).then(a[0].cmp(&b[0]))
-    });
+    components
+        .sort_by(|a: &Vec<String>, b: &Vec<String>| b.len().cmp(&a.len()).then(a[0].cmp(&b[0])));
     components
 }
 
@@ -90,7 +99,10 @@ fn strongly_connected(view: &View) -> Vec<Vec<String>> {
     }
     for route in &view.routes {
         if !route.internal {
-            adjacency.get_mut(&route.from).unwrap().insert(route.to.clone());
+            adjacency
+                .get_mut(&route.from)
+                .unwrap()
+                .insert(route.to.clone());
         }
     }
     let mut index_counter = 0usize;
@@ -118,7 +130,16 @@ fn strongly_connected(view: &View) -> Vec<Vec<String>> {
         if let Some(neighbors) = adjacency.get(node) {
             for next in neighbors {
                 if !indices.contains_key(next) {
-                    visit(next, adjacency, index_counter, indices, low, stack, on_stack, components);
+                    visit(
+                        next,
+                        adjacency,
+                        index_counter,
+                        indices,
+                        low,
+                        stack,
+                        on_stack,
+                        components,
+                    );
                     let next_low = low[next];
                     let node_low = low[node];
                     low.insert(node.to_owned(), node_low.min(next_low));
@@ -149,7 +170,16 @@ fn strongly_connected(view: &View) -> Vec<Vec<String>> {
     ordered.sort();
     for node in ordered {
         if !indices.contains_key(&node) {
-            visit(&node, &adjacency, &mut index_counter, &mut indices, &mut low, &mut stack, &mut on_stack, &mut components);
+            visit(
+                &node,
+                &adjacency,
+                &mut index_counter,
+                &mut indices,
+                &mut low,
+                &mut stack,
+                &mut on_stack,
+                &mut components,
+            );
         }
     }
     // Parity with health.ts: singletons dropped, survivors sorted by size.
@@ -158,12 +188,14 @@ fn strongly_connected(view: &View) -> Vec<Vec<String>> {
 }
 
 pub fn analyze_health(view: &View) -> Value {
-    let external: Vec<&crate::views::Route> =
-        view.routes.iter().filter(|r| !r.internal).collect();
-    let internal: Vec<&crate::views::Route> =
-        view.routes.iter().filter(|r| r.internal).collect();
+    let external: Vec<&crate::views::Route> = view.routes.iter().filter(|r| !r.internal).collect();
+    let internal: Vec<&crate::views::Route> = view.routes.iter().filter(|r| r.internal).collect();
     let node_count = view.nodes.len();
-    let possible = if node_count > 1 { node_count * (node_count - 1) } else { 0 };
+    let possible = if node_count > 1 {
+        node_count * (node_count - 1)
+    } else {
+        0
+    };
     let neighbor_pairs: BTreeSet<String> = external
         .iter()
         .map(|r| format!("{}->{}", r.from, r.to))
@@ -271,7 +303,9 @@ pub fn analyze_health(view: &View) -> Value {
         let bb = b.get("inboundRoutes").and_then(Value::as_u64).unwrap_or(0)
             + b.get("outboundRoutes").and_then(Value::as_u64).unwrap_or(0);
         bb.cmp(&ab).then(
-            a.get("nodeId").and_then(Value::as_str).unwrap_or("")
+            a.get("nodeId")
+                .and_then(Value::as_str)
+                .unwrap_or("")
                 .cmp(b.get("nodeId").and_then(Value::as_str).unwrap_or("")),
         )
     });
@@ -311,7 +345,10 @@ pub fn analyze_health(view: &View) -> Value {
     })
 }
 
-fn bfs_distances(origin: &str, adjacency: &BTreeMap<String, BTreeSet<String>>) -> BTreeMap<String, usize> {
+fn bfs_distances(
+    origin: &str,
+    adjacency: &BTreeMap<String, BTreeSet<String>>,
+) -> BTreeMap<String, usize> {
     let mut dist = BTreeMap::from([(origin.to_owned(), 0)]);
     let mut queue = VecDeque::from([origin.to_owned()]);
     while let Some(current) = queue.pop_front() {
@@ -346,8 +383,14 @@ pub fn analyze_reach(view: &View, origin: &str) -> Result<Value, String> {
         if route.internal {
             continue;
         }
-        outbound.get_mut(&route.from).unwrap().insert(route.to.clone());
-        inbound.get_mut(&route.to).unwrap().insert(route.from.clone());
+        outbound
+            .get_mut(&route.from)
+            .unwrap()
+            .insert(route.to.clone());
+        inbound
+            .get_mut(&route.to)
+            .unwrap()
+            .insert(route.from.clone());
     }
     let upstream = bfs_distances(origin, &inbound);
     let downstream = bfs_distances(origin, &outbound);
@@ -360,7 +403,9 @@ pub fn analyze_reach(view: &View, origin: &str) -> Result<Value, String> {
             let da = a.get("distance").and_then(Value::as_u64).unwrap_or(0);
             let db = b.get("distance").and_then(Value::as_u64).unwrap_or(0);
             da.cmp(&db).then(
-                a.get("nodeId").and_then(Value::as_str).unwrap_or("")
+                a.get("nodeId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
                     .cmp(b.get("nodeId").and_then(Value::as_str).unwrap_or("")),
             )
         });
@@ -369,9 +414,7 @@ pub fn analyze_reach(view: &View, origin: &str) -> Result<Value, String> {
     let mut unreachable: Vec<String> = view
         .nodes
         .keys()
-        .filter(|id| {
-            *id != origin && !upstream.contains_key(*id) && !downstream.contains_key(*id)
-        })
+        .filter(|id| *id != origin && !upstream.contains_key(*id) && !downstream.contains_key(*id))
         .cloned()
         .collect();
     unreachable.sort();
@@ -397,13 +440,12 @@ fn core_numbers(
         }
         adjacency.insert(vertex.clone(), set);
     }
-    let mut degrees: BTreeMap<String, usize> =
-        adjacency.iter().map(|(k, v)| (k.clone(), v.len())).collect();
-    // Sorted worklist with lazy deletion, tie-break by node id (mirrors TS).
-    let mut heap: Vec<(usize, String)> = vertices
+    let mut degrees: BTreeMap<String, usize> = adjacency
         .iter()
-        .map(|v| (degrees[v], v.clone()))
+        .map(|(k, v)| (k.clone(), v.len()))
         .collect();
+    // Sorted worklist with lazy deletion, tie-break by node id (mirrors TS).
+    let mut heap: Vec<(usize, String)> = vertices.iter().map(|v| (degrees[v], v.clone())).collect();
     heap.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
     let mut removed = BTreeSet::new();
     let mut result = BTreeMap::new();
@@ -459,14 +501,22 @@ fn articulation_and_bridges(graph: &DirectedGraph) -> (Vec<String>, Vec<Value>) 
         low.insert(vertex.to_owned(), *time);
         *time += 1;
         let mut children = 0usize;
-        let mut neighbors: Vec<String> =
-            adjacency[vertex].iter().cloned().collect();
+        let mut neighbors: Vec<String> = adjacency[vertex].iter().cloned().collect();
         neighbors.sort();
         for neighbor in neighbors {
             if !discovery.contains_key(&neighbor) {
                 children += 1;
                 parent.insert(neighbor.clone(), Some(vertex.to_owned()));
-                visit(&neighbor, adjacency, time, discovery, low, parent, articulation, bridges);
+                visit(
+                    &neighbor,
+                    adjacency,
+                    time,
+                    discovery,
+                    low,
+                    parent,
+                    articulation,
+                    bridges,
+                );
                 let low_neighbor = low[&neighbor];
                 let low_vertex = low[vertex];
                 low.insert(vertex.to_owned(), low_vertex.min(low_neighbor));
@@ -496,7 +546,16 @@ fn articulation_and_bridges(graph: &DirectedGraph) -> (Vec<String>, Vec<Value>) 
             continue;
         }
         parent.insert(vertex.clone(), None);
-        visit(vertex, &adjacency, &mut time, &mut discovery, &mut low, &mut parent, &mut articulation, &mut bridges);
+        visit(
+            vertex,
+            &adjacency,
+            &mut time,
+            &mut discovery,
+            &mut low,
+            &mut parent,
+            &mut articulation,
+            &mut bridges,
+        );
     }
     let mut points: Vec<String> = articulation.into_iter().collect();
     points.sort();
@@ -505,18 +564,33 @@ fn articulation_and_bridges(graph: &DirectedGraph) -> (Vec<String>, Vec<Value>) 
         .map(|(from, to)| json!({"from": from, "to": to}))
         .collect();
     bridge_list.sort_by(|a, b| {
-        a.get("from").and_then(Value::as_str).unwrap_or("")
+        a.get("from")
+            .and_then(Value::as_str)
+            .unwrap_or("")
             .cmp(b.get("from").and_then(Value::as_str).unwrap_or(""))
-            .then(a.get("to").and_then(Value::as_str).unwrap_or("")
-                .cmp(b.get("to").and_then(Value::as_str).unwrap_or("")))
+            .then(
+                a.get("to")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .cmp(b.get("to").and_then(Value::as_str).unwrap_or("")),
+            )
     });
     (points, bridge_list)
 }
 
 pub fn analyze_centrality(view: &View, options: &Value) -> Result<Value, String> {
-    let damping = options.get("damping").and_then(Value::as_f64).unwrap_or(0.85);
-    let max_iterations = options.get("maxIterations").and_then(Value::as_u64).unwrap_or(100) as usize;
-    let tolerance = options.get("tolerance").and_then(Value::as_f64).unwrap_or(1e-12);
+    let damping = options
+        .get("damping")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.85);
+    let max_iterations = options
+        .get("maxIterations")
+        .and_then(Value::as_u64)
+        .unwrap_or(100) as usize;
+    let tolerance = options
+        .get("tolerance")
+        .and_then(Value::as_f64)
+        .unwrap_or(1e-12);
     if !(damping > 0.0 && damping < 1.0) {
         return Err(format!("PageRank damping 必须位于 (0, 1): {damping}"));
     }
@@ -548,7 +622,12 @@ pub fn analyze_centrality(view: &View, options: &Value) -> Result<Value, String>
         let mut next: BTreeMap<String, f64> = graph
             .vertices
             .iter()
-            .map(|v| (v.clone(), (1.0 - damping) / n as f64 + damping * dangling / n as f64))
+            .map(|v| {
+                (
+                    v.clone(),
+                    (1.0 - damping) / n as f64 + damping * dangling / n as f64,
+                )
+            })
             .collect();
         for source in &graph.vertices {
             let outbound = &graph.outbound[source];
@@ -578,8 +657,11 @@ pub fn analyze_centrality(view: &View, options: &Value) -> Result<Value, String>
         graph.vertices.iter().map(|v| (v.clone(), 0.0)).collect();
     for source in &graph.vertices {
         let mut stack: Vec<String> = Vec::new();
-        let mut predecessors: BTreeMap<String, Vec<String>> =
-            graph.vertices.iter().map(|v| (v.clone(), Vec::new())).collect();
+        let mut predecessors: BTreeMap<String, Vec<String>> = graph
+            .vertices
+            .iter()
+            .map(|v| (v.clone(), Vec::new()))
+            .collect();
         let mut paths: BTreeMap<String, f64> =
             graph.vertices.iter().map(|v| (v.clone(), 0.0)).collect();
         let mut distance: BTreeMap<String, i64> =
@@ -589,8 +671,7 @@ pub fn analyze_centrality(view: &View, options: &Value) -> Result<Value, String>
         let mut queue = VecDeque::from([source.clone()]);
         while let Some(vertex) = queue.pop_front() {
             stack.push(vertex.clone());
-            let mut targets: Vec<String> =
-                graph.outbound[&vertex].keys().cloned().collect();
+            let mut targets: Vec<String> = graph.outbound[&vertex].keys().cloned().collect();
             targets.sort();
             for target in targets {
                 if distance[&target] == -1 {
@@ -614,8 +695,7 @@ pub fn analyze_centrality(view: &View, options: &Value) -> Result<Value, String>
         while let Some(target) = stack.pop() {
             for predecessor in predecessors[&target].clone() {
                 if paths[&target] > 0.0 {
-                    let delta = paths[&predecessor] / paths[&target]
-                        * (1.0 + dependency[&target]);
+                    let delta = paths[&predecessor] / paths[&target] * (1.0 + dependency[&target]);
                     *dependency.get_mut(&predecessor).unwrap() += delta;
                 }
             }
@@ -624,7 +704,11 @@ pub fn analyze_centrality(view: &View, options: &Value) -> Result<Value, String>
             }
         }
     }
-    let between_scale = if n > 2 { 1.0 / ((n - 1) * (n - 2)) as f64 } else { 0.0 };
+    let between_scale = if n > 2 {
+        1.0 / ((n - 1) * (n - 2)) as f64
+    } else {
+        0.0
+    };
     let degree_scale = if n > 1 { 1.0 / (n - 1) as f64 } else { 0.0 };
     let cores = core_numbers(&graph.vertices, &graph.outbound, &graph.inbound);
     let (points, bridges) = articulation_and_bridges(&graph);
@@ -649,17 +733,29 @@ pub fn analyze_centrality(view: &View, options: &Value) -> Result<Value, String>
         })
         .collect();
     nodes.sort_by(|a, b| {
-        let ba = b.get("betweennessCentrality").and_then(Value::as_f64).unwrap_or(0.0);
-        let aa = a.get("betweennessCentrality").and_then(Value::as_f64).unwrap_or(0.0);
+        let ba = b
+            .get("betweennessCentrality")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0);
+        let aa = a
+            .get("betweennessCentrality")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0);
         ba.partial_cmp(&aa)
             .unwrap_or(std::cmp::Ordering::Equal)
             .then(
-                b.get("pageRank").and_then(Value::as_f64).unwrap_or(0.0)
+                b.get("pageRank")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0)
                     .partial_cmp(&a.get("pageRank").and_then(Value::as_f64).unwrap_or(0.0))
                     .unwrap_or(std::cmp::Ordering::Equal),
             )
-            .then(a.get("nodeId").and_then(Value::as_str).unwrap_or("")
-                .cmp(b.get("nodeId").and_then(Value::as_str).unwrap_or("")))
+            .then(
+                a.get("nodeId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .cmp(b.get("nodeId").and_then(Value::as_str).unwrap_or("")),
+            )
     });
     Ok(json!({
         "viewId": view.id, "nodeCount": n, "edgeCount": graph.edges.len(),
@@ -687,8 +783,12 @@ struct UndirectedGraph {
 }
 
 fn build_undirected(vertex_ids: &[String], source: &[(String, String, f64)]) -> UndirectedGraph {
-    let mut ordered: Vec<String> =
-        vertex_ids.iter().cloned().collect::<BTreeSet<_>>().into_iter().collect();
+    let mut ordered: Vec<String> = vertex_ids
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
     ordered.sort();
     let vertex_set: BTreeSet<&str> = ordered.iter().map(String::as_str).collect();
     let mut merged: BTreeMap<(String, String), f64> = BTreeMap::new();
@@ -730,10 +830,20 @@ fn build_undirected(vertex_ids: &[String], source: &[(String, String, f64)]) -> 
         *degree.get_mut(from).unwrap() += weight;
         *degree.get_mut(to).unwrap() += weight;
     }
-    UndirectedGraph { vertices: ordered, edges, adjacency, degree, total_weight: total }
+    UndirectedGraph {
+        vertices: ordered,
+        edges,
+        adjacency,
+        degree,
+        total_weight: total,
+    }
 }
 
-fn louvain_modularity(graph: &UndirectedGraph, assignment: &BTreeMap<String, String>, resolution: f64) -> f64 {
+fn louvain_modularity(
+    graph: &UndirectedGraph,
+    assignment: &BTreeMap<String, String>,
+    resolution: f64,
+) -> f64 {
     let m = graph.total_weight;
     if m <= 0.0 {
         return 0.0;
@@ -763,10 +873,16 @@ fn louvain_move(
     max_passes: usize,
     epsilon: f64,
 ) -> (BTreeMap<String, String>, usize, usize) {
-    let mut assignment: BTreeMap<String, String> =
-        graph.vertices.iter().map(|v| (v.clone(), v.clone())).collect();
-    let mut community_degree: BTreeMap<String, f64> =
-        graph.vertices.iter().map(|v| (v.clone(), graph.degree[v])).collect();
+    let mut assignment: BTreeMap<String, String> = graph
+        .vertices
+        .iter()
+        .map(|v| (v.clone(), v.clone()))
+        .collect();
+    let mut community_degree: BTreeMap<String, f64> = graph
+        .vertices
+        .iter()
+        .map(|v| (v.clone(), graph.degree[v]))
+        .collect();
     let m = graph.total_weight;
     if m <= 0.0 {
         return (assignment, 0, 0);
@@ -788,14 +904,15 @@ fn louvain_move(
                 + resolution * community_degree[&old] * degree / (2.0 * m * m);
             let mut best = old.clone();
             let mut best_gain = 0.0;
-            let mut candidates: BTreeSet<String> =
-                weights.keys().cloned().collect();
+            let mut candidates: BTreeSet<String> = weights.keys().cloned().collect();
             candidates.insert(old.clone());
             let mut ordered: Vec<String> = candidates.into_iter().collect();
             ordered.sort();
             for community in ordered {
                 let gain = remove_cost + weights.get(&community).copied().unwrap_or(0.0) / m
-                    - resolution * community_degree.get(&community).copied().unwrap_or(0.0) * degree
+                    - resolution
+                        * community_degree.get(&community).copied().unwrap_or(0.0)
+                        * degree
                         / (2.0 * m * m);
                 if gain > best_gain + epsilon
                     || (gain > epsilon && (gain - best_gain).abs() <= epsilon && community < best)
@@ -829,7 +946,10 @@ fn groups_from_assignment(
 ) -> Vec<(Vec<String>, Vec<String>)> {
     let mut grouped: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for vertex in &graph.vertices {
-        grouped.entry(assignment[vertex].clone()).or_default().push(vertex.clone());
+        grouped
+            .entry(assignment[vertex].clone())
+            .or_default()
+            .push(vertex.clone());
     }
     let mut groups: Vec<(Vec<String>, Vec<String>)> = grouped
         .into_values()
@@ -843,9 +963,7 @@ fn groups_from_assignment(
             (current, original)
         })
         .collect();
-    groups.sort_by(|a, b| {
-        b.1.len().cmp(&a.1.len()).then(a.1[0].cmp(&b.1[0]))
-    });
+    groups.sort_by(|a, b| b.1.len().cmp(&a.1.len()).then(a.1[0].cmp(&b.1[0])));
     groups
 }
 
@@ -877,7 +995,11 @@ fn aggregate_graph(
         .edges
         .iter()
         .map(|(from, to, weight)| {
-            (current_to_agg[from].clone(), current_to_agg[to].clone(), *weight)
+            (
+                current_to_agg[from].clone(),
+                current_to_agg[to].clone(),
+                *weight,
+            )
         })
         .collect();
     let member_ids: Vec<String> = members.keys().cloned().collect();
@@ -892,17 +1014,32 @@ fn discover(
     source_edges: Vec<(String, String, f64)>,
     options: &Value,
 ) -> Result<Value, String> {
-    let gamma = options.get("modularityResolution").and_then(Value::as_f64).unwrap_or(1.0);
-    let max_levels = options.get("maxLevels").and_then(Value::as_u64).unwrap_or(20) as usize;
-    let max_passes = options.get("maxPasses").and_then(Value::as_u64).unwrap_or(50) as usize;
-    let minimum_gain = options.get("minimumGain").and_then(Value::as_f64).unwrap_or(1e-10);
+    let gamma = options
+        .get("modularityResolution")
+        .and_then(Value::as_f64)
+        .unwrap_or(1.0);
+    let max_levels = options
+        .get("maxLevels")
+        .and_then(Value::as_u64)
+        .unwrap_or(20) as usize;
+    let max_passes = options
+        .get("maxPasses")
+        .and_then(Value::as_u64)
+        .unwrap_or(50) as usize;
+    let minimum_gain = options
+        .get("minimumGain")
+        .and_then(Value::as_f64)
+        .unwrap_or(1e-10);
     if !gamma.is_finite() || gamma <= 0.0 {
         return Err(format!("modularityResolution 必须是正数: {gamma}"));
     }
     let original = build_undirected(&vertex_ids, &source_edges);
     let mut graph = original.clone();
-    let mut members: BTreeMap<String, Vec<String>> =
-        graph.vertices.iter().map(|v| (v.clone(), vec![v.clone()])).collect();
+    let mut members: BTreeMap<String, Vec<String>> = graph
+        .vertices
+        .iter()
+        .map(|v| (v.clone(), vec![v.clone()]))
+        .collect();
     let mut final_groups: Vec<(Vec<String>, Vec<String>)> = graph
         .vertices
         .iter()
@@ -910,7 +1047,11 @@ fn discover(
         .collect();
     let mut previous: f64 = louvain_modularity(
         &original,
-        &original.vertices.iter().map(|v| (v.clone(), v.clone())).collect(),
+        &original
+            .vertices
+            .iter()
+            .map(|v| (v.clone(), v.clone()))
+            .collect(),
         gamma,
     );
     let mut levels = Vec::new();
@@ -948,8 +1089,7 @@ fn discover(
     let mut total_internal = 0.0;
     let mut communities = Vec::new();
     for (index, (_, original_members)) in final_groups.iter().enumerate() {
-        let member_set: BTreeSet<&str> =
-            original_members.iter().map(String::as_str).collect();
+        let member_set: BTreeSet<&str> = original_members.iter().map(String::as_str).collect();
         let mut internal_weight = 0.0;
         let mut boundary_weight = 0.0;
         let mut internal_edges = 0usize;
@@ -1036,7 +1176,11 @@ pub fn discover_granular(index: &Index, options: &Value) -> Result<Value, String
 }
 
 fn choose2(value: usize) -> f64 {
-    if value < 2 { 0.0 } else { value as f64 * (value as f64 - 1.0) / 2.0 }
+    if value < 2 {
+        0.0
+    } else {
+        value as f64 * (value as f64 - 1.0) / 2.0
+    }
 }
 
 pub fn compare_partitions(
@@ -1057,8 +1201,14 @@ pub fn compare_partitions(
     for vertex in &vertices {
         let d = discovered[vertex].clone();
         let r = reference[vertex].clone();
-        discovered_groups.entry(d.clone()).or_default().push(vertex.clone());
-        reference_groups.entry(r.clone()).or_default().push(vertex.clone());
+        discovered_groups
+            .entry(d.clone())
+            .or_default()
+            .push(vertex.clone());
+        reference_groups
+            .entry(r.clone())
+            .or_default()
+            .push(vertex.clone());
         *contingency.entry((d, r)).or_default() += 1;
     }
     let n = vertices.len();
@@ -1094,11 +1244,19 @@ pub fn compare_partitions(
     let same_d: f64 = discovered_groups.values().map(|m| choose2(m.len())).sum();
     let same_r: f64 = reference_groups.values().map(|m| choose2(m.len())).sum();
     let total_pairs = choose2(n);
-    let expected = if total_pairs > 0.0 { same_d * same_r / total_pairs } else { 0.0 };
+    let expected = if total_pairs > 0.0 {
+        same_d * same_r / total_pairs
+    } else {
+        0.0
+    };
     let max_pairs = (same_d + same_r) / 2.0;
     let denom = max_pairs - expected;
     let ari = if denom == 0.0 {
-        if same_both == max_pairs { 1.0 } else { 0.0 }
+        if same_both == max_pairs {
+            1.0
+        } else {
+            0.0
+        }
     } else {
         (same_both - expected) / denom
     };
@@ -1138,8 +1296,16 @@ pub fn compare_partitions(
     splits.sort_by(|a, b| {
         let ca = a.get("memberCount").and_then(Value::as_u64).unwrap_or(0);
         let cb = b.get("memberCount").and_then(Value::as_u64).unwrap_or(0);
-        cb.cmp(&ca).then(a.get("referenceCommunityId").and_then(Value::as_str).unwrap_or("")
-            .cmp(b.get("referenceCommunityId").and_then(Value::as_str).unwrap_or("")))
+        cb.cmp(&ca).then(
+            a.get("referenceCommunityId")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .cmp(
+                    b.get("referenceCommunityId")
+                        .and_then(Value::as_str)
+                        .unwrap_or(""),
+                ),
+        )
     });
     let mut merges: Vec<Value> = discovered_groups
         .iter()
@@ -1158,11 +1324,25 @@ pub fn compare_partitions(
     merges.sort_by(|a, b| {
         let ca = a.get("memberCount").and_then(Value::as_u64).unwrap_or(0);
         let cb = b.get("memberCount").and_then(Value::as_u64).unwrap_or(0);
-        cb.cmp(&ca).then(a.get("discoveredCommunityId").and_then(Value::as_str).unwrap_or("")
-            .cmp(b.get("discoveredCommunityId").and_then(Value::as_str).unwrap_or("")))
+        cb.cmp(&ca).then(
+            a.get("discoveredCommunityId")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .cmp(
+                    b.get("discoveredCommunityId")
+                        .and_then(Value::as_str)
+                        .unwrap_or(""),
+                ),
+        )
     });
-    let discovered_counts: BTreeMap<String, usize> = discovered_groups.iter().map(|(k, v)| (k.clone(), v.len())).collect();
-    let reference_counts: BTreeMap<String, usize> = reference_groups.iter().map(|(k, v)| (k.clone(), v.len())).collect();
+    let discovered_counts: BTreeMap<String, usize> = discovered_groups
+        .iter()
+        .map(|(k, v)| (k.clone(), v.len()))
+        .collect();
+    let reference_counts: BTreeMap<String, usize> = reference_groups
+        .iter()
+        .map(|(k, v)| (k.clone(), v.len()))
+        .collect();
     let _ = (discovered_counts, reference_counts);
     json!({
         "discoveredViewId": discovered_view_id, "referenceViewId": reference_view_id,
@@ -1183,12 +1363,23 @@ pub fn compare_to_view(
     reference_view: &View,
 ) -> Result<Value, String> {
     let discovered_members = |community: &Value| -> Vec<String> {
-        community.get("members").and_then(Value::as_array).map(|m| {
-            m.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect()
-        }).unwrap_or_default()
+        community
+            .get("members")
+            .and_then(Value::as_array)
+            .map(|m| {
+                m.iter()
+                    .filter_map(|v| v.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
     };
     let mut discovered: BTreeMap<String, String> = BTreeMap::new();
-    for community in result.get("communities").and_then(Value::as_array).map(Vec::as_slice).unwrap_or(&[]) {
+    for community in result
+        .get("communities")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+    {
         let id = community.get("id").and_then(Value::as_str).unwrap_or("");
         for member in discovered_members(community) {
             discovered.insert(member, id.to_owned());

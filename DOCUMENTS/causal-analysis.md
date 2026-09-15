@@ -6,7 +6,7 @@ type: reference
 
 ## 1. 能证明什么
 
-`@graphvideo/sdk/analysis` 从调用方已经构造的 JS Node 实例及显式前端联动表建立静态 `CausalIndex`。其它语言可提供纯数据 `PortableAnalysisSnapshot`，由 `@graphvideo/sdk/analysis/portable` 的 `buildCausalIndexFromSnapshot` 建立相同索引，复用路径、折叠、健康、中心性和社区算法。权威计算在 Rust `graphvideo-analysis` crate：daemon `analyze`、N-API `analyzeJson`、C ABI `gv_analyze` 共享同一实现，`KernelDaemonClient.analyze/setAnalysisContext` 与 `NativeAnalysisEngine.analyzeViaRust` 只做 DTO 转发；`instances` 是 JS 实例描述，不进入 Rust 协议。生产 `NativeRuleSpace` 按需合并当前装配的两种证据；分析不扫描插件目录、不创建 Runtime、不执行 getter/change，也不介入生产调度。没有实例或便携事实的原始 handler 会作为 `opaque-handler` Node 保留，其当前 State 字段可见，但不会凭空推断 send。
+`@graphvideo/sdk/analysis` 从调用方已经构造的 JS Node 实例及显式前端联动表建立静态 `CausalIndex`。其它语言可提供纯数据 `PortableAnalysisSnapshot`。跨语言权威计算在 Rust `graphvideo-analysis` crate：daemon `analyze`、N-API `analyzeJson`、C ABI `gv_analyze` 共享同一实现，`KernelDaemonClient.analyze/setAnalysisContext` 与 `NativeAnalysisEngine.analyzeViaRust` 只做 DTO 转发；`instances` 是 JS 实例描述，不进入 Rust 协议。尚未迁入 daemon 的 Studio `NativeRuleSpace` 保留 `@graphvideo/sdk/analysis` 的 TS 实例兼容路径。两条入口都不扫描插件目录、不创建 Runtime、不执行 getter/change，也不介入生产调度。没有实例或便携事实的原始 handler 会作为 `opaque-handler` Node 保留，其当前 State 字段可见，但不会凭空推断 send。
 
 基础实体与关系为：
 

@@ -47,7 +47,8 @@ fn analyze(op: Value) -> Value {
 }
 
 fn approx(left: &Value, right: f64) -> bool {
-    left.as_f64().is_some_and(|value| (value - right).abs() <= 1e-9)
+    left.as_f64()
+        .is_some_and(|value| (value - right).abs() <= 1e-9)
 }
 
 #[test]
@@ -99,10 +100,7 @@ fn golden_view_health_centrality_community_fold_and_path() {
     assert!(approx(&nodes[0]["betweennessCentrality"], 0.0));
     assert!(approx(&nodes[1]["harmonicCloseness"], 1.0));
     assert_eq!(centrality["bridges"], json!([{"from": "a", "to": "b"}]));
-    assert_eq!(
-        centrality["weaklyConnectedComponents"],
-        json!([["a", "b"]])
-    );
+    assert_eq!(centrality["weaklyConnectedComponents"], json!([["a", "b"]]));
 
     let communities = analyze(json!({"op": "communities"}));
     assert_eq!(communities["vertexCount"], json!(2));
@@ -112,10 +110,7 @@ fn golden_view_health_centrality_community_fold_and_path() {
     assert_eq!(communities["levels"][0]["communityCount"], json!(1));
     assert_eq!(communities["levels"][0]["passes"], json!(2));
     assert_eq!(communities["levels"][0]["moves"], json!(1));
-    assert_eq!(
-        communities["communities"][0]["members"],
-        json!(["a", "b"])
-    );
+    assert_eq!(communities["communities"][0]["members"], json!(["a", "b"]));
 
     let folded = analyze(json!({
         "op": "view", "foldDepth": 1,

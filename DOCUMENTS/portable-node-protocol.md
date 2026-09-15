@@ -43,14 +43,14 @@ Rust 开始一次单飞 change 后，宿主发送 `{"kind":"change","changeId":1
 
 ## 3. 分析与性能
 
-Rust 内核按 Node generation 保存事实，`admit/replace` 前校验 schema、`nodeId` 绑定与尺寸，拒绝旧 generation 写入，替换或移除时清除；调度、send 和 change 结算不读取或解析它。`graphvideo-analysis` 是唯一的分析计算实现：daemon `analyze`、N-API `analyzeJson` 与 C ABI `gv_analyze` 调用同一个 Rust crate，不复制算法。`NativeAnalysisEngine.analyzeViaRust` 把请求 DTO 转发到该实现；本地 TS `analyze()` 仅保留为实例事实提取与 DTO  fallback，不再是权威。纯数据消费者仍可用 `@graphvideo/sdk/analysis/portable` 的 `buildCausalIndexFromSnapshot` 与现有路径、折叠、健康、中心性和社区算法；此入口不加载 TypeScript AST 扫描器。JS Node 没有提供事实时，生产分析仍按需扫描其真实实例（`opaque-handler` 合成可见 State 实体，不推断 send/read/write）。
+Rust 内核按 Node generation 保存事实，`admit/replace` 前校验 schema、`nodeId` 绑定与尺寸，拒绝旧 generation 写入，替换或移除时清除；调度、send 和 change 结算不读取或解析它。`graphvideo-analysis` 是跨语言协议的权威分析计算实现：daemon `analyze`、N-API `analyzeJson` 与 C ABI `gv_analyze` 调用同一个 Rust crate，不复制算法。`NativeAnalysisEngine.analyzeViaRust` 把请求 DTO 转发到该实现；尚未迁入 daemon 的 Studio 仍保留本地 TS `analyze()` 兼容路径，用于 JS 实例事实与现有公开分析 API。纯数据消费者也可用 `@graphvideo/sdk/analysis/portable`；此入口不加载 TypeScript AST 扫描器。JS Node 没有提供事实时，实例兼容路径仍可按需扫描其真实实例；daemon 则把该 Node 标成 `opaque-handler`，只合成可见 State 字段，不推断 send/read/write。
 
 `NativeRuleSpace.analyze` 首次请求才读取事实、装配索引并运行分析。跨进程 Node 的每次 `ctx` 调用有一次 JSON Lines 往返；该成本只落在使用进程协议的 Node 上。语言运行时需要实现上述小型帧协议及因果事实生成器，不需要重写图分析算法。Rust 调度热路径不检查或解析分析事实。
 
 ## 4. 非 JS 宿主
 
-`crates/kernel-ffi/include/graphvideo_kernel.h` 是稳定 C ABI 的头文件。`cargo build -p graphvideo-kernel-ffi` 生成当前平台共享库；它提供 `admit/send/inject_root/poll_next/settle_change/cancel`、代次与编辑保留位，以及注册时设置、按需读取分析事实。`gv_analysis_snapshot` 一次性取出所有已登记事实，供 JS Agent 建索引，结果由 `gv_analysis_snapshot_free` 释放。每个宿主用自己的语言执行 change 和保管 Owner State，同一个 Rust `GvKernel` handle 保证 mailbox 与单飞。返回字符串由 `gv_string_free` 释放；`gv_poll_next` 返回的 change 必须由 `gv_settle_change` 消费并结算。`gv_change_free` 只释放内存，不结算单飞 change。
+`crates/kernel-ffi/include/graphvideo_kernel.h` 是稳定 C ABI 的头文件。`cargo build -p graphvideo-kernel-ffi` 生成当前平台共享库；它提供 `admit/send/inject_root/poll_next/settle_change/cancel`、代次与编辑保留位，以及注册时设置、按需读取分析事实。`gv_analysis_snapshot` 一次性取出所有已登记事实，结果由 `gv_analysis_snapshot_free` 释放；`gv_analyze` 对传入的便携事实执行与 daemon 相同的 Rust 分析，结果由 `gv_analysis_free` 释放。每个宿主用自己的语言执行 change 和保管 Owner State，同一个 Rust `GvKernel` handle 保证 mailbox 与单飞。其它返回字符串由 `gv_string_free` 释放；`gv_poll_next` 返回的 change 必须由 `gv_settle_change` 消费并结算。`gv_change_free` 只释放内存，不结算单飞 change。
 
-仓库包含 [Python ctypes 宿主样例](../crates/kernel-ffi/examples/ctypes_smoke.py)：Python 直接驱动 Rust 调度器，让两个 Python Node 通过 Info 通信，并读回便携分析事实。它不经过 JS。JS Agent 若需分析这个非 JS 宿主持有的规则空间，可从宿主取得 `PortableAnalysisSnapshot` JSON，交给 `@graphvideo/sdk/analysis/portable`；当前 C ABI 不创建远程 Agent 通道，通道由具体应用宿主决定。
+仓库包含 [Python ctypes 宿主样例](../crates/kernel-ffi/examples/ctypes_smoke.py)：Python 直接驱动 Rust 调度器，让两个 Python Node 通过 Info 通信，并读回便携分析事实。它不经过 JS。非 JS 宿主可以直接调用 `gv_analyze`，也可以把 `PortableAnalysisSnapshot` 交给 daemon；C ABI 本身不创建远程 Agent 控制通道，通道与宿主 State 观测由具体应用宿主决定。
 
 独立进程宿主见 [常驻 Rust 图宿主协议](./kernel-daemon-protocol.md)。它把权威 JSON State 和版本移入 Rust daemon，通过 generation 绑定的 Node 租约定向分发 change，并把普通 change 压缩为一次 `poll` 和一次批量 `commit`；物理 Effect 由能力绑定的外部 provider 执行，Rust 只转发不透明 DTO。因此它与本页现有 JS `mountProcessNode` 的逐次 `ctx` 往返是两条不同的宿主路径。生产 Studio 尚未迁入 daemon。

@@ -133,8 +133,7 @@ pub fn build_all_nodes(index: &Index) -> View {
         let mut changes = Vec::new();
         let mut infos = Vec::new();
         let mut effects = Vec::new();
-        let mut ordered_entities: Vec<&crate::model::Entity> =
-            index.entities.values().collect();
+        let mut ordered_entities: Vec<&crate::model::Entity> = index.entities.values().collect();
         ordered_entities.sort_by(|a, b| a.address.cmp(&b.address));
         for candidate in ordered_entities {
             if candidate.node_id.as_deref() != Some(node_id.as_str()) {
@@ -208,7 +207,12 @@ pub fn view_to_json(view: &View) -> Value {
         map.insert("aggregate".to_owned(), Value::Bool(node.aggregate));
         map.insert(
             "sourceNodeIds".to_owned(),
-            Value::Array(node.sources.iter().map(|s| Value::String(s.clone())).collect()),
+            Value::Array(
+                node.sources
+                    .iter()
+                    .map(|s| Value::String(s.clone()))
+                    .collect(),
+            ),
         );
         map.insert("states".to_owned(), Value::Array(node.states.clone()));
         map.insert("changes".to_owned(), Value::Array(node.changes.clone()));
@@ -252,8 +256,7 @@ pub fn build_fold_view(base: &View, folds: &Value, fold_depth: usize) -> Result<
     }
     let group_ids: BTreeSet<String> = groups.keys().cloned().collect();
     for group_id in &group_ids {
-        if base.nodes.contains_key(group_id)
-            || base.nodes.contains_key(&format!("fold:{group_id}"))
+        if base.nodes.contains_key(group_id) || base.nodes.contains_key(&format!("fold:{group_id}"))
         {
             return Err(format!("Fold group conflicts with Node ID: {group_id}"));
         }
@@ -455,12 +458,14 @@ pub fn build_fold_view(base: &View, folds: &Value, fold_depth: usize) -> Result<
     );
     let mut merged: BTreeMap<String, Route> = BTreeMap::new();
     for source in &base.routes {
-        let from = base_map.get(&source.from).cloned().ok_or_else(|| {
-            format!("Fold route has an unmapped Node: {}", source.id)
-        })?;
-        let to = base_map.get(&source.to).cloned().ok_or_else(|| {
-            format!("Fold route has an unmapped Node: {}", source.id)
-        })?;
+        let from = base_map
+            .get(&source.from)
+            .cloned()
+            .ok_or_else(|| format!("Fold route has an unmapped Node: {}", source.id))?;
+        let to = base_map
+            .get(&source.to)
+            .cloned()
+            .ok_or_else(|| format!("Fold route has an unmapped Node: {}", source.id))?;
         let id = format!("route:{from}->{to}:{}", source.info_type);
         let entry = merged.entry(id.clone()).or_insert(Route {
             id,

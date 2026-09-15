@@ -50,21 +50,21 @@ fn c_abi_drives_changes_and_exposes_generation_scoped_analysis_facts() {
         ),
         0
     );
-    assert!(gv_settle_change(kernel, first, std::ptr::null()));
+    assert!(unsafe { gv_settle_change(kernel, first, std::ptr::null()) });
     let second = gv_poll_next(kernel);
     assert!(!second.is_null());
     assert_eq!(
         unsafe { CStr::from_ptr((*second).info_type).to_str().unwrap() },
         "DoneInfo"
     );
-    assert!(gv_settle_change(kernel, second, std::ptr::null()));
+    assert!(unsafe { gv_settle_change(kernel, second, std::ptr::null()) });
     assert_eq!(gv_pending_total(kernel), 0);
     let snapshot = gv_analysis_facts(kernel, source.as_ptr());
     assert_eq!(
         unsafe { CStr::from_ptr(snapshot).to_str().unwrap() },
         facts.to_str().unwrap()
     );
-    gv_string_free(snapshot);
+    unsafe { gv_string_free(snapshot) };
     let all = gv_analysis_snapshot(kernel);
     assert_eq!(unsafe { (*all).len }, 1);
     let entry = unsafe { &*(*all).entries };
@@ -72,7 +72,7 @@ fn c_abi_drives_changes_and_exposes_generation_scoped_analysis_facts() {
         unsafe { CStr::from_ptr(entry.entity).to_str().unwrap() },
         "foreign"
     );
-    gv_analysis_snapshot_free(all);
+    unsafe { gv_analysis_snapshot_free(all) };
     assert_eq!(gv_replace(kernel, source.as_ptr()), 1);
     assert!(gv_analysis_facts(kernel, source.as_ptr()).is_null());
     assert!(!gv_set_analysis_facts(
@@ -81,7 +81,7 @@ fn c_abi_drives_changes_and_exposes_generation_scoped_analysis_facts() {
         0,
         facts.as_ptr()
     ));
-    gv_kernel_free(kernel);
+    unsafe { gv_kernel_free(kernel) };
 }
 
 /// The generic JSON analysis entry shares the daemon's crate call: the same
@@ -93,7 +93,7 @@ fn c_abi_analysis_matches_the_shared_rust_compute() {
     let raw = gv_analyze(request.as_ptr(), facts.as_ptr());
     assert!(!raw.is_null());
     let text = unsafe { CStr::from_ptr(raw).to_str().unwrap().to_owned() };
-    gv_analysis_free(raw);
+    unsafe { gv_analysis_free(raw) };
     let value: serde_json::Value = serde_json::from_str(&text).unwrap();
     let routes: Vec<&str> = value["routes"]
         .as_array()

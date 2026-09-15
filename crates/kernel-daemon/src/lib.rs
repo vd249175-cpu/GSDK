@@ -214,12 +214,16 @@ impl Space {
     /// Fill the cache only under the snapshot's own revision. A result
     /// computed from an older snapshot can never match a newer lookup.
     pub fn store_analysis(&mut self, revision: u64, request: &Value, result: Value) {
+        if revision != self.analysis_revision {
+            return;
+        }
         if self.analysis_cache.len() >= 16 {
             if let Some(first) = self.analysis_cache.keys().next().cloned() {
                 self.analysis_cache.remove(&first);
             }
         }
-        self.analysis_cache.insert(Self::cache_key(revision, request), result);
+        self.analysis_cache
+            .insert(Self::cache_key(revision, request), result);
     }
 
     /// Validate portable facts before they touch the Node: schema, node
@@ -229,8 +233,8 @@ impl Space {
         if text.len() > MAX_FACT_BYTES {
             return Err("analysisFacts exceeds size limit".into());
         }
-        let snapshot: Value =
-            serde_json::from_str(&text).map_err(|_| "analysisFacts must be a JSON object".to_owned())?;
+        let snapshot: Value = serde_json::from_str(&text)
+            .map_err(|_| "analysisFacts must be a JSON object".to_owned())?;
         if snapshot.get("nodeId").and_then(Value::as_str) != Some(node_id) {
             return Err("analysisFacts.nodeId must match the admitted Node".into());
         }
@@ -294,7 +298,14 @@ impl Space {
         let live_states: BTreeMap<String, Value> = self
             .nodes
             .iter()
-            .map(|(id, node)| (id.clone(), Value::Object(node.state.clone())))
+            .map(|(id, node)| {
+                let keys = node
+                    .state
+                    .keys()
+                    .map(|key| (key.clone(), Value::Null))
+                    .collect();
+                (id.clone(), Value::Object(keys))
+            })
             .collect();
         let revision = self.analysis_revision;
         Ok(PendingAnalysis {
@@ -304,7 +315,10 @@ impl Space {
                 "frontendLinks": self.frontend_links.clone(),
                 "frontendServiceLinks": self.frontend_service_links.clone(),
             }),
-            cached: self.analysis_cache.get(&Self::cache_key(revision, &inner)).cloned(),
+            cached: self
+                .analysis_cache
+                .get(&Self::cache_key(revision, &inner))
+                .cloned(),
             request: inner,
             revision,
         })
@@ -884,7 +898,10 @@ impl Space {
                 self.track_state_keys(&id);
                 let mut fields = Map::new();
                 fields.insert("nodeId".to_owned(), Value::String(id.clone()));
-                fields.insert("actor".to_owned(), Value::String("legacy/intervene".to_owned()));
+                fields.insert(
+                    "actor".to_owned(),
+                    Value::String("legacy/intervene".to_owned()),
+                );
                 fields.insert("generation".to_owned(), json!(generation));
                 fields.insert("versionBefore".to_owned(), json!(expected_version));
                 fields.insert("versionAfter".to_owned(), json!(version));
@@ -1019,7 +1036,10 @@ impl Space {
 
     fn fail_change(&mut self, token: ActiveChange, message: &str) {
         let mut failed = Map::new();
-        failed.insert("nodeId".to_owned(), Value::String(token.entity().to_owned()));
+        failed.insert(
+            "nodeId".to_owned(),
+            Value::String(token.entity().to_owned()),
+        );
         failed.insert("changeId".to_owned(), json!(token.change_id()));
         failed.insert("message".to_owned(), Value::String(message.to_owned()));
         if let Some(submission) = token.submission().cloned() {
@@ -1084,7 +1104,11 @@ impl Space {
             );
         }
         let revision = self.analysis_revision;
-        if let Some(hit) = self.analysis_cache.get(&Self::cache_key(revision, inner)).cloned() {
+        if let Some(hit) = self
+            .analysis_cache
+            .get(&Self::cache_key(revision, inner))
+            .cloned()
+        {
             return Ok(hit);
         }
         let snapshots: Vec<Value> = self
@@ -1096,7 +1120,14 @@ impl Space {
         let live_states: BTreeMap<String, Value> = self
             .nodes
             .iter()
-            .map(|(id, node)| (id.clone(), Value::Object(node.state.clone())))
+            .map(|(id, node)| {
+                let keys = node
+                    .state
+                    .keys()
+                    .map(|key| (key.clone(), Value::Null))
+                    .collect();
+                (id.clone(), Value::Object(keys))
+            })
             .collect();
         let facts = json!({"snapshots": snapshots, "liveStates": live_states});
         let context = json!({
@@ -1162,7 +1193,10 @@ impl Space {
             .leases
             .iter()
             .map(|(id, lease)| {
-                (id.clone(), json!({"sessionId": lease.session_id, "generation": lease.generation}))
+                (
+                    id.clone(),
+                    json!({"sessionId": lease.session_id, "generation": lease.generation}),
+                )
             })
             .collect();
         let pending_effects: Vec<Value> = self
@@ -1199,7 +1233,11 @@ impl Space {
                 (id.clone(), status)
             })
             .collect();
-        let oldest = self.events.front().and_then(|event| event.get("cursor")).and_then(Value::as_u64);
+        let oldest = self
+            .events
+            .front()
+            .and_then(|event| event.get("cursor"))
+            .and_then(Value::as_u64);
         // `truncated` reports that events at or before `after` were already
         // evicted from the bounded ring; the caller must re-read from scratch.
         let truncated = oldest.is_some_and(|cursor| after.saturating_add(1) < cursor);
@@ -1207,7 +1245,10 @@ impl Space {
             .events
             .iter()
             .filter(|event| {
-                event.get("cursor").and_then(Value::as_u64).is_some_and(|cursor| cursor > after)
+                event
+                    .get("cursor")
+                    .and_then(Value::as_u64)
+                    .is_some_and(|cursor| cursor > after)
             })
             .take(limit)
             .cloned()
@@ -1428,15 +1469,15 @@ mod tests {
             &mut session,
             "admit",
             json!({"nodeId": "a", "initialState": {"count": 0},
-                "analysisFacts": {
-                    "version": 1, "nodeId": "a",
-                    "entities": [
-                        {"address": "node:a", "kind": "node", "id": "a"},
-                        {"address": "change:a::TickInfo", "kind": "change",
-                            "id": "a", "nodeId": "a", "subId": "TickInfo"},
-                    ],
-                    "edges": [],
-                }}),
+            "analysisFacts": {
+                "version": 1, "nodeId": "a",
+                "entities": [
+                    {"address": "node:a", "kind": "node", "id": "a"},
+                    {"address": "change:a::TickInfo", "kind": "change",
+                        "id": "a", "nodeId": "a", "subId": "TickInfo"},
+                ],
+                "edges": [],
+            }}),
         );
         let view = call(
             &mut space,
@@ -1505,9 +1546,7 @@ mod tests {
             .as_array()
             .unwrap()
             .iter()
-            .filter_map(|event| {
-                event.get("kind").and_then(Value::as_str).map(str::to_owned)
-            })
+            .filter_map(|event| event.get("kind").and_then(Value::as_str).map(str::to_owned))
             .collect();
         for expected in [
             "agent_injected",
@@ -1515,13 +1554,14 @@ mod tests {
             "delivery_dropped",
             "change_settled",
             "submission_cancelled",
-
         ] {
             assert!(kinds.contains(&expected.to_owned()), "missing {expected}");
         }
         // The drop ledger stays queryable alongside the event trail.
         let drops = inspect["result"]["drops"].as_array().unwrap();
-        assert!(drops.iter().any(|drop_| drop_["targetNodeId"] == json!("ghost")));
+        assert!(drops
+            .iter()
+            .any(|drop_| drop_["targetNodeId"] == json!("ghost")));
     }
 
     #[test]
@@ -1534,8 +1574,12 @@ mod tests {
             json!({"nodeId": "a", "initialState": {"count": 0},
                 "analysisFacts": facts("a")}),
         );
-        let first =
-            call(&mut space, &mut session, "analyze", json!({"request": {"op": "view"}}));
+        let first = call(
+            &mut space,
+            &mut session,
+            "analyze",
+            json!({"request": {"op": "view"}}),
+        );
         assert!(first["result"]["nodes"].get("a").is_some());
         assert!(first["result"]["nodes"].get("b").is_none());
         // Value-only writes keep the revision: the cached view is reused.
@@ -1548,8 +1592,12 @@ mod tests {
                 "expectedGeneration": 0, "expectedVersion": 0}),
         );
         assert_eq!(space.analysis_revision, revision);
-        let cached =
-            call(&mut space, &mut session, "analyze", json!({"request": {"op": "view"}}));
+        let cached = call(
+            &mut space,
+            &mut session,
+            "analyze",
+            json!({"request": {"op": "view"}}),
+        );
         assert_eq!(cached["result"], first["result"]);
         // Structural change bumps the revision: the same request rebuilds.
         call(
@@ -1559,8 +1607,12 @@ mod tests {
             json!({"nodeId": "b", "initialState": {}, "analysisFacts": facts("b")}),
         );
         assert!(space.analysis_revision > revision);
-        let rebuilt =
-            call(&mut space, &mut session, "analyze", json!({"request": {"op": "view"}}));
+        let rebuilt = call(
+            &mut space,
+            &mut session,
+            "analyze",
+            json!({"request": {"op": "view"}}),
+        );
         assert!(rebuilt["result"]["nodes"].get("b").is_some());
     }
 }

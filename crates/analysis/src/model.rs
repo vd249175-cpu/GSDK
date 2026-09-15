@@ -36,18 +36,15 @@ pub struct Index {
     pub nodes: BTreeSet<String>,
     pub frontend_links: Vec<Value>,
     pub frontend_service_links: Vec<Value>,
+    pub unresolved_info_types: Vec<Value>,
+    pub unresolved_send_targets: Vec<Value>,
 }
 
 fn entity_kind(entity: &Value) -> Result<String, String> {
     entity
         .get("kind")
         .and_then(Value::as_str)
-        .filter(|k| {
-            matches!(
-                *k,
-                "node" | "change" | "state" | "info" | "effect" | "entry" | "ui"
-            )
-        })
+        .filter(|k| matches!(*k, "node" | "change" | "state" | "info" | "effect"))
         .map(str::to_owned)
         .ok_or_else(|| "entity.kind must be a known kind".to_owned())
 }
@@ -55,12 +52,7 @@ fn entity_kind(entity: &Value) -> Result<String, String> {
 fn edge_type(edge: &Value) -> Result<String, String> {
     edge.get("type")
         .and_then(Value::as_str)
-        .filter(|t| {
-            matches!(
-                *t,
-                "trigger" | "send" | "read-by" | "write" | "effect" | "inject" | "project"
-            )
-        })
+        .filter(|t| matches!(*t, "trigger" | "send" | "read-by" | "write" | "effect"))
         .map(str::to_owned)
         .ok_or_else(|| "edge.type must be a known relation".to_owned())
 }
@@ -166,6 +158,44 @@ pub fn validate_snapshot(snapshot: &Value) -> Result<(String, Vec<Entity>, Vec<E
     }
     let mut seen = BTreeSet::new();
     for entity in &parsed {
+        let owned = matches!(entity.kind.as_str(), "change" | "state" | "effect");
+        if (entity.kind == "node"
+            && (entity.id != node_id || entity.address != format!("node:{node_id}")))
+            || (owned && entity.node_id.as_deref() != Some(node_id))
+        {
+            return Err(format!(
+                "Analysis entity impersonates another source Node: {}",
+                entity.address
+            ));
+        }
+        if entity.kind == "info"
+            && (entity.node_id.is_none()
+                || entity.address
+                    != format!(
+                        "info:{}@{}",
+                        entity.id,
+                        entity.node_id.as_deref().unwrap_or_default()
+                    ))
+        {
+            return Err(format!(
+                "Invalid Info address from source Node {node_id}: {}",
+                entity.address
+            ));
+        }
+        if owned
+            && (entity.sub_id.as_deref().unwrap_or_default().is_empty()
+                || entity.address
+                    != format!(
+                        "{}:{node_id}::{}",
+                        entity.kind,
+                        entity.sub_id.as_deref().unwrap_or_default()
+                    ))
+        {
+            return Err(format!(
+                "Invalid owned fact from source Node {node_id}: {}",
+                entity.address
+            ));
+        }
         if !seen.insert(entity.address.clone()) {
             return Err(format!("Duplicate analysis entity: {}", entity.address));
         }
@@ -174,9 +204,36 @@ pub fn validate_snapshot(snapshot: &Value) -> Result<(String, Vec<Entity>, Vec<E
     let parsed_edges: Vec<Edge> = edges.iter().map(parse_edge).collect::<Result<_, _>>()?;
     for edge in &parsed_edges {
         if !local.contains(edge.from.as_str()) || !local.contains(edge.to.as_str()) {
-            // Cross-snapshot references are resolved at merge time; per-snapshot
-            // dangling endpoints are reported by `validate`, not rejected here.
-            continue;
+            return Err(format!(
+                "Invalid causal relation from source Node {node_id}: {}",
+                edge.id
+            ));
+        }
+        let valid_shape = match edge.edge_type.as_str() {
+            "send" => edge.from.starts_with(&format!("change:{node_id}::")),
+            "trigger" => {
+                edge.from.ends_with(&format!("@{node_id}"))
+                    && edge.to.starts_with(&format!("change:{node_id}::"))
+            }
+            "read-by" => {
+                edge.from.starts_with(&format!("state:{node_id}::"))
+                    && edge.to.starts_with(&format!("change:{node_id}::"))
+            }
+            "write" => {
+                edge.from.starts_with(&format!("change:{node_id}::"))
+                    && edge.to.starts_with(&format!("state:{node_id}::"))
+            }
+            "effect" => {
+                edge.from.starts_with(&format!("change:{node_id}::"))
+                    && edge.to.starts_with(&format!("effect:{node_id}::"))
+            }
+            _ => false,
+        };
+        if !valid_shape {
+            return Err(format!(
+                "Invalid causal relation from source Node {node_id}: {}",
+                edge.id
+            ));
         }
     }
     Ok((node_id.to_owned(), parsed, parsed_edges))
@@ -222,13 +279,20 @@ pub fn build_index(
             }
             index.edges.push(edge);
         }
-        for key in ["unresolvedInfoTypes", "unresolvedSendTargets"] {
-            if let Some(list) = snapshot.get(key).and_then(Value::as_array) {
-                for _item in list {
-                    // Stored implicitly via raw snapshots; surfaced by validate.
-                }
-            }
-        }
+        index.unresolved_info_types.extend(
+            snapshot
+                .get("unresolvedInfoTypes")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default(),
+        );
+        index.unresolved_send_targets.extend(
+            snapshot
+                .get("unresolvedSendTargets")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default(),
+        );
     }
     // Frontend links: entry/info/inject/project synthesis (portable-index.ts).
     for link in frontend_links {
@@ -255,28 +319,32 @@ pub fn build_index(
             id: method.to_owned(),
             sub_id: None,
             node_id: None,
-            raw: json!({"address": entry_address, "kind": "entry", "id": method}),
+            raw: json!({"address": entry_address, "kind": "entry", "id": method, "name": method}),
         });
-        index.entities.entry(info_address.clone()).or_insert(Entity {
-            address: info_address.clone(),
-            kind: "info".to_owned(),
-            id: info_type.to_owned(),
-            sub_id: Some(target.to_owned()),
-            node_id: Some(target.to_owned()),
-            raw: json!({"address": info_address, "kind": "info", "id": info_type,
+        index
+            .entities
+            .entry(info_address.clone())
+            .or_insert(Entity {
+                address: info_address.clone(),
+                kind: "info".to_owned(),
+                id: info_type.to_owned(),
+                sub_id: Some(target.to_owned()),
+                node_id: Some(target.to_owned()),
+                raw: json!({"address": info_address, "kind": "info", "id": info_type,
                 "subId": target, "nodeId": target}),
-        });
-        let inject_id = format!("inject:{entry_address}->{info_address}");
-        if edge_ids.insert(inject_id.clone()) {
-            index.edges.push(Edge {
-                id: inject_id.clone(),
-                from: entry_address,
-                to: info_address,
-                edge_type: "inject".to_owned(),
-                confidence: "high".to_owned(),
-                raw: json!({"id": inject_id, "type": "inject", "confidence": "high"}),
             });
+        let inject_id = format!("inject:{entry_address}->{info_address}");
+        if !edge_ids.insert(inject_id.clone()) {
+            return Err(format!("Duplicate frontend relation: {inject_id}"));
         }
+        index.edges.push(Edge {
+            id: inject_id.clone(),
+            from: entry_address,
+            to: info_address,
+            edge_type: "inject".to_owned(),
+            confidence: "high".to_owned(),
+            raw: json!({"id": inject_id, "type": "inject", "confidence": "high"}),
+        });
         if let Some(projections) = link.get("projections").and_then(Value::as_array) {
             for projection in projections {
                 let owner = projection
@@ -293,25 +361,31 @@ pub fn build_index(
                     .unwrap_or("");
                 let state_address = format!("state:{owner}::{field}");
                 let ui_address = format!("ui:{path}");
+                let consumers = projection
+                    .get("consumers")
+                    .cloned()
+                    .unwrap_or_else(|| json!([]));
                 index.entities.entry(ui_address.clone()).or_insert(Entity {
                     address: ui_address.clone(),
                     kind: "ui".to_owned(),
                     id: path.to_owned(),
                     sub_id: None,
                     node_id: None,
-                    raw: json!({"address": ui_address, "kind": "ui", "id": path}),
+                    raw: json!({"address": ui_address, "kind": "ui", "id": path,
+                        "name": path, "meta": {"consumers": consumers}}),
                 });
                 let project_id = format!("project:{state_address}->{ui_address}");
-                if edge_ids.insert(project_id.clone()) {
-                    index.edges.push(Edge {
-                        id: project_id,
-                        from: state_address,
-                        to: ui_address,
-                        edge_type: "project".to_owned(),
-                        confidence: "high".to_owned(),
-                        raw: json!({"type": "project", "confidence": "high"}),
-                    });
+                if !edge_ids.insert(project_id.clone()) {
+                    return Err(format!("Duplicate frontend relation: {project_id}"));
                 }
+                index.edges.push(Edge {
+                    id: project_id,
+                    from: state_address,
+                    to: ui_address,
+                    edge_type: "project".to_owned(),
+                    confidence: "high".to_owned(),
+                    raw: json!({"type": "project", "confidence": "high"}),
+                });
             }
         }
     }
@@ -340,15 +414,18 @@ pub fn build_index(
         if let Some(fields) = live_states.get(&node_id) {
             for field in fields.keys() {
                 let state_address = format!("state:{node_id}::{field}");
-                index.entities.entry(state_address.clone()).or_insert(Entity {
-                    address: state_address.clone(),
-                    kind: "state".to_owned(),
-                    id: node_id.clone(),
-                    sub_id: Some(field.clone()),
-                    node_id: Some(node_id.clone()),
-                    raw: json!({"address": state_address, "kind": "state", "id": node_id,
+                index
+                    .entities
+                    .entry(state_address.clone())
+                    .or_insert(Entity {
+                        address: state_address.clone(),
+                        kind: "state".to_owned(),
+                        id: node_id.clone(),
+                        sub_id: Some(field.clone()),
+                        node_id: Some(node_id.clone()),
+                        raw: json!({"address": state_address, "kind": "state", "id": node_id,
                         "nodeId": node_id, "subId": field, "meta": {"analysis": "live-state"}}),
-                });
+                    });
             }
         }
     }
@@ -363,9 +440,7 @@ pub fn entity_to_json(entity: &Entity) -> Value {
     if let Some(name) = entity.raw.get("name") {
         map.insert("name".to_owned(), name.clone());
     }
-    if let Some(sub) = entity.raw.get("subId").or_else(|| {
-        entity.sub_id.as_ref().map(|_| &entity.raw as &Value).and(None)
-    }) {
+    if let Some(sub) = entity.raw.get("subId") {
         map.insert("subId".to_owned(), sub.clone());
     } else if let Some(sub) = &entity.sub_id {
         map.insert("subId".to_owned(), Value::String(sub.clone()));
