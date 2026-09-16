@@ -37,8 +37,10 @@ for (const file of files) {
     const abs = path.normalize(path.join(path.dirname(file), spec)).replace(/\\/g, '/');
     const inTree = (t) => abs === path.join(root, t) || abs.startsWith(path.join(root, t) + path.sep);
     const inRel = (t) => rel.startsWith(t + '/');
-    // packages/** must not import app/** or plugins/**
-    if (rel.startsWith('packages/') && (abs.includes('/app/') || abs.includes('/plugins/'))) {
+    // packages/** must not import app/** (outside its own tree) or the top-level plugins/** product tree
+    const topPlugins = path.normalize(path.join(root, 'plugins')).replace(/\\/g, '/');
+    const packageRoot = path.normalize(path.join(root, rel.split('/').slice(0, 3).join('/'))).replace(/\\/g, '/');
+    if (rel.startsWith('packages/') && ((abs.includes('/app/') && !abs.startsWith(packageRoot)) || abs === topPlugins || abs.startsWith(`${topPlugins}/`))) {
       report('packages-must-not-import-app-or-plugins', rel, i + 1, text.trim());
     }
     // packages/** must not reach into apps; legacy trees neither

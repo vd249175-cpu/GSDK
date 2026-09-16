@@ -1,6 +1,7 @@
 import type { Info, Node } from '../node'
-
 export type AnyNode = Node<any, any>
+export { ExecutionWorldNode, Node, ObservationWorldNode, WorldNode } from '../node'
+export type { WorldNodeKind } from '../node'
 
 /** Creates exactly one ordinary Node and never creates or owns a Runtime. */
 export type NodeFactory<Input = void, Output extends AnyNode = AnyNode> = (input: Input) => Output

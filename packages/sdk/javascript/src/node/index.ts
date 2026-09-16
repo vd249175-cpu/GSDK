@@ -4,6 +4,9 @@ export * from './context';
 export * from './observation';
 export * from '../effect/effects';
 export * from './scheduler';
-// Reference specification and test oracle runtime (frozen/deprecated for production)
 export * from './runtime';
+export * from './native-space';
+export { describeDomainNode, mountDomainNode, replaceDomainNode } from './native-node';
+export type { DescribedDomainNode } from './native-node';
+export * from './daemon-node';
 export * from '../testing/effect-harness';

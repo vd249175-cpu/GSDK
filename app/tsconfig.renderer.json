@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["vite/client"],
+    "allowJs": true,
+    "baseUrl": ".",
+    "paths": {
+      "@graphvideo/sdk/workbench": ["../packages/frontend/workbench/src/index.ts"],
+      "@graphvideo/sdk/workbench/*": ["../packages/frontend/workbench/src/*"],
+      "@graphvideo/workbench": ["../packages/frontend/workbench/src/index.ts"],
+      "@graphvideo/workbench/*": ["../packages/frontend/workbench/src/*"],
+      "@graphvideo/client-sdk": ["renderer/src/studio/client-sdk.ts"],
+      "@graphvideo/domain": ["../plugins/graphvideo.studio/backend/domain/launchpad-scheduler.ts"],
+      "@graphvideo/sdk/tokens": ["../packages/frontend/tokens/index.ts"],
+      "../../../shared/*": ["../plugins/graphvideo.studio/backend/shared/*"],
+      "../../shared/*": ["../plugins/graphvideo.studio/backend/shared/*"],
+      "../shared/*": ["../plugins/graphvideo.studio/backend/shared/*"]
+    }
+  },
+  "include": ["renderer/src", "renderer/vite.config.ts"],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx"]
+}

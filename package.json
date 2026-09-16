@@ -4,16 +4,14 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "core",
-    "sdk",
-    "sdk/backend",
-    "tools/*",
-    "apps/*"
+    "packages/sdk/javascript",
+    "packages/tooling/causal-visualizer",
+    "app"
   ],
   "scripts": {
-    "dev": "npm --prefix apps/local-app run dev",
-    "visualizer": "npm --prefix tools/causal-visualizer run dev",
-    "start": "npm --prefix apps/local-app run prestart && electron apps/local-app",
+    "dev": "npm --prefix app run dev",
+    "visualizer": "npm --prefix packages/tooling/causal-visualizer run dev",
+    "start": "npm --prefix app run prestart && electron app",
     "check:syntax": "node scripts/check-syntax.mjs",
     "typecheck": "tsc --noEmit",
     "build:native": "cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node && node scripts/stage-native.mjs",
@@ -27,8 +25,8 @@
     "test:core": "vitest run --project sdk",
     "test:unit": "vitest run --project unit",
     "test:ui": "vitest run --project ui",
-    "test:app": "npm run build:native && npm run build:runtime && npm --prefix apps/local-app test",
-    "verify:app": "npm run build:native && npm run build:runtime && npm --prefix apps/local-app run verify",
+    "test:app": "npm run build:native && npm run build:runtime && npm --prefix app test",
+    "verify:app": "npm run build:native && npm run build:runtime && npm --prefix app run verify",
     "refactor": "node scripts/refactor.mjs"
   },
   "devDependencies": {
