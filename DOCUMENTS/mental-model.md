@@ -4,7 +4,7 @@ type: reference
 
 # GraphFramework 当前心智模型
 
-GraphFramework 是运行在应用主进程内的开放因果图微内核框架。当前仓库以源码工作区方式构建；源码与针对性测试高于本文。
+GraphFramework 是由 Rust 调度器与外层宿主承载的开放因果图微内核框架。当前 Studio 使用 Electron 主进程内的 NativeRuleSpace，独立 Rust daemon 提供另一种语言无关宿主接入。当前仓库以源码包方式构建；源码与针对性测试高于本文。
 
 ## 1. 设计目标
 
@@ -43,7 +43,7 @@ Electron main
 
 桌面窗口的生命周期现由 Studio 图推进：主进程在 ready 后向 `host-el` 注入 `DesktopStartRequestedInfo`，关闭窗口的 UI 命令注入 `DesktopCloseRequestedInfo`；`host-el` 将物理动作定向发送给 `sink-electron-window`，其 EffectAdapter 执行 BrowserWindow 操作，`src-electron-window` 把执行结果和系统 `closed` 事件转为 Observation Info，最终由 `host-el` 更新 State。关闭所有窗口不销毁 `NativeRuleSpace`，Electron 主进程和其加载的 Rust N-API 调度器继续运行，可由第二次启动或系统 activate 重新开窗。独立的通用 Rust daemon 已可运行，但当前 Studio 仍驻留 Electron 主进程；生产迁移完成前，结束 Electron 主进程仍会结束这份 Studio 图。
 
-## 3. 三层权限
+## 3. 权限与归属
 
 | 层 | 目录 | 权限 |
 | :--- | :--- | :--- |
@@ -175,7 +175,7 @@ renderer 图协议只有：
 
 ## 6. 应用边界
 
-主进程宿主把 renderer 方法翻译为经过 `rendererRoots` 校验的根 Info，或调用明确的图外桌面服务。图外服务不会被伪装成 Kernel 字段或边。当前本地应用只暴露 counter 读写与窗口控制白名单；renderer 不能指定任意 Node、Info 或 submission。Agent 控制面由独立的本机回环端口承载，使用启动时生成的随机令牌，并拒绝带浏览器 Origin 的请求；它不映射到 renderer IPC 或开放给可视化工具的遥测服务。
+主进程宿主把 renderer 方法翻译为经过 `rendererRoots` 校验的根 Info，或调用明确的图外桌面服务。图外服务不会被伪装成 Kernel 字段或边。当前 Studio preload 暴露项目、生成、资源、Element 和窗口固定接口，图协议只能向插件白名单允许的目标与 Info 类型注入；renderer 不能通过这些接口获得任意 Node 注入或 State 干预权限。`hello-counter` 仅是独立测试和离线诊断示例。Agent 控制面由独立的本机回环端口承载，使用启动时生成的随机令牌，并拒绝带浏览器 Origin 的请求；它不映射到 renderer IPC 或开放给可视化工具的遥测服务。
 
 ## 7. 实例驱动分析
 
@@ -205,7 +205,7 @@ Node 的 contains/owns 是归属，不是路径捷径。分析工具接收普通
 
 ## 8. 不可破坏的验收公理
 
-1. 一个业务执行面、一个主进程 RuleSpace。
+1. 同一图只有一个权威规则空间。当前 Studio 使用一个主进程 NativeRuleSpace；daemon 是可选宿主，不与它并行维护同一图的第二份 State。
 2. 每个 State 字段只有一个 Owner。
 3. Node 间只通过实际 `ctx.send` 通信。
 4. 同一 Node 的 change 严格 single-flight；单个 change 可并发等待独立 Effect，该约束不限制外部任务同时在途。

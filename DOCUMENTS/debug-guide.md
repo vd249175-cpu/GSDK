@@ -35,7 +35,7 @@ Info 用“类型 + 目标 Node”精确寻址。只有查询命令明确允许�
 
 ## 3. 当前诊断命令
 
-本地应用的诊断入口只构造插件 Node 实例并读取方法描述，不创建 Runtime、不加载原生模块：
+以下 diagnose 命令分析 `hello-counter` 示例，入口是 `app/plugins/hello-counter/scripts/diagnose.mjs`；它只构造该插件 Node 实例并读取方法描述，不创建 Runtime、不加载原生模块。检查运行中的 Studio 图时，使用下一节的 Agent analyze 通道：
 
 ```bash
 npm --prefix packages/desktop run diagnose -- validate
@@ -98,7 +98,8 @@ await runtime.dispose()
 测试使用真实 Node，只替换构造注入的 Adapter；断言最终 State、边界 Info、Effect Observation、Projection 和 submission 结算，不依赖私有方法调用顺序。
 
 ```bash
-npx vitest run <target-test> --silent
-npx tsc --noEmit
+npm --prefix packages/desktop test -- <target-test> --silent
+npm --prefix packages/desktop run typecheck
+npm --prefix packages/sdk/javascript run typecheck
 npm --prefix packages/desktop run diagnose -- validate
 ```

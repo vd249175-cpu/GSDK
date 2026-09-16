@@ -1,3 +1,8 @@
+---
+type: reference
+title: 扁平因果查询模型
+---
+
 # 扁平因果查询模型
 
 仅在需要局部诱导子图、异构实体路径、单层展开或前端联动审计时读取本文件。
@@ -10,6 +15,7 @@
 | change | `change:<nodeId>::<changeName>` | `nodeId`, `triggerInfoType` |
 | State | `state:<nodeId>::<field>` | `nodeId`, `field`, `ownerNodeId` |
 | Info route | `info:<InfoType>@<targetNodeId>` | `infoType`, `targetNodeId` |
+| Effect | `effect:<nodeId>::<adapterOrName>` | 当前 Node 中可证明的 Adapter 调用 |
 | frontend entry | `entry:<ApplicationMethod>` | `method`, `targetNodeId`, `infoType` |
 | UI projection | `ui:<ApplicationState.path>` | `path`, `ownerNodeId`, `ownerField` |
 
@@ -26,6 +32,7 @@ change -> state           WRITE
 state -> change           READ_BY
 entry -> info route       INJECT
 state -> ui projection    PROJECT
+change -> effect          EFFECT
 ```
 
 以下仅是归属边，禁止参与默认 BFS：
@@ -35,16 +42,16 @@ node -> change            CONTAINS
 node -> state             OWNS
 ```
 
-Effect 可作为 change 的终端注释；只有存在 Observation 根 Info 时，才通过该 Observation 继续因果路径。不要把 Promise 返回值直接连成领域成功事实。
+Effect 是可寻址的终端实体。后续领域关系必须来自代码中实际发送的 Observation/Result Info 或显式宿主根输入，不能把 Promise 返回值凭空连成领域成功事实。
 
 ## 3. 从事实构图
 
 优先级：
 
-1. 指定 submission/causeInfo/changeId 的运行时 `ChangeRecord`。
-2. Node.change 源码中的实际 `ctx.send/read/write/effect`。
-3. 固定 Vitest 观察到的 ChangeRecord。
-4. 自动报告仅用于交叉检查。
+1. 静态索引来自已构造 Node 的实际方法证据或各语言提交的便携事实；State 字段来自当前宿主快照，前端关系来自显式联动表。
+2. 核对 Node.change 中实际 `ctx.send/read/write/effectAdapter` 与事实的 provenance/confidence，不从目录或符号名推断关系。
+3. 指定 submission/causeInfo/changeId 的运行事件、ChangeRecord 与固定 Vitest 记录用于证明本次执行，不能替代或混入静态索引。
+4. 自动报告仅用于交叉检查；界定静态和动态证据后再定位断点。
 
 不要从 `flows`、`declaredEdges`、`getAllRawEdges()` 构造关系。
 

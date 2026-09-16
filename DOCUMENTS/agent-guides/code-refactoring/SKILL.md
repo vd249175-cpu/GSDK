@@ -1,4 +1,5 @@
 ---
+type: guide
 name: code-refactoring
 description: >-
   Global AST-aware symbol renaming, reference tracking, and safe codebase refactoring
@@ -22,7 +23,7 @@ description: >-
 
 ## 2. 常用操作指令
 
-所有操作均通过 `run_command` 执行：
+以下命令在仓库根目录执行。先用 `npm --prefix packages/tooling/refactor ci` 安装工具依赖。所有命令可传 `--project <tsconfig>`；文件路径相对于该配置目录，默认以 JavaScript SDK 为项目根。LanguageService 范围由 tsconfig 决定，并不自动涵盖整个仓库：
 
 ### 2.1 跨文件全局重命名（AST 级别）
 
@@ -33,13 +34,13 @@ node packages/tooling/refactor/refactor.mjs rename <file-path> <old-symbol-name>
 **示例**：
 - 重命名 `packages/sdk/javascript/src/node/node.ts` 中声明的 `ExecutionWorldNode` 为 `ActionWorldNode`：
   ```bash
-  node packages/tooling/refactor/refactor.mjs rename packages/sdk/javascript/src/node/node.ts ExecutionWorldNode ActionWorldNode
+  node packages/tooling/refactor/refactor.mjs rename src/node/node.ts ExecutionWorldNode ActionWorldNode
   ```
   *说明：工具会自动定位该类在 `packages/sdk/javascript/src/node/node.ts` 的定义，并精准修改所有引用它的文件（如 `packages/sdk/javascript/src/node/native-space.ts` 等），同时自动修正 import 语句。*
 
 - 如果同一文件存在多个同名符号（如函数名与局部变量重名），可使用 `--line` 指定目标行：
   ```bash
-  node packages/tooling/refactor/refactor.mjs rename packages/sdk/javascript/src/node/context.ts effectAdapter executeEffect --line 116
+  node packages/tooling/refactor/refactor.mjs rename src/node/context.ts <old-symbol> <new-symbol> --line <line-number>
   ```
 
 ---
@@ -52,9 +53,9 @@ node packages/tooling/refactor/refactor.mjs find-refs <file-path> <symbol-name> 
 
 **示例**：
 ```bash
-node packages/tooling/refactor/refactor.mjs find-refs packages/sdk/javascript/src/node/node.ts WorldNode
+node packages/tooling/refactor/refactor.mjs find-refs src/node/node.ts WorldNode
 ```
-*输出全仓所有定义位置与引用位置（包含相对文件路径、行号与列号）。*
+*输出所选 TypeScript 项目内的定义位置与引用位置（包含相对文件路径、行号与列号）。*
 
 ---
 
@@ -68,7 +69,7 @@ node packages/tooling/refactor/refactor.mjs replace-text <search-string> <replac
 
 **示例**：
 ```bash
-node packages/tooling/refactor/refactor.mjs replace-text "@graphvideo/sdk/node" "@graphvideo/sdk/node"
+node packages/tooling/refactor/refactor.mjs replace-text "<old-doc-path>" "<new-doc-path>" --ext .md
 ```
 *自动跳过 `node_modules/`、`dist/`、`.git/`，并递归替换匹配文件。*
 
@@ -76,12 +77,23 @@ node packages/tooling/refactor/refactor.mjs replace-text "@graphvideo/sdk/node" 
 
 ## 3. 重构后的验证闭环
 
+文件移动优先使用 LanguageService/AST，而不是全局文本替换：
+
+```bash
+node packages/tooling/refactor/refactor.mjs move <from> <to> --project <tsconfig>
+node packages/tooling/refactor/rewrite-imports.mjs <scope> <old-module> <new-module>
+```
+
+move 支持仓库内单文件移动。跨项目引用分别选择 tsconfig 检查；资源 URL、构建配置和 JSON 装配路径也要核对。rewrite-imports 只修改模块路径、类型查询、mock 与 import.meta.url 资源 URL，普通文本替换不具备符号或路径安全性。
+
 执行重构操作后，必须按照 [AGENTS.md](../../../AGENTS.md) 规定执行验证闭环：
 
 ```bash
 # 1. 静态类型检查验证（必须 0 error）
-npm run typecheck
+npm --prefix packages/desktop run typecheck
+npm --prefix packages/sdk/javascript run typecheck
 
 # 2. 单元测试验证
-npm test -- --silent
+npm --prefix packages/desktop test -- <target-test> --silent
+node packages/tooling/refactor/check-layout.mjs
 ```

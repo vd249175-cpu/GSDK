@@ -1,4 +1,5 @@
 ---
+type: guide
 name: theme-color-management
 description: >-
   GraphVideo Studio theme styling rules (dark, light, xueqing, shiliuqun). Use when editing
@@ -7,9 +8,9 @@ description: >-
 ---
 
 # Theme and Color Management
-Read `DOCUMENTS/design-system.md` and inspect `workbench/src/styles/theme.css` plus `theme-light.css` before editing.
+Read `DOCUMENTS/design-system.md` and inspect `packages/frontend/theme/styles/theme.css`, `theme-light.css` and the corresponding `styles/base/` files before editing.
 
-Consumers import the published `@graphvideo/workbench/styles.css`; the files above are its sources.
+The desktop entry imports `@graphvideo/workbench/styles/index.css` followed by `@graphvideo/theme`. Workbench layout CSS imports `@graphvideo/theme/base.css`; the files above own the theme values.
 
 ## Rules
 

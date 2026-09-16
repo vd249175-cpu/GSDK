@@ -16,10 +16,10 @@ type: reference
 
 `analysisFacts` 必须与 `nodeId` 一致。它是语言无关的 `PortableAnalysisSnapshot`：`entities` 和 `edges` 使用因果索引的标准地址、关系类型与 `confidence`，可附 `location`。每种语言的适配器负责从自己的实际代码或编译产物生成事实；宿主不根据变量名猜测 send。此快照是静态证据，不证明某次运行实际走过该路径。
 
-```ts
-import { NativeRuleSpace, mountProcessNode } from '@graphvideo/sdk/plugin'
+当前 `mountProcessNode` 实现在 `packages/sdk/javascript/src/node/native-node.ts`，由源码测试直接调用；`@graphvideo/sdk/node` 的公开 index 尚未转出它。这是公开接入缺口，不能照旧文档从 plugin 或 node 包导入，也不能把已存在的进程协议说明删掉来隐藏缺口。下面保留内部函数的调用形状；通过公开 SDK 接入任意语言 worker 时，使用 [daemon 协议](./kernel-daemon-protocol.md)及 node/agent/effect 能力面。
 
-const space = new NativeRuleSpace()
+```text
+已有 NativeRuleSpace：space
 const worker = await mountProcessNode(space, {
   command: 'python',
   args: ['-u', 'path/to/worker.py'],
@@ -39,7 +39,7 @@ Rust 开始一次单飞 change 后，宿主发送 `{"kind":"change","changeId":1
 {"kind":"settle","changeId":1}
 ```
 
-可用操作为 `read`、`write`、`patchState`、`send`、`effect`。`send` 的 `result.value` 是即时 `enqueued/dropped` 投递反馈。`effect` 指定 `adapterId` 和 `request`，且只能在以 `isWorldNode` 挂载、并由宿主在 `options.adapters` 注入该 Adapter 时执行。`fail` 携带 `error` 字符串，宿主将异常交给现有错误 Info 机制。协议错误会终止进程桥接。
+可用操作为 `read`、`write`、`patchState`、`send`、`effect`。`send` 的 `result.value` 是即时 `enqueued/dropped` 投递反馈。`effect` 指定 `adapterId` 和 `request`，ready 帧必须声明 `isWorldNode: true`，且宿主必须在 `options.adapters` 注入对应 Adapter。`fail` 携带 `error` 字符串，宿主将异常交给现有错误 Info 机制。协议错误会终止进程桥接。
 
 ## 3. 分析与性能
 
@@ -49,7 +49,7 @@ Rust 内核按 Node generation 保存事实，`admit/replace` 前校验 schema�
 
 ## 4. 非 JS 宿主
 
-`packages/rust/kernel-ffi/include/graphvideo_kernel.h` 是稳定 C ABI 的头文件。`cargo build -p graphvideo-kernel-ffi` 生成当前平台共享库；它提供 `admit/send/inject_root/poll_next/settle_change/cancel`、代次与编辑保留位，以及注册时设置、按需读取分析事实。`gv_analysis_snapshot` 一次性取出所有已登记事实，结果由 `gv_analysis_snapshot_free` 释放；`gv_analyze` 对传入的便携事实执行与 daemon 相同的 Rust 分析，结果由 `gv_analysis_free` 释放。每个宿主用自己的语言执行 change 和保管 Owner State，同一个 Rust `GvKernel` handle 保证 mailbox 与单飞。其它返回字符串由 `gv_string_free` 释放；`gv_poll_next` 返回的 change 必须由 `gv_settle_change` 消费并结算。`gv_change_free` 只释放内存，不结算单飞 change。
+`packages/rust/kernel-ffi/include/graphvideo_kernel.h` 是稳定 C ABI 的头文件。`cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-ffi` 生成当前平台共享库；它提供 `admit/send/inject_root/poll_next/settle_change/cancel`、代次与编辑保留位，以及注册时设置、按需读取分析事实。`gv_analysis_snapshot` 一次性取出所有已登记事实，结果由 `gv_analysis_snapshot_free` 释放；`gv_analyze` 对传入的便携事实执行与 daemon 相同的 Rust 分析，结果由 `gv_analysis_free` 释放。每个宿主用自己的语言执行 change 和保管 Owner State，同一个 Rust `GvKernel` handle 保证 mailbox 与单飞。其它返回字符串由 `gv_string_free` 释放；`gv_poll_next` 返回的 change 必须由 `gv_settle_change` 消费并结算。`gv_change_free` 只释放内存，不结算单飞 change。
 
 仓库包含 [Python ctypes 宿主样例](../packages/rust/kernel-ffi/examples/ctypes_smoke.py)：Python 直接驱动 Rust 调度器，让两个 Python Node 通过 Info 通信，并读回便携分析事实。它不经过 JS。非 JS 宿主可以直接调用 `gv_analyze`，也可以把 `PortableAnalysisSnapshot` 交给 daemon；C ABI 本身不创建远程 Agent 控制通道，通道与宿主 State 观测由具体应用宿主决定。
 

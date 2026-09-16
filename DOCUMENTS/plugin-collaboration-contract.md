@@ -90,7 +90,7 @@ downstream_modification: forbidden
 
 插件只有在需要用户发起操作、输入参数或作出决定时才贡献 Element 或 Workspace。后台自动化、观察和纯策略插件默认不增加前端。
 
-需要前端时沿用当前达芬奇工作台模式：组件消费 Workbench 语义 Token，保持专业、高密度的桌面布局，并支持现有主题。renderer 只发送固定的用户意图并读取 Projection；不得指定任意 Node/Info、直接修改 State、执行 Node 或调用物理 Adapter。
+需要前端时沿用当前达芬奇工作台模式：主题与排版由 `@graphvideo/theme` 提供，布局与交互机制由 `@graphvideo/workbench` 提供。组件消费语义 Token，并使用现有切分、停靠、尺寸调整、浮动、刷新和页面 Context 联动；面板内部按钮、表单和业务操作自由编写，不要求统一控件 DSL。renderer 只发送固定的用户意图并读取 Projection；不得获得任意 Node/Info 注入、直接修改 State、执行 Node 或调用物理 Adapter 的权限。
 
 前端是否存在不改变插件之间的协作方式。前端发出的用户命令经 `rendererRoots` 白名单进入图，插件之间仍只使用 `ctx.send(info, targetNodeId)`。
 

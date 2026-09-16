@@ -40,4 +40,6 @@ status: current
 
 ## 发布与协作
 
+目录归位只说明源码归属和当前构建入口。镜像 SDK 的共同验收、独立包、版本/摘要/兼容信息、任意目录分发演练及性能要求见 [SDK 与插件分发验收契约](./distribution-contract.md)；不能用目录迁移完成替代这些验收。
+
 官方插件与协作者插件使用同一 Manifest、SDK 和生命周期。正式发布插件只由发布方更新，协作者的扩展收在自己的插件中；规则见 [插件发布与协作契约](./plugin-collaboration-contract.md)。本次目录调整没有增加 State 自动迁移、回滚或跨 generation 消息保留。

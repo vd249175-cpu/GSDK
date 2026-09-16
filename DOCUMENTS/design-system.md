@@ -7,6 +7,7 @@ type: reference
 ## 1. 原则
 
 - 工作台采用专业、高密度、克制的桌面界面表达。
+- 统一范围是达芬奇视觉、排版、布局交互与页面联动；插件内部按钮、表单和业务操作自由编写，不要求统一控件 DSL。
 - dark、light、xueqing、shiliuqun 四套主题保持结构与可读性对等。
 - 组件只消费语义或组件 Token；原始色值只由主题文件拥有。
 - 设置背景时同步确认前景、边框、hover、focus、disabled 与错误状态。
@@ -16,15 +17,14 @@ type: reference
 `@graphvideo/theme` 提供达芬奇主题、排版和全局样式。`@graphvideo/workbench/styles/index.css` 聚合主题底座及布局样式。桌面入口依次加载工作台样式与统一主题，保持现有视觉层级和主题覆盖顺序：
 
 ```text
-typography.css
-theme.css
-theme-light.css
-theme-traditional.css
-dock.css
-workspace-tabs.css
-controls.css
-panel-chrome.css
-scrollbars.css
+@graphvideo/workbench/styles/index.css
+  → @graphvideo/theme/base.css
+      → theme/styles/base/{typography,theme,theme-light,theme-traditional}.css
+  → workbench/src/styles/{dock,workspace-tabs,controls,panel-chrome,scrollbars}.css
+@graphvideo/theme
+  → theme/styles/{typography,theme,theme-light,theme-traditional,globals}.css
+Studio 自有样式
+  → app/plugins/graphvideo.studio/frontend/styles/index.css
 ```
 
 `app/plugins/demo-topology/frontend/app.css` 只包含示例应用自身布局，并消费工作台 Token。主题通过根元素的 `data-theme="light|xueqing|shiliuqun"` 切换；无属性时使用 dark。
@@ -70,3 +70,11 @@ scrollbars.css
 - `packages/frontend/workbench/src/styles/typography-boundary.test.ts` 保证 feature styles 使用共享排版 Token。
 - UI 测试验证 Token 使用和主题切换，不把截图色值当作组件契约。
 - 人工验收四套主题的文字、边框、hover、focus、disabled、error、菜单与浮层层级。
+
+## 6. 动态页面与联动
+
+`packages/frontend/workbench/src/dock/` 提供现有区域切分、停靠、拖动、比例调整与浮动页面；布局状态由工作台保存。浮动页面同步主文档样式及根元素的主题、字体和字号属性，`floatingWindow.ts` 在生命周期结束时清理 MutationObserver。
+
+工作台支持页面重载与 ElementSource 贡献清单刷新；它们不等于后端 Node generation 替换，也不提供后端 State 继承。跨页面上下文通过 Workbench Context 与 Element 状态绑定共享，业务事实仍只读 Projection。Context/布局可以反映选择、焦点等 UI 状态，不能成为第二份业务 State。
+
+这套统一交互由 frontend 包提供。插件仅在有用户操作需求时贡献 Element/Workspace，并消费现有机制；是否有界面不改变 Node/Info/State 协议。

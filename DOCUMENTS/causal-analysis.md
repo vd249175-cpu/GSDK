@@ -25,8 +25,10 @@ Node 的成员归属不构成路径边。静态索引说明源码和显式边界
 ## 2. 建立与校验索引
 
 ```ts
+import { buildCausalIndex, validateCausalIndex } from '@graphvideo/sdk/analysis'
+
 const index = buildCausalIndex({
-  nodeObjects: plugin.createNodes({}),
+  nodeObjects: plugin.createNodes({ pluginId: plugin.id, dependencies }),
   frontendLinks,
   frontendServiceLinks,
 })
@@ -91,6 +93,6 @@ SDK 提供 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 和 `A
 
 ## 6. 当前应用入口
 
-`packages/desktop/scripts/diagnose.mjs` 仍是显式离线入口，使用发布包中的纯函数分析自身插件。生产 `NativeRuleSpace.analyze(request)` 从当前装配按需生成或读取便携事实，并通过 N-API 调用 Rust，支持 `index/facts/validate/entity/expand/path/select/view/health/reach/centrality/communities/granularCommunities/compareCommunities`；结果和 daemon 一样是 JSON DTO。增删替换 Node 会清除事实与结果缓存；State 字段集合进入缓存键，普通 State 值变化不会重算。daemon 的 `analysisRevision` 在增删替换、上下文变化或新增 State 字段时递增。`view` 及 Node 级指标可动态传 `foldDepth` 与可选 `folds`；未传 `folds` 时使用以全部当前 Node 为叶子的单层 `world` 根组。`agentInspect` 另提供 Projection、pending Info、drops、租约、pending Effects、submission 与事件游标。应用 Agent 控制通道的 `/analyze` 及 `node packages/desktop/scripts/agent-control.mjs analyze request.json` 返回相同 DTO。`analysis/config.json` 是离线消费方配置，不会被自动解析。
+`app/plugins/hello-counter/scripts/diagnose.mjs` 是 counter 示例的显式离线入口，由桌面 `diagnose` 脚本通过 `graphvideo-source` 条件消费 SDK 源码中的纯函数，不查询当前运行中的 Studio 图。生产 `NativeRuleSpace.analyze(request)` 从当前装配按需生成或读取便携事实，并通过 N-API 调用 Rust，支持 `index/facts/validate/entity/expand/path/select/view/health/reach/centrality/communities/granularCommunities/compareCommunities`；结果和 daemon 一样是 JSON DTO。增删替换 Node 会清除事实与结果缓存；State 字段集合进入缓存键，普通 State 值变化不会重算。daemon 的 `analysisRevision` 在增删替换、上下文变化或新增 State 字段时递增。`view` 及 Node 级指标可动态传 `foldDepth` 与可选 `folds`；未传 `folds` 时使用以全部当前 Node 为叶子的单层 `world` 根组。daemon `agentInspect` 另提供 Projection、pending Info、drops、租约、pending Effects、submission 与事件游标；桌面 `NativeGraphHost.agentInspect` 提供 Projection、解码 State、pending Info、drops 与事件页，未提供 daemon worker/provider 租约字段。应用 Agent 控制通道的 `/analyze` 及 `node packages/desktop/scripts/agent-control.mjs analyze request.json` 返回相同 DTO。`app/plugins/hello-counter/analysis/config.json` 是离线消费方配置，不会被自动解析。
 
 完整使用方式见 [Node 实例因果调试指南](./debug-guide.md)。

@@ -32,7 +32,7 @@ type: reference
 | `@graphvideo/sdk/testing` | `createTestRuntime`（快速单节点规约测试）、`EffectHarness` | 生产装配 |
 | `@graphvideo/client` 等前端包 | 投影订阅、hooks、Workbench、Token、UI | 业务 State |
 
-`@graphvideo/sdk/agent` 还提供 `connectKernelDaemon`、`runDaemonNodeWorker` 和 `runDaemonEffectProvider`：前者连接业务无关的独立 Rust 图宿主，后两者分别把 JS change handler 与物理 EffectAdapter 适配为通用租约协议。其他语言直接实现相同 DTO 协议即可；daemon 不依赖 JS 业务代码，也不解释 adapter 的业务含义。
+`@graphvideo/sdk/agent` 提供 `connectKernelDaemon` 连接独立 Rust 图宿主；`@graphvideo/sdk/node` 的 `runDaemonNodeWorker` 适配 JS change handler；`@graphvideo/sdk/effect` 的 `runDaemonEffectProvider` 适配物理 EffectAdapter。后两者使用通用租约协议。其他语言实现相同 DTO 协议即可；daemon 不依赖 JS 业务代码，也不解释 adapter 的业务含义。镜像语义与完整交付验收见 [SDK 与插件分发验收契约](./distribution-contract.md)。
 
 各包独立安装构建（`packages/desktop`、`packages/sdk/javascript`、`packages/frontend/*` 持各自 `package.json`；根目录无 npm 清单和 node_modules）。`app` 只保存 application.json 与插件。桌面源码构建显式消费 SDK 源码；支持 TypeScript 的 Node 宿主可通过 `graphvideo-source` 条件使用源码出口，默认出口使用 dist 发布产物。Rust/N-API 使用 `cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node && node packages/rust/scripts/stage-native.mjs` 构建。
 
@@ -101,14 +101,14 @@ export const {
 ```text
 跨 change 持续的业务事实 → Owner Node State（插件 backend/nodes）
 Node 间协作 → ctx.send + Info（type 就近可见）
-物理动作执行（写文件/调API/提交任务） → ExecutionWorldNode（插件 backend/effects）
-物理事实观察（文件监听/状态轮询/事件回调） → ObservationWorldNode（插件 backend/effects）
+物理动作执行（写文件/调API/提交任务） → ExecutionWorldNode（插件 backend/nodes，Adapter 在 effects/ 或宿主接入）
+物理事实观察（文件监听/状态轮询/事件回调） → ObservationWorldNode（插件 backend/nodes，Adapter 在 effects/ 或宿主接入）
 纯计算/格式化 → 普通函数（插件内聚模块或 domain）
 UI 读模型 → 投影派生 selector（插件 frontend）
 UI 写入口 → 命令适配 → 根 Info（插件 frontend/application）
 面板/工作区 → Element（插件 elements/、workspaces/）
 临时交互态 → ClientState/ElementState
-诊断视角 → analysis/（不进生产）
+诊断视角 → 消费方 analysis/ 与只读查询（不参与调度热路径）
 ```
 
 拿不准时回答归属三问：唯一 Owner 是谁、生命周期何时结束、跨 change 的事实放哪——说不清就不写。
@@ -119,13 +119,14 @@ UI 写入口 → 命令适配 → 根 Info（插件 frontend/application）
 npm --prefix packages/sdk/javascript run typecheck   # SDK 类型
 npm --prefix packages/sdk/javascript test -- <目标> --silent
 cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node && node packages/rust/scripts/stage-native.mjs  # 动原生绑定后跑（cargo 构建 + 摆放 .node）
+node packages/rust/scripts/stage-backend-native.mjs     # 复制到 SDK dist/native，供构建产物消费
 npm --prefix packages/desktop run verify                # 检查已有原生绑定并构建应用
 npm --prefix packages/desktop run diagnose -- validate   # 改 Node/Info/State/投影/联动后必跑
 npm --prefix packages/desktop run diagnose -- node <nodeId>  # 单实体切片，先看局部不看全图
 npm --prefix packages/desktop run build    # 动生产装配/Electron 后跑
 ```
 
-`packages/sdk/javascript/tests/determinism-source.test.ts` 是架构门禁：业务 Node 触碰 I/O/系统 API 即失败。
+`packages/sdk/javascript/tests/determinism-source.test.ts` 检查 SDK Node 底座的依赖和分析/展示边界，不是全部业务插件的 I/O 扫描器。业务纯领域 Node 的零 I/O 要由插件源码检查及对应测试共同保证。
 
 ## 6. 调试入口
 

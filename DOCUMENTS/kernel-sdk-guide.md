@@ -164,10 +164,11 @@ ctx.patchState({ completed: observations.length })
 
 ## 3. 图装配与宿主（NativeRuleSpace 为生产标准）
 
-具体 Node 由插件的 `createNodes` 创建，生产主进程宿主统一使用 `@graphvideo/sdk/plugin` 的 `NativeRuleSpace`（基于 Rust 原生微内核）：
+具体 Node 由插件的 `createNodes` 创建，生产主进程宿主统一使用 `@graphvideo/sdk/node` 的 `NativeRuleSpace`（基于 Rust 原生微内核）：
 
 ```ts
-import { NativeRuleSpace, mountDomainNode } from '@graphvideo/sdk/plugin'
+import { NativeRuleSpace, mountDomainNode, replaceDomainNode } from '@graphvideo/sdk/node'
+import { createPluginNodes } from '@graphvideo/sdk/plugin'
 
 const nodes = createPluginNodes(plugins, dependencies)
 const space = new NativeRuleSpace({ errorTargetNodeId: 'supervisor-node' })
@@ -183,9 +184,9 @@ for (const node of nodes) {
 运行期实体管理（原生空间与规约同构）：
 
 ```ts
-space.admit(newNode)          // 动态准入，generation 从 0 或墓碑代次续计
-space.evict(nodeId)          // 驱逐：密封新投递、丢弃残留队列、代次 +1
-await space.replace(newNode) // 间隙暴力替换：等待当前单飞 change 结算后
+mountDomainNode(space, newNode) // 动态准入，generation 从 0 或墓碑代次续计
+space.unregister(nodeId)       // 驱逐：密封新投递、丢弃残留队列、代次 +1
+await replaceDomainNode(space, newNode) // 等待当前单飞 change 结算后
                              // 丢弃旧队列、纯净挂载新实例（State 不继承）
 space.getState(nodeId)       // 读取指定 Node 当前 State
 space.generation(nodeId)     // 查询实体代次（含已驱逐墓碑）
@@ -194,7 +195,7 @@ space.generation(nodeId)     // 查询实体代次（含已驱逐墓碑）
 替换语义：密封期间发往该 `nodeId` 的消息按 `dropped` 结算；旧队列逐条结算后
 丢弃，不回放；新实例以自身构造初始 State 启动，历史上下文由上游沿因果链用
 业务 Info 显式恢复。`replace` 等待在途 change 超时（默认 5000ms，可配
-`replaceWaitTimeoutMs`）则抛错并保留旧实例。Projection `revision` 全程单调递增。
+`replaceTimeoutMs`，单次可传 `{ timeoutMs }`）则抛错并保留旧实例；这是切换前未完成替换，不是新版本启动后的自动回滚。Projection `revision` 全程单调递增。
 
 ## 4. 错误即 Info
 
@@ -209,53 +210,59 @@ space.generation(nodeId)     // 查询实体代次（含已驱逐墓碑）
 ## 5. 根提交
 
 ```ts
-const result = await kernel.inject({
-  submissionId: 'test/1',
-  targetNodeId: 'node-counter',
-  info: { type: 'IncrementRequestedInfo' },
-})
-
-if (result.status === 'accepted') {
-  await kernel.waitForSubmission(result.submissionId)
-}
+const submissionId = space.injectRoot(
+  'node-counter',
+  { type: 'IncrementRequestedInfo' },
+  'test/1',
+)
+await space.waitForSubmission(submissionId)
 ```
 
 `waitForSubmission` 只等待该根提交的因果 delivery。`cancel(submissionId)` 会传播 AbortSignal，但不会回滚已有 State 或物理事实。
-`injectRootInfo` 同时接受 Node 实例与 `nodeId` 字符串；目标未准入或正处替换
+生产 `space.injectRoot` 接受 `nodeId` 字符串；测试工具 `createTestRuntime().injectRootInfo` 还接受 Node 实例。目标未准入或正处替换
 密封时记一笔 `InfoDropped` 并让 submission 直接完成（无悬挂）。
 
 ## 6. Projection 与测试
 
 ```ts
-const projection = kernel.readProjection()
-const dispose = kernel.subscribeProjection((next) => {})
+const projection = space.readProjection()
+const unsubscribe = space.subscribeProjection((next) => {})
 ```
 
 测试应使用固定 Clock/ID/Adapter fixture，直接挂载最小节点集。不得从 renderer 创建 Runtime，也不得用临时 `node -e` 验证。
 
 ```bash
-npx vitest run <target-test> --silent
-npx tsc --noEmit
+npm --prefix packages/sdk/javascript test -- <target-test> --silent
+npm --prefix packages/sdk/javascript run typecheck
+npm --prefix packages/desktop run typecheck
 npm --prefix packages/desktop run diagnose -- validate
 ```
 
 ## 7. 原生规则空间宿主（Rust 调度 + 多语言 Node）
 
-`@graphvideo/sdk/plugin` 的 `NativeRuleSpace` 把调度事实（实体登记、mailbox、
+`@graphvideo/sdk/node` 的 `NativeRuleSpace` 把调度事实（实体登记、mailbox、
 单飞、submission 结算、丢弃台账）交 Rust `packages/rust/kernel` 持有，业务 State 由宿主保管，
 change 代码可在 JS 或进程协议 Node 中执行。Rust 与宿主不各存一份权威业务 State。JS 插件 `Node` 经 `mountDomainNode`/`describeDomainNode` 桥接挂载，
 `change` 签名零改动：`read/write/patchState/send` 直通（投递反馈结构与
 `DeliveryFeedback` 一致），`span` 内联执行（原生路径不记录 trace span），
 `WorldNode` 通过构造注入的 EffectAdapter 执行，并接收宿主 Clock 与 submission AbortSignal。
 
-非 JS Node 使用 `mountProcessNode` 的 JSON Lines 协议挂载；外部进程仍通过当前 change 的 `read/write/patchState/send/effect` 请求访问宿主能力。协议及跨语言分析事实格式见 [跨语言 Node 与分析事实协议](./portable-node-protocol.md)。现有 JS Node 不进入进程桥接路径。
+源码内部的 `mountProcessNode` 通过 JSON Lines 挂载非 JS Node；外部进程仍通过当前 change 的 `read/write/patchState/send/effect` 请求访问宿主能力。当前公开 index 未转出这个 helper，公开跨语言接入使用 daemon worker/provider；协议、内部桥接形状与接入缺口见 [跨语言 Node 与分析事实协议](./portable-node-protocol.md)。现有 JS Node 不进入进程桥接路径。
 宿主语言也可通过 `packages/rust/kernel-ffi` 的 C ABI 直接驱动同一个 Rust 调度契约；C 头文件和 Python ctypes 样例见同一协议文档。
 
-热替换走与 TS 参考同一线性化语义：`space.replace(id)` 在单飞间隙内丢弃旧
+热替换走与 TS 参考同一线性化语义：底层 `space.replace(id, initialState, handler, options, registration)` 在单飞间隙内丢弃旧
 backlog（按 `Evicted` 结算）、代次 +1、干净槽启动；遇 Busy 有界重试（默认
 5000ms）。宿主侧必须显式传入新实例初值，State 绝不隐式继承。`readProjection`
 返回 EncodedValue、Node version/status、调度计数和单调 revision；`getState` 只返回
-状态副本，不能绕过 change 修改权威 State。构建见 `npm run build:native` 与
+状态副本，不能绕过 change 修改权威 State。原生构建与包内暂存使用：
+
+```bash
+cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node
+node packages/rust/scripts/stage-native.mjs
+node packages/rust/scripts/stage-backend-native.mjs
+```
+
+第二个 stage 将按平台命名的 .node 复制到 JS SDK 的 `dist/native/`，供 Electron 构建产物和独立包消费。桌面构建使用
 `npm --prefix packages/desktop run build`；端到端演示见
 `packages/desktop/host/native-graph-host.mjs` 与 `app/plugins/hello-counter/tests/native-graph-host.test.mjs`。
 `space.replace` 可以在 JS change 运行期间提出：目标会立即密封，宿主等待单飞间隙

@@ -9,17 +9,20 @@ type: guide
 ```text
 app/plugins/<plugin-directory>/
   graphvideo.plugin.json
-  backend.mjs                        返回普通 Node 的扁平列表
-sdk/
-  backend/ client/ contract/ tokens/ ui/ testing/ analysis/
-  type-tests/                        随 tsc 执行，不属于运行时
+  backend.ts|mjs                     返回普通 Node 的扁平列表
+  frontend/ desktop/ resources/      插件自己的业务接入、界面与资源
+  elements/ workspaces/              可选工作台贡献
+packages/sdk/javascript/src/
+  protocol/ node/ effect/ plugin/ analysis/ agent/ testing/
+packages/frontend/
+  client/ workbench/ context/ theme/ ui/
 ```
 
-当前本地应用在 `src-main/main.mjs` 中显式导入插件，调用 `plugin.createNodes({})` 后挂载到唯一 `NativeRuleSpace`。`products/default.json` 记录产品选择，但当前没有动态插件安装器或运行时目录扫描器。renderer 不加载后端模块，也不持有 Kernel。
+当前 `app/application.json` 显式列出启用插件及目录，`packages/desktop/host/plugin-loader.mjs` 加载各插件后端构建入口，通用图宿主调用 `plugin.createNodes({ dependencies })` 并挂载到唯一 `NativeRuleSpace`。Studio 的业务主进程入口位于 `app/plugins/graphvideo.studio/desktop/main.mjs`。renderer 通过构建期虚拟模块加载启用插件的 Element；不加载后端模块，也不持有 Kernel。当前没有 ZIP 安装器或自动目录监听发布流程。
 
 正式插件与同事自行开发的自动化插件使用完全相同的运行接口；“核心”只表示发布与维护归属，不是另一种内核插件类型。发布包的不可修改边界、独立插件扩展方式、OKF 说明和折叠建议见[插件发布与协作契约](./plugin-collaboration-contract.md)。
 
-开发期 `@graphvideo/sdk/analysis` 提供 `findAnalysisNodeChain(view, nodeIds, maxPaths?, maxDepth?)` 和 `findCausalChain(index, addresses, options?)`，按输入顺序检查每一相邻段。结果包含 `waypoints/segments/connected/failedSegmentIndexes`，失败段保留 `reversePaths`；段序号从 0 开始。既有两点 `findAnalysisNodePaths/findCausalPaths` 继续可用。`selectInducedSubgraph` 额外返回 `boundaryIn/boundaryOut/rootInfos/entryPoints/exitPoints`，实体成员不包含外部 Owner。以上 API 只使用本次分析的派生事实，不用于证明某次 submission 的执行顺序，不进入 renderer 生产依赖。
+开发期 `@graphvideo/sdk/analysis` 提供 `findCausalChain(index, addresses, options?)`，按输入顺序检查每一相邻段。结果包含 `waypoints/segments/connected/failedSegmentIndexes`，失败段保留 `reversePaths`；段序号从 0 开始。两点查询使用 `findCausalPaths`；Node 链使用 `node:<id>` 地址，端点展开为本 Node 的 change/State，不引入成员捷径。生产和跨语言客户端使用 Rust 统一 `path` operation，传入 `addresses`。`selectInducedSubgraph` 额外返回 `boundaryIn/boundaryOut/rootInfos/entryPoints/exitPoints`，实体成员不包含外部 Owner。以上 API 不用于证明某次 submission 的执行顺序，不进入 renderer 生产依赖。
 
 各路径结果的 `diagnostics` 包含 `status`（found/depth-limited/unreachable）、`shortestDistance`、路径 `truncated` 与 `frontier`；失败段的 `reverseDiagnostics` 给出反向证据，未执行反查时为 null。`maxPaths` 必须是正安全整数，`maxDepth` 必须是非负安全整数；不存在的端点报错。Node 端点只展开为本 Node 的 change/State，不引入成员捷径。开发期实例描述通过 `inspectNodeObjects(nodes)` 获取，`AnalysisInstanceDescriptor` 类型来自分析 SDK；后端 Node 基类不承载反射或展示字段。
 
@@ -28,7 +31,8 @@ sdk/
 所有插件采用相同的 `BackendPlugin.rendererRoots` 准入机制，不区分内置与第三方。省略该字段表示不允许前端直接注入；插件间图内 `ctx.send` 不受这张入口权限表影响。每项声明必须指向本插件实际创建的 Node，且提供无副作用的 payload 校验函数。例如：
 
 ```ts
-import { defineBackendPlugin, Node, type Info, type DomainChangeContext } from '@graphvideo/sdk/plugin'
+import { defineBackendPlugin } from '@graphvideo/sdk/plugin'
+import { Node, type Info, type DomainChangeContext } from '@graphvideo/sdk/node'
 
 class ExampleNode extends Node<{ text: string }> {
   constructor() { super('example-node', 'Example', { text: '' }) }
@@ -60,7 +64,7 @@ renderer 只能调用 preload 暴露的固定命令，不能提交任意 Node ID
 
 `node packages/desktop/scripts/agent-control.mjs analyze request.json` 可查询当前已装配 Node 的静态因果分析。例如请求 `{ "op": "view", "foldDepth": 0 }` 把默认根组合为一个折叠 Node，`foldDepth: 1` 展开为基础 Node；也可传入 `folds: { "version": 1, "root": "world", "groups": { "world": { "children": ["group-a"] }, "group-a": { "children": ["node-a", "node-b"] } } }` 指定更深的折叠层级。`health`、`reach`、`centrality` 和 `communities` 使用同一视角参数；`path`、`select`、`entity`、`expand`、`validate`、`granularCommunities` 和 `compareCommunities` 也由同一只读分析入口提供。完整语义见 [实例因果分析](./causal-analysis.md)。
 
-非 JS 插件可通过 `mountProcessNode` 挂载一个使用 JSON Lines 协议的进程 Node，并在 `ready` 帧提供 `PortableAnalysisSnapshot`。同一分析入口会合并这些事实；`facts` 查询返回原始便携快照。协议见 [跨语言 Node 与分析事实协议](./portable-node-protocol.md)。
+源码内部的 `mountProcessNode` 可挂载一个 JSON Lines 进程 Node，并在 `ready` 帧提供 `PortableAnalysisSnapshot`；当前公开 SDK index 未导出它，不能按旧示例通过包入口调用。公开跨语言接入使用 daemon 与 node/agent/effect 客户端。两种宿主路径使用同一 Rust 分析实现，`facts` 查询返回便携快照。保留的进程协议与公开边界见 [跨语言 Node 与分析事实协议](./portable-node-protocol.md)。
 
 生产宿主把已声明的 `rendererRoots` 作为入口事实纳入索引。需要 State→UI 证据时，创建宿主时传入 `analysisFrontendLinks` 与可选 `analysisFrontendServiceLinks`；这些表只表达已存在的应用边界，不影响调度。
 

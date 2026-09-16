@@ -53,17 +53,17 @@ Kernel 不包含业务 Info/Node ID、Registry、声明边、Wrapper、广播、
 - Adapter 只接受/返回 DTO，不读写其他 Node State，也不调用 `ctx.send`。
 - renderer 只调用 preload 固定命令、注入经过 `rendererRoots` 授权的意图并读取 Projection DTO。
 - 选择、草稿、焦点、tab、布局和弹窗属于 ClientState、ElementState 或组件局部状态。
-- `sdk/workbench` 不导入具体业务插件；共享组件只有在零业务 State/Info/Application 方法依赖时才可上移。
+- `packages/frontend/workbench` 不导入具体业务插件；共享组件只有在零业务 State/Info/Application 方法依赖时才可上移。
 
 ## 6. 变更同步
 
 | 变更 | 同步内容 | 最低验证 |
 | :--- | :--- | :--- |
-| Kernel API/调度 | mental-model、Kernel 指南、针对性测试 | Vitest + `tsc` |
+| Kernel API/调度 | mental-model、Kernel 指南、针对性测试 | 对应 Cargo 测试 + SDK 原生桥 Vitest + 类型检查 |
 | Node/Info/State | 插件装配、因果文档、针对性测试 | `diagnose -- validate` |
 | Projection/rendererRoots | 解码、消费者、前端联动表 | 应用测试 + 诊断 |
 | EffectAdapter | Factory 注入、WorldNode、Observation 测试 | 针对性测试 + `tsc` |
-| Workbench/主题 | 设计系统、样式与 UI 测试 | `test:ui` |
-| Electron/runtime 构建 | 构建文档与应用验收 | `verify:app` |
+| Workbench/主题 | 设计系统、样式与 UI 测试 | 桌面配置中对应前端测试 |
+| Electron/runtime 构建 | 构建文档与应用验收 | `npm --prefix packages/desktop run verify` |
 
 文档只描述当前已经存在的能力；不要用兼容层、旧别名或假想计划掩盖所有权问题。

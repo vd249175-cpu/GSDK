@@ -14,7 +14,7 @@ daemon 只监听 loopback TCP。启动者必须通过环境变量提供至少 16
 
 ```powershell
 $env:GRAPHVIDEO_DAEMON_TOKEN = '<random-secret-at-least-16-bytes>'
-cargo run -p graphvideo-kernel-daemon
+cargo run --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-daemon
 ```
 
 `GRAPHVIDEO_DAEMON_BIND` 默认为 `127.0.0.1:0`。daemon 在 stdout 输出唯一一行 ready DTO，此后日志只写 stderr：
@@ -26,7 +26,7 @@ cargo run -p graphvideo-kernel-daemon
 JS 宿主可使用：
 
 ```ts
-import { connectKernelDaemon } from '@graphvideo/sdk/plugin'
+import { connectKernelDaemon } from '@graphvideo/sdk/agent'
 
 const client = await connectKernelDaemon({ address, token })
 ```
@@ -133,7 +133,7 @@ JS 物理宿主可用 `runDaemonEffectProvider` 适配现有 EffectAdapter。Eff
 
 ## 当前边界
 
-- daemon 退出后尚不能从磁盘恢复 State、mailbox 和 submission；恢复日志属于下一阶段。
+- daemon 退出后不能从磁盘恢复 State、mailbox 和 submission；当前无恢复日志，数据恢复属于显式业务协议或外层宿主。
 - 当前一个 worker 连接同时只持有一条 active change；横向并行通过多个 worker 连接实现，同一 Node 仍保持 single-flight。
 - Effect provider 当前使用进程存活期的连接租约；尚未加入 effect 幂等键和 daemon 重启后的物理操作恢复。
-- daemon 不负责启动 Electron。未来由图内业务节点决定桌面生命周期，由物理适配器执行进程和窗口动作。
+- daemon 不负责启动 Electron。当前 Studio 窗口已经由图内业务 Node 与物理 Adapter 管理，仍运行在 Electron 内的 NativeRuleSpace；daemon 没有接管这份应用装配。
