@@ -559,6 +559,7 @@ if (!gotLock) {
   })
 
   app.whenReady().then(async () => {
+    host = initializeGraphHost()
     registerIpcHandlers()
     startTelemetryLoopbackServer(51888)
     try {
@@ -570,6 +571,7 @@ if (!gotLock) {
     await submitDesktopInfo({ type: 'DesktopStartRequestedInfo' })
   }).catch((error) => {
     console.error('[GraphVideo] Desktop bootstrap failed:', error)
+    app.exit(1)
   })
 }
 
