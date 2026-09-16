@@ -298,6 +298,8 @@ export function locateNativeBinding(): string | null {
     resolve(here, '..', '..', 'packages', 'rust', 'kernel-node', fileName),
     resolve(here, '..', '..', '..', 'packages', 'rust', 'kernel-node', fileName),
     resolve(here, '..', '..', '..', '..', 'packages', 'rust', 'kernel-node', fileName),
+    // App standalone tree: app/node_modules/@graphvideo/sdk/dist -> repo root packages/rust/kernel-node.
+    resolve(here, '..', '..', '..', '..', '..', 'packages', 'rust', 'kernel-node', fileName),
   ];
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
