@@ -121,7 +121,13 @@ export class ProjectHistoryStore {
 let defaultHistoryStore = null
 export function getProjectHistory(userDataPath = null) {
   if (!defaultHistoryStore) {
-    const file = userDataPath ? join(userDataPath, 'project-history.json') : resolve(process.cwd(), '.graphvideo-history.json')
+    // userData-scoped: survives cwd changes and dev/prod path differences.
+    const base = userDataPath
+      ?? process.env.GRAPHVIDEO_USER_DATA
+      ?? (process.env.APPDATA
+        ? join(process.env.APPDATA, 'GraphVideo')
+        : join(process.env.HOME ?? process.env.USERPROFILE ?? process.cwd(), '.graphvideo'));
+    const file = join(base, 'project-history.json');
     defaultHistoryStore = new ProjectHistoryStore(file)
   }
   return defaultHistoryStore

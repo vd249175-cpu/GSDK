@@ -544,7 +544,7 @@ const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
 } else {
-  host = initializeGraphHost()
+  try { getProjectHistory(app.getPath('userData')) } catch {}
   app.on('second-instance', () => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()

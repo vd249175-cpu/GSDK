@@ -74,4 +74,14 @@ describe('Project history store', () => {
     const prunedProjects = await store.list()
     expect(prunedProjects.map((project) => project.name)).toEqual(['alive'])
   })
+
+  it('keeps history across working directories via an explicit userData scope', async () => {
+    const first = new ProjectHistoryStore(join(temporaryRoot, 'userData', 'project-history.json'), 3)
+    const second = new ProjectHistoryStore(join(temporaryRoot, 'userData', 'project-history.json'), 3)
+    const projectDir = join(temporaryRoot, 'project')
+    await mkdir(projectDir, { recursive: true })
+    await first.record(projectDir, 10)
+    // A new store instance (fresh process) on the same scope file sees the project.
+    expect((await second.list()).map((project) => project.name)).toEqual(['project'])
+  })
 })
