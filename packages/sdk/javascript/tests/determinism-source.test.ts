@@ -14,7 +14,7 @@ function sourceFiles(directory: string): string[] {
 
 describe('deterministic domain source boundary', () => {
   it('keeps Node imports inside the SDK and analysis/presentation out of its base class', () => {
-    const sdk = resolve('packages/sdk/javascript/src');
+    const sdk = resolve(import.meta.dirname, '../src');
     const root = join(sdk, 'node');
     const bridgeFiles: Record<string, true> = { 'native-space.ts': true, 'process-node.ts': true };
     const violations = sourceFiles(root).filter((file) => !file.endsWith('.test.ts')).flatMap((file) => {
@@ -42,8 +42,7 @@ describe('deterministic domain source boundary', () => {
 
   it('does not use ambient wall clock or randomness in Node implementations', () => {
     const files = [
-      ...sourceFiles(join(process.cwd(), 'app/src/nodes')),
-      join(process.cwd(), 'packages/sdk/javascript/src/node/node.ts'),
+      join(import.meta.dirname, '../src/node/node.ts'),
     ].filter(file => existsSync(file));
 
     const violations = files.flatMap((file) => {
