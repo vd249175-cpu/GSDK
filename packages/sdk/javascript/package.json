@@ -16,7 +16,14 @@
     "graphvideo-init": "./bin/graphvideo-init.mjs"
   },
   "scripts": {
-    "build:dist": "vite build --config vite.dist.config.ts"
+    "build:dist": "vite build --config vite.dist.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
   },
   "exports": {
     "./protocol": {

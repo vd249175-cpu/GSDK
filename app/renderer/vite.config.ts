@@ -8,8 +8,15 @@ export default defineConfig({
   root: here,
   base: './',
   resolve: {
+    dedupe: ['react', 'react-dom', 'lucide-react'],
+    conditions: ['module', 'browser', 'default'],
     alias: [
       { find: '@graphvideo/sdk/protocol', replacement: resolve(here, '../../packages/sdk/javascript/src/protocol/index.ts') },
+      { find: /^react$/, replacement: resolve(here, '../node_modules/react/index.js') },
+      { find: /^react-dom$/, replacement: resolve(here, '../node_modules/react-dom/index.js') },
+      { find: /^react-dom\/client$/, replacement: resolve(here, '../node_modules/react-dom/client.js') },
+      { find: /^lucide-react$/, replacement: resolve(here, '../node_modules/lucide-react/dist/esm/lucide-react.mjs') },
+      { find: /^yaml$/, replacement: resolve(here, '../node_modules/yaml/browser/index.js') },
       { find: /^@graphvideo\/workbench($|\/.*$)/, replacement: `${resolve(here, '../../packages/frontend/workbench/src')}$1` },
       { find: /^@graphvideo\/ui($|\/.*$)/, replacement: `${resolve(here, '../../packages/frontend/ui')}$1` },
       { find: /^@graphvideo\/tokens($|\/.*$)/, replacement: `${resolve(here, '../../packages/frontend/tokens')}$1` },

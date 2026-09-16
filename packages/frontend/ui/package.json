@@ -12,7 +12,8 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@graphvideo/workbench": "file:../workbench"
+    "@graphvideo/workbench": "file:../workbench",
+    "lucide-react": "^1.44.0"
   },
   "peerDependencies": {
     "react": "^19.0.0",

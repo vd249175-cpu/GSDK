@@ -1,50 +1,5 @@
 {
-  "name": "graphvideo-sdk-workspace",
-  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "packages/sdk/javascript",
-    "packages/tooling/causal-visualizer",
-    "app"
-  ],
-  "scripts": {
-    "dev": "npm --prefix app run dev",
-    "visualizer": "npm --prefix packages/tooling/causal-visualizer run dev",
-    "start": "npm --prefix app run prestart && electron app",
-    "check:syntax": "node packages/sdk/javascript/scripts/check-syntax.mjs",
-    "typecheck": "tsc --noEmit",
-    "build:native": "cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node && node packages/rust/scripts/stage-native.mjs",
-    "build:ffi": "cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-ffi",
-    "build:daemon": "cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-daemon",
-    "test:daemon": "cargo test --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-daemon --quiet",
-    "build:native:release": "cargo build --manifest-path packages/rust/Cargo.toml --release -p graphvideo-kernel-node && node packages/rust/scripts/stage-native.mjs --release",
-    "build:runtime": "npm --prefix app run build",
-    "benchmark:native": "node --expose-gc packages/rust/scripts/benchmark-native.mjs",
-    "test": "vitest run --project sdk --project unit --project ui",
-    "test:core": "vitest run --project sdk",
-    "test:unit": "vitest run --project unit",
-    "test:ui": "vitest run --project ui",
-    "test:app": "npm run build:native && npm run build:runtime && npm --prefix app test",
-    "verify:app": "npm run build:native && npm run build:runtime && npm --prefix app run verify",
-    "refactor": "node packages/sdk/javascript/scripts/refactor.mjs"
-  },
-  "devDependencies": {
-    "@types/node": "^22.20.2",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
-    "@vitejs/plugin-react": "^6.0.5",
-    "electron": "^35.7.5",
-    "jsdom": "^30.0.1",
-    "lucide-react": "^1.44.0",
-    "oxlint": "^1.82.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "typescript": "^5.4.5",
-    "vite": "^8.2.1",
-    "vitest": "^4.1.10"
-  },
-  "dependencies": {
-    "yaml": "^2.9.1"
-  }
+  "description": "GVSDK repository root: docs and pointers only. Each workspace (app, packages/*) installs and builds independently."
 }

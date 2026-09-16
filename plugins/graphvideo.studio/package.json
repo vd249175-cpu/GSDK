@@ -1,0 +1,10 @@
+{
+  "name": "graphvideo-studio-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GraphVideo Studio business plugin. Backend shared sources resolve bare deps via local install.",
+  "type": "module",
+  "dependencies": {
+    "yaml": "^2.9.1"
+  }
+}

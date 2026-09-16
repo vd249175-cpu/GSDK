@@ -11,6 +11,7 @@ export default defineConfig({
       { find: /^@graphvideo\/client($|\/.*$)/, replacement: `${resolve(__dirname, '../packages/frontend/client')}$1` },
       { find: '@graphvideo/sdk/protocol', replacement: resolve(__dirname, '../packages/sdk/javascript/src/protocol/index.ts') },
       { find: '@graphvideo/domain', replacement: resolve(__dirname, '../plugins/graphvideo.studio/backend/domain/launchpad-scheduler.ts') },
+      { find: /^yaml$/, replacement: resolve(__dirname, 'node_modules/yaml/dist/index.js') },
       { find: /^\.\.\/\.\.\/\.\.\/shared\/(.*)$/, replacement: `${resolve(__dirname, '../plugins/graphvideo.studio/backend/shared')}/$1` },
       { find: /^\.\.\/\.\.\/\.\.\/\.\.\/app\/shared\/(.*)$/, replacement: `${resolve(__dirname, '../plugins/graphvideo.studio/backend/shared')}/$1` },
     ],

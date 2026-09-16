@@ -34,7 +34,7 @@ type: reference
 
 `@graphvideo/sdk/agent` 还提供 `connectKernelDaemon`、`runDaemonNodeWorker` 和 `runDaemonEffectProvider`：前者连接业务无关的独立 Rust 图宿主，后两者分别把 JS change handler 与物理 EffectAdapter 适配为通用租约协议。其他语言直接实现相同 DTO 协议即可；daemon 不依赖 JS 业务代码，也不解释 adapter 的业务含义。
 
-本仓库采用 npm workspace 源码构建（`packages/sdk/javascript`、`packages/frontend/*`、`app`）。TypeScript 类型与大部分 SDK 入口直接指向源码；`npm run build:native` 构建 Rust/N-API 调度内核。本仓库不提供 tarball 导出、发包或仓外脚手架流程。
+各包独立安装构建（`app`、`packages/sdk/javascript`、`packages/frontend/*` 持各自 `package.json`；根目录无 workspace、无 `node_modules`）。TypeScript 类型与大部分 SDK 入口直接指向源码；`cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node && node packages/rust/scripts/stage-native.mjs` 构建 Rust/N-API 调度内核。本仓库不提供 tarball 导出、发包或仓外脚手架流程。
 
 Studio 桌面窗口由图内 `host-el`、`sink-electron-window`、`src-electron-window` 三个节点管理。Electron `ready`、窗口控制 IPC 和系统窗口关闭事件只作为根 Info 输入；物理 BrowserWindow 操作由执行节点的 `electronWindowAdapter` 完成。关闭全部窗口后，图宿主仍在 Electron 主进程中运行，直到该进程结束。
 
@@ -116,10 +116,10 @@ UI 写入口 → 命令适配 → 根 Info（插件 frontend/application）
 ## 5. 本地验证环
 
 ```bash
-npx tsc --noEmit                        # 类型
-npx vitest run --project unit <目标> --silent
-npm run build:native                     # 动原生绑定后跑（cargo 构建 + 摆放 .node）
-npm run verify:app                       # 构建 native 并完成本地应用验收
+npm --prefix packages/sdk/javascript run typecheck   # SDK 类型
+npm --prefix packages/sdk/javascript test <目标> --silent
+cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node && node packages/rust/scripts/stage-native.mjs  # 动原生绑定后跑（cargo 构建 + 摆放 .node）
+npm --prefix app run verify                           # 构建 native 并完成本地应用验收
 npm --prefix app run diagnose -- validate   # 改 Node/Info/State/投影/联动后必跑
 npm --prefix app run diagnose -- node <nodeId>  # 单实体切片，先看局部不看全图
 npm --prefix app run build    # 动生产装配/Electron 后跑
