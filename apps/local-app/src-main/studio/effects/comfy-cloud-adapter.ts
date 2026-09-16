@@ -1,4 +1,4 @@
-import type { EffectAdapter, EffectContext } from '@graphvideo/kernel';
+import type { EffectAdapter, EffectContext } from '@graphvideo/sdk/node';
 import type { ComfyUiWorkflowConfig, GeneratedArtifact } from '../domain/types';
 import { defaultComfyCloudClient } from '../domain/generation/comfy-cloud-client';
 

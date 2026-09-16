@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { EffectContext } from '@graphvideo/kernel';
+import type { EffectContext } from '@graphvideo/sdk/node';
 import type {
   ArtifactWriteObservation,
   ArtifactWritePort,

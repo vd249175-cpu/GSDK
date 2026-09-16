@@ -1,6 +1,6 @@
-import { WorldNode } from '@graphvideo/kernel';
-import type { Info, WorldChangeContext } from '@graphvideo/kernel';
-import type { EffectAdapter } from '@graphvideo/kernel';
+import { WorldNode } from '@graphvideo/sdk/node';
+import type { Info, WorldChangeContext } from '@graphvideo/sdk/protocol';
+import type { EffectAdapter } from '@graphvideo/sdk/node';
 import { SqliteMetadataAdapter, type SqliteMetadataRecord, type SqlitePersistObservation, type SqlitePersistRequest, } from '../effects/sqlite-metadata-adapter';
 import { DesktopSqliteWritePort } from '../effects/desktop-sqlite-write-port';
 import { ProjectStructureAdapter, type ProjectStructurePersistObservation, type ProjectStructurePersistRequest, } from '../effects/project-structure-adapter';

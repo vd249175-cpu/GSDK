@@ -1,4 +1,5 @@
-import { Node, type ChangeContext, type Info } from '@graphvideo/kernel';
+import { Node } from '@graphvideo/sdk/node';
+import { type ChangeContext, type Info } from '@graphvideo/sdk/protocol';
 
 export interface InfoCollectorState {
   readonly received: readonly Info[];

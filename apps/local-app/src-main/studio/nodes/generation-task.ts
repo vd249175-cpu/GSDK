@@ -1,5 +1,5 @@
-import { Node } from '@graphvideo/kernel';
-import type { ChangeContext, Info } from '@graphvideo/kernel';
+import { Node } from '@graphvideo/sdk/node';
+import type { ChangeContext, Info } from '@graphvideo/sdk/protocol';
 import type {
   GenerationAdapterHandle,
   GenerationProviderId,

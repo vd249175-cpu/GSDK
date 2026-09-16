@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  type EffectAdapter,
-  type EffectContext,
-} from '@graphvideo/kernel';
+import { type EffectAdapter, type EffectContext } from '@graphvideo/sdk/node';
 import type {
   GenerationAdapterOperationObservation,
   GenerationAdapterOperationRequest,

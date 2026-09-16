@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defaultValueCodec, type GraphProjection } from '@graphvideo/kernel'
+import { defaultValueCodec } from '@graphvideo/sdk/node';
+import { type GraphProjection } from '@graphvideo/sdk/protocol';
 import { graphVideoRuntimeNodeIds } from '../../graph/node-ids'
 import {
   KernelApplicationGraphHost,

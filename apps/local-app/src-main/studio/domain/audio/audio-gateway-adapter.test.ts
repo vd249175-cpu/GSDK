@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Node, WorldNode, KernelRuntime as VisualKernel, type DomainChangeContext, type Info, type WorldChangeContext } from '@graphvideo/kernel';
-import { EffectHarness } from '@graphvideo/kernel';
+import { Node, WorldNode, KernelRuntime as VisualKernel } from '@graphvideo/sdk/node';
+import { type DomainChangeContext, type Info, type WorldChangeContext } from '@graphvideo/sdk/protocol';
+import { EffectHarness } from '@graphvideo/sdk/node';
 import { AudioGatewayAdapter, type AudioGatewayClient } from '../../effects/audio-gateway-adapter';
 import type { AudioGenerationResult } from './types';
 

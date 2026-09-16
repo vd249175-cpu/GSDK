@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { KernelRuntime, type EffectAdapter } from '@graphvideo/kernel';
+import { KernelRuntime, type EffectAdapter } from '@graphvideo/sdk/node';
 import { ApplicationHost } from '../../../../renderer/src/studio/application/host/applicationHost';
 import { registerApplicationHandlers } from '../../../../renderer/src/studio/application/host/registerApplicationHandlers';
 import {

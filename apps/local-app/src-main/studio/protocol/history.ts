@@ -1,4 +1,4 @@
-import type { Info } from '@graphvideo/kernel';
+import type { Info } from '@graphvideo/sdk/protocol';
 
 /** Starts a fresh journal for a newly hydrated project or restored snapshot. */
 export interface ProjectHistoryResetInfo extends Info {

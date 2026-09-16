@@ -7,18 +7,19 @@ export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom'],
     alias: {
-      '@graphvideo/kernel': fileURLToPath(new URL('./core/src/index.ts', import.meta.url)),
-      '@graphvideo/sdk/client': fileURLToPath(new URL('./sdk/client/index.ts', import.meta.url)),
-      '@graphvideo/sdk/tokens': fileURLToPath(new URL('./sdk/tokens/index.ts', import.meta.url)),
-      '@graphvideo/sdk/ui': fileURLToPath(new URL('./sdk/ui/index.ts', import.meta.url)),
-      '@graphvideo/sdk/testing': fileURLToPath(new URL('./sdk/testing/index.ts', import.meta.url)),
-      '@graphvideo/sdk/analysis': fileURLToPath(new URL('./sdk/analysis/index.ts', import.meta.url)),
-      '@graphvideo/sdk/contract': fileURLToPath(new URL('./sdk/contract/index.ts', import.meta.url)),
+      '@graphvideo/sdk/protocol': fileURLToPath(new URL('./packages/sdk/javascript/src/protocol/index.ts', import.meta.url)),
+      '@graphvideo/sdk/node': fileURLToPath(new URL('./packages/sdk/javascript/src/node/index.ts', import.meta.url)),
+      '@graphvideo/sdk/effect': fileURLToPath(new URL('./packages/sdk/javascript/src/effect/index.ts', import.meta.url)),
+      '@graphvideo/sdk/plugin': fileURLToPath(new URL('./packages/sdk/javascript/src/plugin/index.ts', import.meta.url)),
+      '@graphvideo/sdk/analysis': fileURLToPath(new URL('./packages/sdk/javascript/src/analysis/index.ts', import.meta.url)),
+      '@graphvideo/sdk/agent': fileURLToPath(new URL('./packages/sdk/javascript/src/agent/index.ts', import.meta.url)),
+      '@graphvideo/sdk/testing': fileURLToPath(new URL('./packages/sdk/javascript/src/testing/index.ts', import.meta.url)),
+      '@graphvideo/sdk/client': fileURLToPath(new URL('./packages/frontend/client/index.ts', import.meta.url)),
+      '@graphvideo/sdk/tokens': fileURLToPath(new URL('./packages/frontend/tokens/index.ts', import.meta.url)),
+      '@graphvideo/sdk/ui': fileURLToPath(new URL('./packages/frontend/ui/index.ts', import.meta.url)),
       '@graphvideo/sdk': fileURLToPath(new URL('./sdk/index.ts', import.meta.url)),
-      '@graphvideo/sdk/workbench': fileURLToPath(new URL('./sdk/workbench/src/index.ts', import.meta.url)),
-      '@graphvideo/workbench': fileURLToPath(new URL('./sdk/workbench/src/index.ts', import.meta.url)),
-      '@graphvideo/backend-sdk': fileURLToPath(new URL('./sdk/backend/index.ts', import.meta.url)),
-      '@graphvideo/sdk/backend': fileURLToPath(new URL('./sdk/backend/index.ts', import.meta.url)),
+      '@graphvideo/sdk/workbench': fileURLToPath(new URL('./packages/frontend/workbench/src/index.ts', import.meta.url)),
+      '@graphvideo/workbench': fileURLToPath(new URL('./packages/frontend/workbench/src/index.ts', import.meta.url)),
     },
   },
   // @ts-ignore
@@ -35,9 +36,9 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          name: 'core',
+          name: 'sdk',
           environment: 'node',
-          include: ['core/**/*.test.ts'],
+          include: ['packages/sdk/javascript/**/*.test.{ts,mjs}'],
         },
       },
       {

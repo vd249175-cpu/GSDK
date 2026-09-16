@@ -1,5 +1,5 @@
-import { Node } from '@graphvideo/kernel';
-import type { Info, DomainChangeContext } from '@graphvideo/kernel';
+import { Node } from '@graphvideo/sdk/node';
+import type { Info, DomainChangeContext } from '@graphvideo/sdk/protocol';
 import type { AstNode, ProjectNode } from '../domain/types';
 import type { ProjectStructurePersistMode, ProjectStructurePersistRequest, } from '../effects/project-structure-adapter';
 import type { ArtifactSavedObservedInfo } from '../protocol';

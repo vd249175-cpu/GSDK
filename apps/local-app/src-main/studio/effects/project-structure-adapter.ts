@@ -1,4 +1,4 @@
-import type { EffectAdapter, EffectContext } from '@graphvideo/kernel';
+import type { EffectAdapter, EffectContext } from '@graphvideo/sdk/node';
 import type { ProjectNode } from '../domain/types';
 
 export type ProjectStructurePersistMode = 'full' | 'structure' | 'order';

@@ -16,24 +16,24 @@
     "target": "ES2022",
     "types": ["vite/client", "node"],
     "useDefineForClassFields": true,
-    "paths": {
-      "@graphvideo/backend-sdk": ["./sdk/backend/index.ts"],
-      "@graphvideo/sdk/backend": ["./sdk/backend/index.ts"],
-      "@graphvideo/kernel": ["./core/src/index.ts"],
-      "@graphvideo/sdk": ["./sdk/index.ts"],
-      "@graphvideo/sdk/analysis": ["./sdk/analysis/index.ts"],
-      "@graphvideo/sdk/client": ["./sdk/client/index.ts"],
+  "paths": {
+      "@graphvideo/sdk/protocol": ["./packages/sdk/javascript/src/protocol/index.ts"],
+      "@graphvideo/sdk/node": ["./packages/sdk/javascript/src/node/index.ts"],
+      "@graphvideo/sdk/effect": ["./packages/sdk/javascript/src/effect/index.ts"],
+      "@graphvideo/sdk/plugin": ["./packages/sdk/javascript/src/plugin/index.ts"],
+      "@graphvideo/sdk/analysis": ["./packages/sdk/javascript/src/analysis/index.ts"],
+      "@graphvideo/sdk/agent": ["./packages/sdk/javascript/src/agent/index.ts"],
+      "@graphvideo/sdk/testing": ["./packages/sdk/javascript/src/testing/index.ts"],
+      "@graphvideo/sdk/client": ["./packages/frontend/client/index.ts"],
       "@graphvideo/client-sdk": ["./apps/local-app/renderer/src/studio/client-sdk.ts"],
-      "@graphvideo/sdk/contract": ["./sdk/contract/index.ts"],
-      "@graphvideo/sdk/testing": ["./sdk/testing/index.ts"],
-      "@graphvideo/sdk/tokens": ["./sdk/tokens/index.ts"],
-      "@graphvideo/sdk/ui": ["./sdk/ui/index.ts"],
-      "@graphvideo/sdk/workbench": ["./sdk/workbench/src/index.ts"],
-      "@graphvideo/sdk/workbench/*": ["./sdk/workbench/src/*"],
-      "@graphvideo/workbench": ["./sdk/workbench/src/index.ts"],
-      "@graphvideo/workbench/*": ["./sdk/workbench/src/*"]
+      "@graphvideo/sdk/tokens": ["./packages/frontend/tokens/index.ts"],
+      "@graphvideo/sdk/ui": ["./packages/frontend/ui/index.ts"],
+      "@graphvideo/sdk/workbench": ["./packages/frontend/workbench/src/index.ts"],
+      "@graphvideo/sdk/workbench/*": ["./packages/frontend/workbench/src/*"],
+      "@graphvideo/workbench": ["./packages/frontend/workbench/src/index.ts"],
+      "@graphvideo/workbench/*": ["./packages/frontend/workbench/src/*"]
     }
   },
-  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/dist/**"],
-  "include": ["core/src", "sdk"]
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/dist/**", "packages/sdk/javascript/tests/type-client.ts"],
+  "include": ["sdk", "packages/frontend", "packages/sdk/javascript"]
 }

@@ -1,5 +1,5 @@
-import { Node } from '@graphvideo/kernel';
-import type { Info, DomainChangeContext } from '@graphvideo/kernel';
+import { Node } from '@graphvideo/sdk/node';
+import type { Info, DomainChangeContext } from '@graphvideo/sdk/protocol';
 export interface MarkdownSourceState {
     markdown: string;
     revision: number;

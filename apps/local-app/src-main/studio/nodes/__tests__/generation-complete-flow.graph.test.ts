@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { EffectAdapter, EffectContext } from '@graphvideo/kernel';
+import type { EffectAdapter, EffectContext } from '@graphvideo/sdk/node';
 import { loadGenerationCatalogSnapshot } from '../../../services/generation-catalog-snapshot.mjs';
 import type {
   GenerationAdapterOperationObservation,

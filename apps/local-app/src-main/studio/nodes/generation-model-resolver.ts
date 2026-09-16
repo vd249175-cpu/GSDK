@@ -1,5 +1,5 @@
-import { Node } from '@graphvideo/kernel';
-import type { ChangeContext, Info } from '@graphvideo/kernel';
+import { Node } from '@graphvideo/sdk/node';
+import type { ChangeContext, Info } from '@graphvideo/sdk/protocol';
 import { buildModelRequestV2, compileModelIntentV2 } from '../../shared/generation-model-intent-v2.mjs';
 import { planGenerationBatch } from '../../shared/generation-batch-planner.mjs';
 import { compileGenerationSubmitSpecV2 } from '../../shared/generation-submit-spec-v2.mjs';

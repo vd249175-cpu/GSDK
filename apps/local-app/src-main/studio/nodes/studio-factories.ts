@@ -1,4 +1,4 @@
-import { defineGraphFactory } from '@graphvideo/backend-sdk'
+import { defineGraphFactory } from '@graphvideo/sdk/plugin';
 import {
   createAuthoringNodes,
   createGenerationNodes,

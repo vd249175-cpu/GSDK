@@ -1,5 +1,5 @@
-import { WorldNode } from '@graphvideo/kernel';
-import type { Info, WorldChangeContext } from '@graphvideo/kernel';
+import { WorldNode } from '@graphvideo/sdk/node';
+import type { Info, WorldChangeContext } from '@graphvideo/sdk/protocol';
 import type { ProjectNode } from '../domain/types';
 export interface FileSystemState {
     projectName: string;

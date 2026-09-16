@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EffectAdapter } from '@graphvideo/kernel';
+import type { EffectAdapter } from '@graphvideo/sdk/node';
 import { createCausalRegionHarness } from '../../testing/graph';
 import { ElectronHostNode, ElectronWindowExecutionNode, ElectronWindowObservationNode } from '../electron-host';
 import type { ElectronWindowObservation, ElectronWindowRequest } from '../../effects/electron-window-adapter';

@@ -1,5 +1,5 @@
-import { Node } from '@graphvideo/kernel';
-import type { Info, DomainChangeContext } from '@graphvideo/kernel';
+import { Node } from '@graphvideo/sdk/node';
+import type { Info, DomainChangeContext } from '@graphvideo/sdk/protocol';
 import type { NodeMetadataRecord } from './sqlite-registry';
 export interface HistoryAction {
     type: 'CAPTURE' | 'UNDO' | 'REDO' | 'CLEAR_REDO';

@@ -1,4 +1,4 @@
-import type { Info } from '@graphvideo/kernel';
+import type { Info } from '@graphvideo/sdk/protocol';
 
 export interface GenerationPollScheduleRequestedInfo extends Info {
   readonly type: 'GenerationPollScheduleRequestedInfo';

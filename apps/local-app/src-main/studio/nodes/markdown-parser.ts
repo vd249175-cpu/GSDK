@@ -1,5 +1,5 @@
-import { Node } from '@graphvideo/kernel';
-import type { Info, DomainChangeContext } from '@graphvideo/kernel';
+import { Node } from '@graphvideo/sdk/node';
+import type { Info, DomainChangeContext } from '@graphvideo/sdk/protocol';
 import { parseProjectMarkdown } from '../domain/markdown/markdown-parser';
 import type { ParsedProject, ProjectIssue, ProjectTreeItem, } from '../domain/types';
 import type { DocumentUpdatedInfo } from '../protocol';

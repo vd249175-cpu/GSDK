@@ -1,7 +1,4 @@
-import type {
-  EffectAdapter,
-  EffectContext,
-} from '@graphvideo/kernel';
+import type { EffectAdapter, EffectContext } from '@graphvideo/sdk/node';
 
 export interface SqliteMetadataRecord {
   readonly id: string;

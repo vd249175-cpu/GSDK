@@ -1,5 +1,6 @@
-import { WorldNode } from '@graphvideo/kernel';
-import type { EffectAdapter, Info, WorldChangeContext } from '@graphvideo/kernel';
+import { WorldNode } from '@graphvideo/sdk/node';
+import type { EffectAdapter } from '@graphvideo/sdk/node';
+import type { Info, WorldChangeContext } from '@graphvideo/sdk/protocol';
 import {
   UnavailableGenerationAdapterOperation,
   type GenerationAdapterOperationObservation,

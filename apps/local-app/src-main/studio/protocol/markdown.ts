@@ -1,4 +1,4 @@
-import type { Info } from '@graphvideo/kernel';
+import type { Info } from '@graphvideo/sdk/protocol';
 
 export interface DocumentUpdatedInfo extends Info {
   readonly type: 'DocumentUpdatedInfo';

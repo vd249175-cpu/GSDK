@@ -1,13 +1,5 @@
-import {
-  KernelRuntime,
-  MemoryTraceStore,
-  type Info,
-  type InfoEnvelope,
-  type KernelRuntimeOptions,
-  type Node,
-  type RuntimeIdKind,
-  type TraceEvent,
-} from '@graphvideo/kernel';
+import { KernelRuntime, MemoryTraceStore, type KernelRuntimeOptions, type Node, type RuntimeIdKind, type TraceEvent } from '@graphvideo/sdk/node';
+import { type Info, type InfoEnvelope } from '@graphvideo/sdk/protocol';
 
 export interface CausalRegionHarness {
   readonly runtime: KernelRuntime;

@@ -3,7 +3,7 @@ import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { Readable } from 'node:stream'
 import { randomUUID } from 'node:crypto'
-import type { EffectAdapter, EffectContext } from '@graphvideo/kernel'
+import type { EffectAdapter, EffectContext } from '@graphvideo/sdk/node';
 import {
   generationAdapterOperationId,
   type GenerationAdapterArtifact,

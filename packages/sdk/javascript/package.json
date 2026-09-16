@@ -1,0 +1,52 @@
+{
+  "name": "@graphvideo/sdk",
+  "version": "1.0.3",
+  "description": "GraphFramework mirror SDK (JavaScript): protocol, node, effect, plugin, analysis, agent, testing",
+  "license": "Apache-2.0",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:vd249175-cpu/GSDK.git",
+    "directory": "packages/sdk/javascript"
+  },
+  "bin": {
+    "graphvideo-init": "./bin/graphvideo-init.mjs"
+  },
+  "exports": {
+    "./protocol": {
+      "types": "./src/protocol/index.ts",
+      "default": "./src/protocol/index.ts"
+    },
+    "./node": {
+      "types": "./src/node/index.ts",
+      "default": "./src/node/index.ts"
+    },
+    "./effect": {
+      "types": "./src/effect/index.ts",
+      "default": "./src/effect/index.ts"
+    },
+    "./plugin": {
+      "types": "./src/plugin/index.ts",
+      "default": "./src/plugin/index.ts"
+    },
+    "./analysis": {
+      "types": "./src/analysis/index.ts",
+      "default": "./src/analysis/index.ts"
+    },
+    "./agent": {
+      "types": "./src/agent/index.ts",
+      "default": "./src/agent/index.ts"
+    },
+    "./testing": {
+      "types": "./src/testing/index.ts",
+      "default": "./src/testing/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

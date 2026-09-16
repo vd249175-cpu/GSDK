@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  type Clock,
-  type EffectAdapter,
-  type EffectContext,
-} from '@graphvideo/kernel';
+import { type Clock, type EffectAdapter, type EffectContext } from '@graphvideo/sdk/node';
 import type {
   GenerationAdapterOperationObservation,
   GenerationAdapterOperationRequest,

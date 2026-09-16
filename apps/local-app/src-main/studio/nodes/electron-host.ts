@@ -1,5 +1,6 @@
-import { ExecutionWorldNode, Node, ObservationWorldNode } from '@graphvideo/kernel';
-import type { DomainChangeContext, EffectAdapter, Info, WorldChangeContext } from '@graphvideo/kernel';
+import { ExecutionWorldNode, Node, ObservationWorldNode } from '@graphvideo/sdk/node';
+import type { DomainChangeContext, Info, WorldChangeContext } from '@graphvideo/sdk/protocol';
+import type { EffectAdapter } from '@graphvideo/sdk/node';
 import {
   InMemoryElectronWindowAdapter,
   type ElectronWindowObservation,

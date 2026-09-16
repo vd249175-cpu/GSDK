@@ -1,4 +1,4 @@
-import type { EffectContext } from '@graphvideo/kernel';
+import type { EffectContext } from '@graphvideo/sdk/node';
 import type {
   SqlitePersistObservation,
   SqlitePersistRequest,

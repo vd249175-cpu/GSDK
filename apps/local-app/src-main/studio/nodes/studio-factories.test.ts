@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { KernelRuntime } from '@graphvideo/kernel';
+import { KernelRuntime } from '@graphvideo/sdk/node';
 import { createStudioNodes } from './studio-factories';
 
 describe('Studio Node factories', () => {

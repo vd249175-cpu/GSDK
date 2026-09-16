@@ -1,9 +1,4 @@
-import type {
-  GraphProjection,
-  GraphSyscallEventMap,
-  GraphSyscallRequestMap,
-  Info,
-} from '@graphvideo/kernel';
+import type { GraphProjection, GraphSyscallEventMap, GraphSyscallRequestMap, Info } from '@graphvideo/sdk/protocol';
 import type { ApplicationState } from '../../core/state/types';
 import {
   applicationStateFromGraphProjection,

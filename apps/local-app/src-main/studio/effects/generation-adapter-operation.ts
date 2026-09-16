@@ -1,4 +1,4 @@
-import type { EffectAdapter, EffectContext } from '@graphvideo/kernel';
+import type { EffectAdapter, EffectContext } from '@graphvideo/sdk/node';
 
 export type GenerationProviderId = 'comfy' | 'audio' | 'mock';
 export type AudioAdapterTaskType = 'SFX' | 'SPEECH' | 'VOICE_DESIGN' | 'VOICE_CLONE';

@@ -1,4 +1,4 @@
-import { defineBackendPlugin } from '@graphvideo/backend-sdk'
+import { defineBackendPlugin } from '@graphvideo/sdk/plugin';
 import {
   createAuthoringNodes, createGenerationNodes, createPersistenceNodes, createPlatformNodes,
   type StudioNodeDependencies,

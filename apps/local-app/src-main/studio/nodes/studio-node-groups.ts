@@ -1,4 +1,4 @@
-import type { EffectAdapter } from '@graphvideo/kernel';
+import type { EffectAdapter } from '@graphvideo/sdk/node';
 import type { ElectronWindowObservation, ElectronWindowRequest } from '../effects/electron-window-adapter';
 import type { SqlitePersistObservation, SqlitePersistRequest } from '../effects/sqlite-metadata-adapter';
 import type { ProjectStructurePersistObservation, ProjectStructurePersistRequest } from '../effects/project-structure-adapter';

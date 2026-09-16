@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { KernelRuntime, Node, type DomainChangeContext, type Info } from '@graphvideo/kernel'
+import { KernelRuntime, Node } from '@graphvideo/sdk/node';
+import { type DomainChangeContext, type Info } from '@graphvideo/sdk/protocol';
 import { flattenProjectTree, type ProjectTreeItem } from '../../core/project/treeEditor'
 import { applicationStateFromGraphProjection } from './application-state-projection'
 

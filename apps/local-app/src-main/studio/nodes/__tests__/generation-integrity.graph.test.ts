@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EffectAdapter } from '@graphvideo/kernel';
+import type { EffectAdapter } from '@graphvideo/sdk/node';
 import type { GenerationAdapterOperationRequest, GenerationAdapterOperationObservation } from '../../effects/generation-adapter-operation';
 import type { SqlitePersistRequest, SqlitePersistObservation } from '../../effects/sqlite-metadata-adapter';
 import type { GenerationBatchPlannedInfo } from '../../protocol';

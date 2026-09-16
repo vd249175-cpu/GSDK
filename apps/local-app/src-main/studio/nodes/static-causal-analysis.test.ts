@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildAllNodesView, buildCausalIndex } from '@graphvideo/sdk/analysis'
 import { createStudioNodes } from './studio-factories'
-import { Node } from '@graphvideo/kernel'
+import { Node } from '@graphvideo/sdk/node';
 
 class DynamicMockExtensionNode extends Node<{ pingCount: number }> {
   constructor(id = 'node-mock-extension') {

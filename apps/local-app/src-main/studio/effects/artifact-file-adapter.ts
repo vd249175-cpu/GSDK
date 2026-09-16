@@ -1,7 +1,4 @@
-import type {
-  EffectAdapter,
-  EffectContext,
-} from '@graphvideo/kernel';
+import type { EffectAdapter, EffectContext } from '@graphvideo/sdk/node';
 import type { GeneratedArtifact } from '../domain/types';
 
 export interface ArtifactWriteRequest {

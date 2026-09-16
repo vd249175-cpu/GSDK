@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EffectHarness } from '@graphvideo/kernel';
+import { EffectHarness } from '@graphvideo/sdk/node';
 import {
   ComfyCloudAdapter,
   type ComfyCloudGateway,

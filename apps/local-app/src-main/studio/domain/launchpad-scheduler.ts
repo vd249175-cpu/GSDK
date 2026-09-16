@@ -1,5 +1,5 @@
 import type { NodeType } from './types';
-import { systemClock, type Clock } from '@graphvideo/kernel';
+import { systemClock, type Clock } from '@graphvideo/sdk/node';
 import { orderedGenerationReferenceIds } from '../../shared/generation-reference-order.mjs';
 
 export interface ParsedModelHeader {
