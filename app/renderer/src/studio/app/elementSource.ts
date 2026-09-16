@@ -13,7 +13,7 @@ interface ElementSourceSnapshot {
 }
 
 const pluginElementModules = import.meta.glob<{ default?: ElementModule; register?: ElementModule['register'] }>(
-  '../../../../plugins/*/elements/*/element.ts',
+  '../../../../../plugins/*/elements/*/element.ts',
 )
 
 function toCandidate(descriptor: SourceElementDescriptor): ElementCandidate {
@@ -22,7 +22,7 @@ function toCandidate(descriptor: SourceElementDescriptor): ElementCandidate {
     manifestText: descriptor.manifestText,
     version: descriptor.version,
     async load() {
-      const key = `../../../../plugins/${descriptor.pluginId}/elements/${descriptor.elementId}/element.ts`
+      const key = `../../../../../plugins/${descriptor.pluginId}/elements/${descriptor.elementId}/element.ts`
       const loadModule = pluginElementModules[key]
       if (!loadModule) throw new Error(`Element 模块未进入应用构建: ${descriptor.elementId} (Plugin: ${descriptor.pluginId})`)
       const exports = await loadModule()

@@ -1,6 +1,15 @@
 import type { NodeType } from './types';
-import { systemClock, type Clock } from '@graphvideo/sdk/node';
 import { orderedGenerationReferenceIds } from '../shared/generation-reference-order.mjs';
+
+export interface Clock {
+  now(): number;
+  monotonicNow(): number;
+}
+
+const systemClock: Clock = {
+  now: () => Date.now(),
+  monotonicNow: () => (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+};
 
 export interface ParsedModelHeader {
   hasHeader: boolean;

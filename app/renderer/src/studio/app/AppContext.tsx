@@ -9,7 +9,7 @@ import {
   type WorkbenchContextBinding, type WorkbenchContextToken,
 } from '@graphvideo/workbench'
 import { appServices, type AppServices } from './services'
-import { activeSelectedNodeIdToken } from '@graphvideo/sdk/tokens'
+import { activeSelectedNodeIdToken } from '@graphvideo/tokens'
 import { resolveSelectedNodeId } from '../client/state/nodeSelection'
 
 export const ServicesContext = createContext<AppServices>(appServices)

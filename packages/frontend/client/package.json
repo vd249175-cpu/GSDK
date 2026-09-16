@@ -1,0 +1,21 @@
+{
+  "name": "@graphvideo/client",
+  "version": "1.0.0",
+  "description": "GraphVideo generic frontend client hooks factory over workbench. No business semantics.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@graphvideo/workbench": "file:../workbench"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

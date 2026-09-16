@@ -1,0 +1,21 @@
+{
+  "name": "@graphvideo/ui",
+  "version": "1.0.0",
+  "description": "GraphVideo frontend shared panels and layout primitives, composed from workbench.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@graphvideo/workbench": "file:../workbench"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

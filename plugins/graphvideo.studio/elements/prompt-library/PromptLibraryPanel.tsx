@@ -9,7 +9,7 @@ import {
 import {
   useApplicationClient, useShellClient, type PanelProps, type PromptLibraryEntry,
 } from '@graphvideo/client-sdk'
-import { LargeTextEditorDialog } from '@graphvideo/sdk/ui'
+import { LargeTextEditorDialog } from '@graphvideo/ui'
 import {
   parsePromptDocument, serializePromptDocument, type PromptBlock, type PromptDocument,
 } from './promptBlocks'

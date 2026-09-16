@@ -13,7 +13,7 @@ import {
   type GenerationModelManifest, type NodeType, type NodeVersion,
   type PanelProps, type ProjectNode,
 } from '@graphvideo/client-sdk'
-import { AudioPlayer, LargeTextEditorDialog } from '@graphvideo/sdk/ui'
+import { AudioPlayer, LargeTextEditorDialog } from '@graphvideo/ui'
 import { resolveGenerationModelStatus } from './generationModelStatus'
 import {
   useNodePropertyDraft, type NodePropertyField, type NodePropertyPatch,

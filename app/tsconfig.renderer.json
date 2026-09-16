@@ -10,13 +10,14 @@
     "allowJs": true,
     "baseUrl": ".",
     "paths": {
-      "@graphvideo/sdk/workbench": ["../packages/frontend/workbench/src/index.ts"],
-      "@graphvideo/sdk/workbench/*": ["../packages/frontend/workbench/src/*"],
+      "@graphvideo/sdk/protocol": ["../packages/sdk/javascript/src/protocol/index.ts"],
       "@graphvideo/workbench": ["../packages/frontend/workbench/src/index.ts"],
       "@graphvideo/workbench/*": ["../packages/frontend/workbench/src/*"],
+      "@graphvideo/ui": ["../packages/frontend/ui/index.ts"],
+      "@graphvideo/tokens": ["../packages/frontend/tokens/index.ts"],
+      "@graphvideo/client": ["../packages/frontend/client/index.ts"],
       "@graphvideo/client-sdk": ["renderer/src/studio/client-sdk.ts"],
       "@graphvideo/domain": ["../plugins/graphvideo.studio/backend/domain/launchpad-scheduler.ts"],
-      "@graphvideo/sdk/tokens": ["../packages/frontend/tokens/index.ts"],
       "../../../shared/*": ["../plugins/graphvideo.studio/backend/shared/*"],
       "../../shared/*": ["../plugins/graphvideo.studio/backend/shared/*"],
       "../shared/*": ["../plugins/graphvideo.studio/backend/shared/*"]

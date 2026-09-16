@@ -10,7 +10,7 @@ import {
   useShellClient,
   useWorkbenchContext,
 } from './app/AppContext'
-import type { ElementRuntimeHandle } from '@graphvideo/sdk/workbench'
+import type { ElementRuntimeHandle } from '@graphvideo/workbench'
 
 export {
   useAppState,
@@ -67,7 +67,7 @@ import {
   defineElement as defineWorkbenchElement,
   type ElementModule as WorkbenchElementModule,
   type ElementRegistrationContext as WorkbenchElementRegistrationContext,
-} from '@graphvideo/sdk/workbench'
+} from '@graphvideo/workbench'
 import type { GraphVideoApplicationClient } from './client/app/applicationClient'
 
 export type ElementRegistrationContext = WorkbenchElementRegistrationContext<GraphVideoApplicationClient>
@@ -77,7 +77,7 @@ export function defineElement(module: ElementModule): ElementModule {
   return defineWorkbenchElement<GraphVideoApplicationClient>(module)
 }
 
-export { defineWorkbenchContext } from '@graphvideo/sdk/workbench'
+export { defineWorkbenchContext } from '@graphvideo/workbench'
 export type {
   WorkbenchContextBinding,
   WorkbenchContextHandle,
@@ -98,7 +98,7 @@ export type {
   ExtensionProps,
   PanelDefinition,
   PanelProps,
-} from '@graphvideo/sdk/workbench'
+} from '@graphvideo/workbench'
 
 export function useElementState<T>(
   runtime: ElementRuntimeHandle,

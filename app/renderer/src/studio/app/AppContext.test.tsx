@@ -6,7 +6,7 @@ import {
   useClientSelectionActions, useWorkbenchContext,
 } from './AppContext'
 import type { AppServices } from './services'
-import { activeSelectedNodeIdToken } from '@graphvideo/sdk/tokens'
+import { activeSelectedNodeIdToken } from '@graphvideo/tokens'
 import { ClientStateStore } from '../client/state/clientStateStore'
 import { WorkbenchContextStore } from '@graphvideo/workbench'
 import { initialKernelApplicationState } from '../application/graph/application-state-projection'

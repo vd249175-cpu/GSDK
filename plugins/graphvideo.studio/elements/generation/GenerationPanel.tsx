@@ -10,7 +10,7 @@ import {
   type GenerationModelManifest, type NodeType,
   type PanelProps, type ResolvedGenerationPrompt,
 } from '@graphvideo/client-sdk'
-import { AudioPlayer, LargeTextEditorDialog } from '@graphvideo/sdk/ui'
+import { AudioPlayer, LargeTextEditorDialog } from '@graphvideo/ui'
 import {
   compileManualPrompt, copyableGenerationReferences, nodePrompt, resolveGenerationReferences, type GenerationReference,
 } from './generationBundle'
