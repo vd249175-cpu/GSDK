@@ -30,7 +30,7 @@ describe('Agent control transport', () => {
       expect((await call('/inspect', {}, { Origin: 'http://example.test' })).status).toBe(403)
       expect((await (await call('/inspect', { after: 3 })).json()).projection.revision).toBe(1)
       expect(host.agentInspect).toHaveBeenCalledWith({ after: 3 })
-      const cliPath = fileURLToPath(new URL('../../../scripts/agent-control.mjs', import.meta.url))
+      const cliPath = fileURLToPath(new URL('../../scripts/agent-control.mjs', import.meta.url))
       const { stdout } = await execFileAsync(process.execPath, [cliPath, 'inspect'], {
         env: { ...process.env, GRAPHVIDEO_AGENT_CONTROL_FILE: discoveryPath },
       })

@@ -13,7 +13,7 @@ type: reference
 | `core` | `core/**/*.test.ts` | 核心规约、类型、mailbox/single-flight/submission/取消语义（参考规约） | `npm run test:core -- --silent` |
 | `unit` | `sdk/**/*.test.{ts,mjs}`，排除 workbench | backend（含 NativeRuleSpace 门面）、testing、analysis、contract 等机制 | `npm run test:unit -- --silent` |
 | `ui` | `sdk/workbench/**/*.test.{ts,tsx}` | Workbench、Element 生命周期、样式边界 | `npm run test:ui -- --silent` |
-| `local-app` | `apps/local-app/plugins`、`src-main` | 业务插件、NativeRuleSpace 原生宿主与热替换 | `npm run test:app` |
+| `local-app` | `plugins`、`src-main` | 业务插件、NativeRuleSpace 原生宿主与热替换 | `npm run test:app` |
 | Rust | `packages/rust/kernel/tests` | 原生生产调度微内核：登记、队列、结算、取消、代次与替换 | `cargo test --workspace` |
 
 根 `npm test -- --silent` 运行 core/unit/ui；`npm run verify:app` 还会构建 native/runtime，并执行 renderer 边界、应用类型、应用测试、因果校验、Electron 原生加载和 renderer build。
@@ -24,11 +24,11 @@ type: reference
 | :--- | :--- |
 | Kernel 调度、State、submission | 对应 core 测试 + `npx tsc --noEmit` |
 | Rust mailbox、结算或替换 | 对应 Cargo 测试 + native-space 测试 |
-| backend-sdk 原生门面 | `sdk/backend/native-*.test.ts` + 类型检查 |
+| backend-sdk 原生门面 | `packages/sdk/javascript/src/node/native-*.test.ts` + 类型检查 |
 | Node / Info / State / rendererRoots | 插件测试 + `diagnose -- validate` |
 | Electron/runtime 构建边界 | `npm run verify:app` |
 | Workbench 组件或主题 | 对应 ui 测试；样式改动同时遵循设计系统 |
-| analysis 算法 | 对应 `sdk/analysis/*.test.ts` |
+| analysis 算法 | 对应 `packages/sdk/javascript/src/analysis/*.test.ts` |
 
 ## 3. Node 与 Effect 测试原则
 
@@ -41,7 +41,7 @@ type: reference
 
 ## 4. 构建边界回归
 
-源码测试通过不等于 Electron 运行产物可加载。`build:runtime` 先生成唯一的 `core/dist`，backend runtime 外部引用 `@graphvideo/kernel`；应用测试同时导入 backend-sdk 与 Kernel，可防止重复 Kernel capability 回归。Electron smoke 再验证真实主进程版本加载 `.node`。
+源码测试通过不等于 Electron 运行产物可加载。`build:runtime` 先生成唯一的 `core/dist`，backend runtime 外部引用 `@graphvideo/sdk/node`；应用测试同时导入 backend-sdk 与 Kernel，可防止重复 Kernel capability 回归。Electron smoke 再验证真实主进程版本加载 `.node`。
 
 ## 5. 提交前
 

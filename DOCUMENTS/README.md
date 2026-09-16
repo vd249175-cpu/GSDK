@@ -38,7 +38,7 @@ GraphFramework 是一个面向桌面与后端系统的因果应用微内核运�
 ```bash
 npx tsc --noEmit
 npm test -- --silent
-npm --prefix apps/local-app run diagnose -- validate
+npm --prefix app run diagnose -- validate
 npm run verify:app
 cargo test --workspace
 ```

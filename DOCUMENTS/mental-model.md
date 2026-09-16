@@ -48,9 +48,9 @@ Electron main
 | 层 | 目录 | 权限 |
 | :--- | :--- | :--- |
 | 原生调度微内核 | `packages/rust/kernel`、`packages/rust/kernel-node` | 生产持有 mailbox、generation、single-flight 调度、submission 结算、hot replace |
-| 核心规约与类型底座 | `core/src` | Node/WorldNode、Info、Context、State、Projection 编解码、参考规约；零业务语义 |
-| 业务插件与物理宿主 | `apps/local-app/plugins`、`apps/local-app/src-main` | 定义业务 Node，通过 EffectAdapter 接触物理世界，挂载至 NativeRuleSpace |
-| UI 工作台与投影 | `sdk/workbench/src`、`sdk/client`、`apps/local-app/renderer` | 发送固定命令，读取投影 DTO，不执行 Node |
+| 核心规约与类型底座 | `packages/sdk/javascript/src/node` | Node/WorldNode、Info、Context、State、Projection 编解码、参考规约；零业务语义 |
+| 业务插件与物理宿主 | `plugins`、`app/src-main` | 定义业务 Node，通过 EffectAdapter 接触物理世界，挂载至 NativeRuleSpace |
+| UI 工作台与投影 | `packages/frontend/workbench/src`、`packages/frontend/client`、`app/renderer` | 发送固定命令，读取投影 DTO，不执行 Node |
 
 ## 4. 六个运行本体
 

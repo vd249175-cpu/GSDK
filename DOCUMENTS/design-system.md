@@ -13,7 +13,7 @@ type: reference
 
 ## 2. 当前样式入口
 
-`@graphvideo/sdk/workbench/styles.css` 指向 `sdk/workbench/src/styles/index.css`，依次聚合：
+`@graphvideo/sdk/workbench/styles.css` 指向 `packages/frontend/workbench/src/styles/index.css`，依次聚合：
 
 ```text
 typography.css
@@ -27,7 +27,7 @@ panel-chrome.css
 scrollbars.css
 ```
 
-`apps/local-app/renderer/src/app.css` 只包含示例应用自身布局，并消费工作台 Token。主题通过根元素的 `data-theme="light|xueqing|shiliuqun"` 切换；无属性时使用 dark。
+`app/renderer/src/app.css` 只包含示例应用自身布局，并消费工作台 Token。主题通过根元素的 `data-theme="light|xueqing|shiliuqun"` 切换；无属性时使用 dark。
 
 ## 3. 新代码使用的 Token
 
@@ -67,6 +67,6 @@ scrollbars.css
 
 ## 5. 验证
 
-- `sdk/workbench/src/styles/typography-boundary.test.ts` 保证 feature styles 使用共享排版 Token。
+- `packages/frontend/workbench/src/styles/typography-boundary.test.ts` 保证 feature styles 使用共享排版 Token。
 - UI 测试验证 Token 使用和主题切换，不把截图色值当作组件契约。
 - 人工验收四套主题的文字、边框、hover、focus、disabled、error、菜单与浮层层级。

@@ -13,7 +13,7 @@ description: >-
 
 Read `DOCUMENTS/mental-model.md`, then `DOCUMENTS/debug-guide.md`. For folding, health or community work, also read `DOCUMENTS/causal-analysis.md`. Constructed instance facts and targeted tests override documentation.
 
-The production graph has no declared edges, flows, Wrapper or observedEdges. `NativeRuleSpace.analyze` loads read-only analysis on first request; it never schedules changes. JS Node relations come from constructed instances and actual `ctx.send/read/write` method text. Process Nodes provide versioned `PortableAnalysisSnapshot` facts through the Rust registry; inspect their evidence provenance and `confidence` rather than guessing from language-specific names. Frontend links come from the explicit UI boundary table `apps/local-app/analysis/links.mjs`. Do not discover Nodes by scanning source directories. Cross-language frame and fact formats are in `DOCUMENTS/portable-node-protocol.md`.
+The production graph has no declared edges, flows, Wrapper or observedEdges. `NativeRuleSpace.analyze` loads read-only analysis on first request; it never schedules changes. JS Node relations come from constructed instances and actual `ctx.send/read/write` method text. Process Nodes provide versioned `PortableAnalysisSnapshot` facts through the Rust registry; inspect their evidence provenance and `confidence` rather than guessing from language-specific names. Frontend links come from the explicit UI boundary table `app/analysis/links.mjs`. Do not discover Nodes by scanning source directories. Cross-language frame and fact formats are in `DOCUMENTS/portable-node-protocol.md`.
 
 ## Canonical entities
 
@@ -62,10 +62,10 @@ Use a supplied fold hierarchy or `all-nodes` for Node inspection, health and Nod
 ## Commands
 
 ```bash
-npm --prefix apps/local-app run diagnose -- node <nodeId>
-npm --prefix apps/local-app run diagnose -- path <from-address> <to-address>
-npm --prefix apps/local-app run diagnose -- validate
-node scripts/agent-control.mjs analyze request.json
+npm --prefix app run diagnose -- node <nodeId>
+npm --prefix app run diagnose -- path <from-address> <to-address>
+npm --prefix app run diagnose -- validate
+node app/scripts/agent-control.mjs analyze request.json
 ```
 
 The last command queries the running app through the trusted local Agent channel. Request examples: `{ "op": "view", "foldDepth": 1 }`, `{ "op": "health", "foldDepth": 1 }`, `{ "op": "path", "addresses": ["change:a::Info", "state:b::field"] }`. Other operations are listed in `DOCUMENTS/causal-analysis.md`.
@@ -79,7 +79,7 @@ Read `references/flat-causal-query.md` when implementing or changing selection, 
 ```bash
 npx vitest run <target-test> --silent
 npx tsc --noEmit
-npm --prefix apps/local-app run diagnose -- validate
+npm --prefix app run diagnose -- validate
 ```
 
 Do not start the desktop app or use browser/computer automation for physical UI validation; leave that to the user.

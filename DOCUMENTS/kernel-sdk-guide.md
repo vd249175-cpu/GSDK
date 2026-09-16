@@ -9,7 +9,7 @@ Kernel `Node` 是执行和 State 所有权基类，不依赖分析继承，也�
 ## 1. 纯领域 Node
 
 ```ts
-import { Node, type DomainChangeContext, type Info } from '@graphvideo/kernel'
+import { Node, type DomainChangeContext, type Info } from '@graphvideo/sdk/node'
 
 interface CounterState {
   count: number
@@ -52,7 +52,7 @@ ctx.send({
 ctx.send(makeCounterChangedInfo(count), 'node-consumer')
 ```
 
-这条约束不限制 payload 的复杂度，只要求因果协议判别字段在发送点可证明。`@graphvideo/sdk/analysis` 的 `validateCausalIndex` 遇到无法证明的发送会报告 `unresolved-info-type`（本地应用内经 `npm --prefix apps/local-app run diagnose -- validate` 触发），且不会把函数名或 `UnknownInfo` 加入分析图。
+这条约束不限制 payload 的复杂度，只要求因果协议判别字段在发送点可证明。`@graphvideo/sdk/analysis` 的 `validateCausalIndex` 遇到无法证明的发送会报告 `unresolved-info-type`（本地应用内经 `npm --prefix app run diagnose -- validate` 触发），且不会把函数名或 `UnknownInfo` 加入分析图。
 
 ## 2. WorldNode 与 EffectAdapter：观察与执行分离
 
@@ -69,7 +69,7 @@ import {
   type EffectAdapter,
   type Info,
   type WorldChangeContext,
-} from '@graphvideo/kernel'
+} from '@graphvideo/sdk/node'
 
 interface WriteRequest { path: string; value: string }
 interface WriteObserved { path: string; bytes: number }
@@ -107,7 +107,7 @@ import {
   type EffectAdapter,
   type Info,
   type WorldChangeContext,
-} from '@graphvideo/kernel'
+} from '@graphvideo/sdk/node'
 
 interface PollRequest { taskId: string }
 interface TaskProgress { taskId: string; progress: number; done: boolean }
@@ -164,10 +164,10 @@ ctx.patchState({ completed: observations.length })
 
 ## 3. 图装配与宿主（NativeRuleSpace 为生产标准）
 
-具体 Node 由插件的 `createNodes` 创建，生产主进程宿主统一使用 `@graphvideo/backend-sdk` 的 `NativeRuleSpace`（基于 Rust 原生微内核）：
+具体 Node 由插件的 `createNodes` 创建，生产主进程宿主统一使用 `@graphvideo/sdk/plugin` 的 `NativeRuleSpace`（基于 Rust 原生微内核）：
 
 ```ts
-import { NativeRuleSpace, mountDomainNode } from '@graphvideo/backend-sdk'
+import { NativeRuleSpace, mountDomainNode } from '@graphvideo/sdk/plugin'
 
 const nodes = createPluginNodes(plugins, dependencies)
 const space = new NativeRuleSpace({ errorTargetNodeId: 'supervisor-node' })
@@ -236,12 +236,12 @@ const dispose = kernel.subscribeProjection((next) => {})
 ```bash
 npx vitest run <target-test> --silent
 npx tsc --noEmit
-npm --prefix apps/local-app run diagnose -- validate
+npm --prefix app run diagnose -- validate
 ```
 
 ## 7. 原生规则空间宿主（Rust 调度 + 多语言 Node）
 
-`@graphvideo/backend-sdk` 的 `NativeRuleSpace` 把调度事实（实体登记、mailbox、
+`@graphvideo/sdk/plugin` 的 `NativeRuleSpace` 把调度事实（实体登记、mailbox、
 单飞、submission 结算、丢弃台账）交 Rust `packages/rust/kernel` 持有，业务 State 由宿主保管，
 change 代码可在 JS 或进程协议 Node 中执行。Rust 与宿主不各存一份权威业务 State。JS 插件 `Node` 经 `mountDomainNode`/`describeDomainNode` 桥接挂载，
 `change` 签名零改动：`read/write/patchState/send` 直通（投递反馈结构与
@@ -256,8 +256,8 @@ backlog（按 `Evicted` 结算）、代次 +1、干净槽启动；遇 Busy 有�
 5000ms）。宿主侧必须显式传入新实例初值，State 绝不隐式继承。`readProjection`
 返回 EncodedValue、Node version/status、调度计数和单调 revision；`getState` 只返回
 状态副本，不能绕过 change 修改权威 State。构建见 `npm run build:native` 与
-`npm run build:runtime`；端到端演示见
-`apps/local-app/src-main/native-graph-host.mjs` 与同目录单测。
+`npm --prefix app run build`；端到端演示见
+`app/src-main/native-graph-host.mjs` 与同目录单测。
 `space.replace` 可以在 JS change 运行期间提出：目标会立即密封，宿主等待单飞间隙
 完成替换。`cancel` 会跳过排队投递，并中止该 submission 正在等待的 EffectAdapter；
 已经写入的 State 和已经完成的物理副作用不回滚。

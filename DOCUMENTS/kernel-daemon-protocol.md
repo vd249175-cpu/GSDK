@@ -26,7 +26,7 @@ cargo run -p graphvideo-kernel-daemon
 JS 宿主可使用：
 
 ```ts
-import { connectKernelDaemon } from '@graphvideo/backend-sdk'
+import { connectKernelDaemon } from '@graphvideo/sdk/plugin'
 
 const client = await connectKernelDaemon({ address, token })
 ```

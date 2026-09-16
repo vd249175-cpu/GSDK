@@ -19,10 +19,10 @@ set "http_proxy="
 set "https_proxy="
 
 echo [1/2] 正在启动 2D 瑞士先锋因果看板 (http://127.0.0.1:5174/)...
-start "GraphVideo - 内核因果监控服务" cmd /c "chcp 65001 >nul && npm run visualizer"
+start "GraphVideo - 内核因果监控服务" cmd /c "chcp 65001 >nul && cd /d "%~dp0..\.." && npm run visualizer"
 
 echo [2/2] 正在启动 GraphVideo Studio 桌面创作软件...
-call npm run start
+call npm --prefix "%~dp0.." run start
 
 echo.
 echo [GraphVideo] 桌面软件已退出。

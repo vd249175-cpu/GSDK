@@ -11,31 +11,23 @@ type: guide
 
 ## 目录体系
 
-- `packages/rust/kernel` & `packages/rust/kernel-node` — **生产调度微内核**：Rust 原生实现（Mailbox、Generation、Single-flight 调度、有界准入与热替换、确定性投递结算）；通过 N-API 提供原生绑定。
-- `core/` — `@graphvideo/kernel`：零业务语义核心规约与类型契约（Node、WorldNode 物理隔离、Info 协议、Context 能力、Projection 编解码）。TS 运行时冻结为参考规约（Executable Specification / Test Oracle），生产主干统一收敛至 Rust 原生内核。
-- `sdk/` — `@graphvideo/sdk`：通用开发者套件与门面：
-  - `sdk/backend/`：原生规则空间（`NativeRuleSpace`）、后端插件 Manifest 与 Node 挂载桥接。
-  - `sdk/client/`：前端投影订阅与通信管道。
-  - `sdk/workbench/`：零业务语义的前端工作台底座（AreaShell、Workspace、Dock、面板与窗口管理）。
-  - `sdk/testing/`：测试运行时与 EffectHarness。
-  - `sdk/analysis/`：因果索引与静态拓扑健康诊断。
-  - `sdk/contract/` & `tokens/` & `ui/`：设计规范与共享组件。
-- `apps/local-app/` — 本地 Electron 落地工程（主进程直连 `NativeRuleSpace`，Vite/React renderer 仅读取投影 DTO）。
-- `scripts/` — 核心工程工具：`refactor.mjs`（基于 TS LanguageService 的全局 AST 符号重构与重命名）与原生构建辅助。
-- `DOCUMENTS/` — 因果心智模型、调试、测试、分析与设计指南；入口见 [文档导航](./DOCUMENTS/README.md)。
+- `app/` — GraphVideo 桌面应用与产品装配（Electron 生命周期、renderer、主进程物理宿主、显式插件装配）。
+- `plugins/` — 可独立交付的普通业务插件（`graphvideo.studio`、`demo-topology`、`hello-counter`）。
+- `packages/contract/` — JS/Python 共用的唯一协议事实源（schema、黄金帧、错误码、兼容矩阵）。
+- `packages/sdk/javascript/` 与 `packages/sdk/python/` — 同一能力面的两种语言适配（`protocol/node/effect/plugin/analysis/agent/testing`）。
+- `packages/frontend/` — JavaScript 专属前端能力（`client/workbench/tokens/ui`），无 Python 镜像。
+- `packages/rust/` — Cargo workspace（`kernel/analysis/kernel-daemon/kernel-ffi/kernel-node`）；Rust crate 不得依赖 app、plugins 或语言 SDK。
+- `packages/tooling/` — 开发工具包（`causal-visualizer/release`），不进入应用制品。
+- `DOCUMENTS/` — 因果心智模型、协议、调试、测试与分析指南；入口见 [文档导航](./DOCUMENTS/README.md)。
 
 ## 核心开发命令
 
 ```bash
 npm install
-npm run typecheck        # tsc --noEmit（源码直连穿透检查，0 秒等待）
-npm test                 # vitest run（core + unit + ui 全套单测）
+npm run typecheck        # tsc --noEmit（0 秒等待）
+npm test                 # vitest run（sdk + unit + ui 全套单测）
 npm run build:native     # 构建 Rust/N-API 调度内核并摆放本机原生产物
-npm run build:runtime    # 生成 Electron 可加载的 Kernel/backend 本地运行时
-npm run test:core        # 微内核针对性单测
-npm run test:unit        # SDK 单元测试
-npm run test:ui          # Workbench UI 前端测试
-npm run test:app         # 构建本机运行时后执行本地应用单元测试
+npm run test:app         # 本地应用单元测试
 npm run verify:app       # 本地应用边界、类型、单测、因果诊断与构建全体验收
 npm run refactor -- find-refs <file> <symbol>    # AST 符号全局引用定位
 npm run refactor -- rename <file> <symbol> <new>  # AST 跨文件安全重命名
@@ -43,8 +35,9 @@ npm run refactor -- rename <file> <symbol> <new>  # AST 跨文件安全重命名
 
 ## 架构红线（摘要）
 
-- `core/src` 零业务、零 UI，不得导入任何浏览器/DOM 依赖；`sdk/workbench/` 零业务，不得导入具体业务插件。
+- `packages/sdk/javascript/src/node` 零业务、零 UI；`packages/frontend/workbench/` 零业务，不得导入具体业务插件。
 - Node 间只用 `ctx.send(info, targetNodeId)`；每个 `Info.type` 必须在发送点静态可证明。
 - State 唯一 Owner；纯领域 Node 零 I/O，物理经 `WorldNode` + 构造注入 `EffectAdapter`。
 - Projection 是编码 DTO，读取必须经 `valueCodec.decode`。
-- View 折叠契约（`FoldDefinitionFile`/`AnalysisView` 等）在 `sdk/analysis`；命名 view 的存储是消费方决定，不进 SDK。
+- View 折叠契约在 JS SDK `analysis` 面；命名 view 的存储是消费方决定，不进 SDK。
+

@@ -17,7 +17,7 @@ type: reference
 `analysisFacts` 必须与 `nodeId` 一致。它是语言无关的 `PortableAnalysisSnapshot`：`entities` 和 `edges` 使用因果索引的标准地址、关系类型与 `confidence`，可附 `location`。每种语言的适配器负责从自己的实际代码或编译产物生成事实；宿主不根据变量名猜测 send。此快照是静态证据，不证明某次运行实际走过该路径。
 
 ```ts
-import { NativeRuleSpace, mountProcessNode } from '@graphvideo/backend-sdk'
+import { NativeRuleSpace, mountProcessNode } from '@graphvideo/sdk/plugin'
 
 const space = new NativeRuleSpace()
 const worker = await mountProcessNode(space, {

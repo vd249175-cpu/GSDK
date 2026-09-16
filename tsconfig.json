@@ -35,5 +35,5 @@
     }
   },
   "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/dist/**", "packages/sdk/javascript/tests/type-client.ts"],
-  "include": ["sdk", "packages/frontend", "packages/sdk/javascript"]
+  "include": ["packages/frontend", "packages/sdk/javascript"]
 }

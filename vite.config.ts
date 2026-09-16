@@ -46,8 +46,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          include: ['sdk/**/*.test.{ts,mjs}'],
-          exclude: ['sdk/workbench/**'],
+          include: ['packages/frontend/{client,tokens}/**/*.test.{ts,mjs}'],
         },
       },
       {
@@ -55,7 +54,7 @@ export default defineConfig({
         test: {
           name: 'ui',
           environment: 'jsdom',
-          include: ['sdk/workbench/**/*.test.{ts,tsx}'],
+          include: ['packages/frontend/{workbench,ui}/**/*.test.{ts,tsx}'],
         },
       },
       {
@@ -63,7 +62,7 @@ export default defineConfig({
         test: {
           name: 'tools',
           environment: 'node',
-          include: ['tools/**/*.test.{ts,tsx}'],
+          include: ['packages/tooling/**/*.test.{ts,tsx}'],
         },
       },
     ],

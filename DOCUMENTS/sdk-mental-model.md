@@ -9,37 +9,40 @@ type: reference
 ## 1. 包与依赖方向
 
 ```text
-插件 frontend ──→ @graphvideo/sdk/client ──→ @graphvideo/workbench
-插件 backend  ──→ @graphvideo/backend-sdk ──→ @graphvideo/kernel
+插件 frontend ──→ @graphvideo/packages/frontend/client ──→ @graphvideo/workbench
+插件 backend  ──→ @graphvideo/sdk/plugin + @graphvideo/sdk/node ──→ @graphvideo/sdk/protocol
 插件两端      ──→ 本插件内聚模块（contract/、frontend/、backend/）
 宿主          ──→ SDK + 插件贡献（动态装配，不静态依赖业务插件）
-
-禁止反向：SDK 不导入插件；kernel 不导入任何人；
-插件之间只经显式声明的公开契约协作，不导入对方实现。
 ```
+
+七个镜像能力面（JS/Python 一一对应）：`protocol/node/effect/plugin/analysis/agent/testing`。
+前端专属（无 Python 镜像）：`packages/frontend/{client,workbench,tokens,ui}`。
+
+禁止反向：SDK 不导入插件；Rust 内核不导入任何人；
+插件之间只经显式声明的公开契约协作，不导入对方实现。
 
 | 包 | 内容 | 不含 |
 | --- | --- | --- |
-| `@graphvideo/kernel` | Node/WorldNode（ExecutionWorldNode/ObservationWorldNode）、核心类型、State 版本、Projection、EffectAdapter 边界、冻结参考规约（KernelRuntime） | 业务、React、Node.js API |
-| `@graphvideo/backend-sdk` | `NativeRuleSpace`（生产 Rust 调度门面与 Node 挂载桥接）、Info/change/Effect 类型、BackendPlugin 契约、rendererRoots 校验、Manifest 定义 | React、业务 Node、业务协议 |
-| `@graphvideo/sdk/client` | `createServicesContext`、`defineClientHooks`（四泛型）、`useStateSelector`、Element/Workbench 类型与 `defineWorkbenchElement` | 业务 State、业务 Client、业务 hooks |
-| `@graphvideo/workbench` | Dock、工作区、Element 加载/生命周期、面板/命令/事件/状态注册、通用 UI 控件 | 业务面板、业务 Token、Kernel |
-| `@graphvideo/sdk/testing` | `createTestRuntime`（快速单节点规约测试）、`EffectHarness`（经 kernel） | 生产装配 |
-| `@graphvideo/sdk/contract` | Manifest 类型与校验（转出 backend-sdk） | 运行时 |
-| `@graphvideo/sdk/tokens`、`./ui` | 跨面板联动 Token、通用面板控件 | 业务面板 |
+| `@graphvideo/sdk/protocol` | Info/State/Projection/错误码等语言无关 DTO | 业务、React、Node.js API |
+| `@graphvideo/sdk/node` | Node/WorldNode（ExecutionWorldNode/ObservationWorldNode）、change 上下文、`NativeRuleSpace` 与 Node 挂载桥接、冻结参考规约（KernelRuntime） | 业务、React |
+| `@graphvideo/sdk/effect` | EffectAdapter 边界与 daemon provider 适配 | 业务 Node、业务协议 |
+| `@graphvideo/sdk/plugin` | BackendPlugin 契约、rendererRoots 校验、Manifest 定义 | React、业务 Node、业务协议 |
+| `@graphvideo/sdk/agent` | `KernelDaemonClient`、inspect/analyze/inject/patch 控制面 | 业务逻辑 |
+| `@graphvideo/sdk/analysis` | JS 实例扫描与便携事实；权威计算在 Rust `graphvideo-analysis` | 业务、浏览器包 |
+| `@graphvideo/sdk/testing` | `createTestRuntime`（快速单节点规约测试）、`EffectHarness` | 生产装配 |
+| `@graphvideo/packages/frontend/client` 等前端包 | 投影订阅、hooks、Workbench、Token、UI | 业务 State |
 
-`@graphvideo/sdk/analysis` 提供 JS 实例扫描；`@graphvideo/sdk/analysis/portable` 提供只依赖纯数据快照的语言无关图算法入口，不加载 TypeScript 扫描器。两者均不进浏览器包。
+`@graphvideo/sdk/agent` 还提供 `connectKernelDaemon`、`runDaemonNodeWorker` 和 `runDaemonEffectProvider`：前者连接业务无关的独立 Rust 图宿主，后两者分别把 JS change handler 与物理 EffectAdapter 适配为通用租约协议。其他语言直接实现相同 DTO 协议即可；daemon 不依赖 JS 业务代码，也不解释 adapter 的业务含义。
 
-`@graphvideo/backend-sdk` 还提供 `connectKernelDaemon`、`runDaemonNodeWorker` 和 `runDaemonEffectProvider`：前者连接业务无关的独立 Rust 图宿主，后两者分别把 JS change handler 与物理 EffectAdapter 适配为通用租约协议。其他语言直接实现相同 DTO 协议即可；daemon 不依赖 JS 业务代码，也不解释 adapter 的业务含义。
-
-本仓库采用 npm workspace 源码构建。TypeScript 类型与大部分 SDK 入口直接指向源码；Electron 主进程不能直接加载 `.ts`，因此 `npm run build:runtime` 会依次生成 `core/dist/` 与 `sdk/backend/dist/`，并把当前平台的原生绑定放入 backend 运行时目录。backend 构建把 `@graphvideo/kernel` 保持为外部依赖，使直接 Kernel 消费者与 backend-sdk 共享同一份身份能力。`npm run build:native` 构建 Rust/N-API 调度内核。本仓库不提供 tarball 导出、发包或仓外脚手架流程。
+本仓库采用 npm workspace 源码构建（`packages/sdk/javascript`、`packages/frontend/*`、`app`）。TypeScript 类型与大部分 SDK 入口直接指向源码；`npm run build:native` 构建 Rust/N-API 调度内核。本仓库不提供 tarball 导出、发包或仓外脚手架流程。
 
 Studio 桌面窗口由图内 `host-el`、`sink-electron-window`、`src-electron-window` 三个节点管理。Electron `ready`、窗口控制 IPC 和系统窗口关闭事件只作为根 Info 输入；物理 BrowserWindow 操作由执行节点的 `electronWindowAdapter` 完成。关闭全部窗口后，图宿主仍在 Electron 主进程中运行，直到该进程结束。
 
 ## 2. 后端心智模型：事实只进 Owner
 
 ```ts
-import { defineBackendPlugin, Node, type DomainChangeContext, type Info } from '@graphvideo/backend-sdk';
+import { defineBackendPlugin } from '@graphvideo/sdk/plugin';
+import { Node, type DomainChangeContext, type Info } from '@graphvideo/sdk/node';
 
 class CounterNode extends Node<{ count: number }> {
   constructor() { super('example.counter', 'Counter', { count: 0 }); }
@@ -73,7 +76,7 @@ export default defineBackendPlugin({
 SDK 只给机制，业务绑定由插件（或宿主）完成一次：
 
 ```ts
-import { createServicesContext, defineClientHooks } from '@graphvideo/sdk/client';
+import { createServicesContext, defineClientHooks } from '@graphvideo/packages/frontend/client';
 
 const { ServicesContext, ServiceProvider, useServices } =
   createServicesContext<MyServices>(myServices);
@@ -113,23 +116,20 @@ UI 写入口 → 命令适配 → 根 Info（插件 frontend/application）
 ## 5. 本地验证环
 
 ```bash
-npx tsc --noEmit                        # 类型（含 sdk/type-tests 精确断言）
+npx tsc --noEmit                        # 类型
 npx vitest run --project unit <目标> --silent
 npm run build:native                     # 动原生绑定后跑（cargo 构建 + 摆放 .node）
-npm run build:runtime                    # 动 Electron/backend 运行时入口后跑
-npm run verify:app                       # 构建 native/runtime 并完成本地应用验收
-npm --prefix apps/local-app run diagnose -- validate   # 改 Node/Info/State/投影/联动后必跑
-npm --prefix apps/local-app run diagnose -- node <nodeId>  # 单实体切片，先看局部不看全图
-npm --prefix apps/local-app run build    # 动生产装配/Electron 后跑
+npm run verify:app                       # 构建 native 并完成本地应用验收
+npm --prefix app run diagnose -- validate   # 改 Node/Info/State/投影/联动后必跑
+npm --prefix app run diagnose -- node <nodeId>  # 单实体切片，先看局部不看全图
+npm --prefix app run build    # 动生产装配/Electron 后跑
 ```
 
-`core/dist/` 与 `sdk/backend/dist/` 是源码仓库的本地运行产物，不是发布包；其他 SDK 入口仍由 workspace 直接使用源码。
-
-`core/src/determinism-source.test.ts` 是架构门禁：业务 Node 触碰 I/O/系统 API 即失败。
+`packages/sdk/javascript/tests/determinism-source.test.ts` 是架构门禁：业务 Node 触碰 I/O/系统 API 即失败。
 
 ## 6. 调试入口
 
-- 单 Node 行为：`sdk/testing` 的 `createTestRuntime` 挂载最小 Node 集合，fake Adapter 覆盖成功/失败/延迟/取消；构造期不做 I/O。
+- 单 Node 行为：`@graphvideo/sdk/testing` 的 `createTestRuntime` 挂载最小 Node 集合，fake Adapter 覆盖成功/失败/延迟/取消；构造期不做 I/O。
 - 因果断点：沿 `Info → change → State → send/effect → Projection` 用 trace 切片定位，不猜。
 - 前端不同步：查 `entry → 根 Info → Owner State → 读模型 → consumer` 链，核对 revision。
 - 细则见 `kernel-sdk-guide.md` §4–§7（错误即 Info、根提交、投影与原生规则空间）；定位步骤见 [Node 实例因果调试指南](./debug-guide.md)。
