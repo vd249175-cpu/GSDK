@@ -1,0 +1,12 @@
+{
+  "name": "@graphvideo/theme",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "description": "Shared DaVinci visual language: theme, typography and global desktop styles.",
+  "exports": {
+    ".": "./index.css",
+    "./base.css": "./base.css",
+    "./styles/*": "./styles/*",
+    "./package.json": "./package.json"
+  }
+}

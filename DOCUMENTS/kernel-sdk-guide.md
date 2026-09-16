@@ -52,7 +52,7 @@ ctx.send({
 ctx.send(makeCounterChangedInfo(count), 'node-consumer')
 ```
 
-这条约束不限制 payload 的复杂度，只要求因果协议判别字段在发送点可证明。`@graphvideo/sdk/analysis` 的 `validateCausalIndex` 遇到无法证明的发送会报告 `unresolved-info-type`（本地应用内经 `npm --prefix app run diagnose -- validate` 触发），且不会把函数名或 `UnknownInfo` 加入分析图。
+这条约束不限制 payload 的复杂度，只要求因果协议判别字段在发送点可证明。`@graphvideo/sdk/analysis` 的 `validateCausalIndex` 遇到无法证明的发送会报告 `unresolved-info-type`（本地应用内经 `npm --prefix packages/desktop run diagnose -- validate` 触发），且不会把函数名或 `UnknownInfo` 加入分析图。
 
 ## 2. WorldNode 与 EffectAdapter：观察与执行分离
 
@@ -236,7 +236,7 @@ const dispose = kernel.subscribeProjection((next) => {})
 ```bash
 npx vitest run <target-test> --silent
 npx tsc --noEmit
-npm --prefix app run diagnose -- validate
+npm --prefix packages/desktop run diagnose -- validate
 ```
 
 ## 7. 原生规则空间宿主（Rust 调度 + 多语言 Node）
@@ -256,8 +256,8 @@ backlog（按 `Evicted` 结算）、代次 +1、干净槽启动；遇 Busy 有�
 5000ms）。宿主侧必须显式传入新实例初值，State 绝不隐式继承。`readProjection`
 返回 EncodedValue、Node version/status、调度计数和单调 revision；`getState` 只返回
 状态副本，不能绕过 change 修改权威 State。构建见 `npm run build:native` 与
-`npm --prefix app run build`；端到端演示见
-`app/src-main/native-graph-host.mjs` 与同目录单测。
+`npm --prefix packages/desktop run build`；端到端演示见
+`packages/desktop/host/native-graph-host.mjs` 与 `app/plugins/hello-counter/tests/native-graph-host.test.mjs`。
 `space.replace` 可以在 JS change 运行期间提出：目标会立即密封，宿主等待单飞间隙
 完成替换。`cancel` 会跳过排队投递，并中止该 submission 正在等待的 EffectAdapter；
 已经写入的 State 和已经完成的物理副作用不回滚。

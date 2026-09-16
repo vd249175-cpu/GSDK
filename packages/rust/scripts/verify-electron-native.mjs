@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const require = createRequire(import.meta.url)
+const require = createRequire(resolve(process.cwd(), 'package.json'))
 const electron = require('electron')
 const platformTag = process.platform === 'win32'
   ? `win32-${process.arch}-msvc`

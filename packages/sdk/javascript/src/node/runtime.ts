@@ -90,7 +90,7 @@ function toError(error: unknown): Error {
  * Pure In-Process Kernel Runtime Execution Engine.
  *
  * @deprecated KernelRuntime is frozen as an in-process reference specification / test oracle only.
- * Production systems must run on the native Rust scheduler via `@graphvideo/backend-sdk`'s `NativeRuleSpace`.
+ * Production systems must run on the native Rust scheduler via `@graphvideo/sdk/node`'s `NativeRuleSpace`.
  * Do not use KernelRuntime for new production features or host runners; dual-kernel feature parity is no longer maintained.
  */
 export class KernelRuntime {

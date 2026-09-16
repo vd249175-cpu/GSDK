@@ -29,16 +29,17 @@ GraphFramework 是一个面向桌面与后端系统的因果应用微内核运�
 
 - [OKF 文档包约定](./okf.md)：frontmatter 与当前事实文档规则。
 
-## 重构计划
+## 目录边界
 
-- [包分发阶段目录重构计划](./package-distribution-restructure-plan.md)：目标根目录、镜像 JavaScript/Python SDK、Rust 包归位、app/plugins 拆分与分阶段验收。
+- [当前目录与分发边界](./package-distribution-restructure-plan.md)：应用装配、插件归属、镜像 SDK、统一工作台和桌面构建。
 
 ## 常用验证
 
 ```bash
-npx tsc --noEmit
-npm test -- --silent
-npm --prefix app run diagnose -- validate
-npm run verify:app
-cargo test --workspace
+npm --prefix packages/sdk/javascript run typecheck
+npm --prefix packages/desktop run typecheck
+npm --prefix packages/desktop test -- <目标> --silent
+npm --prefix packages/desktop run diagnose -- validate
+npm --prefix packages/desktop run verify
+cargo test --manifest-path packages/rust/Cargo.toml -p <crate>
 ```

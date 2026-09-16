@@ -7,7 +7,7 @@ type: guide
 ## 目录与入口
 
 ```text
-plugins/<plugin-id>/
+app/plugins/<plugin-directory>/
   graphvideo.plugin.json
   backend.mjs                        返回普通 Node 的扁平列表
 sdk/
@@ -56,9 +56,9 @@ renderer 只能调用 preload 暴露的固定命令，不能提交任意 Node ID
 
 可信主进程的 `NativeGraphHost` 还提供 Agent 控制面：`agentInspect({ after, limit })` 返回 Projection、解码后的各 Node State、当前待投递 Info、drop ledger 与近期因果事件；`agentInject(nodeId, info, { actor, reason })` 绕过 `rendererRoots` 向任意已装配 Node 发起普通根 submission，并返回 `enqueued/dropped` 反馈；`agentInterveneState(nodeId, patch, { actor, reason, expectedGeneration, expectedVersion })` 在目标单飞间隙修改 State。版本或代际变化会拒绝干预，排队的 Info 不丢弃。干预独立记录为 `state_intervened`，不伪装成 Node 的 change。该控制面不经 renderer IPC 或遥测 HTTP 服务公开；独立的 Agent 本机控制服务只监听 `127.0.0.1`，每次启动生成随机令牌，拒绝带浏览器 Origin 的请求。
 
-应用运行时，可信 Agent 可从仓库根目录执行 `node app/scripts/agent-control.mjs inspect`。`inject` 与 `patch` 命令再提供一个 JSON 请求文件路径，例如 `node app/scripts/agent-control.mjs inject request.json`；请求字段分别为 `{ "targetNodeId": "...", "info": { "type": "..." }, "reason": "..." }` 和 `{ "nodeId": "...", "patch": { ... }, "expectedGeneration": 0, "expectedVersion": 1, "reason": "..." }`。客户端从当前用户目录的 `.graphvideo/agent-control.json` 读取端口和令牌，应用关闭后删除该文件。因果事件只在宿主内存中保留最近 1000 条，不能当作持久审计库。
+应用运行时，可信 Agent 可从仓库根目录执行 `node packages/desktop/scripts/agent-control.mjs inspect`。`inject` 与 `patch` 命令再提供一个 JSON 请求文件路径，例如 `node packages/desktop/scripts/agent-control.mjs inject request.json`；请求字段分别为 `{ "targetNodeId": "...", "info": { "type": "..." }, "reason": "..." }` 和 `{ "nodeId": "...", "patch": { ... }, "expectedGeneration": 0, "expectedVersion": 1, "reason": "..." }`。客户端从当前用户目录的 `.graphvideo/agent-control.json` 读取端口和令牌，应用关闭后删除该文件。因果事件只在宿主内存中保留最近 1000 条，不能当作持久审计库。
 
-`node app/scripts/agent-control.mjs analyze request.json` 可查询当前已装配 Node 的静态因果分析。例如请求 `{ "op": "view", "foldDepth": 0 }` 把默认根组合为一个折叠 Node，`foldDepth: 1` 展开为基础 Node；也可传入 `folds: { "version": 1, "root": "world", "groups": { "world": { "children": ["group-a"] }, "group-a": { "children": ["node-a", "node-b"] } } }` 指定更深的折叠层级。`health`、`reach`、`centrality` 和 `communities` 使用同一视角参数；`path`、`select`、`entity`、`expand`、`validate`、`granularCommunities` 和 `compareCommunities` 也由同一只读分析入口提供。完整语义见 [实例因果分析](./causal-analysis.md)。
+`node packages/desktop/scripts/agent-control.mjs analyze request.json` 可查询当前已装配 Node 的静态因果分析。例如请求 `{ "op": "view", "foldDepth": 0 }` 把默认根组合为一个折叠 Node，`foldDepth: 1` 展开为基础 Node；也可传入 `folds: { "version": 1, "root": "world", "groups": { "world": { "children": ["group-a"] }, "group-a": { "children": ["node-a", "node-b"] } } }` 指定更深的折叠层级。`health`、`reach`、`centrality` 和 `communities` 使用同一视角参数；`path`、`select`、`entity`、`expand`、`validate`、`granularCommunities` 和 `compareCommunities` 也由同一只读分析入口提供。完整语义见 [实例因果分析](./causal-analysis.md)。
 
 非 JS 插件可通过 `mountProcessNode` 挂载一个使用 JSON Lines 协议的进程 Node，并在 `ready` 帧提供 `PortableAnalysisSnapshot`。同一分析入口会合并这些事实；`facts` 查询返回原始便携快照。协议见 [跨语言 Node 与分析事实协议](./portable-node-protocol.md)。
 
@@ -77,8 +77,8 @@ renderer 只能调用 preload 暴露的固定命令，不能提交任意 Node ID
 后端 Node 优先使用 `@graphvideo/sdk/testing` 的 `createTestRuntime` 做确定性测试；原生桥接、热替换和 Electron 加载使用本仓库现有测试与验收命令：
 
 ```bash
-npx vitest run plugins/hello-counter/backend.test.mjs --silent
-npx vitest run app/src-main/native-graph-host.test.mjs --silent
-npm --prefix app run diagnose -- validate
-npm run verify:app
+npm --prefix packages/desktop test -- hello-counter/backend.test.mjs --silent
+npm --prefix packages/desktop test -- native-graph-host.test.mjs --silent
+npm --prefix packages/desktop run diagnose -- validate
+npm --prefix packages/desktop run verify
 ```

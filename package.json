@@ -1,5 +1,0 @@
-{
-  "private": true,
-  "type": "module",
-  "description": "GVSDK repository root: docs and pointers only. Each workspace (app, packages/*) installs and builds independently."
-}

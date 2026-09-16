@@ -13,13 +13,11 @@ const platformTag = process.platform === 'win32'
 if (!platformTag) throw new Error(`Unsupported native target: ${process.platform}-${process.arch}`)
 const source = resolve(
   root,
-  'packages',
-  'rust',
   'kernel-node',
   `graphvideo-kernel-node.${platformTag}.node`,
 )
 if (!existsSync(source)) throw new Error(`Staged native binding missing: ${source}`)
-const nativeDir = resolve(root, 'sdk', 'backend', 'dist', 'native')
+const nativeDir = resolve(root, '../sdk/javascript/dist/native')
 mkdirSync(nativeDir, { recursive: true })
 const destination = resolve(nativeDir, `graphvideo-kernel-node.${platformTag}.node`)
 copyFileSync(source, destination)

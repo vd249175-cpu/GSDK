@@ -1,0 +1,86 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowJs": true,
+    "baseUrl": ".",
+    "paths": {
+      "@graphvideo/sdk/protocol": [
+        "../sdk/javascript/src/protocol/index.ts"
+      ],
+      "@graphvideo/workbench": [
+        "../frontend/workbench/src/index.ts"
+      ],
+      "@graphvideo/workbench/*": [
+        "../frontend/workbench/src/*"
+      ],
+      "@graphvideo/ui": [
+        "../frontend/ui/index.ts"
+      ],
+      "@graphvideo/context": [
+        "../frontend/context/index.ts"
+      ],
+      "@graphvideo/client": [
+        "../frontend/client/index.ts"
+      ],
+      "react": [
+        "node_modules/@types/react/index.d.ts"
+      ],
+      "react/*": [
+        "node_modules/@types/react/*"
+      ],
+      "react-dom/*": [
+        "node_modules/@types/react-dom/*"
+      ],
+      "lucide-react": [
+        "node_modules/lucide-react/dist/lucide-react.d.ts"
+      ],
+      "yaml": [
+        "node_modules/yaml/dist/index.d.ts"
+      ],
+      "@graphvideo/sdk/node": [
+        "../sdk/javascript/src/node/index.ts"
+      ],
+      "@graphvideo/sdk/effect": [
+        "../sdk/javascript/src/effect/index.ts"
+      ],
+      "@graphvideo/sdk/plugin": [
+        "../sdk/javascript/src/plugin/index.ts"
+      ],
+      "@graphvideo/sdk/analysis": [
+        "../sdk/javascript/src/analysis/index.ts"
+      ],
+      "@graphvideo/sdk/agent": [
+        "../sdk/javascript/src/agent/index.ts"
+      ],
+      "@graphvideo/sdk/testing": [
+        "../sdk/javascript/src/testing/index.ts"
+      ],
+      "@graphvideo/desktop/graph-host": [
+        "host/native-graph-host.mjs"
+      ],
+      "@graphvideo/desktop/*": [
+        "host/*"
+      ]
+    }
+  },
+  "include": [
+    "host",
+    "application.mjs",
+    "build",
+    "scripts",
+    "../../app/plugins/*/backend.ts",
+    "../../app/plugins/*/backend.mjs",
+    "../../app/plugins/*/desktop"
+  ],
+  "exclude": [
+    "../../app/plugins/**/*.test.ts",
+    "../../app/plugins/**/*.test.tsx",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
+}

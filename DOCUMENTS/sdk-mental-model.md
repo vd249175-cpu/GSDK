@@ -9,14 +9,14 @@ type: reference
 ## 1. 包与依赖方向
 
 ```text
-插件 frontend ──→ @graphvideo/packages/frontend/client ──→ @graphvideo/workbench
+插件 frontend ──→ @graphvideo/client ──→ @graphvideo/workbench
 插件 backend  ──→ @graphvideo/sdk/plugin + @graphvideo/sdk/node ──→ @graphvideo/sdk/protocol
 插件两端      ──→ 本插件内聚模块（contract/、frontend/、backend/）
 宿主          ──→ SDK + 插件贡献（动态装配，不静态依赖业务插件）
 ```
 
 七个镜像能力面（JS/Python 一一对应）：`protocol/node/effect/plugin/analysis/agent/testing`。
-前端专属（无 Python 镜像）：`packages/frontend/{client,workbench,tokens,ui}`。
+前端专属（无 Python 镜像）：`packages/frontend/{client,workbench,context,theme,ui}`。
 
 禁止反向：SDK 不导入插件；Rust 内核不导入任何人；
 插件之间只经显式声明的公开契约协作，不导入对方实现。
@@ -30,11 +30,11 @@ type: reference
 | `@graphvideo/sdk/agent` | `KernelDaemonClient`、inspect/analyze/inject/patch 控制面 | 业务逻辑 |
 | `@graphvideo/sdk/analysis` | JS 实例扫描与便携事实；权威计算在 Rust `graphvideo-analysis` | 业务、浏览器包 |
 | `@graphvideo/sdk/testing` | `createTestRuntime`（快速单节点规约测试）、`EffectHarness` | 生产装配 |
-| `@graphvideo/packages/frontend/client` 等前端包 | 投影订阅、hooks、Workbench、Token、UI | 业务 State |
+| `@graphvideo/client` 等前端包 | 投影订阅、hooks、Workbench、Token、UI | 业务 State |
 
 `@graphvideo/sdk/agent` 还提供 `connectKernelDaemon`、`runDaemonNodeWorker` 和 `runDaemonEffectProvider`：前者连接业务无关的独立 Rust 图宿主，后两者分别把 JS change handler 与物理 EffectAdapter 适配为通用租约协议。其他语言直接实现相同 DTO 协议即可；daemon 不依赖 JS 业务代码，也不解释 adapter 的业务含义。
 
-各包独立安装构建（`app`、`packages/sdk/javascript`、`packages/frontend/*` 持各自 `package.json`；根目录无 workspace、无 `node_modules`）。TypeScript 类型与大部分 SDK 入口直接指向源码；`cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node && node packages/rust/scripts/stage-native.mjs` 构建 Rust/N-API 调度内核。本仓库不提供 tarball 导出、发包或仓外脚手架流程。
+各包独立安装构建（`packages/desktop`、`packages/sdk/javascript`、`packages/frontend/*` 持各自 `package.json`；根目录无 npm 清单和 node_modules）。`app` 只保存 application.json 与插件。桌面源码构建显式消费 SDK 源码；支持 TypeScript 的 Node 宿主可通过 `graphvideo-source` 条件使用源码出口，默认出口使用 dist 发布产物。Rust/N-API 使用 `cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node && node packages/rust/scripts/stage-native.mjs` 构建。
 
 Studio 桌面窗口由图内 `host-el`、`sink-electron-window`、`src-electron-window` 三个节点管理。Electron `ready`、窗口控制 IPC 和系统窗口关闭事件只作为根 Info 输入；物理 BrowserWindow 操作由执行节点的 `electronWindowAdapter` 完成。关闭全部窗口后，图宿主仍在 Electron 主进程中运行，直到该进程结束。
 
@@ -76,7 +76,7 @@ export default defineBackendPlugin({
 SDK 只给机制，业务绑定由插件（或宿主）完成一次：
 
 ```ts
-import { createServicesContext, defineClientHooks } from '@graphvideo/packages/frontend/client';
+import { createServicesContext, defineClientHooks } from '@graphvideo/client';
 
 const { ServicesContext, ServiceProvider, useServices } =
   createServicesContext<MyServices>(myServices);
@@ -117,12 +117,12 @@ UI 写入口 → 命令适配 → 根 Info（插件 frontend/application）
 
 ```bash
 npm --prefix packages/sdk/javascript run typecheck   # SDK 类型
-npm --prefix packages/sdk/javascript test <目标> --silent
+npm --prefix packages/sdk/javascript test -- <目标> --silent
 cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node && node packages/rust/scripts/stage-native.mjs  # 动原生绑定后跑（cargo 构建 + 摆放 .node）
-npm --prefix app run verify                           # 构建 native 并完成本地应用验收
-npm --prefix app run diagnose -- validate   # 改 Node/Info/State/投影/联动后必跑
-npm --prefix app run diagnose -- node <nodeId>  # 单实体切片，先看局部不看全图
-npm --prefix app run build    # 动生产装配/Electron 后跑
+npm --prefix packages/desktop run verify                # 检查已有原生绑定并构建应用
+npm --prefix packages/desktop run diagnose -- validate   # 改 Node/Info/State/投影/联动后必跑
+npm --prefix packages/desktop run diagnose -- node <nodeId>  # 单实体切片，先看局部不看全图
+npm --prefix packages/desktop run build    # 动生产装配/Electron 后跑
 ```
 
 `packages/sdk/javascript/tests/determinism-source.test.ts` 是架构门禁：业务 Node 触碰 I/O/系统 API 即失败。

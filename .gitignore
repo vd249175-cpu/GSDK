@@ -2,7 +2,7 @@ node_modules/
 # SDK dist bundles are local Electron-loadable build output (rebuild via build:dist)
 packages/sdk/javascript/dist/
 dist/
-app/renderer-dist/
+packages/desktop/dist/
 .vite/
 coverage/
 *.tsbuildinfo
@@ -23,8 +23,20 @@ packages/rust/target/
 packages/rust/kernel-node/*.node
 
 # Main process and plugin build artifacts
-plugins/graphvideo.studio/backend.js
-app/src-main/effects/node-generation-adapter.js
+app/plugins/*/backend.js
+app/plugins/*/desktop/**/*.js
+packages/desktop/host/native-graph-host.js
+packages/desktop/host/services/element-catalog.js
+**/.pytest_cache/
+**/__pycache__/
+*.pyc
+**/.test-temp/
+**/.legacy-node-modules/
+**/.legacy-renderer-dist/
 **/.graphvideo-history.json
-app/resources/sample-media/
+app/plugins/graphvideo.studio/resources/sample-media/
+**/.legacy-resources/
+**/.legacy-plugin-build/
+**/.legacy-main-build/
+**/.legacy-vitest-node-modules/
 

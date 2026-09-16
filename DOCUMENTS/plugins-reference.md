@@ -22,7 +22,7 @@ description: GSDK 业务插件规范、当前插件拓扑全景清单（包含 N
 │                   前端 UI (Renderer)                   │
 │   React 组件 / Workbench Elements / 自定义 Inspector   │
 └─────────────────────────┬──────────────────────────────┘
-                          │ 仅通过 @graphvideo/packages/frontend/client 交互
+                          │ 仅通过 @graphvideo/client 交互
                           │ (useGraphVideoSnapshot / useGraphVideoClient)
 ┌─────────────────────────▼──────────────────────────────┐
 │             插件系统层 (plugins)        │

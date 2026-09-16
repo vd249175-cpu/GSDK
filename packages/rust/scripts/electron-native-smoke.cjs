@@ -1,7 +1,8 @@
-void import('@graphvideo/backend-sdk').then(async ({ NativeRuleSpace }) => {
-  const space = new NativeRuleSpace({
-    idProvider: { nextId: () => 'smoke/submission' },
-  })
+const { pathToFileURL } = require('node:url')
+const { resolve } = require('node:path')
+void import(pathToFileURL(resolve(__dirname, '../../desktop/host/native-graph-host.js')).href).then(async ({ createNativeGraphHost }) => {
+  const host = createNativeGraphHost()
+  const space = host.space
   space.register('smoke', { count: 0 }, (_info, ctx) => {
     ctx.write('count', ctx.read('count') + 1)
   })

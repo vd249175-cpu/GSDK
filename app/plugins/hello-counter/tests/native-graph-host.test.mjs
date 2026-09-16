@@ -1,0 +1,74 @@
+import { describe, expect, it } from 'vitest'
+import {locateNativeBinding} from '@graphvideo/sdk/node'
+import plugin from '../backend.mjs'
+import { CounterNodeV2 } from './counter-v2.fixture.mjs'
+import { createCounterHost as createNativeGraphHost } from './counter-host.mjs'
+
+const binary = locateNativeBinding()
+
+/**
+ * M4 应用级热重载演示：同一进程、同一规则空间内，用新版本插件代码
+ * 原子替换运行中的业务 Node。旧 backlog 丢弃、新逻辑秒级生效。
+ */
+describe.skipIf(!binary)('native-graph-host hot reload', () => {
+  it('exposes trusted Agent inspect, arbitrary inject and versioned State intervention', async () => {
+    const host = createNativeGraphHost({ plugins: [plugin] })
+    try {
+      const before = host.agentInspect()
+      expect(before.projection.nodes[0]).toMatchObject({ nodeId: 'example.counter', version: 0 })
+      expect(before.nodeStates[0]).toMatchObject({ nodeId: 'example.counter', generation: 0, version: 0, state: { count: 0 } })
+      expect((await host.agentAnalyze({ op: 'view', foldDepth: 0 })).nodes['fold:world'].sourceNodeIds)
+        .toEqual(['example.counter'])
+      expect((await host.agentAnalyze({
+        op: 'entity', address: 'entry:rendererRoot:example.hello-counter:example.counter:IncrementInfo',
+      })).kind).toBe('entry')
+      const edited = await host.agentInterveneState('example.counter', { count: 5 }, {
+        actor: 'agent/test', reason: 'repair', expectedGeneration: 0, expectedVersion: 0,
+      })
+      expect(edited.version).toBe(1)
+      const injected = await host.agentInject('example.counter', { type: 'IncrementInfo' }, {
+        actor: 'agent/test', reason: 'verify',
+      })
+      expect(injected.feedback.status).toBe('enqueued')
+      expect(host.readCounter()).toEqual({ count: 6 })
+      expect(host.agentInspect().causalEvents.events.some((event) => event.type === 'state_intervened')).toBe(true)
+    } finally {
+      await host.dispose()
+    }
+  })
+  it('生产插件跑在 Rust 调度上，v1 计数可用', async () => {
+    const host = createNativeGraphHost({ plugins: [plugin] })
+    try {
+      await expect(host.injectCounter()).resolves.toEqual({ count: 1 })
+      await expect(host.injectCounter()).resolves.toEqual({ count: 2 })
+      const explicit = await host.injectRoot('example.counter', { type: 'IncrementInfo' }, 'sub/explicit')
+      expect(explicit.submissionId).toBe('sub/explicit')
+      expect(host.generation('example.counter')).toBe(0)
+      const projection = host.readProjection()
+      expect(projection.nodes).toHaveLength(1)
+      expect(projection.nodes[0]).toMatchObject({ nodeId: 'example.counter', version: 3 })
+      expect(projection.revision).toBeGreaterThan(0)
+    } finally {
+      await host.dispose()
+    }
+  })
+
+  it('不重启进程热换 v2：未达消息丢弃、新实体纯净启动、新步长立即生效', async () => {
+    const host = createNativeGraphHost({ plugins: [plugin] })
+    try {
+      await expect(host.injectCounter()).resolves.toEqual({ count: 1 })
+      // 入队但不泵：这次投递绝不能活过替换。
+      const stale = host.space.injectRoot('example.counter', { type: 'IncrementInfo' })
+      const generation = await host.hotSwap(new CounterNodeV2())
+      expect(generation).toBe(1)
+      await host.space.waitForSubmission(stale)
+      // 纯净重启：旧 State 不继承，新实体从自身初值启动。
+      expect(host.readCounter()).toEqual({ count: 0 })
+      // 状态迁移只能是普通 Info：显式重放用户意图，新代码立即生效（步长 +10）。
+      await expect(host.injectCounter()).resolves.toEqual({ count: 10 })
+      expect(host.generation('example.counter')).toBe(1)
+    } finally {
+      await host.dispose()
+    }
+  })
+})

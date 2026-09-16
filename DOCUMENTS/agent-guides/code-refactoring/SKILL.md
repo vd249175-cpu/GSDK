@@ -2,7 +2,7 @@
 name: code-refactoring
 description: >-
   Global AST-aware symbol renaming, reference tracking, and safe codebase refactoring
-  using TypeScript LanguageService (packages/sdk/javascript/scripts/refactor.mjs). Use when renaming classes,
+  using TypeScript LanguageService (packages/tooling/refactor/refactor.mjs). Use when renaming classes,
   types, methods, interfaces, or variables across the whole repository, or performing
   safe global text replacements.
 ---
@@ -27,19 +27,19 @@ description: >-
 ### 2.1 跨文件全局重命名（AST 级别）
 
 ```bash
-node packages/sdk/javascript/scripts/refactor.mjs rename <file-path> <old-symbol-name> <new-symbol-name> [--line <line-number>]
+node packages/tooling/refactor/refactor.mjs rename <file-path> <old-symbol-name> <new-symbol-name> [--line <line-number>]
 ```
 
 **示例**：
 - 重命名 `packages/sdk/javascript/src/node/node.ts` 中声明的 `ExecutionWorldNode` 为 `ActionWorldNode`：
   ```bash
-  node packages/sdk/javascript/scripts/refactor.mjs rename packages/sdk/javascript/src/node/node.ts ExecutionWorldNode ActionWorldNode
+  node packages/tooling/refactor/refactor.mjs rename packages/sdk/javascript/src/node/node.ts ExecutionWorldNode ActionWorldNode
   ```
   *说明：工具会自动定位该类在 `packages/sdk/javascript/src/node/node.ts` 的定义，并精准修改所有引用它的文件（如 `packages/sdk/javascript/src/node/native-space.ts` 等），同时自动修正 import 语句。*
 
 - 如果同一文件存在多个同名符号（如函数名与局部变量重名），可使用 `--line` 指定目标行：
   ```bash
-  node packages/sdk/javascript/scripts/refactor.mjs rename packages/sdk/javascript/src/node/context.ts effectAdapter executeEffect --line 116
+  node packages/tooling/refactor/refactor.mjs rename packages/sdk/javascript/src/node/context.ts effectAdapter executeEffect --line 116
   ```
 
 ---
@@ -47,12 +47,12 @@ node packages/sdk/javascript/scripts/refactor.mjs rename <file-path> <old-symbol
 ### 2.2 查找全仓所有引用（Find References）
 
 ```bash
-node packages/sdk/javascript/scripts/refactor.mjs find-refs <file-path> <symbol-name> [--line <line-number>]
+node packages/tooling/refactor/refactor.mjs find-refs <file-path> <symbol-name> [--line <line-number>]
 ```
 
 **示例**：
 ```bash
-node packages/sdk/javascript/scripts/refactor.mjs find-refs packages/sdk/javascript/src/node/node.ts WorldNode
+node packages/tooling/refactor/refactor.mjs find-refs packages/sdk/javascript/src/node/node.ts WorldNode
 ```
 *输出全仓所有定义位置与引用位置（包含相对文件路径、行号与列号）。*
 
@@ -63,12 +63,12 @@ node packages/sdk/javascript/scripts/refactor.mjs find-refs packages/sdk/javascr
 适用于非 TypeScript 符号的路径、文档、配置文件批量变更：
 
 ```bash
-node packages/sdk/javascript/scripts/refactor.mjs replace-text <search-string> <replace-string> [--ext .ts,.tsx,.json,.md]
+node packages/tooling/refactor/refactor.mjs replace-text <search-string> <replace-string> [--ext .ts,.tsx,.json,.md]
 ```
 
 **示例**：
 ```bash
-node packages/sdk/javascript/scripts/refactor.mjs replace-text "@graphvideo/sdk/node" "@graphvideo/sdk/node"
+node packages/tooling/refactor/refactor.mjs replace-text "@graphvideo/sdk/node" "@graphvideo/sdk/node"
 ```
 *自动跳过 `node_modules/`、`dist/`、`.git/`，并递归替换匹配文件。*
 

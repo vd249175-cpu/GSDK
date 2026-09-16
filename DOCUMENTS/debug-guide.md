@@ -38,17 +38,17 @@ Info 用“类型 + 目标 Node”精确寻址。只有查询命令明确允许�
 本地应用的诊断入口只构造插件 Node 实例并读取方法描述，不创建 Runtime、不加载原生模块：
 
 ```bash
-npm --prefix app run diagnose -- validate
-npm --prefix app run diagnose -- node example.counter
-npm --prefix app run diagnose -- change example.counter::IncrementInfo
-npm --prefix app run diagnose -- info IncrementInfo@example.counter
-npm --prefix app run diagnose -- state example.counter::count
-npm --prefix app run diagnose -- expand state:example.counter::count
-npm --prefix app run diagnose -- path entry:counter.increment ui:counter.count
-npm --prefix app run diagnose -- select example.counter
-npm --prefix app run diagnose -- frontend
-npm --prefix app run diagnose -- health
-npm --prefix app run diagnose -- reach example.counter
+npm --prefix packages/desktop run diagnose -- validate
+npm --prefix packages/desktop run diagnose -- node example.counter
+npm --prefix packages/desktop run diagnose -- change example.counter::IncrementInfo
+npm --prefix packages/desktop run diagnose -- info IncrementInfo@example.counter
+npm --prefix packages/desktop run diagnose -- state example.counter::count
+npm --prefix packages/desktop run diagnose -- expand state:example.counter::count
+npm --prefix packages/desktop run diagnose -- path entry:counter.increment ui:counter.count
+npm --prefix packages/desktop run diagnose -- select example.counter
+npm --prefix packages/desktop run diagnose -- frontend
+npm --prefix packages/desktop run diagnose -- health
+npm --prefix packages/desktop run diagnose -- reach example.counter
 ```
 
 `path` 按参数顺序逐段执行有向最短路径查询。每段独立返回 `found`、`depth-limited` 或 `unreachable`；前向失败时会附带反向证据与 frontier。Node 地址只在路径端点展开为其 change/State，contains/owns 不是因果捷径。
@@ -68,7 +68,7 @@ npm --prefix app run diagnose -- reach example.counter
 - EffectAdapter 是否收到预期 Request、Clock 与 AbortSignal；
 - 替换后旧 generation 的 ctx 是否已失效，新实例是否从自身初始 State 启动。
 
-原生规则空间的 Agent 控制面提供最近 1000 条因果事件及游标查询，但不是持久 trace 历史。需要证明某次执行顺序时，使用最小测试记录 submission、State、Info、Effect 和 Projection，不要把静态可达性当作动态 Trace。当前生产装配的静态索引可通过 `NativeRuleSpace.analyze` 或 `node app/scripts/agent-control.mjs analyze request.json` 查询，`foldDepth` 控制折叠视角分辨率。
+原生规则空间的 Agent 控制面提供最近 1000 条因果事件及游标查询，但不是持久 trace 历史。需要证明某次执行顺序时，使用最小测试记录 submission、State、Info、Effect 和 Projection，不要把静态可达性当作动态 Trace。当前生产装配的静态索引可通过 `NativeRuleSpace.analyze` 或 `node packages/desktop/scripts/agent-control.mjs analyze request.json` 查询，`foldDepth` 控制折叠视角分辨率。
 
 ## 5. 高频断点
 
@@ -100,5 +100,5 @@ await runtime.dispose()
 ```bash
 npx vitest run <target-test> --silent
 npx tsc --noEmit
-npm --prefix app run diagnose -- validate
+npm --prefix packages/desktop run diagnose -- validate
 ```

@@ -1,0 +1,7 @@
+{
+  "name": "@graphvideo/refactor",
+  "private": true,
+  "type": "module",
+  "dependencies": { "typescript": "^5.0.0" },
+  "scripts": { "check:layout": "node check-layout.mjs" }
+}

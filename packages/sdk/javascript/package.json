@@ -21,6 +21,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "typescript": "^5.0.0",
     "vite": "^6.0.0",
     "vitest": "^3.0.0"
@@ -28,30 +29,37 @@
   "exports": {
     "./protocol": {
       "types": "./src/protocol/index.ts",
+      "graphvideo-source": "./src/protocol/index.ts",
       "default": "./dist/protocol.js"
     },
     "./node": {
       "types": "./src/node/index.ts",
+      "graphvideo-source": "./src/node/index.ts",
       "default": "./dist/node.js"
     },
     "./effect": {
       "types": "./src/effect/index.ts",
+      "graphvideo-source": "./src/effect/index.ts",
       "default": "./dist/effect.js"
     },
     "./plugin": {
       "types": "./src/plugin/index.ts",
+      "graphvideo-source": "./src/plugin/index.ts",
       "default": "./dist/plugin.js"
     },
     "./analysis": {
       "types": "./src/analysis/index.ts",
+      "graphvideo-source": "./src/analysis/index.ts",
       "default": "./dist/analysis.js"
     },
     "./agent": {
       "types": "./src/agent/index.ts",
+      "graphvideo-source": "./src/agent/index.ts",
       "default": "./dist/agent.js"
     },
     "./testing": {
       "types": "./src/testing/index.ts",
+      "graphvideo-source": "./src/testing/index.ts",
       "default": "./dist/testing.js"
     },
     "./package.json": "./package.json"

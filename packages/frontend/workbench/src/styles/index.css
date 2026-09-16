@@ -1,7 +1,4 @@
-@import './typography.css';
-@import './theme.css';
-@import './theme-light.css';
-@import './theme-traditional.css';
+@import '@graphvideo/theme/base.css';
 
 @import './dock.css';
 @import './workspace-tabs.css';
