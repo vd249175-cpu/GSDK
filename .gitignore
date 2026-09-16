@@ -15,16 +15,15 @@ sdk/init-bundle/
 
 # Rust 原生内核构建产物
 /target/
-crates/target/
+packages/rust/target/
 **/target/
-Cargo.lock
 
 # Staged native binding (rebuild via npm run build:native)
-crates/kernel-node/*.node
+packages/rust/kernel-node/*.node
 
 # Main process and plugin build artifacts
-apps/local-app/plugins/graphvideo.studio/backend.js
-apps/local-app/src-main/effects/node-generation-adapter.js
+plugins/graphvideo.studio/backend.js
+app/src-main/effects/node-generation-adapter.js
 **/.graphvideo-history.json
-apps/local-app/resources/sample-media/
+app/resources/sample-media/
 
