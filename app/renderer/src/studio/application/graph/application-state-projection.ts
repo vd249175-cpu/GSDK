@@ -1,4 +1,4 @@
-import { defaultValueCodec } from '@graphvideo/sdk/node';
+import { defaultValueCodec } from '@graphvideo/sdk/protocol';
 import { type GraphProjection, type GraphProjectionNode } from '@graphvideo/sdk/protocol';
 import { createInitialState } from '../../core/state/initialState'
 import type { ApplicationState } from '../../core/state/types'

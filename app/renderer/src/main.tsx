@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { App } from './studio/app/App'
 import { ApplicationErrorBoundary } from './studio/app/ApplicationErrorBoundary'
 import { AppProvider } from './studio/app/AppContext'
-import '@graphvideo/sdk/workbench/styles.css'
+import '@graphvideo/workbench/styles/index.css'
 import './studio/styles/index.css'
 
 createRoot(document.getElementById('root')!).render(

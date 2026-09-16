@@ -17,8 +17,6 @@ export class SqliteWriterSinkNode extends WorldNode<SqliteWriterState> {
             dbFilePath: '.graphvideo/nodes.sqlite',
             lastPersistTime: 0,
         });
-        this.icon = '💾';
-        this.description =
             '【物理写入执行端】独占执行 SQLite 本地磁盘事务与持久化写入\n【单向受控】接收 SqliteRegistryNode 下发的元数据与文本落盘任务\n【物理流出】落盘完成后触发物理层事实至落盘观测端';
     }
     protected override async change(info: Info, ctx: WorldChangeContext<SqliteWriterState>): Promise<void> {
@@ -102,6 +100,6 @@ export class SqliteWriterSinkNode extends WorldNode<SqliteWriterState> {
     public getBodySummaryText(): string {
         return this.state.persistedRecordCount > 0
             ? `已落盘: ${this.state.persistedRecordCount} 条记录 (${this.state.dbFilePath})`
-            : this.description;
+            : '';
     }
 }

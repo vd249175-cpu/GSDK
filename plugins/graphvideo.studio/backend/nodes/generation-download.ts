@@ -23,8 +23,6 @@ export class GenerationDownloadSinkNode extends WorldNode<Record<never, never>> 
     private readonly taskTargetId: string = 'node-generation-task',
   ) {
     super(id, name, {});
-    this.icon = '📥';
-    this.description = '只下载已经由轮询确认 ready 的产物，并返回物理写入 Observation';
   }
 
   protected override async change(

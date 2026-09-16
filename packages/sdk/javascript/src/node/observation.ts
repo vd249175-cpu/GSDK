@@ -1,5 +1,7 @@
 import type { ChangeRecord, InfoEnvelope } from '../protocol/types';
-
+import type { EncodedValue } from '../protocol/codec';
+export { ValueCodec, defaultValueCodec } from '../protocol/codec';
+export type { EncodedValue, ValueCodecOptions } from '../protocol/codec';
 export const traceSchemaVersion = 2 as const;
 
 export type TraceId = string;
@@ -54,140 +56,6 @@ export class TimeRandomIdProvider implements IdProvider {
     return `${kind}-${timestamp}-${count}-${random}`;
   }
 }
-
-export type EncodedValue =
-  | { $type: 'primitive'; value: string | number | boolean | null | undefined }
-  | { $type: 'array'; value: EncodedValue[] }
-  | { $type: 'object'; value: Record<string, EncodedValue> }
-  | { $type: 'map'; entries: Array<[EncodedValue, EncodedValue]> }
-  | { $type: 'set'; values: EncodedValue[] }
-  | { $type: 'bytes'; value: string; byteLength: number }
-  | { $type: 'ref'; kind: string; summary: string; id?: string }
-  | { $type: 'truncated'; originalType: string; summary: string; byteLength?: number };
-
-export interface ValueCodecOptions {
-  maxDepth?: number;
-  maxBytes?: number;
-  maxArrayLength?: number;
-  rootPath?: string[];
-  redactedKeys?: readonly string[];
-}
-
-export class ValueCodec {
-  constructor(private defaultOptions: ValueCodecOptions = {}) {}
-
-  encode(value: unknown, options: ValueCodecOptions = {}): EncodedValue {
-    const opts = { ...this.defaultOptions, ...options };
-    return this._encodeValue(value, opts.maxDepth ?? 8, opts.rootPath ?? [], opts);
-  }
-
-  private _encodeValue(
-    value: unknown,
-    depthRemaining: number,
-    path: string[],
-    options: ValueCodecOptions,
-  ): EncodedValue {
-    if (value === null || value === undefined) {
-      return { $type: 'primitive', value };
-    }
-    const type = typeof value;
-    if (type === 'string' || type === 'number' || type === 'boolean') {
-      return { $type: 'primitive', value: value as string | number | boolean };
-    }
-    if (type === 'bigint' || type === 'symbol' || type === 'function') {
-      return { $type: 'ref', kind: type, summary: String(value) };
-    }
-    if (depthRemaining <= 0) {
-      return { $type: 'truncated', originalType: type, summary: '[Max Depth Reached]' };
-    }
-    if (value instanceof Map) {
-      const entries: Array<[EncodedValue, EncodedValue]> = [];
-      for (const [k, v] of value.entries()) {
-        entries.push([
-          this._encodeValue(k, depthRemaining - 1, [...path, String(k)], options),
-          this._encodeValue(v, depthRemaining - 1, [...path, String(k)], options),
-        ]);
-      }
-      return { $type: 'map', entries };
-    }
-    if (value instanceof Set) {
-      const items = Array.from(value.values()).map((item, idx) =>
-        this._encodeValue(item, depthRemaining - 1, [...path, String(idx)], options),
-      );
-      return { $type: 'set', values: items };
-    }
-    if (Array.isArray(value)) {
-      const maxLen = options.maxArrayLength ?? 100;
-      const items = value.slice(0, maxLen).map((item, idx) =>
-        this._encodeValue(item, depthRemaining - 1, [...path, String(idx)], options),
-      );
-      return { $type: 'array', value: items };
-    }
-    if (value instanceof Uint8Array || (typeof Buffer !== 'undefined' && Buffer.isBuffer(value))) {
-      return {
-        $type: 'bytes',
-        value: typeof Buffer !== 'undefined' ? Buffer.from(value).toString('base64') : '',
-        byteLength: value.byteLength,
-      };
-    }
-    if (type === 'object') {
-      const record: Record<string, EncodedValue> = {};
-      const obj = value as Record<string, unknown>;
-      const keys = Object.keys(obj);
-      for (const key of keys) {
-        if (options.redactedKeys?.includes(key)) {
-          record[key] = { $type: 'ref', kind: 'redacted', summary: '[REDACTED]' };
-        } else {
-          record[key] = this._encodeValue(obj[key], depthRemaining - 1, [...path, key], options);
-        }
-      }
-      return { $type: 'object', value: record };
-    }
-    return { $type: 'primitive', value: String(value) };
-  }
-
-  decode(encoded: EncodedValue): any {
-    if (!encoded || typeof encoded !== 'object') return encoded;
-    switch (encoded.$type) {
-      case 'primitive':
-        return encoded.value;
-      case 'array':
-        return encoded.value.map((item) => this.decode(item));
-      case 'map': {
-        const map = new Map();
-        for (const [k, v] of encoded.entries) {
-          map.set(this.decode(k), this.decode(v));
-        }
-        return map;
-      }
-      case 'set': {
-        const set = new Set();
-        for (const v of encoded.values) {
-          set.add(this.decode(v));
-        }
-        return set;
-      }
-      case 'object': {
-        const result: Record<string, any> = {};
-        for (const [key, val] of Object.entries(encoded.value)) {
-          result[key] = this.decode(val);
-        }
-        return result;
-      }
-      case 'bytes':
-        return typeof Buffer !== 'undefined'
-          ? Buffer.from(encoded.value, 'base64')
-          : encoded.value;
-      case 'ref':
-      case 'truncated':
-        return encoded.summary;
-      default:
-        return encoded;
-    }
-  }
-}
-
-export const defaultValueCodec = new ValueCodec();
 
 export function fnv1a32(str: string): string {
   let hash = 0x811c9dc5;

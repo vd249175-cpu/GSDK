@@ -12,8 +12,6 @@ export class MarkdownSourceNode extends Node<MarkdownSourceState> {
             revision: 0,
             lastUpdatedAt: 0,
         });
-        this.icon = '📄';
-        this.description =
             '【文档投影视窗】维护当前文档内存视图与 Markdown 编辑态\n【响应触发】接收前端编辑输入或外部导入同步流\n【增量传播】广播 DocumentUpdatedInfo 驱动 AST 解析与数据库同步';
     }
     protected override async change(info: Info, ctx: DomainChangeContext<MarkdownSourceState>): Promise<void> {
@@ -107,7 +105,7 @@ export class MarkdownSourceNode extends Node<MarkdownSourceState> {
     public getBodySummaryText(): string {
         return this.state.markdown
             ? `文档源: ${this.state.markdown.length} 字符`
-            : this.description || '等待初始 Markdown 文本';
+            : '等待初始 Markdown 文本';
     }
 }
 export { MarkdownSourceNode as ProjectDocumentNode };

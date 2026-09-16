@@ -21,8 +21,8 @@ const platformTag = platform === 'win32'
       ? `darwin-${arch}`
       : null;
 if (!sourceName || !platformTag) throw new Error(`Unsupported native target: ${platform}-${arch}`);
-const library = resolve(root, 'packages', 'rust', 'target', profile, sourceName);
-const outDir = resolve(root, 'packages', 'rust', 'kernel-node');
+const library = resolve(root, 'target', profile, sourceName);
+const outDir = resolve(root, 'kernel-node');
 const out = resolve(outDir, `graphvideo-kernel-node.${platformTag}.node`);
 
 if (!existsSync(library)) {

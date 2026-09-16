@@ -32,8 +32,6 @@ export class ElectronHostNode extends Node<ElectronHostState> {
       lastOperation: null,
       lastError: null,
     });
-    this.icon = '🖥️';
-    this.description = '桌面窗口的开启、关闭和操作意图经 Info 进入图；状态只由窗口 Observation 更新';
   }
 
   protected override change(info: Info, ctx: DomainChangeContext<ElectronHostState>): void {

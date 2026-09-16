@@ -15,34 +15,37 @@
   "bin": {
     "graphvideo-init": "./bin/graphvideo-init.mjs"
   },
+  "scripts": {
+    "build:dist": "vite build --config vite.dist.config.ts"
+  },
   "exports": {
     "./protocol": {
       "types": "./src/protocol/index.ts",
-      "default": "./src/protocol/index.ts"
+      "default": "./dist/protocol.js"
     },
     "./node": {
       "types": "./src/node/index.ts",
-      "default": "./src/node/index.ts"
+      "default": "./dist/node.js"
     },
     "./effect": {
       "types": "./src/effect/index.ts",
-      "default": "./src/effect/index.ts"
+      "default": "./dist/effect.js"
     },
     "./plugin": {
       "types": "./src/plugin/index.ts",
-      "default": "./src/plugin/index.ts"
+      "default": "./dist/plugin.js"
     },
     "./analysis": {
       "types": "./src/analysis/index.ts",
-      "default": "./src/analysis/index.ts"
+      "default": "./dist/analysis.js"
     },
     "./agent": {
       "types": "./src/agent/index.ts",
-      "default": "./src/agent/index.ts"
+      "default": "./dist/agent.js"
     },
     "./testing": {
       "types": "./src/testing/index.ts",
-      "default": "./src/testing/index.ts"
+      "default": "./dist/testing.js"
     },
     "./package.json": "./package.json"
   },

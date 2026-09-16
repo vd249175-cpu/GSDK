@@ -26,8 +26,6 @@ export class SqliteRegistryNode extends Node<SqliteRegistryState> {
             lastError: null,
             historyScopeId: '',
         });
-        this.icon = '🗄️';
-        this.description =
             '【SQLite 权威真理源】作为系统唯一权威真理源 (SSOT) 维护节点元数据与文本\n【多路汇聚】接收 AST 树同步、大纲变异与智能体工具链修改\n【事务执行】原子委托物理写入端落盘并联动 Action Journal 历史日志';
     }
     public exportState() {

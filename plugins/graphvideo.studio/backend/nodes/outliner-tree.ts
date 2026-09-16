@@ -12,8 +12,6 @@ export class OutlinerTreeNode extends Node<OutlinerState> {
             tree: [],
             lastStructureMd: '',
         });
-        this.icon = '📋';
-        this.description =
             '【大纲唯一 Owner】维护 canonical ProjectTreeItem\n【树编辑计算】基于 MarkdownSource revision 计算文档替换\n【提交闭环】替换请求返回 MarkdownSource，由 Kernel 重跑解析并投影';
     }
     protected override async change(info: Info, ctx: DomainChangeContext<OutlinerState>): Promise<void> {
@@ -71,7 +69,7 @@ export class OutlinerTreeNode extends Node<OutlinerState> {
         const totalNodes = flattenProjectTree(this.state.tree).length;
         return totalNodes > 0
             ? `大纲树: ${totalNodes} 个项目项`
-            : this.description || '大纲树就绪';
+            : '大纲树就绪';
     }
 }
 export { OutlinerTreeNode as ProjectOutlineNode };

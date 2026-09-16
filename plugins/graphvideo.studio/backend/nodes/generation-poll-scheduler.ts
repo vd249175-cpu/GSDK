@@ -16,8 +16,6 @@ export class GenerationPollSchedulerNode extends WorldNode<Record<never, never>>
     private readonly taskTargetId: string = 'node-generation-task',
   ) {
     super(id, name, {});
-    this.icon = '⏱️';
-    this.description = 'pending 后只等待一个物理间隔并发出新的轮询意图；状态查询仍由独立 poll Node 执行';
   }
 
   protected override async change(info: Info, ctx: WorldChangeContext<Record<never, never>>) {

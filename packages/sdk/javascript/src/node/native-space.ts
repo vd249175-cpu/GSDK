@@ -294,8 +294,10 @@ export function locateNativeBinding(): string | null {
   const fileName = `graphvideo-kernel-node.${platformTag}.node`;
   const candidates = [
     resolve(here, 'native', fileName),
+    resolve(here, '..', 'kernel-node', fileName),
     resolve(here, '..', '..', 'packages', 'rust', 'kernel-node', fileName),
     resolve(here, '..', '..', '..', 'packages', 'rust', 'kernel-node', fileName),
+    resolve(here, '..', '..', '..', '..', 'packages', 'rust', 'kernel-node', fileName),
   ];
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }

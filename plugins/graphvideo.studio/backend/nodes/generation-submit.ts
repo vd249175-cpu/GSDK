@@ -23,8 +23,6 @@ export class GenerationSubmitSinkNode extends WorldNode<Record<never, never>> {
     private readonly taskTargetId: string = 'node-generation-task',
   ) {
     super(id, name, {});
-    this.icon = '📤';
-    this.description = '并行提交一个准入批次的物理请求；只返回 handle，不轮询或下载';
   }
 
   protected override async change(

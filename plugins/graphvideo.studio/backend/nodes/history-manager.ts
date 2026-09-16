@@ -29,8 +29,6 @@ export class HistoryManagerNode extends Node<HistoryState> {
             currentEntry: null,
             historyScopeId: '',
         });
-        this.icon = '⏳';
-        this.description =
             '【事实历史记录】维护不可变数据库原子变更日志 (Action Journal)\n【事务级回滚】向 SQLite 发送 RevertMetadataTaskInfo 执行行级回滚\n【单向因果】无跨域倒灌，保持 100% 纯正向无环因果流水线';
     }
     public async recordJournal(entry: Omit<ActionJournalEntry, 'id' | 'timestamp'>, ctx: DomainChangeContext<HistoryState>): Promise<void> {

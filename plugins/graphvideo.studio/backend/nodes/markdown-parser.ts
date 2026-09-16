@@ -21,8 +21,6 @@ export class MarkdownParserNode extends Node<MarkdownParserState> {
             issues: [],
             lastParsedAt: 0,
         });
-        this.icon = '🌲';
-        this.description =
             '【AST 语法树解析】增量解析 Markdown 结构与标题分块\n【异常诊断】捕获 Prompt 标记与格式语法 Issue\n【双向派发】向下游大纲树与 SQLite 同步 ParsedAstTreeInfo';
     }
     protected override async change(info: Info, ctx: DomainChangeContext<MarkdownParserState>): Promise<void> {

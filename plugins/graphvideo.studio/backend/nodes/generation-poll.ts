@@ -23,8 +23,6 @@ export class GenerationPollSourceNode extends WorldNode<Record<never, never>> {
     private readonly taskTargetId: string = 'node-generation-task',
   ) {
     super(id, name, {});
-    this.icon = '🔎';
-    this.description = '对批次内每个 handle 并行查询一次状态；pending 不会自动再次轮询';
   }
 
   protected override async change(

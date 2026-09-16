@@ -49,8 +49,6 @@ export class GenerationModelResolverNode extends Node<GenerationModelResolverSta
     private readonly batchAdmissionTargetId: string = 'node-generation-task',
   ) {
     super(id, name, { resolutions: new Map() });
-    this.icon = '🧩';
-    this.description = '模型声明、参数、提示词与依赖规则的纯业务 Owner；不执行请求、轮询、下载或项目 I/O';
   }
 
   protected override async change(

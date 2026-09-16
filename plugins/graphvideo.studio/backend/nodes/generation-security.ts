@@ -24,9 +24,6 @@ export class SecurityGateNode extends Node<GenerationDecisionState> {
             lastBlockReason: null,
             lastVerifiedArtifact: null,
         });
-        this.category = 'decision';
-        this.icon = '🛡️';
-        this.description =
             '【预算 Owner】按解析后的模型计划核算并签发批次\n【准入决策】预算不足时拒绝进入生成任务状态机\n【事实核销】接收物理落盘 Observation 并转交 SQLite';
     }
     protected override async change(info: Info, ctx: DomainChangeContext<GenerationDecisionState>): Promise<void> {
@@ -101,7 +98,7 @@ export class SecurityGateNode extends Node<GenerationDecisionState> {
     public getBodySummaryText(): string {
         return this.state.lastBlockReason
             ? `风控拦截: ${this.state.lastBlockReason}`
-            : this.description ||
+            :
                 `积分放行: ${this.state.spentCredits}/${this.state.maxCreditBudget}`;
     }
 }

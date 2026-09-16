@@ -15,7 +15,7 @@ const platformTag = process.platform === 'win32'
       ? `darwin-${process.arch}`
       : null
 if (!platformTag) throw new Error(`Unsupported native target: ${process.platform}-${process.arch}`)
-const binding = resolve(root, 'packages', 'rust', 'kernel-node', `graphvideo-kernel-node.${platformTag}.node`)
+const binding = resolve(root, 'kernel-node', `graphvideo-kernel-node.${platformTag}.node`)
 if (!existsSync(binding)) throw new Error(`Native binding missing: ${binding}`)
 const smoke = resolve(root, 'scripts', 'electron-native-smoke.cjs')
 const result = spawnSync(electron, [smoke], {

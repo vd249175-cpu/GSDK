@@ -12,8 +12,6 @@ export class SqliteObserverSourceNode extends WorldNode<SqliteObserverState> {
             lastFlushedBytes: 0,
             lastObservedTime: 0,
         });
-        this.icon = '📡';
-        this.description =
             '【现实观测源】独立捕获 SQLite 物理磁盘落库完成事实\n【事实提升】物理写入事件 -> DatabaseSavedObservedInfo\n【对账回流】单向回流至领域层完成预期与事实闭环核验';
     }
     protected override async change(info: Info, ctx: WorldChangeContext<SqliteObserverState>): Promise<void> {
@@ -55,6 +53,6 @@ export class SqliteObserverSourceNode extends WorldNode<SqliteObserverState> {
     public getBodySummaryText(): string {
         return this.state.observedFlushes > 0
             ? `已捕获落盘事实: ${this.state.observedFlushes} 次`
-            : this.description;
+            : '';
     }
 }

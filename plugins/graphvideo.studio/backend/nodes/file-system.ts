@@ -15,8 +15,6 @@ export class FileSystemSourceNode extends WorldNode<FileSystemState> {
             loadedBytes: 0,
             lastObservedAt: 0,
         });
-        this.icon = '📄';
-        this.description =
             '【现实观测源】观测外部文件系统变动与导入网关 (Import Gateway)\n【协议提升】文件变动 -> ProjectConfigObservedInfo\n【单向流】将外部导入与环境事实推流至下游中台';
     }
     protected override async change(info: Info, ctx: WorldChangeContext<FileSystemState>): Promise<void> {
@@ -84,7 +82,7 @@ export class FileSystemSourceNode extends WorldNode<FileSystemState> {
     public getBodySummaryText(): string {
         return this.state.loadedBytes > 0
             ? `【当前项目】${this.state.projectName}\n【当前装载】${this.state.currentPath} (${this.state.loadedBytes} B)\n【协议输出】ProjectFileObservedInfo`
-            : this.description;
+            : '';
     }
 }
 export { FileSystemSourceNode as FileSystemWorldNode };

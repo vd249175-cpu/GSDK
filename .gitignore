@@ -1,7 +1,7 @@
 node_modules/
+# SDK dist bundles are local Electron-loadable build output (rebuild via build:dist)
+packages/sdk/javascript/dist/
 dist/
-renderer-dist/
-**/renderer-dist/
 .vite/
 coverage/
 *.tsbuildinfo

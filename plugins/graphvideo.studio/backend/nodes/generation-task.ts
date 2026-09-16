@@ -103,8 +103,6 @@ export class GenerationTaskNode extends Node<GenerationTaskState> {
     private readonly artifactObservedTargetId: string = 'node-sec-gate',
   ) {
     super(id, name, { tasks: new Map() });
-    this.icon = '🧭';
-    this.description = '生成任务阶段唯一 Owner；按 Info 推进提交、单次轮询与下载，不执行物理 I/O';
   }
 
   protected override async change(
