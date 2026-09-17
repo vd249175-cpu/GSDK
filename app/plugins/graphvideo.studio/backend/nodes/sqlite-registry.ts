@@ -9,6 +9,7 @@ export interface NodeMetadataRecord extends ProjectNode {
     updatedAt: number;
 }
 export interface SqliteRegistryState {
+    shutdownRequestId: string | null;
     table: Map<string, NodeMetadataRecord>;
     retainedTable: Map<string, NodeMetadataRecord>;
     lastUpdatedAt: number;
@@ -19,6 +20,7 @@ export interface SqliteRegistryState {
 export class SqliteRegistryNode extends Node<SqliteRegistryState> {
     constructor(id: string = 'node-sqlite', name: string = 'SQLite 元数据注册表') {
         super(id, name, {
+            shutdownRequestId: null,
             table: new Map<string, NodeMetadataRecord>(),
             retainedTable: new Map<string, NodeMetadataRecord>(),
             lastUpdatedAt: 0,
@@ -42,6 +44,14 @@ export class SqliteRegistryNode extends Node<SqliteRegistryState> {
     }
     protected override async change(info: Info, ctx: DomainChangeContext<SqliteRegistryState>): Promise<void> {
         const now = this.runtimeNow();
+        if (info.type === 'StudioPersistenceSnapshotInfo' && typeof info.requestId === 'string' && typeof info.markdown === 'string') {
+            ctx.patchState({ shutdownRequestId: info.requestId, inSync: false, lastError: null });
+            ctx.send({ type: 'PersistProjectStructureTaskInfo', request: {
+                taskId: `shutdown/${info.requestId}`, markdown: info.markdown,
+                nodes: [...ctx.read('table').values()], retainedNodes: [...ctx.read('retainedTable').values()], mode: 'full',
+            } }, 'sink-sqlite-writer');
+            return;
+        }
         if (info.type === 'ProjectMetadataHydratedInfo') {
             const hydrated = info as Info & {
                 observedAt?: number;
@@ -71,6 +81,11 @@ export class SqliteRegistryNode extends Node<SqliteRegistryState> {
         }
         if (info.type === 'DatabaseSavedObservedInfo' ||
             info.type === 'ProjectStructurePersistedObservedInfo') {
+            const requestId = ctx.read('shutdownRequestId');
+            if (requestId && info.taskId === `shutdown/${requestId}`) {
+                ctx.write('shutdownRequestId', null);
+                ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'persistence', requestId, ok: true }, 'node-application-lifecycle');
+            }
             {
                 ctx.write('inSync', true);
                 ctx.write('lastError', null);
@@ -81,6 +96,11 @@ export class SqliteRegistryNode extends Node<SqliteRegistryState> {
             return;
         }
         if (info.type === 'DatabaseWriteFailedObservedInfo') {
+            const requestId = ctx.read('shutdownRequestId');
+            if (requestId && info.taskId === `shutdown/${requestId}`) {
+                ctx.write('shutdownRequestId', null);
+                ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'persistence', requestId, ok: false, error: info.error }, 'node-application-lifecycle');
+            }
             ctx.write('inSync', false);
             ctx.write('lastError', typeof info.error === 'string'
                 ? info.error

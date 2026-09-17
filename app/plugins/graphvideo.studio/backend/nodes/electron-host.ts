@@ -15,6 +15,7 @@ export interface WindowConfig {
 }
 
 export interface ElectronHostState {
+  lifecycleRequestId: string | null;
   isWindowOpen: boolean;
   config: WindowConfig;
   lastStatePayload: unknown;
@@ -26,6 +27,7 @@ export interface ElectronHostState {
 export class ElectronHostNode extends Node<ElectronHostState> {
   constructor(id = 'host-el', name = '桌面生命周期控制器') {
     super(id, name, {
+      lifecycleRequestId: null,
       isWindowOpen: false,
       config: { title: 'GraphVideo Desktop', width: 1440, height: 900, frameless: true },
       lastStatePayload: null,
@@ -36,16 +38,24 @@ export class ElectronHostNode extends Node<ElectronHostState> {
 
   protected override change(info: Info, ctx: DomainChangeContext<ElectronHostState>): void {
     if (info.type === 'DesktopStartRequestedInfo' || info.type === 'OpenWindowTaskInfo' || info.type === 'BootInfo') {
-      if (ctx.read('isWindowOpen')) return;
+      if (ctx.read('isWindowOpen')) {
+        if (typeof info.lifecycleRequestId === 'string') ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'window', requestId: info.lifecycleRequestId, ok: true }, 'node-application-lifecycle');
+        return;
+      }
+      ctx.write('lifecycleRequestId', typeof info.lifecycleRequestId === 'string' ? info.lifecycleRequestId : null);
       const config = info.config && typeof info.config === 'object'
         ? { ...ctx.read('config'), ...(info.config as Partial<WindowConfig>) }
         : ctx.read('config');
-      ctx.send({ type: 'ElectronWindowEffectRequestedInfo', request: { type: 'OPEN', config } }, 'sink-electron-window');
+      ctx.send({ type: 'ElectronWindowEffectRequestedInfo', lifecycleRequestId: info.lifecycleRequestId, request: { type: 'OPEN', config } }, 'sink-electron-window');
       return;
     }
     if (info.type === 'DesktopCloseRequestedInfo') {
-      if (!ctx.read('isWindowOpen')) return;
-      ctx.send({ type: 'ElectronWindowEffectRequestedInfo', request: { type: 'CLOSE' } }, 'sink-electron-window');
+      if (!ctx.read('isWindowOpen')) {
+        if (typeof info.lifecycleRequestId === 'string') ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'window', requestId: info.lifecycleRequestId, ok: true }, 'node-application-lifecycle');
+        return;
+      }
+      ctx.write('lifecycleRequestId', typeof info.lifecycleRequestId === 'string' ? info.lifecycleRequestId : null);
+      ctx.send({ type: 'ElectronWindowEffectRequestedInfo', lifecycleRequestId: info.lifecycleRequestId, request: { type: 'CLOSE' } }, 'sink-electron-window');
       return;
     }
     if (info.type === 'ConfigureWindowTaskInfo' && info.config && typeof info.config === 'object') {
@@ -67,10 +77,20 @@ export class ElectronHostNode extends Node<ElectronHostState> {
         lastOperation: observation.type,
         lastError: null,
       });
+      const requestId = ctx.read('lifecycleRequestId');
+      if (requestId && info.lifecycleRequestId === requestId) {
+        ctx.write('lifecycleRequestId', null);
+        ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'window', requestId, ok: true }, 'node-application-lifecycle');
+      }
       return;
     }
     if (info.type === 'ElectronWindowEffectFailedInfo') {
       ctx.write('lastError', String(info.message));
+      const requestId = ctx.read('lifecycleRequestId');
+      if (requestId && info.lifecycleRequestId === requestId) {
+        ctx.write('lifecycleRequestId', null);
+        ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'window', requestId, ok: false, error: info.message }, 'node-application-lifecycle');
+      }
       return;
     }
     if (info.type === 'UiStateInfo') ctx.write('lastStatePayload', info.payload);
@@ -92,10 +112,11 @@ export class ElectronWindowExecutionNode extends ExecutionWorldNode<Record<never
     if (info.type !== 'ElectronWindowEffectRequestedInfo') return;
     try {
       const observation = await ctx.effectAdapter(this.adapter, info.request as ElectronWindowRequest);
-      ctx.send({ type: 'ElectronWindowEffectObservedInfo', observation }, 'src-electron-window');
+      ctx.send({ type: 'ElectronWindowEffectObservedInfo', lifecycleRequestId: info.lifecycleRequestId, observation }, 'src-electron-window');
     } catch (error) {
       ctx.send({
         type: 'ElectronWindowEffectFailedInfo',
+        lifecycleRequestId: info.lifecycleRequestId,
         message: error instanceof Error ? error.message : String(error),
       }, 'host-el');
     }
@@ -110,7 +131,7 @@ export class ElectronWindowObservationNode extends ObservationWorldNode<Record<n
 
   protected override change(info: Info, ctx: WorldChangeContext<Record<never, never>>): void {
     if (info.type === 'ElectronWindowEffectObservedInfo') {
-      ctx.send({ type: 'DesktopWindowObservedInfo', observation: info.observation }, 'host-el');
+      ctx.send({ type: 'DesktopWindowObservedInfo', lifecycleRequestId: info.lifecycleRequestId, observation: info.observation }, 'host-el');
     } else if (info.type === 'ElectronWindowClosedObservedInfo') {
       ctx.send({
         type: 'DesktopWindowObservedInfo',

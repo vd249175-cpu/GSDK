@@ -1,4 +1,4 @@
-import { WorldNode } from '@graphvideo/sdk/node';
+import { ExecutionWorldNode } from '@graphvideo/sdk/node';
 import type { Info, WorldChangeContext } from '@graphvideo/sdk/protocol';
 import type { EffectAdapter } from '@graphvideo/sdk/node';
 import { SqliteMetadataAdapter, type SqliteMetadataRecord, type SqlitePersistObservation, type SqlitePersistRequest, } from '../effects/sqlite-metadata-adapter';
@@ -10,7 +10,7 @@ export interface SqliteWriterState {
     dbFilePath: string;
     lastPersistTime: number;
 }
-export class SqliteWriterSinkNode extends WorldNode<SqliteWriterState> {
+export class SqliteWriterSinkNode extends ExecutionWorldNode<SqliteWriterState> {
     constructor(id: string = 'sink-sqlite-writer', name: string = 'SQLite磁盘写入端', private readonly adapter: EffectAdapter<SqlitePersistRequest, SqlitePersistObservation> = new SqliteMetadataAdapter(new DesktopSqliteWritePort()), private readonly projectStructureAdapter: EffectAdapter<ProjectStructurePersistRequest, ProjectStructurePersistObservation> = new ProjectStructureAdapter(new DesktopProjectStructureWritePort()), private readonly observerTargetId: string = 'src-sqlite-observer') {
         super(id, name, {
             persistedRecordCount: 0,

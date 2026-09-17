@@ -1,11 +1,11 @@
-import { WorldNode } from '@graphvideo/sdk/node';
+import { ObservationWorldNode } from '@graphvideo/sdk/node';
 import type { Info, WorldChangeContext } from '@graphvideo/sdk/protocol';
 export interface SqliteObserverState {
     observedFlushes: number;
     lastFlushedBytes: number;
     lastObservedTime: number;
 }
-export class SqliteObserverSourceNode extends WorldNode<SqliteObserverState> {
+export class SqliteObserverSourceNode extends ObservationWorldNode<SqliteObserverState> {
     constructor(id: string = 'src-sqlite-observer', name: string = 'SQLite落盘观测源') {
         super(id, name, {
             observedFlushes: 0,

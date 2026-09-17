@@ -15,6 +15,14 @@ export class MarkdownSourceNode extends Node<MarkdownSourceState> {
             '【文档投影视窗】维护当前文档内存视图与 Markdown 编辑态\n【响应触发】接收前端编辑输入或外部导入同步流\n【增量传播】广播 DocumentUpdatedInfo 驱动 AST 解析与数据库同步';
     }
     protected override async change(info: Info, ctx: DomainChangeContext<MarkdownSourceState>): Promise<void> {
+        if (info.type === 'StudioPersistencePrepareShutdownInfo' && typeof info.requestId === 'string') {
+            if (info.hasProject !== true) {
+                ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'persistence', requestId: info.requestId, ok: true }, 'node-application-lifecycle');
+            } else {
+                ctx.send({ type: 'StudioPersistenceSnapshotInfo', requestId: info.requestId, markdown: ctx.read('markdown') }, 'node-sqlite');
+            }
+            return;
+        }
         const currentMarkdown = ctx.read('markdown');
         const storedRevision = ctx.read('revision');
         const currentRevision = Number.isSafeInteger(storedRevision)

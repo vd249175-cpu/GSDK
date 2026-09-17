@@ -7,6 +7,7 @@ import type {
   GenerationAdapterOperationRequest,
 } from '../effects/generation-adapter-operation';
 import { ElectronHostNode, ElectronWindowExecutionNode, ElectronWindowObservationNode } from './electron-host';
+import { StudioApplicationLifecycleNode } from './application-lifecycle';
 import { FileSystemSourceNode } from './file-system';
 import { SecurityGateNode } from './generation-security';
 import { GenerationDownloadSinkNode } from './generation-download';
@@ -140,6 +141,7 @@ export const createGenerationNodes = defineGraphFactory(
 
 export const createPlatformNodes = defineGraphFactory(
   (dependencies: StudioNodeDependencies) => [
+    new StudioApplicationLifecycleNode(),
     createElectronHostNode(dependencies),
     createElectronWindowExecutionNode(dependencies),
     createElectronWindowObservationNode(dependencies),

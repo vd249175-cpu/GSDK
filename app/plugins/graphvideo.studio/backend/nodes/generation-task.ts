@@ -52,6 +52,7 @@ export interface GenerationTaskRecord {
 
 export interface GenerationTaskState {
   readonly tasks: Map<string, GenerationTaskRecord>;
+  readonly stopping: boolean;
 }
 
 function checkedDestination(value: string): string {
@@ -102,13 +103,19 @@ export class GenerationTaskNode extends Node<GenerationTaskState> {
     private readonly pollSchedulerTargetId: string = 'src-generation-poll-scheduler',
     private readonly artifactObservedTargetId: string = 'node-sec-gate',
   ) {
-    super(id, name, { tasks: new Map() });
+    super(id, name, { tasks: new Map(), stopping: false });
   }
 
   protected override async change(
     info: Info,
     ctx: ChangeContext<GenerationTaskState>,
   ): Promise<void> {
+    if (info.type === 'StudioGenerationPrepareShutdownInfo' && typeof info.requestId === 'string') {
+      ctx.patchState({ stopping: true, tasks: new Map([...ctx.read('tasks')].map(([id, task]) => [id, { ...task, autoPoll: false }])) });
+      ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'generation', requestId: info.requestId, ok: true }, 'node-application-lifecycle');
+      return;
+    }
+    if (ctx.read('stopping') && (info.type === 'GenerationBatchPlannedInfo' || info.type === 'GenerationTasksPollRequestedInfo')) return;
     if (info.type === 'GenerationModelResolutionCompletedInfo') {
       void (info as GenerationModelResolutionCompletedInfo);
       return;
@@ -201,7 +208,7 @@ export class GenerationTaskNode extends Node<GenerationTaskState> {
         pollTasks.push({ taskId: result.taskId, handle: result.handle });
       }
       ctx.write('tasks', next);
-      if (pollTasks.length > 0) {
+      if (pollTasks.length > 0 && !ctx.read('stopping')) {
         const pollInfo: GenerationPollBatchRequestedInfo = {
           type: 'GenerationPollBatchRequestedInfo',
           batchId: observed.batchId,

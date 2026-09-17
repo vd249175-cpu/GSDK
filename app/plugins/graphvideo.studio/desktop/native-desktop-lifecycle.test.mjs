@@ -4,6 +4,14 @@ import studioPlugin from '../backend'
 import { createEmptyNativeGraphHost } from '@graphvideo/desktop/graph-host'
 
 describe.skipIf(!locateNativeBinding())('native desktop lifecycle', () => {
+  it('validates lifecycle sends against actual mounted instances', async () => {
+    const host = createEmptyNativeGraphHost({ plugins: [studioPlugin] })
+    await host.mountPlugins()
+    try {
+      const report = await host.space.analyze({ op: 'validate' })
+      expect(report.valid, JSON.stringify(report)).toBe(true)
+    } finally { await host.dispose() }
+  })
   it('settles start and close through the Rust scheduler, including an OS close event during the effect', async () => {
     let host
     const calls = []
