@@ -756,6 +756,7 @@ export class NativeRuleSpace {
     patch: Record<string, unknown>,
     options: StateInterventionOptions,
   ): Promise<{ nodeId: string; generation: number; version: number }> {
+    this.assertOpen();
     if (typeof options?.actor !== 'string' || !options.actor.trim()
       || typeof options.reason !== 'string' || !options.reason.trim()) {
       throw new Error('State intervention requires actor and reason');
@@ -767,7 +768,7 @@ export class NativeRuleSpace {
       || !Number.isSafeInteger(options.expectedVersion) || options.expectedVersion < 0) {
       throw new Error('State intervention requires non-negative expected generation and version');
     }
-    if (this.interventions.has(nodeId) || this.replacements.has(nodeId)) {
+    if (this.interventions.has(nodeId) || this.replacements.has(nodeId) || this.evictions.has(nodeId)) {
       throw new Error(`State intervention busy: ${nodeId}`);
     }
     const preparedPatch = this.cloneState(patch);

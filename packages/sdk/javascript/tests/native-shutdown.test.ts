@@ -12,6 +12,9 @@ describe.skipIf(!locateNativeBinding())('native shutdown', () => {
     await space.shutdown();
     expect(() => space.register('new', {}, () => {})).toThrow(/closed/i);
     expect(() => space.injectRoot('owner', { type: 'Late' })).toThrow(/closed/i);
+    await expect(space.interveneState('owner', {}, {
+      actor: 'test', reason: 'late patch', expectedGeneration: 0, expectedVersion: 0,
+    })).rejects.toThrow(/closed/i);
     await expect(space.pump()).resolves.toBe(0);
   });
 
@@ -30,6 +33,9 @@ describe.skipIf(!locateNativeBinding())('native shutdown', () => {
     await entered.promise;
     const queued = space.injectRoot('owner', { type: 'Queued' });
     const evict = space.evict('owner');
+    await expect(space.interveneState('owner', {}, {
+      actor: 'test', reason: 'patch during eviction', expectedGeneration: 0, expectedVersion: 0,
+    })).rejects.toThrow(/busy/i);
     await Promise.resolve();
     expect(calls).toEqual([]);
     release.resolve();

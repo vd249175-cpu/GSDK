@@ -12,6 +12,8 @@ type: guide
 
 `Node.dispose()` 幂等，执行全部 disposer 及 `onUnmount`，汇总清理错误而不吞掉。`space.waitForDisposals()` 用于等待同步卸载已排入的清理任务。桌面通用宿主 `createEmptyNativeGraphHost` 创建空空间，`await host.mountPlugins()` 显式装配，失败时清理本批已创建节点；`host.evict(nodeIds)` 返回逐节点结果，`host.shutdown()` 独立停机。`createNativeGraphHost` 保留便捷组合装配入口。
 
+`interveneState` 在规则空间开始关闭后拒绝新请求；同一节点的编辑、替换和异步推出互斥，推出期间的 State 干预直接返回 busy，避免编辑等待与节点清理交叉。
+
 Kernel `Node` 是执行和 State 所有权基类，不依赖分析继承，也不提供图标、分类、描述、副标题或展示摘要契约。开发期通过 `@graphvideo/sdk/analysis` 的 `inspectNodeObjects(nodes)` 读取现有实例的属性与业务方法 DTO；实例读取不执行 getter 或 change。展示内容由消费它的 UI/文档维护，不写入 Kernel Node。
 
 ## 1. 纯领域 Node
