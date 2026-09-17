@@ -56,6 +56,7 @@ export class KernelDaemonClient {
   private readonly pending = new Map<number, PendingRequest>();
   private nextId = 0;
   private closed = false;
+  private shutdownPromise?: Promise<{ shutdown: boolean }>;
 
   private constructor(
     private readonly socket: Socket,
@@ -101,7 +102,15 @@ export class KernelDaemonClient {
     });
   }
 
-  health() { return this.request<{ pid: number; nodes: number; pending: number; leases: number; effectLeases: number; effects: number }>('health'); }
+  health() { return this.request<{ closed: boolean; pid: number; nodes: number; pending: number; leases: number; effectLeases: number; effects: number }>('health'); }
+  /** Explicitly stop an owned, empty daemon. close() only disconnects this client. */
+  shutdown(): Promise<{ shutdown: boolean }> {
+    if (this.shutdownPromise) return this.shutdownPromise;
+    const operation = this.request<{ shutdown: boolean }>('shutdown');
+    this.shutdownPromise = operation;
+    void operation.catch(() => { if (this.shutdownPromise === operation) this.shutdownPromise = undefined; });
+    return operation;
+  }
   admit(nodeId: string, initialState: Record<string, unknown>, analysisFacts?: unknown, effectCapabilities: readonly string[] = []) {
     return this.request<{ generation: number }>('admit', { nodeId, initialState, analysisFacts, effectCapabilities });
   }

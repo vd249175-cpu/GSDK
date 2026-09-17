@@ -33,6 +33,17 @@ const client = await connectKernelDaemon({ address, token })
 
 其他语言只需实现下述 UTF-8 JSON Lines 协议，不依赖 JS SDK。
 
+## 显式停机
+
+连接断开或 `client.close()` 只释放该连接的租约，不关闭内核。拥有进程生命周期的外层宿主先以业务 Info 完成停机结算，停止物理事件来源，再清理 worker 的本地资源并逐个 `evict` 节点，最后调用 `await client.shutdown()`。
+
+```json
+{"version":1,"id":20,"token":"...","op":"shutdown"}
+{"id":20,"ok":true,"result":{"shutdown":true}}
+```
+
+`shutdown` 要求节点已全部推出、所有在途 change 已结算且没有排队或执行中的 Effect；不满足条件时返回错误并继续运行。成功后内核进入不可恢复的关闭状态，daemon 先发送确认，再停止监听、唤醒长轮询、关闭包括半帧读取在内的客户端连接，并等待连接线程退出。重新启动需要新进程；daemon 不隐式注入业务停机 Info，也不替 worker 执行 Node 销毁钩子。JS 客户端将并发的成功停机请求合并为同一个 Promise，失败后可在完成清理后重试。
+
 ## 通用请求
 
 每个请求与响应各占一行，单帧最大 1 MiB。请求必须携带协议版本、连接内请求 ID 和 token：

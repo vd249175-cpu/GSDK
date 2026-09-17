@@ -1,8 +1,9 @@
 //! Local, versioned JSON-lines transport for the business-agnostic rule space.
 
 use std::io::{self, BufRead, BufReader, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::collections::BTreeMap;
+use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -13,11 +14,17 @@ use serde_json::{json, Value};
 const MAX_FRAME_BYTES: usize = 1024 * 1024;
 const MAX_POLL_WAIT_MS: u64 = 30_000;
 type SharedSpace = Arc<(Mutex<Space>, Condvar)>;
+type Clients = Arc<Mutex<BTreeMap<u64, TcpStream>>>;
 
-fn read_frame(reader: &mut impl BufRead) -> io::Result<Option<Vec<u8>>> {
+fn read_frame(reader: &mut impl BufRead, stopping: &AtomicBool) -> io::Result<Option<Vec<u8>>> {
     let mut frame = Vec::new();
     loop {
-        let available = reader.fill_buf()?;
+        if stopping.load(Ordering::Acquire) { return Ok(None); }
+        let available = match reader.fill_buf() {
+            Ok(available) => available,
+            Err(error) if matches!(error.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) => continue,
+            Err(error) => return Err(error),
+        };
         if available.is_empty() {
             return if frame.is_empty() {
                 Ok(None)
@@ -151,17 +158,34 @@ fn handle_request(
     }
 }
 
-fn serve_client(stream: TcpStream, shared: SharedSpace, token: Arc<String>, session_id: u64) {
+fn serve_client(stream: TcpStream, shared: SharedSpace, token: Arc<String>, session_id: u64, stopping: Arc<AtomicBool>, clients: Clients) {
     let _ = stream.set_nodelay(true);
+    // Windows shutdown does not reliably cancel an already blocked receive.
+    // Periodic reads preserve partial frames and observe the process stop flag.
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(100)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
     let mut reader = BufReader::new(stream.try_clone().expect("clone stream"));
     let mut writer = stream;
     let mut session = Session::new(session_id);
-    while let Ok(Some(frame)) = read_frame(&mut reader) {
-        let response = match serde_json::from_slice::<Value>(&frame) {
-            Ok(request) => handle_request(&shared, &mut session, &request, &token),
-            Err(_) => json!({"id":null,"ok":false,"error":"invalid JSON frame"}),
+    while let Ok(Some(frame)) = read_frame(&mut reader, &stopping) {
+        let (response, stop_after_response) = match serde_json::from_slice::<Value>(&frame) {
+            Ok(request) => {
+                let response = handle_request(&shared, &mut session, &request, &token);
+                let shutdown = request.get("op").and_then(Value::as_str) == Some("shutdown")
+                    && response.get("ok") == Some(&Value::Bool(true));
+                (response, shutdown)
+            }
+            Err(_) => (json!({"id":null,"ok":false,"error":"invalid JSON frame"}), false),
         };
-        if writeln!(writer, "{response}").is_err() {
+        let written = writeln!(writer, "{response}");
+        if stop_after_response {
+            // Acknowledge before transport teardown, including a lost client:
+            // once Kernel.shutdown succeeds, the process must still terminate.
+            stopping.store(true, Ordering::Release);
+            shared.1.notify_all();
+            break;
+        }
+        if written.is_err() {
             break;
         }
     }
@@ -169,6 +193,8 @@ fn serve_client(stream: TcpStream, shared: SharedSpace, token: Arc<String>, sess
     let mut space = lock.lock().unwrap_or_else(|poison| poison.into_inner());
     session.disconnect(&mut space);
     changed.notify_all();
+    drop(space);
+    clients.lock().unwrap_or_else(|poison| poison.into_inner()).remove(&session_id);
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -183,6 +209,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("daemon only accepts loopback connections".into());
     }
     let listener = TcpListener::bind(bind)?;
+    listener.set_nonblocking(true)?;
     println!(
         "{}",
         json!({"version":1,"address":listener.local_addr()?.to_string(),"pid":std::process::id()})
@@ -191,16 +218,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shared = Arc::new((Mutex::new(Space::default()), Condvar::new()));
     let token = Arc::new(token);
     let next_session_id = AtomicU64::new(1);
-    for incoming in listener.incoming() {
-        match incoming {
-            Ok(stream) => {
+    let stopping = Arc::new(AtomicBool::new(false));
+    let clients: Clients = Arc::new(Mutex::new(BTreeMap::new()));
+    let mut workers: Vec<thread::JoinHandle<()>> = Vec::new();
+    while !stopping.load(Ordering::Acquire) {
+        let mut index = 0;
+        while index < workers.len() {
+            if workers[index].is_finished() { let _ = workers.swap_remove(index).join(); }
+            else { index += 1; }
+        }
+        match listener.accept() {
+            Ok((stream, _)) => {
+                if stopping.load(Ordering::Acquire) { break; }
+                // Windows accepted sockets inherit the listener's mode.
+                stream.set_nonblocking(false)?;
                 let shared = Arc::clone(&shared);
                 let token = Arc::clone(&token);
                 let session_id = next_session_id.fetch_add(1, Ordering::Relaxed);
-                thread::spawn(move || serve_client(stream, shared, token, session_id));
+                clients.lock().unwrap_or_else(|poison| poison.into_inner()).insert(session_id, stream.try_clone()?);
+                let clients = Arc::clone(&clients);
+                let stopping = Arc::clone(&stopping);
+                workers.push(thread::spawn(move || serve_client(stream, shared, token, session_id, stopping, clients)));
             }
-            Err(error) => eprintln!("[kernel-daemon] accept error: {error}"),
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                let space = shared.0.lock().unwrap_or_else(|poison| poison.into_inner());
+                let _ = shared.1.wait_timeout(space, Duration::from_millis(10))
+                    .unwrap_or_else(|poison| poison.into_inner());
+            }
+            Err(error) => { eprintln!("[kernel-daemon] accept error: {error}"); break; }
         }
+    }
+    drop(listener);
+    shared.1.notify_all();
+    for stream in clients.lock().unwrap_or_else(|poison| poison.into_inner()).values() {
+        let _ = stream.shutdown(Shutdown::Both);
+    }
+    for worker in workers {
+        worker.join().map_err(|_| "client worker failed during shutdown")?;
     }
     Ok(())
 }

@@ -214,7 +214,7 @@ impl Space {
     /// Fill the cache only under the snapshot's own revision. A result
     /// computed from an older snapshot can never match a newer lookup.
     pub fn store_analysis(&mut self, revision: u64, request: &Value, result: Value) {
-        if revision != self.analysis_revision {
+        if self.is_closed() || revision != self.analysis_revision {
             return;
         }
         if self.analysis_cache.len() >= 16 {
@@ -282,6 +282,7 @@ impl Space {
         if request.get("token").and_then(Value::as_str) != Some(token) {
             return Err("unauthorized".into());
         }
+        if self.is_closed() { return Err("rule space is closed".into()); }
         let inner = request.get("request").ok_or("request is required")?.clone();
         let snapshots: Vec<Value> = self
             .kernel
@@ -335,9 +336,33 @@ impl Space {
         }
     }
 
+    pub fn is_closed(&self) -> bool { self.kernel.is_closed() }
+
     fn execute(&mut self, session: &mut Session, request: &Value) -> Result<Value, String> {
-        match required_str(request, "op")? {
+        let op = required_str(request, "op")?;
+        if self.is_closed() && !matches!(op, "health" | "shutdown") {
+            return Err("rule space is closed".into());
+        }
+        match op {
+            "shutdown" => {
+                if self.effects.values().any(|effect| !matches!(effect.status, EffectStatus::Completed { .. })) {
+                    return Err("rule space busy: pending Effects remain".into());
+                }
+                self.kernel.shutdown().map_err(|error| error.to_string())?;
+                self.nodes.clear();
+                self.leases.clear();
+                self.effect_leases.clear();
+                self.effects.clear();
+                self.submissions.clear();
+                self.analysis_cache.clear();
+                self.state_keys.clear();
+                self.frontend_links.clear();
+                self.frontend_service_links.clear();
+                self.error_target = None;
+                Ok(json!({"shutdown":true}))
+            }
             "health" => Ok(json!({
+                "closed":self.is_closed(),
                 "pid":std::process::id(),
                 "nodes":self.nodes.len(),
                 "pending":self.kernel.pending_total(),

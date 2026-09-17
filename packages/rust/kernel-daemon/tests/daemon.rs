@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::process::{Child, Command, Stdio};
 use std::thread;
@@ -79,6 +79,42 @@ impl Client {
         assert_eq!(response["ok"], true, "{response}");
         response["result"].clone()
     }
+}
+
+#[test]
+fn explicit_shutdown_releases_idle_clients_and_wakes_long_polls() {
+    let mut daemon = Daemon::start();
+    let mut owner = daemon.connect();
+    let mut poller = daemon.connect();
+    poller.call("claimEffects", json!({"adapterIds":["idle/provider"]}));
+    writeln!(poller.writer, "{}", json!({"version":1,"id":99,"token":"fixture-secret-0001","op":"pollEffect","waitMs":30000})).unwrap();
+    let waiting = thread::spawn(move || {
+        let mut line = String::new();
+        if let Err(error) = poller.reader.read_line(&mut line) {
+            assert!(matches!(error.kind(), std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::ConnectionAborted));
+            return;
+        }
+        if !line.is_empty() {
+            let response: Value = serde_json::from_str(&line).unwrap();
+            assert_eq!(response["ok"], false);
+        }
+    });
+    // Even a client stalled halfway through a frame must not prevent joining.
+    let mut idle = TcpStream::connect(&daemon.address).unwrap();
+    idle.write_all(b"{\"partial\":").unwrap();
+    assert_eq!(owner.call("shutdown", json!({}))["shutdown"], true);
+    let mut status = None;
+    for _ in 0..100 {
+        status = daemon.child.try_wait().unwrap();
+        if status.is_some() { break; }
+        thread::sleep(Duration::from_millis(10));
+    }
+    if status.is_none() { daemon.child.kill().unwrap(); daemon.child.wait().unwrap(); }
+    let mut diagnostic = String::new();
+    daemon.child.stderr.take().unwrap().read_to_string(&mut diagnostic).unwrap();
+    assert!(status.is_some_and(|status| status.success()), "daemon failed to terminate cleanly: {status:?} {diagnostic}");
+    waiting.join().unwrap();
+    assert!(TcpStream::connect(&daemon.address).is_err());
 }
 
 #[test]

@@ -19,7 +19,8 @@ describe('KernelDaemonClient', () => {
         requests.push(request);
         const delay = request.op === 'health' ? 10 : 0;
         setTimeout(() => socket.write(`${JSON.stringify({
-          id: request.id, ok: true, result: request.op === 'health' ? { pid: 7, nodes: 0, pending: 0, leases: 0 } : { pending: 0 },
+          id: request.id, ok: true, result: request.op === 'health' ? { pid: 7, nodes: 0, pending: 0, leases: 0 }
+            : request.op === 'shutdown' ? { shutdown: true } : { pending: 0 },
         })}\n`), delay);
       });
     });
@@ -35,6 +36,11 @@ describe('KernelDaemonClient', () => {
       expect(projection).toEqual({ pending: 0 });
       expect(requests).toHaveLength(2);
       expect(requests.every((request) => request.version === 1 && request.token === 'fixture-secret-0001')).toBe(true);
+      const shutdown = client.shutdown();
+      expect(client.shutdown()).toBe(shutdown);
+      expect(await shutdown).toEqual({ shutdown: true });
+      expect(requests.filter((request) => request.op === 'shutdown')).toHaveLength(1);
+      expect(requests.at(-1)?.op).toBe('shutdown');
     } finally {
       client.close();
     }
