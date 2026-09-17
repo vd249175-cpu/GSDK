@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {locateNativeBinding} from '@graphvideo/sdk/node'
-import studioPlugin from '../backend'
+import studioPlugin from '../backend.ts'
 import { createEmptyNativeGraphHost } from '@graphvideo/desktop/graph-host'
 
 describe.skipIf(!locateNativeBinding())('native desktop lifecycle', () => {

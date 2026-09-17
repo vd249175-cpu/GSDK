@@ -23,6 +23,8 @@ StoppingGeneration → AwaitingDrain → Saving → ClosingWindow → ShutdownRe
 
 回执类型是 `StudioLifecycleParticipantPreparedInfo`，明确携带 `requestId`、`participant` 与 `ok`。旧请求、重复或不符合当前阶段的回执不推进生命周期。Node 异常可由宿主定向至生命周期 Owner；活动阶段收到 `@error/NodeFailed` 会投影失败。宿主超时事实使用 `SystemLifecycleTimeoutObservedInfo`，不能把超时当成任务已停止。
 
+生命周期测试显式导入插件 `backend.ts` 源码，防止旧的生成产物遮蔽当前实现。JS 因果事实的关系 ID 包含证据位置；同一 change 的不同发送或读写位置保留独立证据，同一位置的重复提取只保存一次，符合 Rust 分析对关系 ID 唯一性的校验。
+
 ## 资源边界
 
 业务准备与资源销毁分开：保存发生在有效的 change 中，节点 `dispose` 只终结本地生命周期与释放资源。异步 `evict` 先密封投递，等当前 handler 结束后丢弃 backlog，再等待清理；超时节点仍密封。清理错误汇总返回，不能吞掉。窗口关闭与应用退出是不同意图，关闭窗口允许图继续驻留。

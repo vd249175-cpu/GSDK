@@ -47,8 +47,13 @@ export function buildCausalIndex(options: ScanIndexOptions): CausalIndex {
     if (entity.kind === 'ui') uiPaths.set(entity.address, entity);
   }
 
+  const edgeIds = new Set<string>();
   function addEdge(edge: CausalEdge) {
-    edges.push(edge);
+    const location = edge.location;
+    const id = location ? `${edge.id}@${location.filePath}:${location.line}:${location.column}` : edge.id;
+    if (edgeIds.has(id)) return;
+    edgeIds.add(id);
+    edges.push({ ...edge, id });
   }
 
   // 1. Analyze only instance DTOs of the given Node objects.
