@@ -39,4 +39,7 @@ app/plugins/graphvideo.studio/resources/sample-media/
 **/.legacy-plugin-build/
 **/.legacy-main-build/
 **/.legacy-vitest-node-modules/
+# Named runs: keep configs and sources, never credentials or generated output.
+runs/*/.generated/
+runs/*/run.lock.json
 

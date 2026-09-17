@@ -8,6 +8,7 @@ import {assertRendererRoot} from '@graphvideo/sdk/plugin'
 export function createEmptyNativeGraphHost({
   dependencies = {}, plugins = [],
   analysisFrontendLinks = [], analysisFrontendServiceLinks = [],
+  userDataPath = null, dataDirectory = null,
 } = {}) {
   const explicitlyLinked = new Set(analysisFrontendLinks.map((link) => (
     `${link.injection.targetNodeId}\0${link.injection.infoType}`
@@ -35,7 +36,8 @@ export function createEmptyNativeGraphHost({
   return {
     space,
     nodes: mountedNodes,
-
+    /** Run-owned writable roots; null keeps legacy process-global behavior. */
+    runData: { userDataPath, dataDirectory },
     /** Gate untrusted roots and topology changes; lifecycle roots use space. */
     stopAccepting() { accepting = false },
 

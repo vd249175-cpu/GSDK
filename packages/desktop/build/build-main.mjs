@@ -3,6 +3,9 @@ import { readdir } from 'node:fs/promises'
 import { extname, resolve } from 'node:path'
 import { loadApplication, runtimeRoot } from '../application.mjs'
 
+const runBackendDir = typeof process.env.GRAPHVIDEO_RUN_BACKEND_DIR === 'string' && process.env.GRAPHVIDEO_RUN_BACKEND_DIR
+  ? process.env.GRAPHVIDEO_RUN_BACKEND_DIR
+  : null
 const application = loadApplication()
 const alias = Object.fromEntries(['protocol', 'node', 'effect', 'plugin', 'analysis', 'agent', 'testing'].map((name) => [
   '@graphvideo/sdk/' + name, resolve(runtimeRoot, '../sdk/javascript/src', name, 'index.ts'),
@@ -31,7 +34,12 @@ async function buildHostSources(directory) {
 for (const plugin of application.plugins) {
   const backend = plugin.manifest.contributes?.backend
   if (backend && /\.(?:ts|mjs)$/.test(backend)) {
-    await bundle(resolve(plugin.directory, backend), resolve(plugin.directory, 'backend.js'))
+    // Run-scoped builds keep generated JS inside the run; default preserves
+    // the beside-source backend.js convention used by the Studio entry.
+    const outfile = runBackendDir
+      ? resolve(runBackendDir, `${plugin.id}.backend.js`)
+      : resolve(plugin.directory, 'backend.js')
+    await bundle(resolve(plugin.directory, backend), outfile)
   }
   await buildHostSources(resolve(plugin.directory, 'desktop'))
 }

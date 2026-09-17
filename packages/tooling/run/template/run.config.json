@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "name": "alice",
+  "plugins": [
+    { "id": "example.hello-counter", "path": "../../app/plugins/hello-counter" }
+  ],
+  "kernel": {
+    "daemonPath": "../../packages/rust/target/debug/graphvideo-kernel-daemon",
+    "bind": "127.0.0.1:0",
+    "startupTimeoutMs": 10000,
+    "shutdownTimeoutMs": 10000
+  },
+  "backend": {
+    "entry": null,
+    "dependencies": {}
+  },
+  "frontend": {
+    "enabled": false,
+    "entry": null
+  },
+  "graph": {
+    "instances": [
+      { "nodeId": "example.counter" }
+    ]
+  },
+  "lifecycle": {
+    "initInfos": [],
+    "startInfos": [
+      { "targetNodeId": "example.counter", "info": { "type": "IncrementInfo" } }
+    ],
+    "stopInfos": []
+  },
+  "scenarios": null,
+  "resources": {
+    "generatedDirectory": ".generated",
+    "dataDirectory": ".generated/data",
+    "logsDirectory": ".generated/logs",
+    "runtimeDirectory": ".generated/runtime"
+  }
+}
