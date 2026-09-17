@@ -447,7 +447,14 @@ export async function saveProjectMarkdown(projectRoot, markdown) {
   }
 }
 
-export async function saveProjectStructure(projectRoot, { markdown, nodes }) {
+export async function saveProjectStructure(projectRoot, { markdown, nodes, retainedNodes = [], mode = 'structure' }) {
+  if (!Array.isArray(nodes) || !Array.isArray(retainedNodes)) throw new Error('项目快照 nodes/retainedNodes 必须为数组')
+  const snapshotIds = new Set()
+  for (const node of [...nodes, ...retainedNodes]) {
+    assertNodeId(node.id)
+    if (snapshotIds.has(node.id)) throw new Error(`项目快照 ID 重复: ${node.id}`)
+    snapshotIds.add(node.id)
+  }
   await ensureLayout(projectRoot)
   const readDatabase = openDatabase(projectRoot)
   let existingRows
@@ -472,7 +479,7 @@ export async function saveProjectStructure(projectRoot, { markdown, nodes }) {
       throw new Error(`ID “${node.id}” 已被保留节点 “${existing.title}” 占用`)
     }
   }
-  const changedNodes = nodes.filter((node) => {
+  const changedNodes = mode === 'full' ? nodes : nodes.filter((node) => {
     const existing = existingById.get(node.id)
     return !existing || existing.active !== 1
       || existing.type !== node.type || existing.title !== node.title
@@ -488,6 +495,12 @@ export async function saveProjectStructure(projectRoot, { markdown, nodes }) {
       else deleteNode.run(row.id)
     })
     changedNodes.forEach((node) => upsertNode(database, prepareNodeForStorage(node)))
+    if (mode === 'full') {
+      for (const node of retainedNodes) {
+        upsertNode(database, prepareNodeForStorage(node))
+        retainNode.run(node.id)
+      }
+    }
     if (typeof markdown === 'string') {
       database.prepare(`
         INSERT INTO project_documents (id, name, markdown, updated_at)
@@ -502,7 +515,8 @@ export async function saveProjectStructure(projectRoot, { markdown, nodes }) {
   } finally {
     database.close()
   }
-  return { nodes, retainedNodes: await loadNodes(projectRoot, 0) }
+  return { nodes, retainedNodes: await loadNodes(projectRoot, 0), savedAt: Date.now(),
+    contentRef: `sha256:${createHash('sha256').update(JSON.stringify({ markdown, nodes, retainedNodes })).digest('hex')}` }
 }
 
 export async function saveProjectNode(projectRoot, node) {

@@ -19,6 +19,7 @@ StoppingGeneration → AwaitingDrain → Saving → ClosingWindow → ShutdownRe
 - 生成 Owner 接收定向准备 Info，关闭自动轮询并拒绝新批次和轮询意图；仍处理已在途提交、下载和落盘的 Observation。外部已提交任务不被宣称为远端取消。
 - 生成准备回执后进入 `AwaitingDrain`。宿主确认已接纳的工作收敛后，注入同一 requestId 的 `SystemShutdownDrainObservedInfo`；不能仅凭某个 submission 完成就跨过此屏障。
 - Markdown Owner 提供当前文档，SQLite Owner 提供当前元数据和保留记录，执行节点通过注入 Adapter 做完整项目保存，观察节点将落盘结果回传。只有 `shutdown/<requestId>` 对应的结果才能完成本轮准备；没有打开项目时跳过保存。
+- 桌面 `saveProjectStructure` 的 `full` 模式在同一 SQLite 事务写入文档、全部活动节点元数据与显式保留记录；标题未变化的 prompt/content/history 同样更新。失败回滚，不返回成功 Observation。
 - 保存成功后才请求关闭窗口。窗口执行结果经观察回传，应用投影才进入 `ShutdownReady`。保存或窗口失败进入 `ShutdownFailed`，不报告退出成功。
 
 回执类型是 `StudioLifecycleParticipantPreparedInfo`，明确携带 `requestId`、`participant` 与 `ok`。旧请求、重复或不符合当前阶段的回执不推进生命周期。Node 异常可由宿主定向至生命周期 Owner；活动阶段收到 `@error/NodeFailed` 会投影失败。宿主超时事实使用 `SystemLifecycleTimeoutObservedInfo`，不能把超时当成任务已停止。

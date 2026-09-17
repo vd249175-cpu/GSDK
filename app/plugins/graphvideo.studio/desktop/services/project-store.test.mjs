@@ -25,6 +25,34 @@ afterEach(async () => {
 })
 
 describe('Electron local project store', () => {
+  it('flushes unchanged-title metadata and retained records in a full shutdown snapshot', async () => {
+    await saveProjectSnapshot(projectRoot, { markdown: 'old', nodes: [
+      { id: 'active', type: 'image', title: 'same', prompt: 'old' },
+      { id: 'retained', type: 'text', title: 'retained', content: 'old' },
+    ] })
+    const observation = await saveProjectStructure(projectRoot, { mode: 'full', markdown: 'draft',
+      nodes: [{ id: 'active', type: 'image', title: 'same', prompt: 'unsaved prompt' }],
+      retainedNodes: [{ id: 'retained', type: 'text', title: 'retained', content: 'unsaved content' }],
+    })
+    const reopened = await openLocalProject(projectRoot)
+    expect(reopened.markdown).toBe('draft')
+    expect(reopened.nodes[0].prompt).toBe('unsaved prompt')
+    expect(reopened.retainedNodes[0].content).toBe('unsaved content')
+    expect(observation).toMatchObject({ savedAt: expect.any(Number), contentRef: expect.any(String) })
+  })
+
+  it('rolls back a failed full snapshot without reporting a partial save', async () => {
+    await saveProjectSnapshot(projectRoot, { markdown: 'old', nodes: [
+      { id: 'active', type: 'text', title: 'same', content: 'old' },
+    ] })
+    await expect(saveProjectStructure(projectRoot, { mode: 'full', markdown: 'new', nodes: [
+      { id: 'active', type: 'text', title: 'same', content: 'new' },
+      { id: 'invalid', type: 'invalid', title: 'bad' },
+    ], retainedNodes: [] })).rejects.toThrow()
+    const reopened = await openLocalProject(projectRoot)
+    expect(reopened.markdown).toBe('old')
+    expect(reopened.nodes[0].content).toBe('old')
+  })
   it('persists Graph metadata through a dedicated SQLite transaction table', async () => {
     await openLocalProject(projectRoot)
     const observation = await persistGraphMetadata(projectRoot, [
