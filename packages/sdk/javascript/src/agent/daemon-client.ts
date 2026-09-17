@@ -141,8 +141,15 @@ export class KernelDaemonClient {
   completeEffect(effectId: number, result: { ok: true; observation: unknown } | { ok: false; error: string }) {
     return this.request('completeEffect', { effectId, ...result });
   }
-  projection() { return this.request('projection'); }
-  analysisFacts() { return this.request('analysisFacts'); }
+  setErrorTarget(nodeId: string) {
+    return this.request('setErrorTarget', { nodeId });
+  }
+  projection() {
+    return this.request<{ nodes: Record<string, { state: Record<string, unknown>; version: number; generation: number }>; submissions: Record<string, { status: string }>; pending: number }>('projection');
+  }
+  analysisFacts() {
+    return this.request<{ nodes: Record<string, unknown> }>('analysisFacts');
+  }
   intervene(nodeId: string, patch: Record<string, unknown>, expectedGeneration: number, expectedVersion: number) {
     return this.request('intervene', { nodeId, patch, expectedGeneration, expectedVersion });
   }

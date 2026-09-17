@@ -27,7 +27,7 @@ export interface DaemonNodeWorkerClient {
 }
 
 export interface DaemonNodeWorkerOptions {
-  readonly handlers: Readonly<Record<string, DaemonNodeHandler<any>>>;
+  readonly handlers: Readonly<Record<string, DaemonNodeHandler<Record<string, unknown>>>>;
   readonly signal?: AbortSignal;
   readonly longPollMs?: number;
 }
@@ -52,7 +52,7 @@ function localContext<S extends Record<string, unknown>>(
     send(info, targetNodeId) {
       operations.push({ op: 'send', info, targetNodeId });
     },
-    async effect<T>(adapterId: string, request: unknown): Promise<T> {
+    async effect<T = unknown>(adapterId: string, request: unknown): Promise<T> {
       const { effectId } = await client.requestEffect(changeId, adapterId, request);
       for (;;) {
         const result = await client.awaitEffect(effectId);
@@ -95,5 +95,148 @@ export async function runDaemonNodeWorker(
     }
   } finally {
     await client.release(nodeIds).catch(() => undefined);
+  }
+}
+
+export interface DaemonChangeAdapter {
+  readonly id: string;
+}
+
+export interface DaemonChangeIo {
+  read(key: string): unknown;
+  write(key: string, value: unknown): void;
+  patchState(patch: Record<string, unknown>): void;
+  send(info: { readonly type: string; readonly [key: string]: unknown }, targetNodeId: string): void;
+  effectAdapter(adapter: DaemonChangeAdapter, request: unknown): Promise<unknown>;
+  span<T>(name: string, action: () => Promise<T> | T): Promise<T> | T;
+}
+
+export interface RealDaemonNode {
+  readonly id: string;
+  getState(): Record<string, unknown>;
+  dispose(): Promise<void>;
+}
+
+export interface DaemonNodeAssembly {
+  readonly nodeId: string;
+  readonly initialState: Record<string, unknown>;
+  readonly handler: DaemonNodeHandler<Record<string, unknown>>;
+  readonly effectCapabilities: readonly string[];
+  readonly dispose: () => Promise<void>;
+}
+
+/**
+ * Reuses a real domain Node's change logic and initial State for daemon
+ * execution. The instance stays a logic holder: its construction-time State
+ * seeds `admit`, the daemon owns live State, and the worker routes the
+ * polled snapshot through the same `change` body. Instance State is never
+ * read back, so a hot-swapped leftover cannot leak stale facts.
+ */
+export function describeDaemonNode(node: RealDaemonNode): DaemonNodeAssembly {
+  const initialState = { ...node.getState() };
+  const shaped = node as RealDaemonNode & {
+    readonly effectCapabilities?: unknown;
+    readonly adapter?: { readonly id?: unknown };
+    change(
+      info: { readonly type: string; readonly [key: string]: unknown },
+      ctx: DaemonChangeIo,
+    ): void | Promise<void>;
+  };
+  const fromInstance = Array.isArray(shaped.effectCapabilities)
+    ? shaped.effectCapabilities.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+  // TS `private readonly adapter` fields are runtime-visible own properties;
+  // scan them so admit declares the capability the change body will request.
+  const privateAdapterIds: string[] = [];
+  for (const key of Object.keys(node)) {
+    const value = (node as unknown as Record<string, unknown>)[key];
+    if (value && typeof value === 'object' && 'id' in value && typeof value.id === 'string') {
+      privateAdapterIds.push(value.id);
+    }
+  }
+  const declared = [...fromInstance, ...privateAdapterIds];
+  const adapterId = typeof shaped.adapter?.id === 'string' ? shaped.adapter.id : null;
+  const withPublic = adapterId !== null && !declared.includes(adapterId)
+    ? [...declared, adapterId]
+    : declared;
+  const effectCapabilities = [...new Set(withPublic)];
+  // `change` is protected on the Node base class; invoke it structurally so
+  // subclasses keep their visibility while the daemon reuses the real body.
+  const invoke = shaped.change.bind(shaped);
+  const handler: DaemonNodeHandler<Record<string, unknown>> = (info, ctx) => invoke(info, {
+    read: (key: string) => ctx.read(key),
+    write: (key: string, value: unknown) => ctx.write(key, value),
+    patchState: (patch: Record<string, unknown>) => ctx.patchState(patch),
+    send: (
+      child: { readonly type: string; readonly [key: string]: unknown },
+      targetNodeId: string,
+    ) => {
+      ctx.send(child, targetNodeId);
+    },
+    effectAdapter: (adapter: DaemonChangeAdapter, request: unknown) => ctx.effect(adapter.id, request),
+    span: <T>(name: string, action: () => Promise<T> | T): Promise<T> | T => action(),
+  });
+  return {
+    nodeId: node.id,
+    initialState,
+    handler,
+    effectCapabilities,
+    dispose: () => node.dispose(),
+  };
+}
+/**
+ * Admits real Nodes without starting the worker. Returns the admitted
+ * assemblies so callers can start `runDaemonNodeWorker` on a separate
+ * claimed connection after every instance exists. Partial admission failure
+ * evicts the admitted prefix and disposes every assembled instance, so no
+ * half-mounted slice is left behind.
+ */
+export async function admitDaemonNodes(
+  control: KernelDaemonClient,
+  nodes: readonly object[],
+): Promise<{ assemblies: DaemonNodeAssembly[]; handlers: Record<string, DaemonNodeHandler<Record<string, unknown>>> }> {
+  const assemblies = nodes.map((node) => describeDaemonNode(node as RealDaemonNode));
+  const admitted: string[] = [];
+  const handlers: Record<string, DaemonNodeHandler<Record<string, unknown>>> = {};
+  try {
+    for (const assembly of assemblies) {
+      if (assembly.nodeId in handlers) throw new Error(`Duplicate daemon Node instance: ${assembly.nodeId}`);
+      await control.admit(assembly.nodeId, assembly.initialState, undefined, assembly.effectCapabilities);
+      admitted.push(assembly.nodeId);
+      handlers[assembly.nodeId] = assembly.handler;
+    }
+    return { assemblies, handlers };
+  } catch (error) {
+    for (const nodeId of admitted.reverse()) {
+      await control.evict?.(nodeId).catch(() => undefined);
+    }
+    await Promise.allSettled(assemblies.map((assembly) => assembly.dispose()));
+    throw error;
+  }
+}
+
+/**
+ * Admits real Nodes, claims them on one worker connection, and runs their
+ * change bodies until aborted. Mount order is explicit: admit every instance
+ * first (so claims never target a missing Node), then claim, then poll.
+ * Partial admission failure evicts the admitted prefix and disposes every
+ * assembled instance, so no half-mounted slice is left behind.
+ */
+export async function runDaemonNodeAssembly(
+  client: DaemonNodeWorkerClient | KernelDaemonClient,
+  nodes: readonly object[],
+  options: { readonly signal?: AbortSignal; readonly longPollMs?: number } = {},
+) {
+  const control = client as KernelDaemonClient;
+  if (typeof control.admit !== 'function') throw new Error('Daemon assembly requires an admit-capable client');
+  const { assemblies, handlers } = await admitDaemonNodes(control, nodes);
+  const admitted = Object.keys(handlers);
+  try {
+    await runDaemonNodeWorker(client, { handlers, signal: options.signal, longPollMs: options.longPollMs });
+  } finally {
+    for (const nodeId of admitted.reverse()) {
+      await control.evict?.(nodeId).catch(() => undefined);
+    }
+    await Promise.allSettled(assemblies.map((assembly) => assembly.dispose()));
   }
 }
