@@ -16,6 +16,8 @@ GraphFramework 是一个面向桌面与后端系统的因果应用微内核运�
 
 - [Plugin SDK](./plugin-sdk-guide.md)：插件装配、rendererRoots、Manifest 与热替换边界。
 - [插件发布与协作契约](./plugin-collaboration-contract.md)：正式插件所有权、禁止污染、独立插件扩展、OKF 交付说明与推荐折叠规则。
+- [多 Agent 独立开发与运行协作指南](./multi-agent-run-guide.md)：已确认的命名 run、目录所有权、Bash 启停和并行隔离目标，尚未实现。
+- [统一 run 实施计划](./unified-run-plan.md)：将完整 Studio、图片段和场景测试迁入同一配置驱动运行机制的阶段与验收。
 - [插件全景与契约索引](./plugins-reference.md)：业务插件规范、Node/Info/Element 清单与内核稳定消费规约。
 - [Client 与 Element SDK](./client-sdk-guide.md)：前端快照、客户端 hooks 与 Workbench Element。
 - [Node 实例因果调试](./debug-guide.md)：从精确实体定位因果断点。
