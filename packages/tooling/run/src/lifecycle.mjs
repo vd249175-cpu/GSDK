@@ -7,20 +7,20 @@ import { acquireRunLock, clearActiveRecord, readActiveRecord, readRunLock, write
 import { defaultGeneratedLayout, resolveRunRoot } from './paths.mjs';
 import { appendStageLog, writeSnapshotRecord } from './record.mjs';
 import { spawnEmptyKernel } from './kernel.mjs';
+import { writeRunDiscovery } from './discovery.mjs';
+
 export function loadRunConfig(configPath) {
   const absolute = resolve(configPath);
   const runRoot = resolveRunRoot(absolute);
   const document = JSON.parse(readFileSync(absolute, 'utf8'));
   return parseRunConfig(document, { configPath: absolute, baseDirectory: runRoot });
 }
-
 function ensureLayout(parsed) {
   const layout = defaultGeneratedLayout(parsed.baseDirectory);
-  for (const directory of Object.values(layout)) mkdirSync(directory, { recursive: true });
-  mkdirSync(parsed.resources.dataDirectory, { recursive: true });
-  mkdirSync(parsed.resources.logsDirectory, { recursive: true });
-  mkdirSync(parsed.resources.runtimeDirectory, { recursive: true });
-  return layout;
+  for (const [key, directory] of Object.entries(layout)) {
+    if (key === 'frontend' && !parsed.frontend.enabled) continue;
+    mkdirSync(directory, { recursive: true });
+  }
 }
 
 export function resolveDaemonBinary(parsed) {
@@ -44,10 +44,43 @@ function tokenPath(runtimeDirectory) {
 }
 
 /**
+ * Derives the isolated Electron environment for one frontend-enabled run:
+ * run-owned userData/data directories, run-scoped discovery paths, and a
+ * loopback-only telemetry port default that callers may override explicitly.
+ * No-frontend fragments return disabled and allocate nothing.
+ */
+function allocateFrontendEnvironment(parsed, runName, { address, pid }) {
+  if (!parsed.frontend.enabled) return { enabled: false };
+  const frontendRoot = join(parsed.baseDirectory, '.generated', 'frontend', runName);
+  const userDataPath = join(frontendRoot, 'electron-user-data');
+  const dataDirectory = parsed.resources.dataDirectory;
+  mkdirSync(userDataPath, { recursive: true });
+  const agentControlPath = join(parsed.resources.runtimeDirectory, 'agent-control.json');
+  const discovery = {
+    enabled: true,
+    runName,
+    kernel: { address, pid },
+    userDataPath,
+    dataDirectory,
+    agentControlPath,
+    telemetryPort: null,
+    viteUrl: parsed.frontend.entry,
+  };
+  return {
+    enabled: true,
+    userDataPath,
+    dataDirectory,
+    agentControl: { discoveryPath: agentControlPath },
+    discovery,
+  };
+}
+
+/**
  * Full start: validate config, take the same-name lock, prepare the run
- * layout, boot an empty kernel, and persist the active-run snapshot. Node
- * admission and Info injection belong to later P3 stages; this stage proves
- * the kernel endpoint is ready and owned by this run.
+ * layout, boot an empty kernel, publish the run-scoped frontend discovery,
+ * and persist the active-run snapshot. Node admission and Info injection
+ * belong to later P3 stages; this stage proves the kernel endpoint is ready
+ * and owned by this run.
  */
 export async function startRun(configPath, { token } = {}) {
   const parsed = loadRunConfig(configPath);
@@ -68,6 +101,15 @@ export async function startRun(configPath, { token } = {}) {
     // The credential lives only in the run's generated directory, never in
     // the committed config file.
     writeFileSync(tokenPath(parsed.resources.runtimeDirectory), credential, { mode: 0o600 });
+    // No-frontend fragments skip Electron isolation entirely: no userData,
+    // session, telemetry or agent discovery overrides are assigned here.
+    const frontend = allocateFrontendEnvironment(parsed, runName, kernel);
+    const discoveryPath = writeRunDiscovery(parsed.resources.runtimeDirectory, {
+      runName,
+      kernel: { address: kernel.address, pid: kernel.pid },
+      agentControl: frontend.enabled ? { discoveryPath: frontend.discovery.agentControlPath } : null,
+      frontend: frontend.enabled ? frontend.discovery : null,
+    });
     const snapshot = {
       version: parsed.version,
       runName,
@@ -80,6 +122,8 @@ export async function startRun(configPath, { token } = {}) {
         pid: kernel.pid,
         bind: parsed.kernel.bind,
       },
+      frontend: frontend.enabled ? frontend.discovery : { enabled: false },
+      discoveryPath,
       graph: parsed.graph,
       lifecycle: parsed.lifecycle,
       resources: parsed.resources,

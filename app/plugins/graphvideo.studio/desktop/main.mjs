@@ -57,12 +57,18 @@ import {
 } from './services/style-probe-store.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
+const runOverrides = {
+  userDataPath: process.env.GRAPHVIDEO_RUN_USER_DATA ?? null,
+  dataDirectory: process.env.GRAPHVIDEO_RUN_DATA_DIR ?? null,
+  agentControlFile: process.env.GRAPHVIDEO_AGENT_CONTROL_FILE ?? null,
+  telemetryPort: process.env.GRAPHVIDEO_RUN_TELEMETRY_PORT ? Number(process.env.GRAPHVIDEO_RUN_TELEMETRY_PORT) : null,
+  viteDevServerUrl: process.env.GRAPHVIDEO_RUN_VITE_URL ?? process.env.VITE_DEV_SERVER_URL ?? null,
+}
 const application = loadApplication()
 const backendPlugins = await loadBackendPlugins(application)
 const appRoot = application.directory
 const pluginRoot = join(here, '..')
 let agentControl = null
-const commandGate = createCommandGate()
 let commandIpc = null
 let lifecycle = null
 let bootstrapPromise = Promise.resolve()
@@ -162,6 +168,8 @@ function initializeGraphHost() {
       },
     },
     plugins: backendPlugins,
+    userDataPath: runOverrides.userDataPath,
+    dataDirectory: runOverrides.dataDirectory,
   })
 }
 
@@ -552,8 +560,8 @@ async function createWindow(config = {}) {
   })
 
   try {
-    if (process.env.VITE_DEV_SERVER_URL) {
-      await window.loadURL(process.env.VITE_DEV_SERVER_URL)
+    if (runOverrides.viteDevServerUrl) {
+      await window.loadURL(runOverrides.viteDevServerUrl)
     } else {
       await window.loadFile(application.rendererFile)
     }
@@ -627,7 +635,8 @@ if (!gotLock) {
   electronIpcMain.on('window:quit', requestQuit)
   process.on('SIGINT', requestQuit)
   process.on('SIGTERM', requestQuit)
-  try { getProjectHistory(app.getPath('userData')) } catch {}
+  try { getProjectHistory(runOverrides.userDataPath ?? app.getPath('userData')) } catch {}
+  if (runOverrides.userDataPath) app.setPath('userData', runOverrides.userDataPath)
   app.on('second-instance', () => {
     if (lifecycle.closing) return
     if (mainWindow) {
@@ -647,9 +656,12 @@ if (!gotLock) {
     await host.mountPlugins()
     if (lifecycle.closing) return
     registerIpcHandlers()
-    startTelemetryLoopbackServer(51888)
+    startTelemetryLoopbackServer(runOverrides.telemetryPort ?? 51888)
     try {
-      agentControl = await startAgentControlServer(host, { acceptCommand: (action) => commandGate.run(action) })
+      agentControl = await startAgentControlServer(host, {
+        acceptCommand: (action) => commandGate.run(action),
+        ...(runOverrides.agentControlFile ? { discoveryPath: runOverrides.agentControlFile } : {}),
+      })
     } catch (error) {
       console.error('[GraphVideo] Agent control failed to start:', error)
     }
