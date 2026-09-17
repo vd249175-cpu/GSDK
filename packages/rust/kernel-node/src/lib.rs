@@ -36,6 +36,7 @@ fn feedback_to_js(feedback: DeliveryFeedback) -> JsDeliveryFeedback {
 
 fn drop_reason_name(reason: &DropReason) -> &'static str {
     match reason {
+        DropReason::KernelShutdown => "kernel-shutdown",
         DropReason::UnknownTarget => "unknown-target",
         DropReason::SealedTarget => "sealed-target",
         DropReason::StaleGeneration => "stale-generation",
@@ -135,6 +136,11 @@ impl Default for RuleSpace {
 
 #[napi]
 impl RuleSpace {
+    #[napi]
+    pub fn shutdown(&self) -> Result<()> {
+        self.inner.lock().map_err(lock_error)?.shutdown().map_err(kernel_error_to_js)
+    }
+
     /// Create an empty rule space.
     #[napi(constructor)]
     pub fn new() -> Self {

@@ -12,6 +12,8 @@ use crate::{ChangeId, EntityId, Generation, InfoId, SubmissionId};
 /// Why a delivery never reached a change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DropReason {
+    /// The rule space has terminated.
+    KernelShutdown,
     /// Target id is not admitted.
     UnknownTarget,
     /// Target is sealed for replace.
@@ -106,6 +108,10 @@ pub struct Registry {
 }
 
 impl Registry {
+    pub fn has_in_flight(&self) -> bool {
+        self.slots.values().any(|slot| slot.active_change.is_some() || slot.edit_requested)
+            || self.tombstones.values().any(|tomb| tomb.active_change.is_some())
+    }
     /// Admit a new entity; id must be absent. Returns its generation.
     pub fn admit(&mut self, id: EntityId) -> Result<Generation, KernelError> {
         if self.slots.contains_key(&id) {

@@ -7,6 +7,8 @@ use crate::EntityId;
 /// Every fallible kernel operation returns one of these.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KernelError {
+    /// The rule space has terminated and cannot be restarted.
+    Shutdown,
     /// Admitting an id that is already admitted.
     DuplicateEntity(EntityId),
     /// Operating on an id that was never admitted or was evicted.
@@ -24,6 +26,7 @@ pub enum KernelError {
 impl fmt::Display for KernelError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            KernelError::Shutdown => write!(f, "rule space is closed"),
             KernelError::DuplicateEntity(id) => write!(f, "entity already admitted: {id}"),
             KernelError::UnknownEntity(id) => write!(f, "entity not admitted: {id}"),
             KernelError::StaleGeneration(id) => write!(f, "entity generation changed: {id}"),

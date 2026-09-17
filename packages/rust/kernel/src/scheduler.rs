@@ -125,6 +125,7 @@ struct Submission {
 /// The rule space.
 #[derive(Debug, Default)]
 pub struct Kernel {
+    closed: bool,
     registry: Registry,
     analysis_facts: BTreeMap<EntityId, String>,
     submissions: BTreeMap<SubmissionId, Submission>,
@@ -134,6 +135,20 @@ pub struct Kernel {
 }
 
 impl Kernel {
+    /// Terminate an empty, settled rule space. Business teardown and eviction
+    /// remain explicit caller operations; this never performs them implicitly.
+    pub fn shutdown(&mut self) -> Result<(), KernelError> {
+        if self.closed { return Ok(()); }
+        if !self.registry.ordered_ids().is_empty() || self.registry.has_in_flight() || self.pending_total() != 0 {
+            return Err(KernelError::Busy("rule-space nodes or changes remain".into()));
+        }
+        self.closed = true;
+        self.registry = Registry::default();
+        self.analysis_facts.clear();
+        Ok(())
+    }
+
+    pub fn is_closed(&self) -> bool { self.closed }
     /// Empty rule space.
     pub fn new() -> Self {
         Kernel::default()
@@ -143,6 +158,7 @@ impl Kernel {
 
     /// Admit an entity. Returns its starting generation.
     pub fn admit(&mut self, id: EntityId) -> Result<Generation, KernelError> {
+        if self.closed { return Err(KernelError::Shutdown); }
         self.registry.admit(id)
     }
 
@@ -284,6 +300,7 @@ impl Kernel {
         caused_by: Option<ChangeId>,
         submission: Option<SubmissionId>,
     ) -> DeliveryFeedback {
+        if self.closed { return DeliveryFeedback::Dropped(DropReason::KernelShutdown); }
         enum Route {
             Enqueue(Generation),
             Drop(Option<Generation>, DropReason),

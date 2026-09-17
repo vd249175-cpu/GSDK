@@ -4,6 +4,12 @@ type: guide
 
 # Kernel 与 Node SDK
 
+## 原生规则空间生命周期
+
+`new NativeRuleSpace()` 创建空 Rust 规则空间；`mountDomainNode`/`register` 只装配节点，业务启动由宿主另行注入 Info。`await space.evict(nodeId, { timeoutMs })` 密封投递，等待该节点当前 change 结束，丢弃 backlog，并等待清理。超时留下密封节点，不能据此认定物理动作已结束。同步 `unregister` 立即断代，其清理钩子仍等待旧 handler 结束。
+
+`await space.shutdown()` 只终止已无节点、无活跃 change、无待清理资源的空间，不代替业务退出或节点卸载；关闭后不能重新装配或注入 Info，重复关闭幂等。`await space.dispose({ timeoutMs })` 是拥有该空间的宿主使用的组合清理操作，取消 submission、卸载节点再关闭内核，重复调用共享结果；清理失败以 `AggregateError` 返回。业务保存必须在调用它之前通过显式关闭 Info 完成。Rust `Kernel::shutdown`、N-API `RuleSpace.shutdown` 与 C ABI `gv_kernel_shutdown` 共享空空间终止契约。
+
 Kernel `Node` 是执行和 State 所有权基类，不依赖分析继承，也不提供图标、分类、描述、副标题或展示摘要契约。开发期通过 `@graphvideo/sdk/analysis` 的 `inspectNodeObjects(nodes)` 读取现有实例的属性与业务方法 DTO；实例读取不执行 getter 或 change。展示内容由消费它的 UI/文档维护，不写入 Kernel Node。
 
 ## 1. 纯领域 Node

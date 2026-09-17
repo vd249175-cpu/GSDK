@@ -40,6 +40,8 @@ typedef struct GvAnalysisSnapshot {
 GvKernel *gv_kernel_new(void);
 uint32_t gv_abi_version(void);
 void gv_kernel_free(GvKernel *kernel);
+/* Empty, settled space only. Idempotent; rejects future admission/delivery. */
+bool gv_kernel_shutdown(GvKernel *kernel);
 int64_t gv_admit(GvKernel *kernel, const char *id);
 bool gv_evict(GvKernel *kernel, const char *id);
 int64_t gv_replace(GvKernel *kernel, const char *id);
@@ -49,7 +51,7 @@ bool gv_end_edit(GvKernel *kernel, const char *id, uint64_t generation);
 void gv_abort_edit(GvKernel *kernel, const char *id);
 
 /* 0=enqueued; 1=unknown target; 2=sealed; 3=stale generation;
- * 4=cancelled; 5=evicted; -1=invalid call. */
+ * 4=cancelled; 5=evicted; 6=kernel shutdown; -1=invalid call. */
 int32_t gv_send(GvKernel *kernel, const char *sender, const char *info_type,
                 const char *payload_json, const char *target, uint64_t caused_by,
                 bool has_caused_by, const char *submission);

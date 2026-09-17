@@ -66,6 +66,7 @@ fn feedback_code(feedback: DeliveryFeedback) -> i32 {
         DeliveryFeedback::Dropped(DropReason::StaleGeneration) => 3,
         DeliveryFeedback::Dropped(DropReason::Cancelled) => 4,
         DeliveryFeedback::Dropped(DropReason::Evicted) => 5,
+        DeliveryFeedback::Dropped(DropReason::KernelShutdown) => 6,
     }
 }
 
@@ -90,6 +91,11 @@ pub extern "C" fn gv_kernel_new() -> *mut GvKernel {
 #[no_mangle]
 pub extern "C" fn gv_abi_version() -> u32 {
     1
+}
+
+#[no_mangle]
+pub extern "C" fn gv_kernel_shutdown(handle: *mut GvKernel) -> bool {
+    with_mut(handle, false, |kernel| kernel.shutdown().is_ok())
 }
 
 #[no_mangle]

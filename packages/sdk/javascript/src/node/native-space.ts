@@ -100,6 +100,7 @@ interface BindingPolled {
 }
 
 interface BindingSpace {
+  shutdown(): void;
   admit(id: string): number;
   evict(id: string): boolean;
   seal(id: string): void;
@@ -378,6 +379,12 @@ export class NativeRuleSpace {
   private readonly activeEntities = new Set<string>();
   private readonly replacements = new Set<string>();
   private readonly pendingDisposals = new Set<Promise<void>>();
+  private readonly activeCompletions = new Map<RegisteredNode, Promise<void>>();
+  private readonly disposalErrors = new Map<RegisteredNode, unknown>();
+  private readonly nodeDisposals = new WeakMap<RegisteredNode, Promise<void>>();
+  private readonly evictions = new Map<string, Promise<boolean>>();
+  private lifecycle: 'running' | 'closing' | 'closed' = 'running';
+  private disposalPromise?: Promise<void>;
   private pumpPromise?: Promise<number>;
   private projectionRevision = 0;
   private topologyRevision = 0;
@@ -410,6 +417,8 @@ export class NativeRuleSpace {
     handler: NativeHandler<S>,
     options: NativeRegisterOptions = {},
   ): number {
+    this.assertOpen();
+    if (this.evictions.has(id)) throw new Error(`Entity is being evicted: ${id}`);
     if (this.nodes.has(id)) throw new Error(`Entity already registered: ${id}`);
     const factsJson = encodeAnalysisFacts(id, options.analysisFacts);
     const state = this.cloneState(initialState);
@@ -467,6 +476,8 @@ export class NativeRuleSpace {
     options: { timeoutMs?: number } = {},
     registration: NativeRegisterOptions = {},
   ): Promise<number> {
+    this.assertOpen();
+    if (this.evictions.has(id)) throw new Error(`Entity is being evicted: ${id}`);
     if (!this.nodes.has(id)) throw new Error(`Cannot replace missing entity: ${id}`);
     if (this.replacements.has(id) || this.interventions.has(id)) {
       throw new Error(`Replace already in progress or State intervention active: ${id}`);
@@ -692,6 +703,7 @@ export class NativeRuleSpace {
   }
 
   injectRoot(targetNodeId: string, info: NativeInfo, submissionId?: string): string {
+    this.assertOpen();
     const submission = submissionId ?? this.idProvider.nextId('submission');
     if (!this.submissionControllers.has(submission)) {
       this.submissionControllers.set(submission, new AbortController());
@@ -714,6 +726,7 @@ export class NativeRuleSpace {
     info: NativeInfo,
     source: { actor: string; reason: string },
   ): { submissionId: string; feedback: NativeDeliveryFeedback } {
+    this.assertOpen();
     if (typeof source?.actor !== 'string' || !source.actor.trim()
       || typeof source.reason !== 'string' || !source.reason.trim()
       || typeof info?.type !== 'string' || !info.type.trim()) {
@@ -834,6 +847,7 @@ export class NativeRuleSpace {
 
   /** Drain every runnable change. Non-reentrant. Returns changes executed. */
   pump(): Promise<number> {
+    if (this.lifecycle === 'closed') return Promise.resolve(0);
     if (this.pumpPromise) return this.pumpPromise;
     const pending = this.drain();
     this.pumpPromise = pending;
@@ -869,7 +883,7 @@ export class NativeRuleSpace {
     const signal = submission ? this.submissionControllers.get(submission)?.signal : undefined;
     const assertCurrent = (): void => {
       signal?.throwIfAborted();
-      if (space.nodes.get(entity) !== node || space.binding.generation(entity) !== generation) {
+      if (!space.activeCompletions.has(node) || space.nodes.get(entity) !== node || space.binding.generation(entity) !== generation) {
         throw new StaleNativeChangeError(entity);
       }
     };
@@ -968,6 +982,8 @@ export class NativeRuleSpace {
     }
     const info = joinInfo(polled.view.infoType, polled.view.payloadJson);
     this.activeEntities.add(polled.view.entity);
+    let finish!: () => void;
+    this.activeCompletions.set(node, new Promise<void>((resolve) => { finish = resolve; }));
     this.publishProjection();
     const startTime = this.clock.monotonicNow();
     this.emitTelemetry({
@@ -1013,17 +1029,96 @@ export class NativeRuleSpace {
         timestamp: endTime,
       });
       this.activeEntities.delete(polled.view.entity);
+      this.activeCompletions.delete(node);
+      finish();
       this.publishProjection();
     }
     this.binding.settleChange(polled.token, null);
   }
 
-  async dispose(): Promise<void> {
-    for (const submissionId of this.submissionControllers.keys()) this.cancel(submissionId);
-    for (const id of [...this.nodes.keys()]) this.unregister(id);
-    await Promise.allSettled([...this.pendingDisposals]);
+  /** Seal delivery, wait for this handler, evict its backlog, then await cleanup.
+   * A timeout leaves the node sealed; it does not pretend the handler stopped. */
+  evict(id: string, options: { timeoutMs?: number } = {}): Promise<boolean> {
+    const existing = this.evictions.get(id);
+    if (existing) return existing;
+    const node = this.nodes.get(id);
+    if (!node) return Promise.resolve(false);
+    if (this.replacements.has(id) || this.interventions.has(id)) {
+      return Promise.reject(new Error(`Entity control operation busy: ${id}`));
+    }
+    this.binding.seal(id);
+    const operation = (async () => {
+      const active = this.activeCompletions.get(node);
+      if (active) await this.withTimeout(active, options.timeoutMs ?? 5000, `active change: ${id}`);
+      const removed = this.unregister(id);
+      try {
+        await this.withTimeout(this.nodeDisposals.get(node) ?? Promise.resolve(), options.timeoutMs ?? 5000, `cleanup: ${id}`);
+      } catch (error) {
+        this.disposalErrors.delete(node);
+        throw new AggregateError([error], `Node cleanup failed: ${id}`);
+      }
+      return removed;
+    })();
+    this.evictions.set(id, operation);
+    const clear = () => { if (this.evictions.get(id) === operation) this.evictions.delete(id); };
+    void operation.then(clear, clear);
+    return operation;
+  }
+
+  /** Terminate only after callers have explicitly evicted every node. */
+  async shutdown(): Promise<void> {
+    if (this.lifecycle === 'closed') return;
+    if (this.nodes.size || this.activeCompletions.size || this.pendingDisposals.size) {
+      throw new Error('Cannot shutdown: nodes, active changes or cleanup remain');
+    }
+    this.binding.shutdown();
+    this.lifecycle = 'closed';
+    this.submissionControllers.clear();
     this.projectionListeners.clear();
     this.telemetryListeners.clear();
+    this.analysisEngine = undefined;
+    this.cachedTopology = undefined;
+  }
+
+  /** Convenience teardown for owned spaces; business shutdown Info comes first. */
+  dispose(options: { timeoutMs?: number } = {}): Promise<void> {
+    if (this.disposalPromise) return this.disposalPromise;
+    if (this.lifecycle === 'closed') return Promise.resolve();
+    this.lifecycle = 'closing';
+    this.disposalPromise = (async () => {
+      for (const submissionId of this.submissionControllers.keys()) this.cancel(submissionId);
+      const results = await Promise.allSettled([...this.nodes.keys()].map((id) => this.evict(id, options)));
+      const errors = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected').map((result) => result.reason);
+      try {
+        await this.withTimeout(Promise.allSettled([...this.pendingDisposals]), options.timeoutMs ?? 5000, 'cleanup');
+        this.throwDisposalErrors();
+      } catch (error) { errors.push(error); }
+      // Even failed disposers must not leave an otherwise settled kernel running.
+      if (!this.nodes.size && !this.activeCompletions.size && !this.pendingDisposals.size) await this.shutdown();
+      if (errors.length) throw new AggregateError(errors, 'Rule space cleanup failed');
+    })();
+    return this.disposalPromise;
+  }
+
+  private assertOpen(): void {
+    if (this.lifecycle !== 'running') throw new Error('Rule space is closing or closed');
+  }
+
+  private throwDisposalErrors(): void {
+    if (this.disposalErrors.size) {
+      const errors = [...this.disposalErrors.values()];
+      this.disposalErrors.clear();
+      throw new AggregateError(errors, 'Node cleanup failed');
+    }
+  }
+
+  private async withTimeout<T>(operation: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([operation, new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Timed out waiting for ${label}`)), timeoutMs);
+      })]);
+    } finally { if (timer !== undefined) clearTimeout(timer); }
   }
 
   private cloneState<S extends Record<string, unknown>>(state: S): S {
@@ -1035,11 +1130,12 @@ export class NativeRuleSpace {
 
   private queueDisposal(node: RegisteredNode): void {
     if (!node.dispose) return;
-    const pending = Promise.resolve().then(node.dispose).then(() => undefined);
+    const pending = Promise.resolve(this.activeCompletions.get(node)).then(node.dispose).then(() => undefined);
+    this.nodeDisposals.set(node, pending);
     this.pendingDisposals.add(pending);
     void pending.then(
       () => this.pendingDisposals.delete(pending),
-      () => this.pendingDisposals.delete(pending),
+      (error) => { this.pendingDisposals.delete(pending); this.disposalErrors.set(node, error); },
     );
   }
 
