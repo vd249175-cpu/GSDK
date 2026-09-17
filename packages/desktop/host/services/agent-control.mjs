@@ -20,7 +20,9 @@ async function readJsonBody(request) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')
 }
 
-export async function startAgentControlServer(host, { discoveryPath = agentControlDiscoveryPath() } = {}) {
+export async function startAgentControlServer(host, {
+  discoveryPath = agentControlDiscoveryPath(), acceptCommand = (action) => action(),
+} = {}) {
   const token = randomBytes(32).toString('hex')
   const server = createServer(async (request, response) => {
     response.setHeader('Content-Type', 'application/json; charset=utf-8')
@@ -40,16 +42,16 @@ export async function startAgentControlServer(host, { discoveryPath = agentContr
           output = host.agentAnalyze(input)
           break
         case '/inject':
-          output = await host.agentInject(input.targetNodeId, input.info, {
+          output = await acceptCommand(() => host.agentInject(input.targetNodeId, input.info, {
             actor: 'codex/local', reason: input.reason,
-          })
+          }))
           break
         case '/state/patch':
-          output = await host.agentInterveneState(input.nodeId, input.patch, {
+          output = await acceptCommand(() => host.agentInterveneState(input.nodeId, input.patch, {
             actor: 'codex/local', reason: input.reason,
             expectedGeneration: input.expectedGeneration,
             expectedVersion: input.expectedVersion,
-          })
+          }))
           break
         default:
           response.writeHead(404)
@@ -76,11 +78,17 @@ export async function startAgentControlServer(host, { discoveryPath = agentContr
     server.close()
     throw error
   }
+  let closePromise
   return {
     port: address.port,
-    async close() {
+    close() {
+      if (closePromise) return closePromise
       rmSync(discoveryPath, { force: true })
-      await new Promise((resolve) => server.close(resolve))
+      closePromise = new Promise((resolve, reject) => {
+        server.close((error) => error ? reject(error) : resolve())
+        server.closeAllConnections()
+      })
+      return closePromise
     },
   }
 }

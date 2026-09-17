@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('graphvideoDesktop', {
     reload: () => ipcRenderer.send('window:reload'),
     toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
     close: () => ipcRenderer.send('window:close'),
+    quit: () => ipcRenderer.send('window:quit'),
   }),
   graphKernel: Object.freeze({
     request: (method, input) => ipcRenderer.invoke('graph:request', { method, input }),

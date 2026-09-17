@@ -1,10 +1,12 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, protocol, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain as electronIpcMain, protocol, shell } from 'electron'
 import { existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createEmptyNativeGraphHost } from '@graphvideo/desktop/graph-host'
 import { startAgentControlServer } from '@graphvideo/desktop/agent-control'
+import { createCommandGate, bindCommandIpc } from '@graphvideo/desktop/command-gate'
+import { createStudioApplicationLifecycle } from './services/application-lifecycle.mjs'
 import { loadApplication } from '@graphvideo/desktop/application'
 import { loadBackendPlugins } from '@graphvideo/desktop/plugin-loader'
 import { NodeGenerationAdapter } from './effects/node-generation-adapter.js'
@@ -60,6 +62,15 @@ const backendPlugins = await loadBackendPlugins(application)
 const appRoot = application.directory
 const pluginRoot = join(here, '..')
 let agentControl = null
+const commandGate = createCommandGate()
+let commandIpc = null
+let lifecycle = null
+let bootstrapPromise = Promise.resolve()
+let allowQuit = false
+let handlingQuit = false
+let acceptingObservations = true
+let stopTelemetrySubscription = () => {}
+const requestQuit = () => app.quit()
 
 function loadEnvFile(filePath) {
   if (!existsSync(filePath)) return
@@ -160,13 +171,17 @@ async function submitDesktopInfo(info) {
 }
 
 function submitDesktopInfoFromEvent(info) {
-  void submitDesktopInfo(info).catch((error) => {
+  return submitDesktopInfo(info).catch((error) => {
     console.error('[GraphVideo] Desktop lifecycle Info failed:', error)
   })
 }
 
 function reopenDesktopFromEvent() {
-  void pendingCloseObservation.then(() => submitDesktopInfo({ type: 'DesktopStartRequestedInfo' })).catch((error) => {
+  if (!commandGate.accepting || !host || lifecycle?.closing) return
+  void commandGate.run(async () => {
+    await pendingCloseObservation
+    if (!lifecycle?.closing) await submitDesktopInfo({ type: 'DesktopStartRequestedInfo' })
+  }).catch((error) => {
     console.error('[GraphVideo] Desktop reopen Info failed:', error)
   })
 }
@@ -315,6 +330,9 @@ function startTelemetryLoopbackServer(port = 51888) {
 
 // 注册 IPC 通道
 function registerIpcHandlers() {
+  const ipcMain = commandIpc = bindCommandIpc(electronIpcMain, commandGate, {
+    allowRead: (channel, args) => channel === 'graph:request' && args[0]?.method === 'graph.projection.read',
+  })
   // 窗口基础控制
   ipcMain.on('window:minimize', () => submitDesktopInfoFromEvent({ type: 'WindowActionTaskInfo', action: 'MINIMIZE' }))
   ipcMain.on('window:toggle-maximize', () => submitDesktopInfoFromEvent({ type: 'WindowActionTaskInfo', action: 'TOGGLE_MAXIMIZE' }))
@@ -322,7 +340,7 @@ function registerIpcHandlers() {
   ipcMain.on('window:reload', () => submitDesktopInfoFromEvent({ type: 'WindowActionTaskInfo', action: 'RELOAD' }))
 
   // 广播微内核原生因果遥测（供 3D 拓扑流看板与分析工具实时观察）
-  host.subscribeCausalTelemetry((event) => {
+  stopTelemetrySubscription = host.subscribeCausalTelemetry((event) => {
     recordAndBroadcastTelemetry(event)
   })
 
@@ -525,8 +543,10 @@ async function createWindow(config = {}) {
 
   window.on('closed', () => {
     if (mainWindow === window) mainWindow = null
+    if (!acceptingObservations) return
     const submissionId = host.space.injectRoot('src-electron-window', { type: 'ElectronWindowClosedObservedInfo' })
-    pendingCloseObservation = host.space.waitForSubmission(submissionId).catch((error) => {
+    pendingCloseObservation = host.space.waitForSubmission(submissionId)
+    void pendingCloseObservation.catch((error) => {
       console.error('[GraphVideo] Window close observation failed:', error)
     })
   })
@@ -548,8 +568,68 @@ const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
 } else {
+  // Empty Rust boot does not depend on Electron readiness or business startup.
+  host = initializeGraphHost()
+  lifecycle = createStudioApplicationLifecycle({
+    host, hasProject: () => Boolean(activeProjectRoot),
+    closeIngress: () => commandGate.close(),
+    waitForBoot: () => bootstrapPromise,
+    waitForAcceptedWork: () => commandGate.drain(),
+    stopSources: async () => {
+      projectExternalSync.stop()
+      await pendingCloseObservation
+      acceptingObservations = false
+    },
+    closeServices: async () => {
+      const results = await Promise.allSettled([
+        Promise.resolve().then(() => {
+          stopTelemetrySubscription()
+          commandIpc?.dispose()
+          electronIpcMain.removeListener('window:quit', requestQuit)
+          process.removeListener('SIGINT', requestQuit)
+          process.removeListener('SIGTERM', requestQuit)
+        }),
+        (async () => {
+          if (app.isReady() && await protocol.isProtocolHandled('graphvideo-asset')) protocol.unhandle('graphvideo-asset')
+        })(),
+        Promise.resolve().then(() => agentControl?.close()),
+        (async () => {
+          for (const client of sseClients) client.end()
+          sseClients.clear()
+          if (!telemetryServer) return
+          const server = telemetryServer
+          telemetryServer = null
+          await new Promise((resolve, reject) => {
+            server.close((error) => error && error.code !== 'ERR_SERVER_NOT_RUNNING' ? reject(error) : resolve())
+            server.closeAllConnections()
+          })
+        })(),
+      ])
+      const errors = results.filter((result) => result.status === 'rejected').map((result) => result.reason)
+      if (errors.length) throw new AggregateError(errors, 'Host service cleanup failed')
+    },
+  })
+  app.on('before-quit', (event) => {
+    if (allowQuit) return
+    event.preventDefault()
+    if (handlingQuit) return
+    handlingQuit = true
+    void lifecycle.shutdown().then(() => {
+      allowQuit = true
+      app.quit()
+    }).catch((error) => {
+      handlingQuit = false
+      console.error('[GraphVideo] Application shutdown failed:', error)
+      if (lifecycle.stopped) { allowQuit = true; app.exit(1) }
+      else dialog.showErrorBox('GraphVideo 未完成退出', error.message)
+    })
+  })
+  electronIpcMain.on('window:quit', requestQuit)
+  process.on('SIGINT', requestQuit)
+  process.on('SIGTERM', requestQuit)
   try { getProjectHistory(app.getPath('userData')) } catch {}
   app.on('second-instance', () => {
+    if (lifecycle.closing) return
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
@@ -562,20 +642,23 @@ if (!gotLock) {
     if (!mainWindow) reopenDesktopFromEvent()
   })
 
-  app.whenReady().then(async () => {
-    host = initializeGraphHost()
+  bootstrapPromise = app.whenReady().then(async () => {
+    if (lifecycle.closing) return
     await host.mountPlugins()
+    if (lifecycle.closing) return
     registerIpcHandlers()
     startTelemetryLoopbackServer(51888)
     try {
-      agentControl = await startAgentControlServer(host)
+      agentControl = await startAgentControlServer(host, { acceptCommand: (action) => commandGate.run(action) })
     } catch (error) {
       console.error('[GraphVideo] Agent control failed to start:', error)
     }
     protocol.handle('graphvideo-asset', handleAssetRequest)
-    await submitDesktopInfo({ type: 'DesktopStartRequestedInfo' })
-  }).catch((error) => {
+    if (!lifecycle.closing) await lifecycle.start()
+  }).catch(async (error) => {
     console.error('[GraphVideo] Desktop bootstrap failed:', error)
+    try { await lifecycle.abortBootstrap() } catch (failure) { console.error('[GraphVideo] Bootstrap cleanup failed:', failure) }
+    allowQuit = true
     app.exit(1)
   })
 }

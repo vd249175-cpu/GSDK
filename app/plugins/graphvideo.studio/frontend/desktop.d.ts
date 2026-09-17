@@ -9,6 +9,7 @@ interface Window {
       minimize(): void
       reload(): void
       toggleMaximize(): void
+      quit(): void
       close(): void
     }
     graphKernel?: {

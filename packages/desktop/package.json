@@ -51,6 +51,7 @@
     "./application": "./application.mjs",
     "./graph-host": "./host/native-graph-host.js",
     "./agent-control": "./host/services/agent-control.mjs",
+    "./command-gate": "./host/services/command-gate.mjs",
     "./element-catalog": "./host/services/element-catalog.js",
     "./electron-window": "./host/effects/electron-window-adapter.mjs",
     "./renderer-security": "./host/services/renderer-security.mjs",

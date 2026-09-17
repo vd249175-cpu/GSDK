@@ -28,3 +28,7 @@ StoppingGeneration → AwaitingDrain → Saving → ClosingWindow → ShutdownRe
 ## 资源边界
 
 业务准备与资源销毁分开：保存发生在有效的 change 中，节点 `dispose` 只终结本地生命周期与释放资源。异步 `evict` 先密封投递，等当前 handler 结束后丢弃 backlog，再等待清理；超时节点仍密封。清理错误汇总返回，不能吞掉。窗口关闭与应用退出是不同意图，关闭窗口允许图继续驻留。
+
+Electron 单实例拥有者在 ready 前启动空内核，ready 后装配并启动业务。`before-quit`、preload `windowControls.quit()`、SIGINT/SIGTERM 使用同一关闭协调器，重复调用复用 Promise。窗口 `close()` 继续只关闭视窗。退出期间 activate 和第二次启动不能重新开窗。
+
+宿主入口通过 command gate 限制新 IPC/Agent 写操作并等待已接纳操作；投影读取与必要 Observation 保留。等待已接纳 submission 前先暂停自动轮询，避免周期任务无法收敛。准备阶段默认超时 15 秒，单节点清理及服务关闭默认 5 秒。保存失败保持图和窗口，允许再次请求退出；超时后的迟到结果不能把失败转成成功。业务准备完成后停止文件监听及窗口观察入口，推出全部节点，再关闭内核和 IPC、Agent、遥测/SSE、资源协议。启动中退出可直接关闭尚未装配的空内核；启动失败清理已获得的资源并以非零状态退出。强制杀进程不经过此协议。

@@ -41,7 +41,9 @@ Electron main
 
 当前 Studio 生产 Graph 仍由 Electron main 内的 `NativeRuleSpace` 承载，renderer/main 的 IPC 是桌面安全边界。新增的 `kernel-daemon` 是可选的独立规则空间宿主，使用带版本和凭证的 loopback JSON Lines 协议；它复用同一个 `packages/rust/kernel` 调度器，不形成第二套执行语义。
 
-桌面窗口的生命周期现由 Studio 图推进：主进程在 ready 后向 `host-el` 注入 `DesktopStartRequestedInfo`，关闭窗口的 UI 命令注入 `DesktopCloseRequestedInfo`；`host-el` 将物理动作定向发送给 `sink-electron-window`，其 EffectAdapter 执行 BrowserWindow 操作，`src-electron-window` 把执行结果和系统 `closed` 事件转为 Observation Info，最终由 `host-el` 更新 State。关闭所有窗口不销毁 `NativeRuleSpace`，Electron 主进程和其加载的 Rust N-API 调度器继续运行，可由第二次启动或系统 activate 重新开窗。独立的通用 Rust daemon 已可运行，但当前 Studio 仍驻留 Electron 主进程；生产迁移完成前，结束 Electron 主进程仍会结束这份 Studio 图。
+桌面生命周期分为独立的内核、装配和业务操作：单实例拥有者在 Electron ready 前创建空 `NativeRuleSpace`，ready 后显式装配插件，再向 `node-application-lifecycle` 注入 `SystemStartRequestedInfo`。窗口 State 由 `host-el` 持有，物理动作经 `sink-electron-window` 的 EffectAdapter 执行，`src-electron-window` 回传 Observation。关闭窗口的 UI 命令仍是 `DesktopCloseRequestedInfo`，关闭所有窗口保留图，可经 activate 或第二次启动重新开窗。
+
+应用退出通过 `before-quit`、固定 `window:quit` 命令或 SIGINT/SIGTERM 进入同一协调器：限制新业务入口，停止自动轮询，等待已接纳宿主命令和因果工作，再注入 `SystemShutdownRequestedInfo` 及收敛 Observation。应用图完整保存当前项目、关闭窗口并投影 `ShutdownReady` 后，宿主停止事件源，显式推出节点并等待清理，最后关闭空 Rust 内核、释放 IPC/Agent/遥测服务，再允许 Electron 退出。保存失败或超时保留图并报告错误，启动失败也执行有边界的清理。见[应用生命周期](./application-lifecycle.md)。Studio 图仍由 Electron 内的 N-API 承载；独立 daemon 是另一种可选宿主。
 
 ## 3. 权限与归属
 
