@@ -73,6 +73,7 @@ export abstract class Node<
   private activeChangeId: string | undefined;
 
   private disposers: Set<Disposer> = new Set();
+  private disposalPromise?: Promise<void>;
   private abortController: AbortController = new AbortController();
 
   private kernel: any = null;
@@ -455,18 +456,20 @@ export abstract class Node<
     this.disposers.add(disposer);
   }
 
-  public async dispose(): Promise<void> {
-    this.abort();
-    for (const disposer of this.disposers) {
-      try {
-        await disposer();
-      } catch (err) {
-        console.error(`[Node ${this.id}] Disposer failed:`, err);
+  public dispose(): Promise<void> {
+    if (this.disposalPromise) return this.disposalPromise;
+    this.disposalPromise = Promise.resolve().then(async () => {
+      this.abort();
+      const errors: unknown[] = [];
+      for (const disposer of this.disposers) {
+        try { await disposer(); } catch (error) { errors.push(error); }
       }
-    }
-    this.disposers.clear();
-    this.onUnmount();
-    this.status = 'IDLE';
+      this.disposers.clear();
+      try { this.onUnmount(); } catch (error) { errors.push(error); }
+      this.status = 'IDLE';
+      if (errors.length) throw new AggregateError(errors, `Node ${this.id} cleanup failed`);
+    });
+    return this.disposalPromise;
   }
 
   public abort(reason?: string): void {

@@ -5,7 +5,7 @@ import {assertRendererRoot} from '@graphvideo/sdk/plugin'
  * 原生微内核图宿主 (NativeGraphHost)：
  * 基于 Rust NativeRuleSpace，装配调用方提供的普通插件并导出 Projection。
  */
-export function createNativeGraphHost({
+export function createEmptyNativeGraphHost({
   dependencies = {}, plugins = [],
   analysisFrontendLinks = [], analysisFrontendServiceLinks = [],
 } = {}) {
@@ -26,21 +26,70 @@ export function createNativeGraphHost({
   })
   const mountedNodes = []
 
-  for (const plugin of plugins) {
-    for (const node of plugin.createNodes({ dependencies })) {
-      mountDomainNode(space, node)
-      mountedNodes.push(node)
-    }
+  let accepting = true
+  let assembling = false
+  const assertAccepting = () => {
+    if (!accepting) throw new Error('Graph host is closing')
   }
 
   return {
     space,
     nodes: mountedNodes,
 
+    /** Gate untrusted roots and topology changes; lifecycle roots use space. */
+    stopAccepting() { accepting = false },
+
+    async mountPlugins() {
+      assertAccepting()
+      if (assembling) throw new Error('Plugin assembly is already in progress')
+      assembling = true
+      const created = []
+      const admitted = []
+      try {
+        for (const plugin of plugins) {
+          const nodes = plugin.createNodes({ dependencies })
+          created.push(...nodes)
+          for (const node of nodes) {
+            mountDomainNode(space, node)
+            admitted.push(node)
+            mountedNodes.push(node)
+          }
+        }
+        return admitted.map((node) => ({ nodeId: node.id, generation: space.generation(node.id) }))
+      } catch (error) {
+        const cleanup = await Promise.allSettled(created.map(async (node) => {
+          if (admitted.includes(node)) await space.evict(node.id)
+          else await node.dispose()
+        }))
+        for (const node of admitted) mountedNodes.splice(mountedNodes.indexOf(node), 1)
+        const failures = cleanup.filter((result) => result.status === 'rejected').map((result) => result.reason)
+        try { await space.waitForDisposals() } catch (failure) { failures.push(failure) }
+        throw new AggregateError([error, ...failures], 'Plugin assembly failed', { cause: error })
+      } finally { assembling = false }
+    },
+
+    async evict(nodeIds, options) {
+      const results = []
+      for (const nodeId of nodeIds) {
+        try {
+          const evicted = await space.evict(nodeId, options)
+          results.push({ nodeId, evicted })
+        } catch (error) { results.push({ nodeId, error }) }
+        if (!space.admittedEntities().includes(nodeId)) {
+          const index = mountedNodes.findIndex((node) => node.id === nodeId)
+          if (index !== -1) mountedNodes.splice(index, 1)
+        }
+      }
+      return results
+    },
+
+    shutdown() { return space.shutdown() },
+
     /**
      * 挂载额外节点（如测试用节点）
      */
     mount(nodes) {
+      assertAccepting()
       for (const node of nodes) {
         mountDomainNode(space, node)
         mountedNodes.push(node)
@@ -54,6 +103,7 @@ export function createNativeGraphHost({
      * 3. 阻塞等待 submission 达成因果确定性收敛后返回最新 Projection。
      */
     async injectRoot(targetNodeId, info, submissionId) {
+      assertAccepting()
       assertRendererRoot(plugins, { targetNodeId, info })
       if (space.generation(targetNodeId) === null) {
         throw new Error(`未找到目标节点: ${targetNodeId}`)
@@ -108,12 +158,14 @@ export function createNativeGraphHost({
     },
 
     async agentInject(targetNodeId, info, { actor, reason }) {
+      assertAccepting()
       const result = space.injectAgentInfo(targetNodeId, info, { actor, reason })
       await space.waitForSubmission(result.submissionId)
       return { ...result, projection: space.readProjection() }
     },
 
     agentInterveneState(nodeId, patch, options) {
+      assertAccepting()
       return space.interveneState(nodeId, patch, options)
     },
 
@@ -122,13 +174,40 @@ export function createNativeGraphHost({
     },
 
     async hotSwap(node) {
+      assertAccepting()
       if (!space.getState(node.id)) throw new Error(`热替换目标未装配: ${node.id}`)
       return replaceDomainNode(space, node)
     },
 
-    dispose() {
-      return space.dispose()
+    dispose(options) {
+      accepting = false
+      return space.dispose(options).finally(() => {
+        if (!space.admittedEntities().length) mountedNodes.splice(0)
+      })
     },
 
+  }
+}
+
+/** Convenience assembly; explicit lifecycle callers use createEmptyNativeGraphHost. */
+export function createNativeGraphHost(options = {}) {
+  const host = createEmptyNativeGraphHost(options)
+  const created = []
+  try {
+    for (const plugin of options.plugins ?? []) {
+      const nodes = plugin.createNodes({ dependencies: options.dependencies ?? {} })
+      created.push(...nodes)
+      host.mount(nodes)
+    }
+    return host
+  } catch (error) {
+    const cleanup = Promise.allSettled(created.filter((node) => !host.nodes.includes(node)).map((node) => node.dispose()))
+      .then(async (results) => {
+        await host.dispose()
+        const errors = results.filter((result) => result.status === 'rejected').map((result) => result.reason)
+        if (errors.length) throw new AggregateError(errors, 'Assembly cleanup failed')
+      })
+    void cleanup.catch((failure) => console.error('[NativeGraphHost] Assembly cleanup failed:', failure))
+    throw error
   }
 }

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createNativeGraphHost } from '@graphvideo/desktop/graph-host'
+import { createEmptyNativeGraphHost } from '@graphvideo/desktop/graph-host'
 import { startAgentControlServer } from '@graphvideo/desktop/agent-control'
 import { loadApplication } from '@graphvideo/desktop/application'
 import { loadBackendPlugins } from '@graphvideo/desktop/plugin-loader'
@@ -131,7 +131,7 @@ const electronWindowAdapter = createElectronWindowAdapter({
 // Only the single-instance owner mounts the Rust-backed Studio graph.
 let host = null
 function initializeGraphHost() {
-  return createNativeGraphHost({
+  return createEmptyNativeGraphHost({
     dependencies: {
       electronWindowAdapter,
       generationAdapterOperation: generationAdapter,
@@ -564,6 +564,7 @@ if (!gotLock) {
 
   app.whenReady().then(async () => {
     host = initializeGraphHost()
+    await host.mountPlugins()
     registerIpcHandlers()
     startTelemetryLoopbackServer(51888)
     try {

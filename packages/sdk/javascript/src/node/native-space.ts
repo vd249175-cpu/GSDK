@@ -1066,6 +1066,12 @@ export class NativeRuleSpace {
   }
 
   /** Terminate only after callers have explicitly evicted every node. */
+  async waitForDisposals(options: { timeoutMs?: number } = {}): Promise<void> {
+    await this.withTimeout(Promise.allSettled([...this.pendingDisposals]), options.timeoutMs ?? 5000, 'cleanup');
+    this.throwDisposalErrors();
+  }
+
+  /** Terminate only after callers have explicitly evicted every node. */
   async shutdown(): Promise<void> {
     if (this.lifecycle === 'closed') return;
     if (this.nodes.size || this.activeCompletions.size || this.pendingDisposals.size) {

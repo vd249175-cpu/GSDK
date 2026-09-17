@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {locateNativeBinding} from '@graphvideo/sdk/node'
 import studioPlugin from '../backend'
-import { createNativeGraphHost } from '@graphvideo/desktop/graph-host'
+import { createEmptyNativeGraphHost } from '@graphvideo/desktop/graph-host'
 
 describe.skipIf(!locateNativeBinding())('native desktop lifecycle', () => {
   it('settles start and close through the Rust scheduler, including an OS close event during the effect', async () => {
@@ -17,7 +17,8 @@ describe.skipIf(!locateNativeBinding())('native desktop lifecycle', () => {
         return { type: request.type === 'OPEN' ? 'OPENED' : 'CLOSED', isWindowOpen: request.type === 'OPEN' }
       },
     }
-    host = createNativeGraphHost({ plugins: [studioPlugin], dependencies: { electronWindowAdapter: adapter } })
+    host = createEmptyNativeGraphHost({ plugins: [studioPlugin], dependencies: { electronWindowAdapter: adapter } })
+    await host.mountPlugins()
     try {
       const start = host.space.injectRoot('host-el', { type: 'DesktopStartRequestedInfo' })
       await host.space.waitForSubmission(start)
