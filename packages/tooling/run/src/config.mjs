@@ -115,13 +115,13 @@ export function parseRunConfig(document, { configPath, baseDirectory }) {
     : resolve(baseDirectory, kernel.daemonPath);
 
   const backend = assertObject(document.backend ?? {}, 'backend');
-  if (backend.entry !== undefined) assertPluginEntry(backend.entry, 'backend.entry');
+  if (backend.entry !== undefined && backend.entry !== null) assertPluginEntry(backend.entry, 'backend.entry');
 
   const frontend = assertObject(document.frontend ?? {}, 'frontend');
   if (frontend.enabled !== undefined && typeof frontend.enabled !== 'boolean') {
     fail('frontend.enabled must be a boolean');
   }
-  if (frontend.entry !== undefined) assertPluginEntry(frontend.entry, 'frontend.entry');
+  if (frontend.entry !== undefined && frontend.entry !== null) assertPluginEntry(frontend.entry, 'frontend.entry');
 
   const graph = assertObject(document.graph ?? {}, 'graph');
   const instances = normalizeInstances(graph.instances ?? []);
