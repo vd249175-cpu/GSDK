@@ -4,7 +4,10 @@
   "version": "1.0.0",
   "defaultTheme": "dark",
   "defaultWorkspace": "editing",
-  "plugins": [{ "id": "graphvideo.studio", "path": "plugins/graphvideo.studio" }],
+  "plugins": [
+    { "id": "graphvideo.studio", "path": "plugins/backend/graphvideo.studio" },
+    { "id": "graphvideo.studio", "path": "plugins/frontend/graphvideo.studio" }
+  ],
   "desktop": {
     "host": { "pluginId": "graphvideo.studio", "entry": "desktop/main.mjs" },
     "renderer": { "pluginId": "graphvideo.studio", "entry": "frontend/main.tsx" }

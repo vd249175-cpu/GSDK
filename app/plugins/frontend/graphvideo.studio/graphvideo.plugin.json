@@ -1,0 +1,24 @@
+{
+  "id": "graphvideo.studio",
+  "name": "GraphVideo Studio",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "kind": "frontend",
+  "contributes": {
+    "frontend": "index.ts",
+    "elements": [
+      "agent-console",
+      "generation",
+      "markdown-editor",
+      "outliner",
+      "prompt-library",
+      "properties"
+    ],
+    "workspaces": [
+      "agent",
+      "editing",
+      "generation",
+      "review"
+    ]
+  }
+}

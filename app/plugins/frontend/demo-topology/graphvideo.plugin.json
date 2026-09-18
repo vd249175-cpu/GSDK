@@ -1,0 +1,12 @@
+{
+  "id": "demo.topology",
+  "name": "Topology Demo",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "kind": "frontend",
+  "contributes": {
+    "frontend": "index.ts",
+    "elements": [],
+    "workspaces": []
+  }
+}

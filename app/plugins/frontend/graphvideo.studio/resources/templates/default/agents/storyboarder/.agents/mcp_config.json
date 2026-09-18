@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "graphvideo": {
+      "command": "node",
+      "args": [
+        "C:\\Projects\\GraphFramework_v1\\app\\resources\\tools\\mcp-server.mjs"
+      ],
+      "env": {
+        "GRAPHVIDEO_PROJECT_ROOT": "C:\\Projects\\视频制作\\猫猫短视频",
+        "GRAPHVIDEO_GENERATION_MODELS_ROOT": "C:\\Projects\\GraphFramework_v1\\app\\resources\\skills\\.agents\\skills\\graphvideo-generation-models"
+      }
+    }
+  }
+}

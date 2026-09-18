@@ -1,0 +1,48 @@
+{
+  "344": {
+    "inputs": {
+      "filename_prefix": "video/Seedance_R2V",
+      "format": "auto",
+      "codec": "auto",
+      "video": [
+        "360",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "保存视频"
+    }
+  },
+  "356": {
+    "inputs": {
+      "image": "character.jpeg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载参考图 1"
+    }
+  },
+  "360": {
+    "inputs": {
+      "model": "Seedance 2.0",
+      "model.prompt": "A cinematic fashion model walking down a futuristic city street, high fidelity, 4k.",
+      "model.resolution": "720p",
+      "model.ratio": "16:9",
+      "model.duration": 5,
+      "model.generate_audio": true,
+      "model.auto_downscale": true,
+      "model.auto_upscale": false,
+      "seed": 123456,
+      "watermark": false,
+      "model.reference_images.image_1": [
+        "356",
+        0
+      ]
+    },
+    "class_type": "ByteDance2ReferenceNodeV2",
+    "_meta": {
+      "title": "ByteDance Seedance 2.0 图生视频"
+    }
+  }
+}

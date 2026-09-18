@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2, "kind": "comfy-template", "workflow": "workflow.json", "outputKind": "video",
+  "bindings": [
+    { "source": "prompt", "nodeId": "138", "input": "value" },
+    { "source": "parameter", "name": "duration", "nodeId": "132", "input": "value", "transform": "number" },
+    { "source": "parameter", "name": "aspect_ratio", "nodeId": "115", "input": "aspect_ratio", "transform": "aspectLabel" },
+    { "source": "parameter", "name": "enable_lightning_lora", "nodeId": "146", "input": "value" },
+    { "source": "parameter", "name": "seed", "nodeId": "129", "input": "noise_seed" }
+  ],
+  "clearInputPrefixes": [{ "nodeId": "136", "prefixes": ["ref_images.", "ref_audios."] }],
+  "referenceSlots": [
+    { "type": "image", "maximum": 9, "nodeIdStart": 500, "loaderClass": "LoadImage", "loaderInput": "image", "targetNodeId": "136", "targetInputPattern": "ref_images.ref_image_{index}", "titlePrefix": "参考图" },
+    { "type": "audio", "maximum": 3, "nodeIdStart": 600, "loaderClass": "LoadAudio", "loaderInput": "audio", "targetNodeId": "136", "targetInputPattern": "ref_audios.ref_audio_{index}", "titlePrefix": "参考音频" }
+  ]
+}

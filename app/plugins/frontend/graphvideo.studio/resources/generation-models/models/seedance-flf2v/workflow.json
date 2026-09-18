@@ -1,0 +1,4 @@
+{
+  "1": { "class_type": "ByteDance2FirstLastFrameNode", "inputs": { "model": "Seedance 2.0", "model.prompt": "", "model.resolution": "720p", "model.ratio": "adaptive", "model.duration": 5, "model.generate_audio": true, "seed": 42, "watermark": false } },
+  "2": { "class_type": "SaveVideo", "inputs": { "filename_prefix": "video/Seedance_FLF2V_Seedance_2.0", "format": "auto", "codec": "auto", "video": ["1", 0] } }
+}

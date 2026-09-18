@@ -1,0 +1,12 @@
+{
+  "id": "demo.topology",
+  "name": "Topology Demo",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "kind": "backend",
+  "contributes": {
+    "backend": "index.mjs",
+    "nodeFactories": [],
+    "graphFactories": ["createDemoTopologyGraph"]
+  }
+}

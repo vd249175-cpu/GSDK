@@ -1,0 +1,35 @@
+{
+  "id": "editing",
+  "name": "编辑",
+  "order": 10,
+  "layout": {
+    "kind": "split",
+    "id": "root",
+    "direction": "horizontal",
+    "ratio": 0.47,
+    "first": {
+      "kind": "area",
+      "id": "editor",
+      "panelId": "markdown-editor",
+      "instanceId": "shared-editor"
+    },
+    "second": {
+      "kind": "split",
+      "id": "sidebar",
+      "direction": "horizontal",
+      "ratio": 0.53,
+      "first": {
+        "kind": "area",
+        "id": "outliner",
+        "panelId": "outliner",
+        "instanceId": "shared-outliner"
+      },
+      "second": {
+        "kind": "area",
+        "id": "properties",
+        "panelId": "properties",
+        "instanceId": "shared-properties"
+      }
+    }
+  }
+}

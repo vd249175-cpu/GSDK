@@ -1,0 +1,23 @@
+{
+  "id": "generation",
+  "name": "生成",
+  "order": 40,
+  "layout": {
+    "kind": "split",
+    "id": "root",
+    "direction": "horizontal",
+    "ratio": 0.28,
+    "first": {
+      "kind": "area",
+      "id": "outliner",
+      "panelId": "outliner",
+      "instanceId": "shared-outliner"
+    },
+    "second": {
+      "kind": "area",
+      "id": "generation",
+      "panelId": "generation",
+      "instanceId": "generation-main"
+    }
+  }
+}

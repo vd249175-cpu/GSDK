@@ -1,0 +1,37 @@
+{
+  "id": "graphvideo.studio",
+  "name": "GraphVideo Studio",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "kind": "backend",
+  "contributes": {
+    "backend": "index.ts",
+    "nodeFactories": [
+      "createFileSystemSourceNode",
+      "createMarkdownSourceNode",
+      "createMarkdownParserNode",
+      "createOutlinerTreeNode",
+      "createHistoryManagerNode",
+      "createSqliteRegistryNode",
+      "createSqliteWriterSinkNode",
+      "createSqliteObserverSourceNode",
+      "createSecurityGateNode",
+      "createGenerationTaskNode",
+      "createGenerationModelResolverNode",
+      "createGenerationSubmitNode",
+      "createGenerationPollNode",
+      "createGenerationPollSchedulerNode",
+      "createGenerationDownloadNode",
+      "createElectronHostNode",
+      "createElectronWindowExecutionNode",
+      "createElectronWindowObservationNode"
+    ],
+    "graphFactories": [
+      "createStudioNodes",
+      "createAuthoringNodes",
+      "createPersistenceNodes",
+      "createGenerationNodes",
+      "createPlatformNodes"
+    ]
+  }
+}

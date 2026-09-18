@@ -6,13 +6,14 @@ import { loadApplication, runtimeRoot } from '../application.mjs'
 const forbidden = ['@graphvideo/sdk/node', '@graphvideo/sdk/testing', '@graphvideo/sdk/analysis', '@graphvideo/sdk/plugin', '@graphvideo/sdk/effect']
 function collect(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    if (['node_modules', 'dist'].includes(entry.name)) return []
+    if (['node_modules', 'dist', 'backend'].includes(entry.name)) return []
     const file = resolve(directory, entry.name)
     return entry.isDirectory() ? collect(file) : /\.[jt]sx?$/.test(file) && !/\.test\.[jt]sx?$/.test(file) ? [file] : []
   })
 }
 const app = loadApplication()
-const directories = [resolve(runtimeRoot, 'renderer/src'), ...app.plugins.flatMap((plugin) => ['frontend', 'elements'].map((name) => resolve(plugin.directory, name)))]
+const frontendPlugins = app.plugins.filter((plugin) => plugin.manifest.kind === 'frontend' || plugin.manifest.apiVersion === 1)
+const directories = [resolve(runtimeRoot, 'renderer/src'), ...frontendPlugins.flatMap((plugin) => ['frontend', 'elements'].map((name) => resolve(plugin.directory, name)))]
 const violations = []
 for (const directory of directories) {
   try {

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 2,
+  "id": "chat-video",
+  "name": "ChatVideo · 对话式轻量视频模型",
+  "description": "用于草稿与对话测试的轻量视频生成模型。",
+  "mediaType": "video",
+  "provider": "mock",
+  "parameters": { "duration": { "type": "integer" } },
+  "defaults": { "duration": 4 },
+  "budget": { "kind": "free", "mode": "Mock Local" }
+}

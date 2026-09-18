@@ -1,0 +1,10 @@
+{
+  "name": "graphvideo-demo-topology-plugin",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@graphvideo/sdk": "file:../../../packages/sdk/javascript",
+    "@graphvideo/desktop": "file:../../../packages/desktop"
+  }
+}

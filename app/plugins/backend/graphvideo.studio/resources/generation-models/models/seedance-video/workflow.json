@@ -1,0 +1,4 @@
+{
+  "344": { "class_type": "SaveVideo", "inputs": { "filename_prefix": "video/Seedance_2.0", "format": "auto", "codec": "auto", "video": ["360", 0] } },
+  "360": { "class_type": "ByteDance2ReferenceNodeV2", "inputs": { "model": "Seedance 2.0", "model.prompt": "", "model.resolution": "720p", "model.ratio": "16:9", "model.duration": 5, "model.generate_audio": true, "model.auto_downscale": true, "model.auto_upscale": false, "seed": 42, "watermark": false } }
+}
