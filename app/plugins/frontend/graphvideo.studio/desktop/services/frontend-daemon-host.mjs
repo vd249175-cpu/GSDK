@@ -7,7 +7,7 @@ import { writeJsonRecord } from '../../../../../../packages/tooling/run/src/reco
 export const frontendContext = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 
 /** A read-only projection cache and authenticated host port, no runtime/State. */
-export async function connectFrontendHost({ effects, stopSources, closeServices, closeIngress, quit, broadcast, rendererReady }) {
+export async function connectFrontendHost({ effects, stopSources, closeServices, closeIngress, quit, broadcast, rendererReady, inspectLayout }) {
   const context = frontendContext;
   const runtime = context.runtimeDirectory;
   const token = readFileSync(join(runtime, 'control-token'), 'utf8').trim();
@@ -28,7 +28,13 @@ export async function connectFrontendHost({ effects, stopSources, closeServices,
   const timer = setInterval(() => { if (!stopped && !polling) { polling = refresh().catch((error) => console.error(error.message)).finally(() => { polling = null; }); } }, 100);
   const server = await serveRunControl({ token, runId: context.runId, concurrent: ['effect'], handlers: {
     health: () => ({ runId: context.runId, pid: process.pid, instanceId: context.instance.id }),
-    ready: () => rendererReady,
+    ready: async () => {
+      await rendererReady;
+      const layout = await inspectLayout();
+      if (!layout.workspace?.height || !layout.panels.length || layout.missingPanels || layout.panels.some((panel) => !panel.width || !panel.height)) throw new Error('Studio workspace panels have no visible layout');
+      return { ready: true, layout };
+    },
+    'inspect-layout': () => inspectLayout(),
     gate: async () => { await closeIngress(); return { gated: true }; },
     effect: async ({ adapter, request }) => {
       if (stopped || !effects[adapter]) throw new Error(`Frontend Effect unavailable: ${adapter}`);

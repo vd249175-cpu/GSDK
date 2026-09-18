@@ -5,6 +5,7 @@ import { ApplicationErrorBoundary } from './app/ApplicationErrorBoundary'
 import { AppProvider } from './app/AppContext'
 import { disposeApplicationServices } from './app/services'
 import '@graphvideo/workbench/styles/index.css'
+import '@graphvideo/theme/index.css'
 import './styles/index.css'
 
 const root = createRoot(document.getElementById('root')!)

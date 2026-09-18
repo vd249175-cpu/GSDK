@@ -41,6 +41,8 @@ Rust kernel-daemon 进程（本 run 独占：调度、submission、权威 JSON S
 
 `runs/studio` 通过 `backend.host` 构造注入每个图实例的物理端口，前端承担窗口、项目文件和数据库的实际访问。界面只读本图的 EncodedValue 投影，并通过已选工厂的公开根命令注入 Info；可信宿主观察入口另行校验。JSON 传输用 `daemonValueCodec` 无截断保留 Map、Set 等 State 值。正常 stop 读取活动快照，即使 live config 修改或删除也使用原始关闭 Info；先关闭前端命令入口并结算业务保存，再停止观察源、释放 worker/provider 租约、evict 和本地 dispose，由 Bash 关闭并等待 Rust、前端和后端退出。清理错误保留认证控制接口与锁，返回失败并允许下一次 stop 重试；成功后清除凭证和生成的环境文件。
 
+Studio 前端入口显式加载完整主题全局样式，设置页面根节点的完整高度。前端 Ready 除了初始化完成，还检查活动工作区及其面板具有可见布局；P10 在实际 Electron 中核对根高度、三个编辑面板和底栏位置。
+
 ## 3. 权限与归属
 
 | 层 | 目录 | 权限 |

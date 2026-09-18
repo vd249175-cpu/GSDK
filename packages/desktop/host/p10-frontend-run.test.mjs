@@ -62,6 +62,13 @@ it('keeps two real frontend/backend/kernel runs independent and saves the edited
       const { directory, definition } = runDefinition(root, name, namespace);
       const config = join(directory, 'run.config.json'); writeFileSync(config, JSON.stringify(definition)); configurations.push(config);
       expect(shell('start', config).started).toBe(true);
+      const layout = await callRunControl(join(directory, '.generated/runtime'), 'inspect-layout', {}, 30000, 'frontend-studio-ui.json');
+      expect(layout.root.height).toBe(layout.viewport.height);
+      expect(layout.workspace.height).toBeGreaterThan(300);
+      expect(layout.panels).toHaveLength(3);
+      expect(layout.panels.every((panel) => panel.height > 200 && panel.width > 100)).toBe(true);
+      expect(layout.missingPanels).toBe(0);
+      expect(layout.footer.y).toBeGreaterThan(layout.workspace.y + layout.workspace.height - 2);
     }
     const [alice, other] = configurations.map(statusRun);
     expect(alice.kernel.address).not.toBe(other.kernel.address);

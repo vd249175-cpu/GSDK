@@ -569,6 +569,18 @@ protocol.handle('graphvideo-asset', handleAssetRequest)
 host = await connectFrontendHost({
   rendererReady,
   broadcast,
+  inspectLayout: () => mainWindow.webContents.executeJavaScript(`(() => {
+    const bounds = (element) => {
+      if (!element) return null;
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return { x, y, width, height };
+    };
+    const active = document.querySelector('.workspace-page.is-active');
+    return { viewport: { width: innerWidth, height: innerHeight }, root: bounds(document.getElementById('root')),
+      workspace: bounds(active), footer: bounds(document.querySelector('.app-footer')),
+      panels: [...(active?.querySelectorAll('.panel-instance.is-active') ?? [])].map(bounds),
+      missingPanels: active?.querySelectorAll('.missing-element-panel').length ?? 0 };
+  })()`),
   effects: {
     project: { async execute(request) {
       if (request.type !== 'OPEN' || typeof request.path !== 'string') throw new Error('Invalid project host request')
