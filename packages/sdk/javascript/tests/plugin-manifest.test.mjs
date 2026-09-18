@@ -26,4 +26,35 @@ describe('Studio plugin manifest', () => {
       contributes: { elements: ['same', 'same'] },
     })).toThrow('重复 ID')
   })
+
+  it('parses backend/frontend kinds for apiVersion 2 and refuses mixed contributes', () => {
+    expect(parseStudioPluginManifest({
+      id: 'example.agent', name: 'Agent', version: '1.0.0', apiVersion: 2, kind: 'backend',
+      contributes: { backend: 'index.ts', graphFactories: ['createAgentGraph'] },
+    })).toMatchObject({
+      id: 'example.agent', apiVersion: 2, kind: 'backend',
+    })
+    expect(parseStudioPluginManifest({
+      id: 'example.agent', name: 'Agent', version: '1.0.0', apiVersion: 2, kind: 'frontend',
+      contributes: { frontend: 'index.ts', elements: ['example.agent'] },
+    })).toMatchObject({
+      id: 'example.agent', apiVersion: 2, kind: 'frontend',
+    })
+    expect(() => parseStudioPluginManifest({
+      id: 'example.agent', name: 'Agent', version: '1.0.0', apiVersion: 2, kind: 'backend',
+      contributes: { backend: 'index.ts', elements: ['example.agent'] },
+    })).toThrow('kind 与 contributes 不一致')
+    expect(() => parseStudioPluginManifest({
+      id: 'example.agent', name: 'Agent', version: '1.0.0', apiVersion: 2, kind: 'frontend',
+      contributes: { backend: 'index.ts' },
+    })).toThrow('kind 与 contributes 不一致')
+    expect(() => parseStudioPluginManifest({
+      id: 'example.agent', name: 'Agent', version: '1.0.0', apiVersion: 2,
+      contributes: { backend: 'index.ts' },
+    })).toThrow('kind 必须是 backend 或 frontend')
+    expect(() => parseStudioPluginManifest({
+      id: 'example.agent', name: 'Agent', version: '1.0.0', apiVersion: 2, kind: 'backend',
+      contributes: { backend: 'index.ts', graphFactories: ['dup', 'dup'] },
+    })).toThrow('重复 ID')
+  })
 })

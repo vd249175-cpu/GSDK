@@ -3,37 +3,69 @@ export type AnyNode = Node<any, any>
 export { ExecutionWorldNode, Node, ObservationWorldNode, WorldNode } from '../node'
 export type { WorldNodeKind } from '../node'
 
+/** Factory construction dependencies: host-injected adapters/paths, never business State. */
+export interface FactoryDependencies { readonly [key: string]: unknown }
+export interface NodeFactoryContext<D = FactoryDependencies> {
+  readonly instanceId: string;
+  readonly nodeId: string;
+  readonly params: Readonly<Record<string, unknown>>;
+  readonly bindings: Readonly<Record<string, string>>;
+  readonly dependencies: Readonly<D>;
+  readonly pluginId: string;
+}
+export interface GraphFactoryContext<D = FactoryDependencies> extends NodeFactoryContext<D> {
+  readonly nodeIdFor: (localId: string) => string;
+}
+export interface FactoryDescription {
+  readonly kind: 'node' | 'graph';
+  readonly localIds: readonly string[];
+  readonly requiredBindings: readonly string[];
+  readonly rendererRoots: ReadonlyArray<{ localId: string; infoType: string }>;
+}
 /** Creates exactly one ordinary Node and never creates or owns a Runtime. */
-export type NodeFactory<Input = void, Output extends AnyNode = AnyNode> = (input: Input) => Output
-
+export type NodeFactory<Input = void, Output extends AnyNode = AnyNode> = ((input: Input) => Output) & {
+  describe?: () => FactoryDescription;
+}
 /** Creates a flat batch of ordinary Nodes and never creates or owns a Runtime. */
-export type GraphFactory<Input = void, Output extends AnyNode = AnyNode> = (
-  input: Input,
-) => readonly Output[]
+export type GraphFactory<Input = void, Output extends AnyNode = AnyNode> = ((input: Input) => readonly Output[]) & {
+  describe?: () => FactoryDescription;
+}
 
 export function defineNodeFactory<Input, Output extends AnyNode>(
   factory: NodeFactory<Input, Output>,
 ): NodeFactory<Input, Output> {
-  return (input) => {
+  const wrapped: NodeFactory<Input, Output> = (input) => {
     const node = factory(input)
     if (!node.id) throw new Error('NodeFactory 必须产出具有非空 id 的 Node')
     return node
   }
+  if (typeof factory.describe === 'function') wrapped.describe = factory.describe
+  return wrapped
 }
 
 export function defineGraphFactory<Input, Output extends AnyNode>(
   factory: GraphFactory<Input, Output>,
 ): GraphFactory<Input, Output> {
-  return (input) => {
-    const nodes = factory(input)
+  const wrapped: GraphFactory<Input, Output> = (input) => {
+    const produced = factory(input)
+    const nodes: readonly Output[] = Array.isArray(produced) ? produced : []
+    if (nodes.length === 0) throw new Error('GraphFactory 产出了空集合')
     const ids = new Set<string>()
     for (const node of nodes) {
       if (!node.id) throw new Error('GraphFactory 必须产出具有非空 id 的 Node')
       if (ids.has(node.id)) throw new Error(`GraphFactory 产出了重复 Node ID: ${node.id}`)
       ids.add(node.id)
     }
+    if (factory.describe !== undefined) {
+      if (typeof factory.describe !== 'function') throw new Error('GraphFactory describe 必须是纯函数')
+      const first = JSON.stringify(factory.describe())
+      const second = JSON.stringify(factory.describe())
+      if (first !== second) throw new Error('GraphFactory describe 必须是纯函数')
+    }
     return nodes
   }
+  if (typeof factory.describe === 'function') wrapped.describe = factory.describe
+  return wrapped
 }
 
 export interface BackendPluginContext<Dependencies> {

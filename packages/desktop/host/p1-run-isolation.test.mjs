@@ -67,9 +67,14 @@ describe('P1 run configuration and isolation', () => {
     const duplicated = writeConfig(root, 'dup', {
       graph: { instances: [{ nodeId: 'example.counter' }, { nodeId: 'example.counter' }] },
     });
-    expect(() => parseRunConfig(duplicated.document, {
+    const parsedDup = parseRunConfig(duplicated.document, {
       configPath: duplicated.configPath, baseDirectory: duplicated.runRoot,
-    })).toThrow('duplicate graph instance');
+    });
+    // Same-ID requests declare a shared mount: config keeps both declarations,
+    // the run assembly mounts example.counter once instead of throwing.
+    expect(parsedDup.graph.instances.map((instance) => instance.nodeId)).toEqual([
+      'example.counter', 'example.counter',
+    ]);
     const missing = writeConfig(root, 'missing', {
       lifecycle: { startInfos: [{ targetNodeId: 'example.counter', info: { kind: 'IncrementInfo' } }] },
     });

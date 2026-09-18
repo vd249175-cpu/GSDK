@@ -35,20 +35,18 @@ function normalizePlugins(value, baseDirectory) {
 
 function normalizeInstances(value) {
   if (!Array.isArray(value)) fail('graph.instances must be an array');
-  const ids = new Set();
+  // Duplicate entries declare a shared mount, not an error: factories may
+  // produce overlapping IDs and the run assembly mounts each ID once, so two
+  // slices may both request the same fixed-ID Node.
   return value.map((instance, index) => {
     if (typeof instance === 'string') {
       if (!instance) fail(`graph.instances[${index}] must be a nonempty Node id`);
-      if (ids.has(instance)) fail(`duplicate graph instance: ${instance}`);
-      ids.add(instance);
       return { nodeId: instance };
     }
     assertObject(instance, `graph.instances[${index}]`);
     if (typeof instance.nodeId !== 'string' || !instance.nodeId) {
       fail(`graph.instances[${index}].nodeId must be a nonempty string`);
     }
-    if (ids.has(instance.nodeId)) fail(`duplicate graph instance: ${instance.nodeId}`);
-    ids.add(instance.nodeId);
     if (instance.factory === undefined) return { nodeId: instance.nodeId };
     assertObject(instance.factory, `graph.instances[${index}].factory`);
     if (typeof instance.factory.plugin !== 'string' || !instance.factory.plugin) {
@@ -57,7 +55,23 @@ function normalizeInstances(value) {
     if (typeof instance.factory.name !== 'string' || !instance.factory.name) {
       fail(`graph.instances[${index}].factory.name must be an exported factory name`);
     }
-    return { nodeId: instance.nodeId, factory: { plugin: instance.factory.plugin, name: instance.factory.name } };
+    const params = instance.params === undefined
+      ? {}
+      : assertObject(instance.params, `graph.instances[${index}].params`);
+    const bindings = instance.bindings === undefined
+      ? {}
+      : assertObject(instance.bindings, `graph.instances[${index}].bindings`);
+    for (const [key, target] of Object.entries(bindings)) {
+      if (typeof target !== 'string' || !target) {
+        fail(`graph.instances[${index}].bindings[${key}] must be a nonempty Node id`);
+      }
+    }
+    return {
+      nodeId: instance.nodeId,
+      factory: { plugin: instance.factory.plugin, name: instance.factory.name },
+      params,
+      bindings,
+    };
   });
 }
 
