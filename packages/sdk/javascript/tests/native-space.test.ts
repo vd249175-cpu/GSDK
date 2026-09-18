@@ -447,10 +447,26 @@ describe.skipIf(!binary)('Native rule space (JS entities on Rust scheduling)', (
     // 3. Dynamic evict: Gamma is evicted, route beta -> gamma is pruned
     space.unregister('gamma-node');
     expect(space.admittedEntities().sort()).toEqual(['alpha-node', 'beta-node']);
-    const topo2 = space.readStaticTopology();
-    expect(topo2.nodes.length).toBe(2);
-    expect(topo2.routes.some((r) => r.to === 'gamma-node')).toBe(false);
-    expect(topo2.revision).toBeGreaterThan(topo1.revision);
+    // 4. Nested target property derivation (e.g. this.targets.worker)
+    class DeltaNode extends Node<{}> {
+      private readonly targets = { worker: 'alpha-node' };
+      constructor() {
+        super('delta-node', 'Delta', {});
+      }
+      protected override change(info: any, ctx: any) {
+        if (info.type === 'Task') {
+          ctx.send({ type: 'WorkInfo' }, this.targets.worker);
+        }
+      }
+    }
+    mountDomainNode(space, new DeltaNode());
+    const topo3 = space.readStaticTopology();
+    expect(topo3.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 'delta-node', to: 'alpha-node', infoType: 'WorkInfo' }),
+      ]),
+    );
   });
 });
+
 

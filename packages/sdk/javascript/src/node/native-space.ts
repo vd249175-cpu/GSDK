@@ -1231,16 +1231,25 @@ export function inferNodeStaticRoutes(node: unknown): StaticTopologyRoute[] {
     const infoPart = fullCallArgs.slice(0, splitComma).trim();
     const targetPart = fullCallArgs.slice(splitComma + 1).trim();
 
-    // 1. 推导 targetNodeId：支持字面量 ('node-sqlite') 与实例属性 (this.taskTargetId)
+    // 1. 推导 targetNodeId：支持字面量 ('node-sqlite') 与多层实例属性 (this.targets.host, this.taskTargetId)
     let targetNodeId: string | null = null;
     const litMatch = targetPart.match(/^['"`]([^'"`]+)['"`]$/);
     if (litMatch) {
       targetNodeId = litMatch[1];
     } else {
-      const propMatch = targetPart.match(/^this\.([a-zA-Z0-9_$]+)$/);
-      if (propMatch && propMatch[1] in (node as Record<string, unknown>)) {
-        const val = (node as Record<string, unknown>)[propMatch[1]];
-        if (typeof val === 'string') targetNodeId = val;
+      const propMatch = targetPart.match(/^this\.([a-zA-Z0-9_$]+(?:\.[a-zA-Z0-9_$]+)*)$/);
+      if (propMatch) {
+        const parts = propMatch[1].split('.');
+        let current: unknown = node;
+        for (const p of parts) {
+          if (current && typeof current === 'object' && p in current) {
+            current = (current as Record<string, unknown>)[p];
+          } else {
+            current = null;
+            break;
+          }
+        }
+        if (typeof current === 'string') targetNodeId = current;
       }
     }
 
