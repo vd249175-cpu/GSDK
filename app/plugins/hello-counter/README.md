@@ -24,7 +24,7 @@ npm --prefix packages/desktop run diagnose -- health
 npm --prefix packages/desktop run diagnose -- reach example.counter
 ```
 
-`scripts/diagnose.mjs` 使用 `analysis/links.mjs` 显式声明的 counter 入口与投影关系，读取已构造实例，不创建生产 Runtime。`analysis/config.json` 是消费方配置，不会由内核自动读取。诊断结果是静态关系证据，不代表正在运行的 Studio 状态。运行中应用的观测与分析入口见[调试指南](../../../DOCUMENTS/debug-guide.md)。
+`scripts/diagnose.mjs` 使用 `analysis/links.mjs` 显式声明的 counter 入口与投影关系，读取已构造实例，不创建生产 Runtime。`analysis/config.json` 是消费方配置，不会由内核自动读取。诊断结果是静态关系证据，不代表正在运行的 Studio 状态。运行中应用的观测与分析入口见[调试指南](../../../DOCUMENTS/diagnostics/debug-guide.md)。
 
 ## 复用与验证
 
@@ -45,4 +45,4 @@ npm --prefix packages/desktop run diagnose -- validate
 
 `backend.test.mjs` 用构造注入的 Adapter 演示物理执行测试夹具，不将测试节点放入生产插件工厂。原生宿主测试验证运行、EncodedValue 投影与热替换：等待单飞间隙后丢弃旧 backlog，新 State 从初值启动，generation 增加。
 
-同一 Node 的多个 change 串行；单个 WorldNode change 可以并发等待独立 Adapter 后集中写 State；物理任务可以同时在途。当前 NativeRuleSpace JS pump 逐个等待 handler，这些语义不承诺多个 JS change 回调同时执行。多节点扇出/扇入仍通过定向 Info 表达。详见[当前心智模型](../../../DOCUMENTS/mental-model.md)。
+同一 Node 的多个 change 串行；单个 WorldNode change 可以并发等待独立 Adapter 后集中写 State；物理任务可以同时在途。当前 NativeRuleSpace JS pump 逐个等待 handler，这些语义不承诺多个 JS change 回调同时执行。多节点扇出/扇入仍通过定向 Info 表达。详见[当前心智模型](../../../DOCUMENTS/architecture/mental-model.md)。

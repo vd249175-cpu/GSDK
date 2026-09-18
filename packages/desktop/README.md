@@ -32,4 +32,4 @@ npm --prefix packages/desktop run verify:native-load
 node packages/tooling/refactor/check-layout.mjs
 ```
 
-原生绑定先按 [Kernel SDK 指南](../../DOCUMENTS/kernel-sdk-guide.md) 构建和暂存。窗口生命周期继续由图内 Info 推进。
+原生绑定先按 [Kernel SDK 指南](../../DOCUMENTS/guides/kernel-sdk-guide.md) 构建和暂存。窗口生命周期继续由图内 Info 推进。
