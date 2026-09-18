@@ -71,6 +71,7 @@ const backendPlugins = await loadBackendPlugins(application)
 const appRoot = application.directory
 const pluginRoot = join(here, '..')
 let agentControl = null
+const commandGate = createCommandGate()
 let commandIpc = null
 let lifecycle = null
 let bootstrapPromise = Promise.resolve()
