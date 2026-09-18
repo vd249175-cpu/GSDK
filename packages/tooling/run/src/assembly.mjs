@@ -3,39 +3,42 @@ import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 /**
- * Loads plugin backend modules and constructs the run's Node slice.
- * Instance construction paths:
- * - instance.factory {plugin, name}: call the plugin backend's named factory
+ * Loads split backend plugin modules and constructs exactly the Nodes named
+ * by graph.instances. Every instance declares {kind, id, factory, params,
+ * bindings}: kind node mounts one Node ID, kind graph mounts a whole
+ * namespaced product under the instance namespace.
+ *
+ * - instance.factory {plugin, name}: call the backend plugin's named factory
  *   (default-export property or module named export) with a per-instance
  *   context {pluginId, dependencies, instanceId, nodeId, params, bindings,
  *   nodeIdFor}. Factories with describe() produce a namespaced product: every
  *   Node ID starts with `<instanceId>/` and matches localIds exactly.
- *   Factories without describe keep the legacy single-pick: the product must
- *   contain the requested Node ID, or be fully prefixed with `<instanceId>/`.
- * - no factory: call backend.createNodes and pick every Node whose ID equals
- *   the configured instance. Slices never assemble the whole graph first.
+ * - No createNodes fallback: whole-plugin assembly is refused. Slices never
+ *   assemble the whole graph first.
  *
  * Same-ID products are shared mounts, not conflicts: factories may produce
- * overlapping IDs (a fixed-ID factory used twice, shared dependencies), and
- * the assembly mounts each ID once (first wins, remainder disposed).
- * Factories that need isolation namespace via ctx.nodeIdFor(localId).
- * With no explicit factories, every plugin's full product must still be
- * selected, otherwise the fragment is silently hiding unselected Nodes.
+ * overlapping IDs, and the assembly mounts each ID once (first wins, the
+ * remainder are disposed). Factories that need isolation namespace via
+ * ctx.nodeIdFor(localId).
  *
- * Backend createNodes/factories take {pluginId, dependencies}: dependencies
- * carry host-injected EffectAdapters and paths, never business State. Callers
- * pass the run's own adapters; Studio daemon runs use in-memory/file ports
- * scoped to the run's data directory, never Electron IPC.
+ * Backend factories take {pluginId, dependencies}: dependencies carry
+ * host-injected EffectAdapters and paths, never business State. Callers pass
+ * the run's own adapters; Studio daemon runs use in-memory/file ports scoped
+ * to the run's data directory, never Electron IPC.
  */
 export async function loadRunNodes(parsed, dependencies = {}) {
   const backends = new Map();
   const modules = new Map();
-  for (const plugin of parsed.plugins) {
-    const manifest = JSON.parse(readFileSync(resolve(plugin.directory, 'graphvideo.plugin.json'), 'utf8'));
-    if (manifest.id !== plugin.id) {
-      throw new Error(`Plugin identity mismatch: ${plugin.id} (manifest says ${manifest.id})`);
+  const backendPlugins = parsed.plugins.backend ?? parsed.plugins.filter?.(() => true) ?? [];
+  for (const plugin of backendPlugins) {
+    const raw = JSON.parse(readFileSync(resolve(plugin.directory, 'graphvideo.plugin.json'), 'utf8'));
+    if (raw.id !== plugin.id) {
+      throw new Error(`Plugin identity mismatch: ${plugin.id} (manifest says ${raw.id})`);
     }
-    const entry = manifest.contributes?.backend;
+    if (raw.apiVersion !== 2 || raw.kind !== 'backend') {
+      throw new Error(`Plugin ${plugin.id} apiVersion must be 2 for run config v2`);
+    }
+    const entry = raw.contributes?.backend;
     if (typeof entry !== 'string' || !entry) throw new Error(`Plugin has no backend entry: ${plugin.id}`);
     const module = await import(pathToFileURL(resolveEntry(plugin.directory, entry)).href);
     const backend = module.default;
@@ -45,70 +48,56 @@ export async function loadRunNodes(parsed, dependencies = {}) {
     backends.set(plugin.id, backend);
     modules.set(plugin.id, module);
   }
-  const contextFor = (pluginId, instance = { nodeId: pluginId }) => ({
+  const contextFor = (pluginId, instance) => ({
     pluginId,
     dependencies,
-    instanceId: instance.nodeId,
-    nodeId: instance.nodeId,
+    instanceId: instance.id,
+    nodeId: instance.id,
     params: instance.params ?? {},
     bindings: instance.bindings ?? {},
     nodeIdFor: (localId) => {
       if (typeof localId !== 'string' || !localId || /\s/.test(localId)) {
-        throw new Error(`Invalid local Node id for instance ${instance.nodeId}: ${JSON.stringify(localId)}`);
+        throw new Error(`Invalid local Node id for instance ${instance.id}: ${JSON.stringify(localId)}`);
       }
-      return `${instance.nodeId}/${localId}`;
+      return `${instance.id}/${localId}`;
     },
   });
   const constructed = [];
+  const expandedNodeIds = new Set();
   for (const instance of parsed.graph.instances) {
-    constructed.push(...await constructInstance(instance, backends, modules, contextFor));
+    const nodes = await constructInstance(instance, backends, modules, contextFor);
+    for (const node of nodes) expandedNodeIds.add(node?.id);
+    constructed.push(...nodes);
   }
-  if (!parsed.graph.instances.some((instance) => instance.factory)) {
-    // No explicit factories: every plugin's full product must be selected,
-    // otherwise the fragment is silently hiding unselected Nodes.
-    const selected = new Set(constructed.map((node) => node?.id));
-    for (const [pluginId, backend] of backends) {
-      const produced = await backend.createNodes(contextFor(pluginId)) ?? [];
-      const producedIds = (Array.isArray(produced) ? produced : [produced]).map((node) => node?.id);
-      const unselected = producedIds.filter((id) => typeof id === 'string' && !selected.has(id));
-      if (unselected.length > 0) {
-        throw new Error(
-          `Plugin ${pluginId} constructs unselected Nodes (${unselected.join(', ')}); ` +
-          `give each instance an explicit {plugin, name} factory reference`,
-        );
-      }
-    }
-  }
-  return { backends, nodes: await dedupeNodes(constructed) };
+  return { backends, nodes: await dedupeNodes(constructed), expandedNodeIds };
 }
 
 async function constructInstance(instance, backends, modules, contextFor) {
-  if (instance.factory) {
-    const backend = backends.get(instance.factory.plugin);
-    if (!backend) {
-      throw new Error(`Instance references an undeclared plugin: ${instance.nodeId} -> ${instance.factory.plugin}`);
-    }
-    const module = modules.get(instance.factory.plugin);
-    const factory = backend[instance.factory.name] ?? module?.[instance.factory.name];
-    if (typeof factory !== 'function') {
-      throw new Error(`Factory ${instance.factory.plugin}/${instance.factory.name} is not exported`);
-    }
-    const created = await factory(contextFor(instance.factory.plugin, instance));
-    return acceptFactoryProduct(instance, Array.isArray(created) ? created : [created], factory);
+  const backend = backends.get(instance.factory.plugin);
+  if (!backend) {
+    throw new Error(`Instance references an undeclared plugin: ${instance.id} -> ${instance.factory.plugin}`);
   }
-  for (const [pluginId, backend] of backends) {
-    const created = await backend.createNodes(contextFor(pluginId, instance)) ?? [];
-    const list = Array.isArray(created) ? created : [created];
-    const match = list.filter((node) => node?.id === instance.nodeId);
-    if (match.length > 0) return match;
+  const module = modules.get(instance.factory.plugin);
+  const factory = backend[instance.factory.name] ?? module?.[instance.factory.name];
+  if (typeof factory !== 'function') {
+    throw new Error(`Factory ${instance.factory.plugin}/${instance.factory.name} is not exported`);
   }
-  throw new Error(`No plugin constructed instance: ${instance.nodeId}`);
+  const created = await factory(contextFor(instance.factory.plugin, instance));
+  const list = Array.isArray(created) ? created : [created];
+  return acceptFactoryProduct(instance, list, factory);
 }
 
-/** Accepts a factory product as a namespaced set (describe) or legacy single pick. */
+/** Accepts a factory product as a namespaced graph set (describe) or single node. */
 function acceptFactoryProduct(instance, list, factory) {
   const label = `Factory ${instance.factory.plugin}/${instance.factory.name}`;
-  if (list.length === 0) throw new Error(`${label} produced an empty set for ${instance.nodeId}`);
+  if (list.length === 0) throw new Error(`${label} produced an empty set for ${instance.id}`);
+  if (instance.kind === 'node') {
+    if (list.length !== 1 || list[0]?.id !== instance.id) {
+      const produced = list.map((node) => node?.id).join(', ');
+      throw new Error(`${label} did not construct ${instance.id} (produced ${produced})`);
+    }
+    return list;
+  }
   if (typeof factory.describe === 'function') {
     const first = JSON.stringify(factory.describe());
     if (JSON.stringify(factory.describe()) !== first) throw new Error(`${label} describe 必须是纯函数`);
@@ -116,27 +105,26 @@ function acceptFactoryProduct(instance, list, factory) {
     const required = Array.isArray(description?.requiredBindings) ? description.requiredBindings : [];
     for (const name of required) {
       if (typeof instance.bindings?.[name] !== 'string' || !instance.bindings[name]) {
-        throw new Error(`${label} missing binding ${name} for ${instance.nodeId}`);
+        throw new Error(`${label} missing binding ${name} for ${instance.id}`);
       }
     }
     if (Array.isArray(description?.localIds)) {
-      const expected = new Set(description.localIds.map((local) => `${instance.nodeId}/${local}`));
+      const expected = new Set(description.localIds.map((local) => `${instance.id}/${local}`));
       const actual = list.map((node) => node?.id);
       const missing = [...expected].filter((id) => !actual.includes(id));
       const extra = actual.filter((id) => !expected.has(id));
       if (missing.length > 0 || extra.length > 0 || new Set(actual).size !== actual.length) {
-        throw new Error(`${label} product mismatch for ${instance.nodeId}: missing [${missing.join(', ')}] extra [${extra.join(', ')}]`);
+        throw new Error(`${label} product mismatch for ${instance.id}: missing [${missing.join(', ')}] extra [${extra.join(', ')}]`);
       }
     }
     return list;
   }
-  if (list.length === 1 && list[0]?.id === instance.nodeId) return list;
-  const prefix = `${instance.nodeId}/`;
-  if (list.length > 0 && list.every((node) => typeof node?.id === 'string' && node.id.startsWith(prefix))) return list;
-  const match = list.filter((node) => node?.id === instance.nodeId);
-  if (match.length > 0) return match;
+  const prefix = `${instance.id}/`;
+  if (list.length > 0 && list.every((node) => typeof node?.id === 'string' && node.id.startsWith(prefix))) {
+    return list;
+  }
   const produced = list.map((node) => node?.id).join(', ');
-  throw new Error(`${label} did not construct ${instance.nodeId} (produced ${produced})`);
+  throw new Error(`${label} did not construct namespace ${instance.id} (produced ${produced})`);
 }
 
 /**

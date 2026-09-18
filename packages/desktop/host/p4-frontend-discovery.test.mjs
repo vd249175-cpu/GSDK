@@ -15,12 +15,12 @@ function writeRunConfig(root, name, document = {}) {
   const directory = join(root, name);
   mkdirSync(join(directory, '.generated', 'runtime'), { recursive: true });
   const payload = {
-    version: 1,
+    version: 2,
     name,
-    plugins: [],
+    plugins: { backend: [], frontend: [] },
     kernel: { bind: '127.0.0.1:0', daemonPath: resolve('packages/rust/target/debug', daemonExe) },
-    backend: {},
-    frontend: { enabled: false },
+    backend: { dependencies: {} },
+    frontend: { instances: [] },
     graph: { instances: [] },
     lifecycle: { initInfos: [], startInfos: [], stopInfos: [] },
     resources: {},
@@ -43,7 +43,7 @@ describe('P4 run frontend discovery and command binding', () => {
     });
     expect(path).toBe(join(runtime, 'frontend-discovery.json'));
     expect(readRunDiscovery(runtime)).toMatchObject({
-      version: 1,
+      version: 2,
       runName: 'alice',
       kernel: { address: '127.0.0.1:52143', pid: 1234 },
     });
@@ -116,14 +116,20 @@ describe('P4 run frontend discovery and command binding', () => {
   it('runs two frontend runs in parallel without sharing endpoints or roots', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gv-p4-dual-'));
     temporaryRoots.push(root);
-    const first = writeRunConfig(root, 'alice', { frontend: { enabled: true } });
-    const second = writeRunConfig(root, 'task-42', { frontend: { enabled: true } });
+    const studioFrontend = { id: 'graphvideo.studio', path: '../../app/plugins/frontend/graphvideo.studio' };
+    const first = writeRunConfig(root, 'alice', {
+      plugins: { backend: [], frontend: [studioFrontend] },
+      frontend: { instances: [{ id: 'alice-ui', plugin: 'graphvideo.studio', graph: null }] },
+    });
+    const second = writeRunConfig(root, 'task-42', {
+      plugins: { backend: [], frontend: [studioFrontend] },
+      frontend: { instances: [{ id: 'task-42-ui', plugin: 'graphvideo.studio', graph: null }] },
+    });
     const a = await startRun(first);
     const b = await startRun(second);
     try {
       expect(a.snapshot.kernel.address).not.toBe(b.snapshot.kernel.address);
       expect(a.snapshot.frontend.userDataPath).not.toBe(b.snapshot.frontend.userDataPath);
-      expect(a.snapshot.frontend.agentControlPath).not.toBe(b.snapshot.frontend.agentControlPath);
       const aliceDiscovery = readRunDiscovery(a.parsed.resources.runtimeDirectory);
       const otherDiscovery = readRunDiscovery(b.parsed.resources.runtimeDirectory);
       expect(aliceDiscovery.kernel.address).toBe(a.snapshot.kernel.address);

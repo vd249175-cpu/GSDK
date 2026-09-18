@@ -11,7 +11,7 @@ import { runScenarioSet, writeScenarioReport } from '../../tooling/run/src/scena
 import { resolveRunRoot } from '../../tooling/run/src/paths.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const helloCounterDir = join(repoRoot, 'app', 'plugins', 'hello-counter');
+const helloCounterDir = join(repoRoot, 'app', 'plugins', 'backend', 'hello-counter');
 const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
 const temporaryRoots = [];
 afterEach(() => {
@@ -22,13 +22,13 @@ function writeRun(root, name, document = {}) {
   const directory = join(root, name);
   mkdirSync(join(directory, '.generated', 'runtime'), { recursive: true });
   const payload = {
-    version: 1,
+    version: 2,
     name,
-    plugins: [{ id: 'example.hello-counter', path: helloCounterDir }],
+    plugins: { backend: [{ id: 'example.hello-counter', path: helloCounterDir }], frontend: [] },
     kernel: { bind: '127.0.0.1:0', daemonPath: join(repoRoot, 'packages', 'rust', 'target', 'debug', daemonExe) },
-    backend: {},
-    frontend: { enabled: false },
-    graph: { instances: [{ nodeId: 'example.counter' }] },
+    backend: { dependencies: {} },
+    frontend: { instances: [] },
+    graph: { instances: [{ kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }] },
     lifecycle: { initInfos: [], startInfos: [], stopInfos: [] },
     scenarios: null,
     resources: {},
@@ -89,15 +89,13 @@ describe('P5 same-run scenarios on the real daemon', () => {
     }).toThrow('unassembled instance');
   });
 
-  it('refuses a fragment that hides unselected plugin Nodes', async () => {
+  it('mounts exactly the declared factory product', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gv-p5-slice-'));
     temporaryRoots.push(root);
     const configPath = writeRun(root, 'alice', {
-      graph: { instances: [{ nodeId: 'example.counter' }] },
+      graph: { instances: [{ kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }] },
     });
     const parsed = loadRunConfig(configPath);
-    // hello-counter only constructs example.counter, so the full product is
-    // selected here; the assertion documents the no-hidden-Nodes invariant.
     const { nodes } = await loadRunNodes(parsed);
     expect(nodes.map((node) => node.id)).toEqual(['example.counter']);
   });

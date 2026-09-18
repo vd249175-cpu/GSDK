@@ -1,12 +1,15 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "task-42",
-  "plugins": [
-    {
-      "id": "example.hello-counter",
-      "path": "../../app/plugins/hello-counter"
-    }
-  ],
+  "plugins": {
+    "backend": [
+      {
+        "id": "example.hello-counter",
+        "path": "../../app/plugins/backend/hello-counter"
+      }
+    ],
+    "frontend": []
+  },
   "kernel": {
     "daemonPath": "../../packages/rust/target/debug/graphvideo-kernel-daemon",
     "bind": "127.0.0.1:0",
@@ -14,17 +17,17 @@
     "shutdownTimeoutMs": 10000
   },
   "backend": {
-    "entry": null,
     "dependencies": {}
   },
   "frontend": {
-    "enabled": false,
-    "entry": null
+    "instances": []
   },
   "graph": {
     "instances": [
       {
-        "nodeId": "example.counter"
+        "kind": "node",
+        "id": "example.counter",
+        "factory": { "plugin": "example.hello-counter", "name": "createCounterNode" }
       }
     ]
   },
@@ -38,7 +41,9 @@
         }
       }
     ],
-    "stopInfos": []
+    "stopInfos": [],
+    "ready": null,
+    "timeouts": { "initMs": 30000, "startMs": 30000, "stopMs": 30000, "settleMs": 30000 }
   },
   "scenarios": null,
   "resources": {

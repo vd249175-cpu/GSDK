@@ -9,14 +9,14 @@ import { connectRunDaemon, injectLifecycleInfos, mountRunSlice, unmountRunSlice 
 import { runDaemonEffectProvider } from '@graphvideo/sdk/effect';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const studioDir = join(repoRoot, 'app', 'plugins', 'graphvideo.studio');
+const studioDir = join(repoRoot, 'app', 'plugins', 'backend', 'graphvideo.studio');
 const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
 const temporaryRoots = [];
 afterEach(() => {
   for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-const STUDIO_INSTANCES = [
+const STUDIO_LOCALS = [
   'src-fs-source',
   'node-md-source',
   'node-md-parser',
@@ -37,18 +37,24 @@ const STUDIO_INSTANCES = [
   'sink-electron-window',
   'src-electron-window',
 ];
+const studioId = (local) => `studio/${local}`;
+const STUDIO_INSTANCES = STUDIO_LOCALS.map(studioId);
 
 function writeStudioRun(root, document = {}) {
   const directory = join(root, 'studio');
   mkdirSync(join(directory, '.generated', 'runtime'), { recursive: true });
   const payload = {
-    version: 1,
+    version: 2,
     name: 'studio',
-    plugins: [{ id: 'graphvideo.studio', path: studioDir }],
+    plugins: { backend: [{ id: 'graphvideo.studio', path: studioDir }], frontend: [] },
     kernel: { bind: '127.0.0.1:0', daemonPath: join(repoRoot, 'packages', 'rust', 'target', 'debug', daemonExe) },
-    backend: {},
-    frontend: { enabled: false },
-    graph: { instances: STUDIO_INSTANCES.map((nodeId) => ({ nodeId })) },
+    backend: { dependencies: {} },
+    frontend: { instances: [] },
+    graph: {
+      instances: [
+        { kind: 'graph', id: 'studio', factory: { plugin: 'graphvideo.studio', name: 'createStudioNodes' } },
+      ],
+    },
     lifecycle: { initInfos: [], startInfos: [], stopInfos: [] },
     scenarios: null,
     resources: {},
@@ -69,14 +75,14 @@ describe('P6 Studio daemon run cutover', () => {
     expect(nodes.map((node) => node.id).sort()).toEqual([...STUDIO_INSTANCES].sort());
   });
 
-  it('refuses a Studio fragment that hides business Nodes', async () => {
+  it('refuses an unknown factory reference', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gv-p6-fragment-'));
     temporaryRoots.push(root);
     const configPath = writeStudioRun(root, {
-      graph: { instances: [{ nodeId: 'node-md-source' }] },
+      graph: { instances: [{ kind: 'graph', id: 'studio', factory: { plugin: 'graphvideo.studio', name: 'noSuchFactory' } }] },
     });
     const parsed = loadRunConfig(configPath);
-    await expect(loadRunNodes(parsed)).rejects.toThrow('unselected Nodes');
+    await expect(loadRunNodes(parsed)).rejects.toThrow('is not exported');
   });
 
   it('mounts the full Studio graph on the daemon and settles start/shutdown through the lifecycle Node', async () => {
@@ -87,10 +93,10 @@ describe('P6 Studio daemon run cutover', () => {
       lifecycle: {
         initInfos: [],
         startInfos: [
-          { targetNodeId: 'node-application-lifecycle', info: { type: 'SystemStartRequestedInfo', requestId } },
+          { targetNodeId: 'studio/node-application-lifecycle', info: { type: 'SystemStartRequestedInfo', requestId } },
         ],
         stopInfos: [
-          { targetNodeId: 'node-application-lifecycle', info: { type: 'SystemShutdownRequestedInfo', requestId, hasProject: false } },
+          { targetNodeId: 'studio/node-application-lifecycle', info: { type: 'SystemShutdownRequestedInfo', requestId, hasProject: false } },
         ],
       },
     });
@@ -134,17 +140,17 @@ describe('P6 Studio daemon run cutover', () => {
           prefix: `studio/start`,
         });
         const started = await control.projection();
-        const lifecycleState = started.nodes['node-application-lifecycle'].state;
-        expect(lifecycleState, JSON.stringify({ lifecycleState, hostEl: started.nodes['host-el']?.state }))
+        const lifecycleState = started.nodes['studio/node-application-lifecycle'].state;
+        expect(lifecycleState, JSON.stringify({ lifecycleState, hostEl: started.nodes['studio/host-el']?.state }))
           .toMatchObject({ phase: 'Ready', requestId });
-        expect(started.nodes['host-el'].state.isWindowOpen).toBe(true);
+        expect(started.nodes['studio/host-el'].state.isWindowOpen).toBe(true);
         await injectLifecycleInfos({
           control,
           infos: handle.parsed.lifecycle.stopInfos,
           prefix: `studio/stop`,
         });
         const stopping = await control.projection();
-        expect(stopping.nodes['node-application-lifecycle'].state).toMatchObject({ phase: 'StoppingGeneration', requestId });
+        expect(stopping.nodes['studio/node-application-lifecycle'].state).toMatchObject({ phase: 'StoppingGeneration', requestId });
         const inspected = await control.agentInspect(0, 1000);
         expect(JSON.stringify(inspected)).toContain('StudioLifecycleParticipantPreparedInfo');
       } finally {

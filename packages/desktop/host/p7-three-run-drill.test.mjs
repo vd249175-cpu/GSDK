@@ -10,21 +10,23 @@ import { runDaemonEffectProvider } from '@graphvideo/sdk/effect';
 import { runScenarioSet, writeScenarioReport } from '../../tooling/run/src/scenario.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const helloCounterDir = join(repoRoot, 'app', 'plugins', 'hello-counter');
-const studioDir = join(repoRoot, 'app', 'plugins', 'graphvideo.studio');
+const helloCounterDir = join(repoRoot, 'app', 'plugins', 'backend', 'hello-counter');
+const studioDir = join(repoRoot, 'app', 'plugins', 'backend', 'graphvideo.studio');
 const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
 const temporaryRoots = [];
 afterEach(() => {
   for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-const STUDIO_INSTANCES = [
+const STUDIO_LOCALS = [
   'src-fs-source', 'node-md-source', 'node-md-parser', 'node-outliner', 'n-hist',
   'node-sqlite', 'sink-sqlite-writer', 'src-sqlite-observer', 'node-sec-gate',
   'node-generation-model-resolver', 'node-generation-task', 'sink-generation-submit',
   'src-generation-poll', 'src-generation-poll-scheduler', 'sink-generation-download',
   'node-application-lifecycle', 'host-el', 'sink-electron-window', 'src-electron-window',
 ];
+const studioId = (local) => `studio/${local}`;
+const STUDIO_INSTANCES = STUDIO_LOCALS.map(studioId);
 
 function writeRun(root, name, document) {
   const directory = join(root, name);
@@ -96,31 +98,35 @@ describe('P7 three-run drill: studio plus two agent runs', () => {
     temporaryRoots.push(root);
     const daemonPath = join(repoRoot, 'packages', 'rust', 'target', 'debug', daemonExe);
     const studioConfig = writeRun(root, 'studio', {
-      version: 1, name: 'studio',
-      plugins: [{ id: 'graphvideo.studio', path: studioDir }],
+      version: 2, name: 'studio',
+      plugins: { backend: [{ id: 'graphvideo.studio', path: studioDir }], frontend: [] },
       kernel: { bind: '127.0.0.1:0', daemonPath },
-      backend: {}, frontend: { enabled: false },
-      graph: { instances: STUDIO_INSTANCES.map((nodeId) => ({ nodeId })) },
+      backend: { dependencies: {} }, frontend: { instances: [] },
+      graph: {
+        instances: [
+          { kind: 'graph', id: 'studio', factory: { plugin: 'graphvideo.studio', name: 'createStudioNodes' } },
+        ],
+      },
       lifecycle: {
         initInfos: [],
         startInfos: [
-          { targetNodeId: 'node-application-lifecycle', info: { type: 'SystemStartRequestedInfo', requestId: 'p7-studio-1' } },
+          { targetNodeId: 'studio/node-application-lifecycle', info: { type: 'SystemStartRequestedInfo', requestId: 'p7-studio-1' } },
         ],
         stopInfos: [],
       },
       scenarios: [{
         name: 'studio-ready',
         inputs: [],
-        assertions: [{ nodeId: 'node-application-lifecycle', state: { phase: 'Ready' } }],
+        assertions: [{ nodeId: 'studio/node-application-lifecycle', state: { phase: 'Ready' } }],
       }],
       resources: {},
     });
     const aliceConfig = writeRun(root, 'alice', {
-      version: 1, name: 'alice',
-      plugins: [{ id: 'example.hello-counter', path: helloCounterDir }],
+      version: 2, name: 'alice',
+      plugins: { backend: [{ id: 'example.hello-counter', path: helloCounterDir }], frontend: [] },
       kernel: { bind: '127.0.0.1:0', daemonPath },
-      backend: {}, frontend: { enabled: false },
-      graph: { instances: [{ nodeId: 'example.counter' }] },
+      backend: { dependencies: {} }, frontend: { instances: [] },
+      graph: { instances: [{ kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }] },
       lifecycle: {
         initInfos: [{ targetNodeId: 'example.counter', info: { type: 'IncrementInfo' } }],
         startInfos: [],
@@ -134,11 +140,11 @@ describe('P7 three-run drill: studio plus two agent runs', () => {
       resources: {},
     });
     const taskConfig = writeRun(root, 'task-42', {
-      version: 1, name: 'task-42',
-      plugins: [{ id: 'example.hello-counter', path: helloCounterDir }],
+      version: 2, name: 'task-42',
+      plugins: { backend: [{ id: 'example.hello-counter', path: helloCounterDir }], frontend: [] },
       kernel: { bind: '127.0.0.1:0', daemonPath },
-      backend: {}, frontend: { enabled: false },
-      graph: { instances: [{ nodeId: 'example.counter' }] },
+      backend: { dependencies: {} }, frontend: { instances: [] },
+      graph: { instances: [{ kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }] },
       lifecycle: {
         initInfos: [
           { targetNodeId: 'example.counter', info: { type: 'IncrementInfo' } },
@@ -185,7 +191,7 @@ describe('P7 three-run drill: studio plus two agent runs', () => {
       ]);
       expect(aliceProjection.nodes['example.counter'].state).toMatchObject({ count: 1 });
       expect(taskProjection.nodes['example.counter'].state).toMatchObject({ count: 2 });
-      expect(studioProjection.nodes['node-application-lifecycle'].state.phase).toBe('Ready');
+      expect(studioProjection.nodes['studio/node-application-lifecycle'].state.phase).toBe('Ready');
 
       await stopSlice(alice);
       expect(readFileSync(join(task.handle.parsed.resources.runtimeDirectory, 'daemon-token'), 'utf8').length).toBeGreaterThan(0);

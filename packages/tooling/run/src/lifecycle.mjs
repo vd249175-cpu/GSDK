@@ -18,7 +18,7 @@ export function loadRunConfig(configPath) {
 function ensureLayout(parsed) {
   const layout = defaultGeneratedLayout(parsed.baseDirectory);
   for (const [key, directory] of Object.entries(layout)) {
-    if (key === 'frontend' && !parsed.frontend.enabled) continue;
+    if (key === 'frontend' && (parsed.frontend.instances ?? []).length === 0) continue;
     mkdirSync(directory, { recursive: true });
   }
 }
@@ -44,34 +44,51 @@ function tokenPath(runtimeDirectory) {
 }
 
 /**
- * Derives the isolated Electron environment for one frontend-enabled run:
+ * Derives one isolated Electron environment per frontend instance:
  * run-owned userData/data directories, run-scoped discovery paths, and a
  * loopback-only telemetry port default that callers may override explicitly.
- * No-frontend fragments return disabled and allocate nothing.
+ * No frontend instances means no allocation at all.
  */
 function allocateFrontendEnvironment(parsed, runName, { address, pid }) {
-  if (!parsed.frontend.enabled) return { enabled: false };
-  const frontendRoot = join(parsed.baseDirectory, '.generated', 'frontend', runName);
-  const userDataPath = join(frontendRoot, 'electron-user-data');
-  const dataDirectory = parsed.resources.dataDirectory;
-  mkdirSync(userDataPath, { recursive: true });
-  const agentControlPath = join(parsed.resources.runtimeDirectory, 'agent-control.json');
-  const discovery = {
-    enabled: true,
-    runName,
-    kernel: { address, pid },
-    userDataPath,
-    dataDirectory,
-    agentControlPath,
-    telemetryPort: null,
-    viteUrl: parsed.frontend.entry,
-  };
+  const instances = parsed.frontend.instances ?? [];
+  if (instances.length === 0) return { enabled: false, instances: [] };
+  const environments = instances.map((instance) => {
+    const frontendRoot = join(parsed.baseDirectory, '.generated', 'frontend', runName, instance.id);
+    const userDataPath = join(frontendRoot, 'electron-user-data');
+    const dataDirectory = parsed.resources.dataDirectory;
+    mkdirSync(userDataPath, { recursive: true });
+    const agentControlPath = join(parsed.resources.runtimeDirectory, `agent-control.${instance.id}.json`);
+    const discovery = {
+      enabled: true,
+      id: instance.id,
+      plugin: instance.plugin,
+      graph: instance.graph,
+      entry: instance.entry,
+      runName,
+      kernel: { address, pid },
+      userDataPath,
+      dataDirectory,
+      agentControlPath,
+      telemetryPort: null,
+      viteUrl: instance.entry,
+    };
+    return {
+      id: instance.id,
+      enabled: true,
+      userDataPath,
+      dataDirectory,
+      agentControl: { discoveryPath: agentControlPath },
+      discovery,
+    };
+  });
+  const [first] = environments;
   return {
     enabled: true,
-    userDataPath,
-    dataDirectory,
-    agentControl: { discoveryPath: agentControlPath },
-    discovery,
+    instances: environments,
+    userDataPath: first.userDataPath,
+    dataDirectory: first.dataDirectory,
+    agentControl: first.agentControl,
+    discovery: first.discovery,
   };
 }
 
@@ -167,26 +184,37 @@ export function statusRun(configPath) {
  * target, so mid-run config edits cannot redirect this stop.
  */
 export function stopRun(configPath) {
-  const parsed = loadRunConfig(configPath);
-  const active = readActiveRecord(parsed.resources.runtimeDirectory);
-  const lock = readRunLock(parsed.resources.runtimeDirectory);
+  const absolute = resolve(configPath);
+  const runRoot = resolveRunRoot(absolute);
+  const fallbackRuntime = join(runRoot, '.generated', 'runtime');
+  const active = readActiveRecord(fallbackRuntime);
+  const lock = readRunLock(fallbackRuntime);
   // The run name comes from the activity snapshot, never the live config:
   // mid-run edits must not redirect shutdown at another run's resources.
-  const snapshotName = typeof active?.runName === 'string' ? active.runName : parsed.runName ?? 'run';
+  // The live config is only parsed for log paths after identity is settled,
+  // and a renamed live config must not break stopping the snapshot run.
+  let parsed = null;
+  try {
+    parsed = loadRunConfig(absolute);
+  } catch {
+    parsed = null;
+  }
+  const snapshotName = typeof active?.runName === 'string' ? active.runName : parsed?.runName ?? 'run';
   const snapshotLogs = typeof active?.configPath === 'string'
     ? join(resolveRunRoot(resolve(active.configPath)), '.generated', 'logs')
-    : parsed.resources.logsDirectory;
+    : parsed?.resources.logsDirectory ?? join(runRoot, '.generated', 'logs');
   if (!active && !lock) {
     appendStageLog(snapshotLogs, snapshotName, 'stop noop (already stopped)');
     return { stopped: true, already: true, runName: snapshotName };
   }
+  const runtime = parsed?.resources.runtimeDirectory ?? fallbackRuntime;
   // The lock owner removes the lock on stop; a foreign stop leaves the owner
   // in place and still reports success idempotently without killing anything.
   // Clearing the active record first lets a same-process restart take the
   // lock immediately after this stop returns.
-  clearActiveRecord(parsed.resources.runtimeDirectory);
+  clearActiveRecord(runtime);
   if (lock && active && lock.pid === active.pid && lock.pid === process.pid) {
-    rmSync(join(parsed.resources.runtimeDirectory, 'run.lock.json'), { force: true });
+    rmSync(join(runtime, 'run.lock.json'), { force: true });
   }
   appendStageLog(snapshotLogs, snapshotName, 'stop recorded');
   return { stopped: true, already: false, runName: snapshotName };

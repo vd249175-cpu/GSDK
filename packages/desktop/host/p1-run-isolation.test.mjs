@@ -16,13 +16,13 @@ function writeConfig(root, name, document = {}) {
   const directory = join(root, name);
   const configPath = join(directory, 'run.config.json');
   const payload = {
-    version: 1,
+    version: 2,
     name,
-    plugins: [{ id: 'example.hello-counter', path: '../../app/plugins/hello-counter' }],
+    plugins: { backend: [{ id: 'example.hello-counter', path: '../../app/plugins/backend/hello-counter' }], frontend: [] },
     kernel: {},
-    backend: {},
-    frontend: { enabled: false },
-    graph: { instances: [{ nodeId: 'example.counter' }] },
+    backend: { dependencies: {} },
+    frontend: { instances: [] },
+    graph: { instances: [{ kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }] },
     lifecycle: { initInfos: [], startInfos: [], stopInfos: [] },
     resources: {},
     ...document,
@@ -65,7 +65,7 @@ describe('P1 run configuration and isolation', () => {
       configPath: versioned.configPath, baseDirectory: versioned.runRoot,
     })).toThrow('unsupported version');
     const duplicated = writeConfig(root, 'dup', {
-      graph: { instances: [{ nodeId: 'example.counter' }, { nodeId: 'example.counter' }] },
+      graph: { instances: [{ kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }, { kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }] },
     });
     const parsedDup = parseRunConfig(duplicated.document, {
       configPath: duplicated.configPath, baseDirectory: duplicated.runRoot,
@@ -82,11 +82,11 @@ describe('P1 run configuration and isolation', () => {
       configPath: missing.configPath, baseDirectory: missing.runRoot,
     })).toThrow('info.type');
     const badEntry = writeConfig(root, 'entry', {
-      backend: { entry: '/absolute/backend.mjs' },
+      frontend: { instances: [{ id: 'bad', plugin: 'nope', graph: null, entry: '/absolute/backend.mjs' }] },
     });
     expect(() => parseRunConfig(badEntry.document, {
       configPath: badEntry.configPath, baseDirectory: badEntry.runRoot,
-    })).toThrow('package-relative');
+    })).toThrow('not a declared frontend plugin');
   });
 
   it('builds two arbitrary runs in parallel without cross-writing sources or caches', async () => {
@@ -113,7 +113,7 @@ describe('P1 run configuration and isolation', () => {
       return outfile;
     }));
     expect(outputs[0]).not.toBe(outputs[1]);
-    expect(existsSync(resolve('app/plugins/hello-counter', 'bundle.js'))).toBe(false);
+    expect(existsSync(resolve('app/plugins/backend/hello-counter', 'bundle.js'))).toBe(false);
   });
 
   it('locks one active run per name and keeps stop on the activity snapshot', () => {

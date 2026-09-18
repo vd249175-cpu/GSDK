@@ -1,12 +1,13 @@
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadRunNodes } from '../../tooling/run/src/assembly.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const helloCounterDir = join(repoRoot, 'app', 'plugins', 'hello-counter');
+const helloCounterDir = join(repoRoot, 'app', 'plugins', 'backend', 'hello-counter');
+const helloCounterFileUrl = pathToFileURL(join(helloCounterDir, 'index.mjs')).href;
 const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
 const temporaryRoots = [];
 afterEach(() => {
@@ -23,38 +24,46 @@ function writeRun(root, name, document) {
 
 function baseDocument(overrides = {}) {
   return {
-    version: 1,
+    version: 2,
     kernel: { bind: '127.0.0.1:0', daemonPath: join(repoRoot, 'packages', 'rust', 'target', 'debug', daemonExe) },
-    backend: {}, frontend: { enabled: false },
+    backend: { dependencies: {} }, frontend: { instances: [] },
     lifecycle: { initInfos: [], startInfos: [], stopInfos: [] },
     resources: {},
     ...overrides,
   };
 }
 
-function writeAgentFixturePlugin(directory) {
+function writeAgentFixturePlugin(directory, { realNodes }) {
   mkdirSync(directory, { recursive: true });
   writeFileSync(join(directory, 'graphvideo.plugin.json'), JSON.stringify({
-    id: 'example.agent', name: 'Agent', version: '1.0.0', apiVersion: 1,
-    contributes: { backend: 'backend.mjs', elements: [], workspaces: [] },
+    id: 'example.agent', name: 'Agent', version: '1.0.0', apiVersion: 2, kind: 'backend',
+    contributes: { backend: 'backend.mjs', nodeFactories: [], graphFactories: ['createAgentGraph'] },
   }, null, 2));
-  // Plain-object Nodes on purpose: the fixture lives in a tmp dir outside the
-  // repo, so bare `@graphvideo/sdk/*` imports would not resolve here. The run
-  // assembly only needs structural `{ id, dispose? }` products.
-  writeFileSync(join(directory, 'backend.mjs'), `
+  const body = realNodes
+    ? `
+import { CounterNode } from ${JSON.stringify(helloCounterFileUrl)};
+export function createAgentGraph(ctx) {
+  if (typeof ctx?.nodeIdFor !== 'function') throw new Error('GraphFactory context requires nodeIdFor(localId)');
+  if (!ctx?.instanceId) throw new Error('GraphFactory context requires instanceId');
+  return [new CounterNode(ctx.nodeIdFor('counter'))];
+}
+`
+    : `
 export function createAgentGraph(ctx) {
   if (typeof ctx?.nodeIdFor !== 'function') throw new Error('GraphFactory context requires nodeIdFor(localId)');
   if (!ctx?.instanceId) throw new Error('GraphFactory context requires instanceId');
   const id = ctx.nodeIdFor('counter');
   return [{ id, getState: () => ({ count: 0 }), dispose: async () => {} }];
 }
+`;
+  writeFileSync(join(directory, 'backend.mjs'), `${body}
 createAgentGraph.describe = () => ({
   kind: 'graph',
   localIds: ['counter'],
   requiredBindings: [],
   rendererRoots: [{ localId: 'counter', infoType: 'IncrementInfo' }],
 });
-export default { id: 'example.agent', createNodes: () => [], createAgentGraph };
+export default { id: 'example.agent', createNodes: () => [] };
 `);
 }
 
@@ -65,8 +74,8 @@ describe('P8 factory instances: same-ID dedupe plus namespaced isolation', () =>
     const { loadRunConfig } = await import('../../tooling/run/src/lifecycle.mjs');
     const configPath = writeRun(root, 'alice', baseDocument({
       name: 'alice',
-      plugins: [{ id: 'example.hello-counter', path: helloCounterDir }],
-      graph: { instances: [{ nodeId: 'example.counter' }, { nodeId: 'example.counter' }] },
+      plugins: { backend: [{ id: 'example.hello-counter', path: helloCounterDir }], frontend: [] },
+      graph: { instances: [{ kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }, { kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }] },
     }));
     const parsed = loadRunConfig(configPath);
     const { nodes } = await loadRunNodes(parsed);
@@ -77,14 +86,14 @@ describe('P8 factory instances: same-ID dedupe plus namespaced isolation', () =>
     const root = mkdtempSync(join(tmpdir(), 'gv-p8-isolated-'));
     temporaryRoots.push(root);
     const pluginDir = join(root, 'agent-plugin');
-    writeAgentFixturePlugin(pluginDir);
+    writeAgentFixturePlugin(pluginDir, { realNodes: false });
     const { loadRunConfig } = await import('../../tooling/run/src/lifecycle.mjs');
     const configPath = writeRun(root, 'team', baseDocument({
       name: 'team',
-      plugins: [{ id: 'example.agent', path: pluginDir }],
+      plugins: { backend: [{ id: 'example.agent', path: pluginDir }], frontend: [] },
       graph: { instances: [
-        { nodeId: 'agent-a', factory: { plugin: 'example.agent', name: 'createAgentGraph' } },
-        { nodeId: 'agent-b', factory: { plugin: 'example.agent', name: 'createAgentGraph' } },
+        { kind: 'graph', id: 'agent-a', factory: { plugin: 'example.agent', name: 'createAgentGraph' } },
+        { kind: 'graph', id: 'agent-b', factory: { plugin: 'example.agent', name: 'createAgentGraph' } },
       ] },
     }));
     const parsed = loadRunConfig(configPath);
@@ -92,4 +101,46 @@ describe('P8 factory instances: same-ID dedupe plus namespaced isolation', () =>
     const ids = nodes.map((n) => n.id).sort();
     expect(ids).toEqual(['agent-a/counter', 'agent-b/counter']);
   });
+
+  it('mounts two agent instances from one factory in one run', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'gv-p8-pair-'));
+    temporaryRoots.push(root);
+    const pluginDir = join(root, 'agent-plugin');
+    writeAgentFixturePlugin(pluginDir, { realNodes: true });
+    const { loadRunConfig } = await import('../../tooling/run/src/lifecycle.mjs');
+    const { connectRunDaemon, mountRunSlice, unmountRunSlice } = await import('../../tooling/run/src/mount.mjs');
+    const { startRun, stopRun } = await import('../../tooling/run/src/lifecycle.mjs');
+    const { readFileSync } = await import('node:fs');
+    const configPath = writeRun(root, 'pair', baseDocument({
+      name: 'pair',
+      plugins: { backend: [{ id: 'example.agent', path: pluginDir }], frontend: [] },
+      graph: { instances: [
+        { kind: 'graph', id: 'agent-a', factory: { plugin: 'example.agent', name: 'createAgentGraph' } },
+        { kind: 'graph', id: 'agent-b', factory: { plugin: 'example.agent', name: 'createAgentGraph' } },
+      ] },
+    }));
+    const handle = await startRun(configPath);
+    const credential = readFileSync(join(handle.parsed.resources.runtimeDirectory, 'daemon-token'), 'utf8');
+    const control = await connectRunDaemon({ address: handle.snapshot.kernel.address, token: credential });
+    const worker = await connectRunDaemon({ address: handle.snapshot.kernel.address, token: credential });
+    const workerStop = new AbortController();
+    const watchdog = setTimeout(() => workerStop.abort(), 25_000);
+    try {
+      const { nodes } = await loadRunNodes(handle.parsed);
+      const mount = await mountRunSlice({ nodes, control, worker, signal: workerStop.signal });
+      const projection = await control.projection();
+      expect(Object.keys(projection.nodes).sort()).toEqual(['agent-a/counter', 'agent-b/counter']);
+      await unmountRunSlice({
+        control, workerStop, running: mount.running, admitted: mount.admitted, assemblies: mount.assemblies,
+      });
+      worker.close();
+      try { await control.shutdown(); } catch { /* already closed */ }
+      control.close();
+    } finally {
+      clearTimeout(watchdog);
+      handle.stopKernel();
+      handle.releaseLock();
+      stopRun(handle.parsed.configPath);
+    }
+  }, 60_000);
 });

@@ -17,12 +17,12 @@ function writeRun(root, name) {
   const directory = join(root, name);
   mkdirSync(join(directory, '.generated', 'runtime'), { recursive: true });
   const payload = {
-    version: 1,
+    version: 2,
     name,
-    plugins: [],
+    plugins: { backend: [], frontend: [] },
     kernel: { bind: '127.0.0.1:0', daemonPath: join(repoRoot, 'packages', 'rust', 'target', 'debug', daemonExe) },
-    backend: {},
-    frontend: { enabled: false },
+    backend: { dependencies: {} },
+    frontend: { instances: [] },
     graph: { instances: [] },
     lifecycle: { initInfos: [], startInfos: [], stopInfos: [] },
     resources: {},

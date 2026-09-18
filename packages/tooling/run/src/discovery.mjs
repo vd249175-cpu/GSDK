@@ -11,7 +11,7 @@ export function writeRunDiscovery(runtimeDirectory, { kernel, agentControl = nul
   mkdirSync(runtimeDirectory, { recursive: true });
   const path = join(runtimeDirectory, 'frontend-discovery.json');
   const document = {
-    version: 1,
+    version: 2,
     runName,
     kernel: { address: kernel.address, pid: kernel.pid ?? null },
     agentControl,
