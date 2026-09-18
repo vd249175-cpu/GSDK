@@ -67,8 +67,8 @@ export default { id: 'example.agent', createNodes: () => [] };
 `);
 }
 
-describe('P8 factory instances: same-ID dedupe plus namespaced isolation', () => {
-  it('dedupes identical Node IDs instead of throwing Duplicate', async () => {
+describe('P8 factory instances: explicit IDs, bindings and namespace isolation', () => {
+  it('rejects duplicate instance IDs instead of silently sharing an Owner', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gv-p8-dedupe-'));
     temporaryRoots.push(root);
     const { loadRunConfig } = await import('../../tooling/run/src/lifecycle.mjs');
@@ -77,9 +77,22 @@ describe('P8 factory instances: same-ID dedupe plus namespaced isolation', () =>
       plugins: { backend: [{ id: 'example.hello-counter', path: helloCounterDir }], frontend: [] },
       graph: { instances: [{ kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }, { kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }] },
     }));
-    const parsed = loadRunConfig(configPath);
-    const { nodes } = await loadRunNodes(parsed);
-    expect(nodes.map((n) => n.id)).toEqual(['example.counter']);
+    expect(() => loadRunConfig(configPath)).toThrow('duplicate graph instance');
+  });
+
+  it('injects a standalone Studio Node ID and explicit targets', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'gv-p8-node-'));
+    temporaryRoots.push(root);
+    const { loadRunConfig } = await import('../../tooling/run/src/lifecycle.mjs');
+    const configPath = writeRun(root, 'slice', baseDocument({
+      plugins: { backend: [{ id: 'graphvideo.studio', path: join(repoRoot, 'app/plugins/backend/graphvideo.studio') }], frontend: [] },
+      graph: { instances: [{ kind: 'node', id: 'custom-document', factory: { plugin: 'graphvideo.studio', name: 'createMarkdownSourceNode' }, bindings: { parser: 'collector', registry: 'persistence/registry' } }] },
+    }));
+    const { nodes } = await loadRunNodes(loadRunConfig(configPath));
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].id).toBe('custom-document');
+    expect(nodes[0].targets).toMatchObject({ parser: 'collector', registry: 'persistence/registry' });
+    await nodes[0].dispose();
   });
 
   it('assembles two isolated instances from the same graph factory', async () => {

@@ -55,8 +55,7 @@ function normalizePlugins(value, baseDirectory) {
 
 function normalizeInstances(value, pluginIds) {
   if (!Array.isArray(value)) fail('graph.instances must be an array');
-  // Duplicate IDs declare a shared mount, not an error: the run assembly
-  // mounts each Node ID once (first wins, remainder disposed).
+  const ids = new Set();
   return value.map((instance, index) => {
     const name = `graph.instances[${index}]`;
     assertObject(instance, name);
@@ -68,6 +67,8 @@ function normalizeInstances(value, pluginIds) {
       fail(`${name}.id must be a nonempty string`);
     }
     if (/\s/.test(instance.id)) fail(`${name}.id must not contain whitespace`);
+    if (ids.has(instance.id)) fail(`duplicate graph instance: ${instance.id}`);
+    ids.add(instance.id);
     if (instance.kind === 'graph' && !NAMESPACE.test(instance.id)) {
       fail(`${name}.id must be a namespace (${NAMESPACE}), got ${JSON.stringify(instance.id)}`);
     }
@@ -339,7 +340,7 @@ export function parseRunConfig(document, { configPath, baseDirectory }) {
     version: RUN_CONFIG_VERSION,
     configPath,
     baseDirectory,
-    runName: document.name ?? null,
+    runName: basename(baseDirectory),
     plugins,
     kernel: {
       daemonPath,

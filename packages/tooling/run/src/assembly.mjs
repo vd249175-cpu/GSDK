@@ -16,10 +16,8 @@ import { pathToFileURL } from 'node:url';
  * - No createNodes fallback: whole-plugin assembly is refused. Slices never
  *   assemble the whole graph first.
  *
- * Same-ID products are shared mounts, not conflicts: factories may produce
- * overlapping IDs, and the assembly mounts each ID once (first wins, the
- * remainder are disposed). Factories that need isolation namespace via
- * ctx.nodeIdFor(localId).
+ * Duplicate Node IDs are errors. Every declared instance is constructed once;
+ * failed assembly disposes all returned products and reports cleanup errors.
  *
  * Backend factories take {pluginId, dependencies}: dependencies carry
  * host-injected EffectAdapters and paths, never business State. Callers pass
@@ -52,6 +50,7 @@ export async function loadRunNodes(parsed, dependencies = {}) {
     pluginId,
     dependencies,
     instanceId: instance.id,
+    nodeId: instance.id,
     params: instance.params ?? {},
     bindings: instance.bindings ?? {},
     nodeIdFor: (localId) => {
@@ -63,12 +62,23 @@ export async function loadRunNodes(parsed, dependencies = {}) {
   });
   const constructed = [];
   const expandedNodeIds = new Set();
-  for (const instance of parsed.graph.instances) {
-    const nodes = await constructInstance(instance, backends, modules, contextFor);
-    for (const node of nodes) expandedNodeIds.add(node?.id);
-    constructed.push(...nodes);
+  try {
+    for (const instance of parsed.graph.instances) {
+      const nodes = await constructInstance(instance, backends, modules, contextFor);
+      constructed.push(...nodes);
+      for (const node of nodes) {
+        if (!node || typeof node.id !== 'string' || !node.id) throw new Error('Run assembly produced a Node without an id');
+        if (expandedNodeIds.has(node.id)) throw new Error(`Duplicate Node ID: ${node.id}`);
+        expandedNodeIds.add(node.id);
+      }
+    }
+    return { backends, nodes: constructed, expandedNodeIds };
+  } catch (error) {
+    const cleanup = await Promise.allSettled(constructed.map((node) => node?.dispose?.()));
+    const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
+    if (failures.length) throw new AggregateError([error, ...failures], 'Run assembly and cleanup failed');
+    throw error;
   }
-  return { backends, nodes: await dedupeNodes(constructed), expandedNodeIds };
 }
 
 async function constructInstance(instance, backends, modules, contextFor) {
@@ -83,7 +93,14 @@ async function constructInstance(instance, backends, modules, contextFor) {
   }
   const created = await factory(contextFor(instance.factory.plugin, instance));
   const list = Array.isArray(created) ? created : [created];
-  return acceptFactoryProduct(instance, list, factory);
+  try {
+    return acceptFactoryProduct(instance, list, factory);
+  } catch (error) {
+    const cleanup = await Promise.allSettled(list.map((node) => node?.dispose?.()));
+    const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
+    if (failures.length) throw new AggregateError([error, ...failures], 'Invalid factory product and cleanup failed');
+    throw error;
+  }
 }
 
 /** Accepts a factory product as a namespaced graph set (describe) or single node. */
@@ -124,30 +141,6 @@ function acceptFactoryProduct(instance, list, factory) {
   }
   const produced = list.map((node) => node?.id).join(', ');
   throw new Error(`${label} did not construct namespace ${instance.id} (produced ${produced})`);
-}
-
-/**
- * Mounts each Node ID once. Same-ID products are shared mounts: the first
- * construction wins and the remainder are disposed so no duplicate instance
- * lingers unmounted.
- */
-async function dedupeNodes(nodes) {
-  const seen = new Set();
-  const kept = [];
-  const dropped = [];
-  for (const node of nodes) {
-    if (!node || typeof node.id !== 'string' || !node.id) {
-      throw new Error('Run assembly produced a Node without an id');
-    }
-    if (seen.has(node.id)) {
-      dropped.push(node);
-      continue;
-    }
-    seen.add(node.id);
-    kept.push(node);
-  }
-  await Promise.allSettled(dropped.map((node) => node.dispose?.()));
-  return kept;
 }
 
 /** Plugin backend entries stay package-relative, mirroring application.mjs rules. */

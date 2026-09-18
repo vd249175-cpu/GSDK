@@ -75,7 +75,10 @@
     "scripts",
     "../../app/plugins/*/backend.ts",
     "../../app/plugins/*/backend.mjs",
-    "../../app/plugins/*/desktop"
+    "../../app/plugins/*/desktop",
+    "../../app/plugins/backend/*/index.ts",
+    "../../app/plugins/backend/*/backend",
+    "../../app/plugins/frontend/*/desktop"
   ],
   "exclude": [
     "../../app/plugins/**/*.test.ts",

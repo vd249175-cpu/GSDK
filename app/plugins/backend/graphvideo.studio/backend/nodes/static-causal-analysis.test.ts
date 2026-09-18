@@ -3,6 +3,13 @@ import { buildAllNodesView, buildCausalIndex } from '@graphvideo/sdk/analysis'
 import { createStudioNodes } from './studio-factories'
 import { Node } from '@graphvideo/sdk/node';
 
+function studioContext() {
+  return { instanceId: 'studio', nodeId: 'studio', pluginId: 'graphvideo.studio', params: {}, bindings: {}, dependencies: {}, nodeIdFor: (local: string) => `studio/${local}` };
+}
+function routeKey(route: { from: string; to: string }) {
+  return `${route.from.replace(/^studio\//, '')}->${route.to.replace(/^studio\//, '')}`;
+}
+
 class DynamicMockExtensionNode extends Node<{ pingCount: number }> {
   constructor(id = 'node-mock-extension') {
     super(id, '动态扩展节点', { pingCount: 0 })
@@ -10,7 +17,7 @@ class DynamicMockExtensionNode extends Node<{ pingCount: number }> {
 
   change(info: any, ctx: any) {
     if (info.type === 'PingInfo') {
-      ctx.send({ type: 'PongInfo' }, 'node-outliner')
+      ctx.send({ type: 'PongInfo' }, 'studio/node-outliner')
       ctx.write({ pingCount: this.state.pingCount + 1 })
     }
   }
@@ -18,13 +25,13 @@ class DynamicMockExtensionNode extends Node<{ pingCount: number }> {
 
 describe('Static Causal Operator Analysis', () => {
   it('statically extracts all potential send routes from studio nodes without running them', () => {
-    const nodes = createStudioNodes({})
+    const nodes = createStudioNodes(studioContext())
     const index = buildCausalIndex({ nodeObjects: nodes })
     const view = buildAllNodesView(index)
 
     expect(view.routes.length).toBeGreaterThanOrEqual(15)
 
-    const routeKeys = view.routes.map((r) => `${r.from}->${r.to}`)
+    const routeKeys = view.routes.map(routeKey)
     expect(routeKeys).toContain('src-fs-source->node-md-source')
     expect(routeKeys).toContain('node-md-source->node-md-parser')
     expect(routeKeys).toContain('node-md-parser->node-outliner')
@@ -39,19 +46,19 @@ describe('Static Causal Operator Analysis', () => {
   })
 
   it('re-runs static analysis dynamically when nodes are evicted or admitted', () => {
-    const baseNodes = createStudioNodes({})
+    const baseNodes = createStudioNodes(studioContext())
 
     // 1. 初始分析
     const index1 = buildCausalIndex({ nodeObjects: baseNodes })
     const view1 = buildAllNodesView(index1)
-    expect(view1.nodes.has('node-generation-task')).toBe(true)
+    expect(view1.nodes.has('studio/node-generation-task')).toBe(true)
 
     // 2. 踢出节点 (Evict node-generation-task)
-    const evictedNodes = baseNodes.filter((n) => n.id !== 'node-generation-task')
+    const evictedNodes = baseNodes.filter((n) => n.id !== 'studio/node-generation-task')
     const index2 = buildCausalIndex({ nodeObjects: evictedNodes })
     const view2 = buildAllNodesView(index2)
-    expect(view2.nodes.has('node-generation-task')).toBe(false)
-    const routesAfterEvict = view2.routes.map((r) => `${r.from}->${r.to}`)
+    expect(view2.nodes.has('studio/node-generation-task')).toBe(false)
+    const routesAfterEvict = view2.routes.map(routeKey)
     expect(routesAfterEvict.some((k) => k.includes('node-generation-task'))).toBe(false)
 
     // 3. 动态准入新节点 (Admit dynamic node)
@@ -59,7 +66,7 @@ describe('Static Causal Operator Analysis', () => {
     const index3 = buildCausalIndex({ nodeObjects: admittedNodes })
     const view3 = buildAllNodesView(index3)
     expect(view3.nodes.has('node-mock-ext')).toBe(true)
-    const routesAfterAdmit = view3.routes.map((r) => `${r.from}->${r.to}`)
+    const routesAfterAdmit = view3.routes.map(routeKey)
     expect(routesAfterAdmit).toContain('node-mock-ext->node-outliner')
   })
 })

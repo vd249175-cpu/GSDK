@@ -43,10 +43,5 @@ export default defineBackendPlugin<StudioNodeDependencies>({
     { targetNodeId: 'node-generation-task', infoType: 'GenerationBatchCancelRequestedInfo', validate: (info) => typeof info.batchId === 'string' },
     { targetNodeId: 'n-hist', infoType: 'UserSnapshotActionInfo', validate: (info) => Boolean(info.action && typeof info.action === 'object' && ['UNDO', 'REDO', 'CLEAR_REDO'].includes(String((info.action as { type?: unknown }).type))) },
   ],
-  createNodes: ({ dependencies }) => [
-    ...createAuthoringNodes(dependencies),
-    ...createPersistenceNodes(dependencies),
-    ...createGenerationNodes(dependencies),
-    ...createPlatformNodes(dependencies),
-  ],
+  createNodes: () => { throw new Error('Studio requires explicit NodeFactory/GraphFactory instances in run.config.json'); },
 })

@@ -82,7 +82,7 @@ const PLATFORM_LOCALS = [
 
 function targetsFor(ctx: StudioNodeCtx): Record<string, string> {
   const t = (local: string) => namespaced(ctx, local);
-  return {
+  const targets = {
     host: t('host-el'),
     lifecycle: t('node-application-lifecycle'),
     generationTask: t('node-generation-task'),
@@ -104,6 +104,12 @@ function targetsFor(ctx: StudioNodeCtx): Record<string, string> {
     windowExec: t('sink-electron-window'),
     windowObs: t('src-electron-window'),
   };
+  for (const [name, target] of Object.entries(ctx.bindings)) {
+    if (!(name in targets)) throw new Error(`Unknown Studio binding: ${name}`);
+    if (typeof target !== 'string' || !target) throw new Error(`Invalid Studio binding: ${name}`);
+    targets[name as keyof typeof targets] = target;
+  }
+  return targets;
 }
 
 function nodeId(ctx: StudioNodeCtx, fallback: string): string {

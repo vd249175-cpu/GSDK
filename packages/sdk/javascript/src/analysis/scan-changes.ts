@@ -42,8 +42,31 @@ export function scanNodeChanges(nodeInfo: InstanceNodeInfo): ScannedChangeBranch
   // Resolve constructor parameter defaults and class properties
   const classFieldDefaults = new Map<string, string>();
   const classEffectAdapterIds = new Map<string, string>();
+  function recordBoundStrings(path: string, value: ts.Expression): void {
+    if (ts.isStringLiteral(value)) classFieldDefaults.set(path, value.text);
+    else if (ts.isObjectLiteralExpression(value)) {
+      for (const property of value.properties) {
+        if (!ts.isPropertyAssignment(property)) continue;
+        const key = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? property.name.text : null;
+        if (key !== null) recordBoundStrings(`${path}.${key}`, property.initializer);
+      }
+    }
+  }
+  function boundPath(value: ts.Expression): string | null {
+    if (value.kind === ts.SyntaxKind.ThisKeyword) return '';
+    if (ts.isPropertyAccessExpression(value)) {
+      const parent = boundPath(value.expression);
+      return parent === null ? null : parent ? `${parent}.${value.name.text}` : value.name.text;
+    }
+    if (ts.isElementAccessExpression(value) && ts.isStringLiteral(value.argumentExpression)) {
+      const parent = boundPath(value.expression);
+      return parent === null ? null : parent ? `${parent}.${value.argumentExpression.text}` : value.argumentExpression.text;
+    }
+    return null;
+  }
   for (const member of classDeclaration.members) {
     if (ts.isPropertyDeclaration(member) && member.initializer) {
+      recordBoundStrings(member.name.getText(sourceFile), member.initializer);
       if (ts.isStringLiteral(member.initializer)) {
         classFieldDefaults.set(member.name.getText(sourceFile), member.initializer.text);
       } else if (ts.isObjectLiteralExpression(member.initializer)) {
@@ -277,11 +300,8 @@ export function scanNodeChanges(nodeInfo: InstanceNodeInfo): ScannedChangeBranch
           rawTargetExpr = targetArg.getText(sourceFile);
           if (ts.isStringLiteral(targetArg)) {
             targets.push(targetArg.text);
-          } else if (
-            ts.isPropertyAccessExpression(targetArg) &&
-            targetArg.expression.kind === ts.SyntaxKind.ThisKeyword
-          ) {
-            const val = classFieldDefaults.get(targetArg.name.text);
+          } else if (boundPath(targetArg) !== null) {
+            const val = classFieldDefaults.get(boundPath(targetArg)!);
             if (val) targets.push(val);
           } else if (ts.isIdentifier(targetArg)) {
             const val = classFieldDefaults.get(targetArg.text);

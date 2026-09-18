@@ -56,7 +56,9 @@
     "renderer/src",
     "build/vite.config.ts",
     "../../app/plugins/*/frontend",
-    "../../app/plugins/*/elements"
+    "../../app/plugins/*/elements",
+    "../../app/plugins/frontend/*/frontend",
+    "../../app/plugins/frontend/*/elements"
   ],
   "exclude": [
     "../../app/plugins/**/*.test.ts",
