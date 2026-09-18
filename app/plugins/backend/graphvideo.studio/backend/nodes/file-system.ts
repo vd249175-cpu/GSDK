@@ -7,8 +7,23 @@ export interface FileSystemState {
     loadedBytes: number;
     lastObservedAt: number;
 }
+export interface FileSystemTargets {
+    readonly registry: string;
+    readonly document: string;
+    readonly writer: string;
+    readonly host: string;
+}
 export class FileSystemSourceNode extends WorldNode<FileSystemState> {
-    constructor(id: string = 'src-fs-source', name: string = '文件系统输入源') {
+    constructor(
+        id: string = 'src-fs-source',
+        name: string = '文件系统输入源',
+        private readonly targets: FileSystemTargets = {
+            registry: 'node-sqlite',
+            document: 'node-md-source',
+            writer: 'sink-sqlite-writer',
+            host: 'host-el',
+        },
+    ) {
         super(id, name, {
             projectName: '未打开项目',
             currentPath: '.graphvideo/nodes.sqlite',
@@ -38,13 +53,13 @@ export class FileSystemSourceNode extends WorldNode<FileSystemState> {
                 nodes: project.nodes,
                 retainedNodes: project.retainedNodes,
                 observedAt: now,
-            }, 'node-sqlite');
+            }, this.targets.registry);
             ctx.send({
                 type: 'ProjectMarkdownRunRequestedInfo',
                 markdown: project.markdown,
                 hydration: true,
-            }, 'node-md-source');
-            const configTargets = ['sink-sqlite-writer'];
+            }, this.targets.document);
+            const configTargets = [this.targets.writer];
             for (const target of configTargets) {
                 ctx.send({
                     type: 'ProjectConfigObservedInfo',
@@ -75,7 +90,7 @@ export class FileSystemSourceNode extends WorldNode<FileSystemState> {
                 ctx.send({
                     type: 'StoppedInfo',
                     nodeId: this.id,
-                }, 'host-el');
+                }, this.targets.host);
             }
         }
     }

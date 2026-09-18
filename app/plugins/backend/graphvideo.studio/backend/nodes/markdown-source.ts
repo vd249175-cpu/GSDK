@@ -5,8 +5,19 @@ export interface MarkdownSourceState {
     revision: number;
     lastUpdatedAt: number;
 }
+export interface MarkdownSourceTargets {
+    readonly lifecycle: string;
+    readonly registry: string;
+    readonly outliner: string;
+    readonly parser: string;
+}
 export class MarkdownSourceNode extends Node<MarkdownSourceState> {
-    constructor(id: string = 'node-md-source', name: string = 'Markdown 文本源', initialMd: string = '') {
+    constructor(id: string = 'node-md-source', name: string = 'Markdown 文本源', initialMd: string = '', private readonly targets: MarkdownSourceTargets = {
+        lifecycle: 'node-application-lifecycle',
+        registry: 'node-sqlite',
+        outliner: 'node-outliner',
+        parser: 'node-md-parser',
+    }) {
         super(id, name, {
             markdown: initialMd,
             revision: 0,
@@ -17,9 +28,9 @@ export class MarkdownSourceNode extends Node<MarkdownSourceState> {
     protected override async change(info: Info, ctx: DomainChangeContext<MarkdownSourceState>): Promise<void> {
         if (info.type === 'StudioPersistencePrepareShutdownInfo' && typeof info.requestId === 'string') {
             if (info.hasProject !== true) {
-                ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'persistence', requestId: info.requestId, ok: true }, 'node-application-lifecycle');
+                ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'persistence', requestId: info.requestId, ok: true }, this.targets.lifecycle);
             } else {
-                ctx.send({ type: 'StudioPersistenceSnapshotInfo', requestId: info.requestId, markdown: ctx.read('markdown') }, 'node-sqlite');
+                ctx.send({ type: 'StudioPersistenceSnapshotInfo', requestId: info.requestId, markdown: ctx.read('markdown') }, this.targets.registry);
             }
             return;
         }
@@ -35,7 +46,7 @@ export class MarkdownSourceNode extends Node<MarkdownSourceState> {
                 markdown: currentMarkdown,
                 baseRevision: currentRevision,
             };
-            ctx.send(request, 'node-outliner');
+            ctx.send(request, this.targets.outliner);
             return;
         }
         if (info.type === 'UserMarkdownEditedInfo') {
@@ -51,7 +62,7 @@ export class MarkdownSourceNode extends Node<MarkdownSourceState> {
                     markdown: md,
                     revision: nextRevision,
                     persistenceMode: 'full',
-                }, 'node-md-parser');
+                }, this.targets.parser);
             }
             return;
         }
@@ -68,7 +79,7 @@ export class MarkdownSourceNode extends Node<MarkdownSourceState> {
                     markdown: md,
                     revision: nextRevision,
                     persistenceMode: 'full',
-                }, 'node-md-parser');
+                }, this.targets.parser);
             }
             return;
         }
@@ -89,7 +100,7 @@ export class MarkdownSourceNode extends Node<MarkdownSourceState> {
                     markdown: md,
                     revision: nextRevision,
                     persistenceMode,
-                }, 'node-md-parser');
+                }, this.targets.parser);
             }
             return;
         }
@@ -106,7 +117,7 @@ export class MarkdownSourceNode extends Node<MarkdownSourceState> {
                     markdown: md,
                     revision: nextRevision,
                     persistenceMode: 'full',
-                }, 'node-md-parser');
+                }, this.targets.parser);
             }
         }
     }

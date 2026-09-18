@@ -8,10 +8,25 @@ export interface StudioApplicationLifecycleState {
   lastError: string | null;
 }
 
+export interface StudioLifecycleTargets {
+  readonly host: string;
+  readonly generationTask: string;
+  readonly persistenceSource: string;
+  readonly lifecycle?: string;
+}
+
 /** Owns application intent; kernel and topology commands remain host operations. */
 export class StudioApplicationLifecycleNode extends Node<StudioApplicationLifecycleState> {
-  constructor(id = 'node-application-lifecycle') {
-    super(id, 'Studio 应用生命周期', { phase: 'Idle', requestId: '', hasProject: false, lastError: null });
+  constructor(
+    id = 'node-application-lifecycle',
+    name = 'Studio 应用生命周期',
+    private readonly targets: StudioLifecycleTargets = {
+      host: 'host-el',
+      generationTask: 'node-generation-task',
+      persistenceSource: 'node-md-source',
+    },
+  ) {
+    super(id, name, { phase: 'Idle', requestId: '', hasProject: false, lastError: null });
   }
 
   protected override change(info: Info, ctx: DomainChangeContext<StudioApplicationLifecycleState>): void {
@@ -19,13 +34,13 @@ export class StudioApplicationLifecycleNode extends Node<StudioApplicationLifecy
     if (info.type === 'SystemStartRequestedInfo') {
       if (!['Idle', 'StartFailed'].includes(phase) || typeof info.requestId !== 'string') return;
       ctx.patchState({ phase: 'Starting', requestId: info.requestId, lastError: null });
-      ctx.send({ type: 'DesktopStartRequestedInfo', lifecycleRequestId: info.requestId }, 'host-el');
+      ctx.send({ type: 'DesktopStartRequestedInfo', lifecycleRequestId: info.requestId }, this.targets.host);
       return;
     }
     if (info.type === 'SystemShutdownRequestedInfo') {
       if (typeof info.requestId !== 'string' || ['StoppingGeneration', 'AwaitingDrain', 'Saving', 'ClosingWindow', 'ShutdownReady'].includes(phase)) return;
       ctx.patchState({ phase: 'StoppingGeneration', requestId: info.requestId, hasProject: info.hasProject === true, lastError: null });
-      ctx.send({ type: 'StudioGenerationPrepareShutdownInfo', requestId: info.requestId }, 'node-generation-task');
+      ctx.send({ type: 'StudioGenerationPrepareShutdownInfo', requestId: info.requestId }, this.targets.generationTask);
       return;
     }
     if (info.type === '@error/NodeFailed' && ['Starting', 'StoppingGeneration', 'AwaitingDrain', 'Saving', 'ClosingWindow'].includes(phase)) {
@@ -39,7 +54,7 @@ export class StudioApplicationLifecycleNode extends Node<StudioApplicationLifecy
     }
     if (info.type === 'SystemShutdownDrainObservedInfo' && phase === 'AwaitingDrain') {
       ctx.write('phase', 'Saving');
-      ctx.send({ type: 'StudioPersistencePrepareShutdownInfo', requestId: info.requestId, hasProject: ctx.read('hasProject') }, 'node-md-source');
+      ctx.send({ type: 'StudioPersistencePrepareShutdownInfo', requestId: info.requestId, hasProject: ctx.read('hasProject') }, this.targets.persistenceSource);
       return;
     }
     if (info.type !== 'StudioLifecycleParticipantPreparedInfo') return;
@@ -54,7 +69,7 @@ export class StudioApplicationLifecycleNode extends Node<StudioApplicationLifecy
     else if (phase === 'StoppingGeneration') ctx.write('phase', 'AwaitingDrain');
     else if (phase === 'Saving') {
       ctx.write('phase', 'ClosingWindow');
-      ctx.send({ type: 'DesktopCloseRequestedInfo', lifecycleRequestId: info.requestId }, 'host-el');
+      ctx.send({ type: 'DesktopCloseRequestedInfo', lifecycleRequestId: info.requestId }, this.targets.host);
     } else if (phase === 'ClosingWindow') ctx.write('phase', 'ShutdownReady');
   }
 }

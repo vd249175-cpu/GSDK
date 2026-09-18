@@ -17,8 +17,23 @@ export interface SqliteRegistryState {
     lastError: string | null;
     historyScopeId: string;
 }
+export interface SqliteRegistryTargets {
+    readonly writer: string;
+    readonly history: string;
+    readonly lifecycle: string;
+    readonly task: string;
+}
 export class SqliteRegistryNode extends Node<SqliteRegistryState> {
-    constructor(id: string = 'node-sqlite', name: string = 'SQLite 元数据注册表') {
+    constructor(
+        id: string = 'node-sqlite',
+        name: string = 'SQLite 元数据注册表',
+        private readonly targets: SqliteRegistryTargets = {
+            writer: 'sink-sqlite-writer',
+            history: 'n-hist',
+            lifecycle: 'node-application-lifecycle',
+            task: 'node-generation-task',
+        },
+    ) {
         super(id, name, {
             shutdownRequestId: null,
             table: new Map<string, NodeMetadataRecord>(),
@@ -49,7 +64,7 @@ export class SqliteRegistryNode extends Node<SqliteRegistryState> {
             ctx.send({ type: 'PersistProjectStructureTaskInfo', request: {
                 taskId: `shutdown/${info.requestId}`, markdown: info.markdown,
                 nodes: [...ctx.read('table').values()], retainedNodes: [...ctx.read('retainedTable').values()], mode: 'full',
-            } }, 'sink-sqlite-writer');
+            } }, this.targets.writer);
             return;
         }
         if (info.type === 'ProjectMetadataHydratedInfo') {
@@ -76,7 +91,7 @@ export class SqliteRegistryNode extends Node<SqliteRegistryState> {
                 lastError: null,
                 historyScopeId,
             });
-            ctx.send({ type: 'ProjectHistoryResetInfo', historyScopeId }, 'n-hist');
+            ctx.send({ type: 'ProjectHistoryResetInfo', historyScopeId }, this.targets.history);
             return;
         }
         if (info.type === 'DatabaseSavedObservedInfo' ||
@@ -84,14 +99,14 @@ export class SqliteRegistryNode extends Node<SqliteRegistryState> {
             const requestId = ctx.read('shutdownRequestId');
             if (requestId && info.taskId === `shutdown/${requestId}`) {
                 ctx.write('shutdownRequestId', null);
-                ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'persistence', requestId, ok: true }, 'node-application-lifecycle');
+                ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'persistence', requestId, ok: true }, this.targets.lifecycle);
             }
             {
                 ctx.write('inSync', true);
                 ctx.write('lastError', null);
             }
             if (info.type === 'DatabaseSavedObservedInfo') {
-                ctx.send({ ...info, type: 'DatabaseSavedObservedInfo' }, 'node-generation-task');
+                ctx.send({ ...info, type: 'DatabaseSavedObservedInfo' }, this.targets.task);
             }
             return;
         }
@@ -99,13 +114,13 @@ export class SqliteRegistryNode extends Node<SqliteRegistryState> {
             const requestId = ctx.read('shutdownRequestId');
             if (requestId && info.taskId === `shutdown/${requestId}`) {
                 ctx.write('shutdownRequestId', null);
-                ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'persistence', requestId, ok: false, error: info.error }, 'node-application-lifecycle');
+                ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'persistence', requestId, ok: false, error: info.error }, this.targets.lifecycle);
             }
             ctx.write('inSync', false);
             ctx.write('lastError', typeof info.error === 'string'
                 ? info.error
                 : 'SQLite 物理写入失败');
-            ctx.send({ ...info, type: 'DatabaseWriteFailedObservedInfo' }, 'node-generation-task');
+            ctx.send({ ...info, type: 'DatabaseWriteFailedObservedInfo' }, this.targets.task);
             return;
         }
         let changed = false;
@@ -193,7 +208,7 @@ export class SqliteRegistryNode extends Node<SqliteRegistryState> {
                 ctx.send({
                     type: 'DatabaseWriteFailedObservedInfo', taskId: observed.taskId,
                     error: `生成产物目标已不存在: ${observed.targetNodeId}`,
-                }, 'node-generation-task');
+                }, this.targets.task);
                 return;
             }
             if (target) {
@@ -305,13 +320,13 @@ export class SqliteRegistryNode extends Node<SqliteRegistryState> {
                             ? String(info.taskId)
                             : this.runtimeId('task'),
                         records: Array.from(table.values()),
-                    }, 'sink-sqlite-writer');
+                    }, this.targets.writer);
                 if (journalFact && info.type !== 'RevertMetadataTaskInfo') {
                     ctx.send({
                         type: 'TaskFactObservedInfo',
                         fact: journalFact,
                         historyScopeId: ctx.read('historyScopeId'),
-                    }, 'n-hist');
+                    }, this.targets.history);
                 }
             }
         }

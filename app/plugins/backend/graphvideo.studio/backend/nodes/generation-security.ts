@@ -10,6 +10,11 @@ import type {
 export interface SecurityGateOptions {
     maxCreditBudget?: number;
 }
+export interface SecurityGateTargets {
+    readonly task: string;
+    readonly submit: string;
+    readonly registry: string;
+}
 export interface GenerationDecisionState {
     spentCredits: number;
     maxCreditBudget: number;
@@ -17,7 +22,16 @@ export interface GenerationDecisionState {
     lastVerifiedArtifact: any | null;
 }
 export class SecurityGateNode extends Node<GenerationDecisionState> {
-    constructor(id: string = 'node-sec-gate', name: string = '风控与预算关口', options: SecurityGateOptions = {}) {
+    constructor(
+        id: string = 'node-sec-gate',
+        name: string = '风控与预算关口',
+        options: SecurityGateOptions = {},
+        private readonly targets: SecurityGateTargets = {
+            task: 'node-generation-task',
+            submit: 'sink-generation-submit',
+            registry: 'node-sqlite',
+        },
+    ) {
         super(id, name, {
             spentCredits: 0,
             maxCreditBudget: options.maxCreditBudget ?? 10000,
@@ -45,7 +59,7 @@ export class SecurityGateNode extends Node<GenerationDecisionState> {
         if (info.type === 'GenerationBatchPlannedInfo') {
             const planned = info as GenerationBatchPlannedInfo;
             // All plans pass the task Owner's target admission before budget accounting.
-            ctx.send(planned, 'node-generation-task');
+            ctx.send(planned, this.targets.task);
             return;
         }
         if (info.type === 'GenerationSubmitBatchRequestedInfo') {
@@ -62,12 +76,12 @@ export class SecurityGateNode extends Node<GenerationDecisionState> {
                     results: planned.tasks.map((task) => ({
                         taskId: task.taskId, ok: false, provider: task.submit.provider, error: reason,
                     })),
-                }, 'node-generation-task');
+                }, this.targets.task);
                 return;
             }
             ctx.write('spentCredits', currentSpent + cost);
             ctx.write('lastBlockReason', null);
-            ctx.send(planned, 'sink-generation-submit');
+            ctx.send(planned, this.targets.submit);
             return;
         }
         if (info.type === 'ArtifactSavedObservedInfo' && info.relativePath) {
@@ -81,7 +95,7 @@ export class SecurityGateNode extends Node<GenerationDecisionState> {
                     type: observed.mediaType,
                     url: observed.relativePath,
                 });
-                ctx.send(observed, 'node-sqlite');
+                ctx.send(observed, this.targets.registry);
             }
             return;
         }

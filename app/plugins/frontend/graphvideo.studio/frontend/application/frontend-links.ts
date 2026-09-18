@@ -17,85 +17,85 @@ export const FRONTEND_CAUSAL_LINKS: FrontendCausalLink[] = [
   {
     id: 'project-open',
     applicationMethod: 'project.open',
-    injection: { targetNodeId: 'src-fs-source', infoType: 'ProjectOpenedInfo' },
+    injection: { targetNodeId: 'studio/src-fs-source', infoType: 'ProjectOpenedInfo' },
     projections: [
-      { ownerNodeId: 'src-fs-source', ownerField: 'projectName', applicationStatePath: 'project.name', consumers: ['TopToolbar', 'ProjectHome'] },
-      { ownerNodeId: 'src-fs-source', ownerField: 'currentPath', applicationStatePath: 'project.localPath', consumers: ['TopToolbar', 'ProjectHome'] },
-      { ownerNodeId: 'node-sqlite', ownerField: 'table', applicationStatePath: 'project.nodes', consumers: ['OutlinerPanel', 'PropertiesPanel', 'GenerationPanel'] },
+      { ownerNodeId: 'studio/src-fs-source', ownerField: 'projectName', applicationStatePath: 'project.name', consumers: ['TopToolbar', 'ProjectHome'] },
+      { ownerNodeId: 'studio/src-fs-source', ownerField: 'currentPath', applicationStatePath: 'project.localPath', consumers: ['TopToolbar', 'ProjectHome'] },
+      { ownerNodeId: 'studio/node-sqlite', ownerField: 'table', applicationStatePath: 'project.nodes', consumers: ['OutlinerPanel', 'PropertiesPanel', 'GenerationPanel'] },
     ],
   },
   {
     id: 'project-snapshot-branch',
     applicationMethod: 'project.snapshot.branch',
-    injection: { targetNodeId: 'src-fs-source', infoType: 'ProjectOpenedInfo' },
+    injection: { targetNodeId: 'studio/src-fs-source', infoType: 'ProjectOpenedInfo' },
     projections: [
-      { ownerNodeId: 'src-fs-source', ownerField: 'projectName', applicationStatePath: 'project.name', consumers: ['TopToolbar', 'ProjectSnapshotsDialog'] },
-      { ownerNodeId: 'src-fs-source', ownerField: 'currentPath', applicationStatePath: 'project.localPath', consumers: ['TopToolbar', 'ProjectSnapshotsDialog'] },
-      { ownerNodeId: 'node-sqlite', ownerField: 'table', applicationStatePath: 'project.nodes', consumers: ['OutlinerPanel', 'PropertiesPanel', 'GenerationPanel'] },
+      { ownerNodeId: 'studio/src-fs-source', ownerField: 'projectName', applicationStatePath: 'project.name', consumers: ['TopToolbar', 'ProjectSnapshotsDialog'] },
+      { ownerNodeId: 'studio/src-fs-source', ownerField: 'currentPath', applicationStatePath: 'project.localPath', consumers: ['TopToolbar', 'ProjectSnapshotsDialog'] },
+      { ownerNodeId: 'studio/node-sqlite', ownerField: 'table', applicationStatePath: 'project.nodes', consumers: ['OutlinerPanel', 'PropertiesPanel', 'GenerationPanel'] },
     ],
   },
   {
     id: 'markdown-edit',
     applicationMethod: 'project.run-markdown',
-    injection: { targetNodeId: 'node-md-source', infoType: 'UserMarkdownEditedInfo' },
-    projections: [{ ownerNodeId: 'node-md-source', ownerField: 'markdown', applicationStatePath: 'project.markdown', consumers: ['MarkdownEditorPanel', 'OutlinerPanel'] }],
+    injection: { targetNodeId: 'studio/node-md-source', infoType: 'UserMarkdownEditedInfo' },
+    projections: [{ ownerNodeId: 'studio/node-md-source', ownerField: 'markdown', applicationStatePath: 'project.markdown', consumers: ['MarkdownEditorPanel', 'OutlinerPanel'] }],
   },
   {
     id: 'tree-edit',
     applicationMethod: 'project.tree.edit',
-    injection: { targetNodeId: 'node-md-source', infoType: 'ProjectTreeEditRequestedInfo' },
-    projections: [{ ownerNodeId: 'node-outliner', ownerField: 'tree', applicationStatePath: 'project.tree', consumers: ['OutlinerPanel', 'PropertiesPanel'] }],
+    injection: { targetNodeId: 'studio/node-md-source', infoType: 'ProjectTreeEditRequestedInfo' },
+    projections: [{ ownerNodeId: 'studio/node-outliner', ownerField: 'tree', applicationStatePath: 'project.tree', consumers: ['OutlinerPanel', 'PropertiesPanel'] }],
   },
   {
     id: 'node-metadata-patch',
     applicationMethod: 'project.node.patch',
-    injection: { targetNodeId: 'node-sqlite', infoType: 'UserMetadataPatchInfo' },
-    projections: [{ ownerNodeId: 'node-sqlite', ownerField: 'table', applicationStatePath: 'project.nodes', consumers: ['PropertiesPanel', 'GenerationPanel'] }],
+    injection: { targetNodeId: 'studio/node-sqlite', infoType: 'UserMetadataPatchInfo' },
+    projections: [{ ownerNodeId: 'studio/node-sqlite', ownerField: 'table', applicationStatePath: 'project.nodes', consumers: ['PropertiesPanel', 'GenerationPanel'] }],
   },
   {
     id: 'generation-budget-configure',
     applicationMethod: 'generation.budget.configure',
-    injection: { targetNodeId: 'node-sec-gate', infoType: 'GenerationBudgetConfiguredInfo' },
-    projections: [{ ownerNodeId: 'node-sec-gate', ownerField: 'maxCreditBudget', applicationStatePath: 'runtime.generation.maxBudget', consumers: ['GenerationPanel', 'OutlinerPanel'] }],
+    injection: { targetNodeId: 'studio/node-sec-gate', infoType: 'GenerationBudgetConfiguredInfo' },
+    projections: [{ ownerNodeId: 'studio/node-sec-gate', ownerField: 'maxCreditBudget', applicationStatePath: 'runtime.generation.maxBudget', consumers: ['GenerationPanel', 'OutlinerPanel'] }],
   },
   {
     id: 'generation-credits-reset',
     applicationMethod: 'generation.credits.reset',
-    injection: { targetNodeId: 'node-sec-gate', infoType: 'GenerationCreditsResetInfo' },
-    projections: [{ ownerNodeId: 'node-sec-gate', ownerField: 'spentCredits', applicationStatePath: 'runtime.generation.spentCredits', consumers: ['GenerationPanel', 'OutlinerPanel'] }],
+    injection: { targetNodeId: 'studio/node-sec-gate', infoType: 'GenerationCreditsResetInfo' },
+    projections: [{ ownerNodeId: 'studio/node-sec-gate', ownerField: 'spentCredits', applicationStatePath: 'runtime.generation.spentCredits', consumers: ['GenerationPanel', 'OutlinerPanel'] }],
   },
   {
     id: 'generation-model-generate',
     applicationMethod: 'generation-models.generate',
-    injection: { targetNodeId: 'node-generation-model-resolver', infoType: 'GenerationBatchRequestedInfo' },
+    injection: { targetNodeId: 'studio/node-generation-model-resolver', infoType: 'GenerationBatchRequestedInfo' },
     projections: [
-      { ownerNodeId: 'node-generation-task', ownerField: 'tasks', applicationStatePath: 'runtime.taskGraphs', consumers: ['GenerationPanel', 'OutlinerPanel', 'TopToolbar'] },
-      { ownerNodeId: 'node-sqlite', ownerField: 'table', applicationStatePath: 'project.nodes', consumers: ['GenerationPanel', 'PropertiesPanel', 'OutlinerPanel'] },
+      { ownerNodeId: 'studio/node-generation-task', ownerField: 'tasks', applicationStatePath: 'runtime.taskGraphs', consumers: ['GenerationPanel', 'OutlinerPanel', 'TopToolbar'] },
+      { ownerNodeId: 'studio/node-sqlite', ownerField: 'table', applicationStatePath: 'project.nodes', consumers: ['GenerationPanel', 'PropertiesPanel', 'OutlinerPanel'] },
     ],
   },
   {
     id: 'generation-model-generate-batch',
     applicationMethod: 'generation-models.generate-batch',
-    injection: { targetNodeId: 'node-generation-model-resolver', infoType: 'GenerationBatchRequestedInfo' },
+    injection: { targetNodeId: 'studio/node-generation-model-resolver', infoType: 'GenerationBatchRequestedInfo' },
     projections: [
-      { ownerNodeId: 'node-generation-task', ownerField: 'tasks', applicationStatePath: 'runtime.taskGraphs', consumers: ['GenerationPanel', 'OutlinerPanel', 'TopToolbar'] },
-      { ownerNodeId: 'node-sqlite', ownerField: 'table', applicationStatePath: 'project.nodes', consumers: ['GenerationPanel', 'PropertiesPanel', 'OutlinerPanel'] },
+      { ownerNodeId: 'studio/node-generation-task', ownerField: 'tasks', applicationStatePath: 'runtime.taskGraphs', consumers: ['GenerationPanel', 'OutlinerPanel', 'TopToolbar'] },
+      { ownerNodeId: 'studio/node-sqlite', ownerField: 'table', applicationStatePath: 'project.nodes', consumers: ['GenerationPanel', 'PropertiesPanel', 'OutlinerPanel'] },
     ],
   },
   {
     id: 'generation-model-generate-cancel',
     applicationMethod: 'generation-models.generate',
-    injection: { targetNodeId: 'node-generation-task', infoType: 'GenerationBatchCancelRequestedInfo' },
+    injection: { targetNodeId: 'studio/node-generation-task', infoType: 'GenerationBatchCancelRequestedInfo' },
     projections: [
-      { ownerNodeId: 'node-generation-task', ownerField: 'tasks', applicationStatePath: 'runtime.taskGraphs', consumers: ['GenerationPanel', 'TopToolbar'] },
+      { ownerNodeId: 'studio/node-generation-task', ownerField: 'tasks', applicationStatePath: 'runtime.taskGraphs', consumers: ['GenerationPanel', 'TopToolbar'] },
     ],
   },
   {
     id: 'generation-model-generate-batch-cancel',
     applicationMethod: 'generation-models.generate-batch',
-    injection: { targetNodeId: 'node-generation-task', infoType: 'GenerationBatchCancelRequestedInfo' },
+    injection: { targetNodeId: 'studio/node-generation-task', infoType: 'GenerationBatchCancelRequestedInfo' },
     projections: [
-      { ownerNodeId: 'node-generation-task', ownerField: 'tasks', applicationStatePath: 'runtime.taskGraphs', consumers: ['GenerationPanel', 'TopToolbar'] },
+      { ownerNodeId: 'studio/node-generation-task', ownerField: 'tasks', applicationStatePath: 'runtime.taskGraphs', consumers: ['GenerationPanel', 'TopToolbar'] },
     ],
   },
 ]
@@ -134,3 +134,14 @@ export const FRONTEND_SERVICE_LINKS: FrontendServiceLink[] = [
   { id: 'agent-launch-native-terminal', applicationMethod: 'agent.launch-terminal', provider: 'application/services/applicationServices', consumers: ['AgentConsolePanel'] },
   { id: 'agent-open-directory', applicationMethod: 'agent.open-directory', provider: 'application/services/applicationServices', consumers: ['AgentConsolePanel'] },
 ]
+
+/** Re-scopes fixed studio-namespace links to a run frontend instance namespace. */
+export function bindFrontendLinks(namespace: string): FrontendCausalLink[] {
+  const prefix = 'studio/';
+  const scoped = (id: string): string => (id.startsWith(prefix) ? `${namespace}/${id.slice(prefix.length)}` : id);
+  return FRONTEND_CAUSAL_LINKS.map((link) => ({
+    ...link,
+    injection: { ...link.injection, targetNodeId: scoped(link.injection.targetNodeId) },
+    projections: link.projections.map((projection) => ({ ...projection, ownerNodeId: scoped(projection.ownerNodeId) })),
+  }));
+}

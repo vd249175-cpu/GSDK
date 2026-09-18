@@ -5,8 +5,15 @@ export interface SqliteObserverState {
     lastFlushedBytes: number;
     lastObservedTime: number;
 }
+export interface SqliteObserverTargets {
+    readonly registry: string;
+}
 export class SqliteObserverSourceNode extends ObservationWorldNode<SqliteObserverState> {
-    constructor(id: string = 'src-sqlite-observer', name: string = 'SQLite落盘观测源') {
+    constructor(
+        id: string = 'src-sqlite-observer',
+        name: string = 'SQLite落盘观测源',
+        private readonly targets: SqliteObserverTargets = { registry: 'node-sqlite' },
+    ) {
         super(id, name, {
             observedFlushes: 0,
             lastFlushedBytes: 0,
@@ -17,7 +24,7 @@ export class SqliteObserverSourceNode extends ObservationWorldNode<SqliteObserve
     protected override async change(info: Info, ctx: WorldChangeContext<SqliteObserverState>): Promise<void> {
         if (info.type === 'DatabaseWriteFailedObservedInfo') {
             ctx.write('lastObservedTime', this.runtimeNow());
-            ctx.send(info, 'node-sqlite');
+            ctx.send(info, this.targets.registry);
             return;
         }
         if (info.type === 'PhysicalDiskMutationInfo' ||
@@ -46,7 +53,7 @@ export class SqliteObserverSourceNode extends ObservationWorldNode<SqliteObserve
                 ctx.write('observedFlushes', prevFlushes + 1);
                 ctx.write('lastFlushedBytes', count * 64);
                 ctx.write('lastObservedTime', now);
-                ctx.send(observedInfo, 'node-sqlite');
+                ctx.send(observedInfo, this.targets.registry);
             }
         }
     }

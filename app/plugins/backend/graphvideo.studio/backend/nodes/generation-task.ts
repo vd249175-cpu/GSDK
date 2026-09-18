@@ -93,6 +93,10 @@ function checkedPlannedTasks(tasks: readonly PlannedGenerationTask[]) {
   });
 }
 
+export interface GenerationTaskTargets {
+  readonly lifecycle: string;
+}
+
 export class GenerationTaskNode extends Node<GenerationTaskState> {
   constructor(
     id: string = 'node-generation-task',
@@ -102,6 +106,7 @@ export class GenerationTaskNode extends Node<GenerationTaskState> {
     private readonly downloadTargetId: string = 'sink-generation-download',
     private readonly pollSchedulerTargetId: string = 'src-generation-poll-scheduler',
     private readonly artifactObservedTargetId: string = 'node-sec-gate',
+    private readonly lifecycleTargets: GenerationTaskTargets = { lifecycle: 'node-application-lifecycle' },
   ) {
     super(id, name, { tasks: new Map(), stopping: false });
   }
@@ -112,7 +117,7 @@ export class GenerationTaskNode extends Node<GenerationTaskState> {
   ): Promise<void> {
     if (info.type === 'StudioGenerationPrepareShutdownInfo' && typeof info.requestId === 'string') {
       ctx.patchState({ stopping: true, tasks: new Map([...ctx.read('tasks')].map(([id, task]) => [id, { ...task, autoPoll: false }])) });
-      ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'generation', requestId: info.requestId, ok: true }, 'node-application-lifecycle');
+      ctx.send({ type: 'StudioLifecycleParticipantPreparedInfo', participant: 'generation', requestId: info.requestId, ok: true }, this.lifecycleTargets.lifecycle);
       return;
     }
     if (ctx.read('stopping') && (info.type === 'GenerationBatchPlannedInfo' || info.type === 'GenerationTasksPollRequestedInfo')) return;

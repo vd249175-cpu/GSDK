@@ -6,8 +6,21 @@ export interface OutlinerState {
     tree: ProjectTreeItem[];
     lastStructureMd: string;
 }
+export interface OutlinerTargets {
+    readonly document: string;
+    readonly securityGate: string;
+    readonly history: string;
+}
 export class OutlinerTreeNode extends Node<OutlinerState> {
-    constructor(id: string = 'node-outliner', name: string = '大纲层级管理器') {
+    constructor(
+        id: string = 'node-outliner',
+        name: string = '大纲层级管理器',
+        private readonly targets: OutlinerTargets = {
+            document: 'node-md-source',
+            securityGate: 'node-sec-gate',
+            history: 'n-hist',
+        },
+    ) {
         super(id, name, {
             tree: [],
             lastStructureMd: '',
@@ -39,7 +52,7 @@ export class OutlinerTreeNode extends Node<OutlinerState> {
                     : 'structure',
                 preferredNodeId: edited.preferredNodeId,
             };
-            ctx.send(replacement, 'node-md-source');
+            ctx.send(replacement, this.targets.document);
             return;
         }
         if (info.type !== 'ParsedAstTreeInfo' || !Array.isArray(info.tree))
@@ -56,12 +69,12 @@ export class OutlinerTreeNode extends Node<OutlinerState> {
             ctx.send({
                 type: 'StructureMarkdownInfo',
                 structureMd: structureMarkdown,
-            }, 'node-sec-gate');
+            }, this.targets.securityGate);
             ctx.send({
                 type: 'StateToCaptureInfo',
                 tree: nextTree,
                 structureMd: structureMarkdown,
-            }, 'n-hist');
+            }, this.targets.history);
             return;
         }
     }

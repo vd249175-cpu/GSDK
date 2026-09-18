@@ -8,6 +8,10 @@ export interface MarkdownParserState {
     issues: ProjectIssue[];
     lastParsedAt: number;
 }
+export interface MarkdownParserTargets {
+    readonly outliner: string;
+    readonly registry: string;
+}
 export class MarkdownParserNode extends Node<MarkdownParserState> {
     public get latestTree(): ProjectTreeItem[] {
         return this.state.tree;
@@ -15,7 +19,14 @@ export class MarkdownParserNode extends Node<MarkdownParserState> {
     public get latestIssues(): ProjectIssue[] {
         return this.state.issues;
     }
-    constructor(id: string = 'node-md-parser', name: string = '文档语法解析器') {
+    constructor(
+        id: string = 'node-md-parser',
+        name: string = '文档语法解析器',
+        private readonly targets: MarkdownParserTargets = {
+            outliner: 'node-outliner',
+            registry: 'node-sqlite',
+        },
+    ) {
         super(id, name, {
             tree: [],
             issues: [],
@@ -40,14 +51,14 @@ export class MarkdownParserNode extends Node<MarkdownParserState> {
                     tree: result.tree,
                     issues: result.issues,
                     markdown: md,
-                }, 'node-outliner');
+                }, this.targets.outliner);
                 ctx.send({
                     type: 'SyncTreeInfo',
                     tree: result.tree,
                     nodes: result.declarations,
                     markdown: md,
                     persistenceMode: info.persistenceMode ?? 'full',
-                }, 'node-sqlite');
+                }, this.targets.registry);
             }
         }
     }

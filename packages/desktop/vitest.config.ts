@@ -43,7 +43,7 @@ export default defineConfig({
     },
   }],
   test: {
-    include: ['packages/desktop/application.test.mjs', 'packages/desktop/host/**/*.test.{mjs,ts}', 'app/plugins/*/{backend,frontend,elements,desktop,tests,resources}/**/*.test.{mjs,ts,tsx}', 'app/plugins/*/backend.test.mjs', 'packages/frontend/*/{src,styles}/**/*.test.{ts,tsx}'],
+    include: ['packages/desktop/application.test.mjs', 'packages/desktop/host/**/*.test.{mjs,ts}', 'app/plugins/*/{backend,frontend,elements,desktop,tests,resources}/**/*.test.{mjs,ts,tsx}', 'app/plugins/*/*/{backend,frontend,elements,desktop,tests,resources}/**/*.test.{mjs,ts,tsx}', 'app/plugins/*/backend.test.mjs', 'packages/frontend/*/{src,styles}/**/*.test.{ts,tsx}'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/*live*.test.ts', '**/*workflow-test*.test.ts'],
     environment: 'node',
     environmentMatchGlobs: [['**/frontend/**/*.test.*', 'jsdom'], ['**/elements/**/*.test.*', 'jsdom']],

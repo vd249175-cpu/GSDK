@@ -21,8 +21,15 @@ export interface HistoryState {
     currentEntry: ActionJournalEntry | null;
     historyScopeId: string;
 }
+export interface HistoryTargets {
+    readonly registry: string;
+}
 export class HistoryManagerNode extends Node<HistoryState> {
-    constructor(id: string = 'n-hist', name: string = '事实历史与回滚中枢') {
+    constructor(
+        id: string = 'n-hist',
+        name: string = '事实历史与回滚中枢',
+        private readonly targets: HistoryTargets = { registry: 'node-sqlite' },
+    ) {
         super(id, name, {
             past: [],
             future: [],
@@ -79,7 +86,7 @@ export class HistoryManagerNode extends Node<HistoryState> {
                         entry,
                         direction: 'undo',
                         historyScopeId: ctx.read('historyScopeId'),
-                    }, 'node-sqlite');
+                    }, this.targets.registry);
                 }
             }
             else if (action === 'REDO') {
@@ -98,7 +105,7 @@ export class HistoryManagerNode extends Node<HistoryState> {
                         entry,
                         direction: 'redo',
                         historyScopeId: ctx.read('historyScopeId'),
-                    }, 'node-sqlite');
+                    }, this.targets.registry);
                 }
             }
         }
