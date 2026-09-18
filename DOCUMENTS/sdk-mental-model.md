@@ -32,11 +32,11 @@ type: reference
 | `@graphvideo/sdk/testing` | `createTestRuntime`（快速单节点规约测试）、`EffectHarness` | 生产装配 |
 | `@graphvideo/client` 等前端包 | 投影订阅、hooks、Workbench、Token、UI | 业务 State |
 
-`@graphvideo/sdk/agent` 提供 `connectKernelDaemon` 连接独立 Rust 图宿主；`@graphvideo/sdk/node` 的 `runDaemonNodeWorker` 适配 JS change handler；`@graphvideo/sdk/effect` 的 `runDaemonEffectProvider` 适配物理 EffectAdapter。后两者使用通用租约协议。其他语言实现相同 DTO 协议即可；daemon 不依赖 JS 业务代码，也不解释 adapter 的业务含义。镜像语义与完整交付验收见 [SDK 与插件分发验收契约](./distribution-contract.md)。
+`@graphvideo/sdk/agent` 提供 `connectKernelDaemon` 连接本 run 独占的 Rust 图宿主；`@graphvideo/sdk/node` 的 `admitDaemonNodes` + `runDaemonNodeWorker`（先 admit 全部实例再 claim 再 poll）装配真实 Node 切片；`@graphvideo/sdk/effect` 的 `runDaemonEffectProvider` 认领 Adapter 并执行物理 Effect。`packages/tooling/run` 在此之上提供 assembly（精确到实例，未选不构造）、mount（init/start 经同一结算屏障）、scenario（同运行输入/断言/报告）与 lifecycle（对称启停记录）。其他语言实现相同 DTO 协议即可；daemon 不依赖 JS 业务代码，也不解释 adapter 的业务含义。镜像语义与完整交付验收见 [SDK 与插件分发验收契约](./distribution-contract.md)。
 
 各包独立安装构建（`packages/desktop`、`packages/sdk/javascript`、`packages/frontend/*` 持各自 `package.json`；根目录无 npm 清单和 node_modules）。`app` 只保存 application.json 与插件。桌面源码构建显式消费 SDK 源码；支持 TypeScript 的 Node 宿主可通过 `graphvideo-source` 条件使用源码出口，默认出口使用 dist 发布产物。Rust/N-API 使用 `cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node && node packages/rust/scripts/stage-native.mjs` 构建。
 
-Studio 桌面窗口由图内 `host-el`、`sink-electron-window`、`src-electron-window` 三个节点管理。Electron `ready`、窗口控制 IPC 和系统窗口关闭事件只作为根 Info 输入；物理 BrowserWindow 操作由执行节点的 `electronWindowAdapter` 完成。关闭全部窗口后，图宿主仍在 Electron 主进程中运行，直到该进程结束。
+Studio 桌面窗口由图内 `host-el`、`sink-electron-window`、`src-electron-window` 三个节点管理。Electron `ready`、窗口控制 IPC 和系统窗口关闭事件只作为根 Info 输入；物理 BrowserWindow 操作由执行节点的 `electronWindowAdapter` 完成。headless daemon 运行使用实例自带的 in-memory 端口达到同样的 OPENED/CLOSED 因果，不触碰 Electron IPC；生产 run 中 Electron 只做前端宿主，不再持有第二份权威 State。
 
 ## 2. 后端心智模型：事实只进 Owner
 

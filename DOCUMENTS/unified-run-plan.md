@@ -1,12 +1,12 @@
 ---
 type: plan
 title: 统一 run 实施计划
-status: proposed
+status: implemented-with-gaps
 ---
 
 # 统一 run 实施计划
 
-本文规定待实施的模块、步骤和验收，运行入口尚未交付。目录与协作约定见[多 Agent 协作指南](./multi-agent-run-guide.md)；源码现状见[心智模型](./mental-model.md)。新增路径、配置字段和 Bash 命令均为目标设计，不是现有公开 API。
+ P1–P7 均已交付针对性测试覆盖，`run.sh start/stop/status`、`runs/<name>/run.config.json` 与 `packages/tooling/run`（config/assembly/mount/scenario/lifecycle/discovery）为实际可用入口；§14 验收清单标记已达成与未完成项。目录与协作约定见[多 Agent 协作指南](./multi-agent-run-guide.md)；源码现状见[心智模型](./mental-model.md)。
 
 ## 1. 交付目标
 
@@ -222,17 +222,17 @@ M1：P1–P3 完成，任意最小片段可启动、停止、重启。M2：P4–
 
 ## 14. 最终验收清单
 
-- [ ] 任意命名 run 自有配置，start/stop/status 显式指定配置。
-- [ ] 范围独立于插件，未选实例不构造，切口明确可断言。
-- [ ] 初始化与启动分开，业务初始事实与物理参数分开。
-- [ ] 内核、拓扑、Info 操作独立，Bash 对称编排。
-- [ ] 整程序和两个 Agent run 的前端、后端、权威图及资源并行隔离。
-- [ ] 另终端 stop、Ctrl+C、启动中停止、重复控制及重启通过。
-- [ ] 保存失败和超时不冒充成功，原始错误与清理错误均保留。
-- [ ] handler、Effect、租约和本地 dispose 有明确结算确认。
-- [ ] 场景与正常运行共用真实装配、Rust 调度及完整关闭。
-- [ ] Studio 完整运行与全量保存通过，旧整程序启动路径已替换。
-- [ ] 修改配置、陈旧 PID/端点和端口冲突不误操作其他运行。
-- [ ] 参考文档、实际入口、产物和协作指南一致，凭证与生成物未提交。
+- [x] 任意命名 run 自有配置，start/stop/status 显式指定配置。（P1/P3：`p1-run-isolation`、`p3-run-lifecycle`）
+- [x] 范围独立于插件，未选实例不构造，切口明确可断言。（P2/P5/P6：`daemon-fragment`、`p5-run-scenario`、`p6-studio-run` 全图零未选）
+- [x] 初始化与启动分开，业务初始事实与物理参数分开。（P5/P6/P7：init→start 经同一结算屏障，EffectAdapter 由宿主构造注入）
+- [ ] 内核、拓扑、Info 操作独立，Bash 对称编排。——部分：`run.sh start` 当前是前台空内核启动；admit→claim→init/start→场景→stop 的完整编排已在 `mount`/`scenario`/`lifecycle` 模块与 P5/P6/P7 测试中覆盖，但尚未收敛为常驻后台 `start`。
+- [x] 整程序和两个 Agent run 的前端、后端、权威图及资源并行隔离。（P4/P7：双前端发现隔离、`p7-three-run-drill` 三 daemon 并行，端点/State/记录互不串用）
+- [ ] 另终端 stop、Ctrl+C、启动中停止、重复控制及重启通过。——部分：另终端 stop、重复停止、已停止、运行中改配置、双 run 独立状态已覆盖（P3）；Ctrl+C/TERM 同一编排、`force-stop`、启动中停止与重启未交付。
+- [x] 保存失败和超时不冒充成功，原始错误与清理错误均保留。（P5：失败场景保留断言证据与清理报告；P6：保存/窗口失败进 `ShutdownFailed`，见 `application-lifecycle` 测试）
+- [x] handler、Effect、租约和本地 dispose 有明确结算确认。（P2/P5/P6：commit 结算、provider completeEffect、claim/release 租约、`unmountRunSlice` evict+dispose）
+- [x] 场景与正常运行共用真实装配、Rust 调度及完整关闭。（P5/P7：同一控制面、同一 `stopSlice` 路径，无第二套测试启动器）
+- [ ] Studio 完整运行与全量保存通过，旧整程序启动路径已替换。——部分：完整 Studio 图在 headless daemon 上 Ready→StoppingGeneration 已覆盖（P6/P7），Electron 不再内嵌第二份生产图（`GRAPHVIDEO_RUN_DAEMON_ADDRESS` 守卫），`npm start` 已改为报错入口并保留 `start:legacy-electron`；真实项目全量落盘/保存失败回滚仍走既有 `application-lifecycle` N-API 路径，未在 daemon run 上端到端覆盖。
+- [x] 修改配置、陈旧 PID/端点和端口冲突不误操作其他运行。（P3：stop 读活动快照；锁携带 pid 身份；双 run 独立）
+- [x] 参考文档、实际入口、产物和协作指南一致，凭证与生成物未提交。（本轮：mental-model/sdk/指南收敛；`.gitignore` 覆盖 `runs/*/.generated` 与 `run.lock.json`；`runs/studio` 见下）
 
-本轮仅修订实施计划，工作包均待执行，不提前创建占位启动脚本或宣称命令可用。
+未完成项：常驻后台 `start`（admit→场景→stop 全编排）、Ctrl+C/TERM 同一停机、`force-stop`、daemon run 真实项目全量落盘、UI 场景（本 run 前端）覆盖。`runs/studio` 正式完整程序 run 配置尚未提交——P6/P7 用临时目录中的同构配置验证，协调者选定正式名称后按 `runs/alice` 格式提交即可。

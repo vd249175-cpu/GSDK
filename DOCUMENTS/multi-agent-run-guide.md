@@ -1,12 +1,12 @@
 ---
 type: guide
 title: 多 Agent 独立开发与运行协作指南
-status: target-contract
+status: implemented
 ---
 
 # 多 Agent 独立开发与运行协作指南
 
-本文记录已确认的协作目标。根目录 Bash 入口、`runs/` 和运行配置协议尚未实现；本文的目录和命令是待落实的约定，不代表已有能力。实施顺序见[统一 run 实施计划](./unified-run-plan.md)。当前执行事实仍以源码、测试和[心智模型](./mental-model.md)为准。
+根目录 Bash 入口（`run.sh start/stop/status`）、`runs/<name>/run.config.json` 与运行配置协议已交付：P1 配置隔离、P2 真实 Node 桥接、P3 对称启停、P4 前后端隔离、P5 同运行场景、P6 Studio 切换、P7 三 run 演练均有针对性测试覆盖。实施顺序与验收见[统一 run 实施计划](./unified-run-plan.md)。当前执行事实仍以源码、测试和[心智模型](./mental-model.md)为准。
 
 ## 1. 协作单位是任意命名的 run
 
@@ -75,7 +75,7 @@ run 内的源码目录按实际需要创建；无用户操作需求的 run 可�
 
 ## 4. Bash 启动与关闭
 
-以下是目标命令，实施完成后才可执行：
+已交付的实际命令（`run.sh` 只做编排：校验→锁→空内核→装配→初始化→启停 Info→场景→关闭）：
 
 ```bash
 bash ./run.sh start runs/alice/run.config.json
@@ -83,7 +83,7 @@ bash ./run.sh status runs/alice/run.config.json
 bash ./run.sh stop runs/alice/run.config.json
 ```
 
-Bash 是外层编排入口。配置解析、协议 DTO 和断言可以由专用工具实现，但 Rust 内核生命周期不能重新交给 Electron 或某个业务 JS 对象隐式拥有。
+Bash 是外层编排入口。配置解析、协议 DTO 和断言由 `packages/tooling/run` 实现（`config`/`assembly`/`mount`/`scenario`/`lifecycle`/`discovery`），但 Rust 内核生命周期不能重新交给 Electron 或某个业务 JS 对象隐式拥有。当前 `start` 仍是前台空内核启动（校验→锁→内核就绪→记录），完整 admit→init/start→场景→stop 编排由 `mount`/`scenario`/`lifecycle` 模块在测试中覆盖，通过同一控制面执行；常驻后台交互与 Ctrl+C 同一编排是未完成项（见统一计划 §14）。
 
 启动顺序：
 
@@ -113,10 +113,9 @@ Bash 是外层编排入口。配置解析、协议 DTO 和断言可以由专用�
 
 内核启停、拓扑准入/推出、Info 注入是独立命令，`run.sh` 组合它们。前后端进程提前存在不代表业务已经启动；后端在节点推出完成前不能提前终止。关闭窗口不自动等同于关闭整个 run，图内窗口关闭仍由业务协议决定。
 
-`stop` 可从另一终端调用。Ctrl+C、TERM、应用退出和场景结束进入同一停机编排；重复停止复用或等待当前停机结果，已经停止时成功返回。启动中断清理已获得资源，尚未启动的业务不被假定已完成业务退出。
+`stop` 可从另一终端调用（读活动快照，运行中改配置不改变关闭对象）；重复停止与已停止成功返回。启动中断清理已获得资源，尚未启动的业务不被假定已完成业务退出。`force-stop` 与 Ctrl+C/TERM 同一停机编排尚未交付，不作为正常关闭的替代。控制工具不能仅凭陈旧 PID 杀进程，必须核对活动运行的进程身份与端点所有权。
 
-业务保存失败或停机超时必须报告失败、保留诊断与控制入口，不冒充干净退出。强制终止使用显式的 `force-stop` 操作，记录未完成阶段，不能作为正常关闭的替代。控制工具不能仅凭陈旧 PID 杀进程，必须核对活动运行的进程身份与端点所有权。
-
+业务保存失败或停机超时必须报告失败、保留诊断与控制入口，不冒充干净退出（`scenario` 报告保留断言证据与清理结果，原始失败退出码不被清理成功覆盖）。
 ## 5. 并行资源与源码所有权
 
 每个 run 独立拥有 Rust 规则空间、前端实例、后端宿主、端口、发现文件、Electron 用户数据及单实例身份、SQLite/文件锁、日志、测试缓存和可写构建产物。默认端口动态分配；显式端口冲突应报错，不能悄悄连接其他 run。

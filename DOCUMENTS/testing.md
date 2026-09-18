@@ -8,6 +8,7 @@ type: reference
 
 | 范围 | 位置 | 入口 |
 | --- | --- | --- |
+| 命名 run（配置/装配/场景/启停） | `packages/tooling/run/src` + `packages/desktop/host/p*-run-*.test.mjs` | `npm --prefix packages/desktop test -- host/p5-run-scenario.test.mjs host/p6-studio-run.test.mjs host/p7-three-run-drill.test.mjs --silent` |
 | JavaScript SDK | `packages/sdk/javascript/tests` | `npm --prefix packages/sdk/javascript test -- <目标> --silent` |
 | 桌面宿主 | `packages/desktop/host`、`application.test.mjs` | `npm --prefix packages/desktop test -- <目标> --silent` |
 | 插件 | `app/plugins/*` | 桌面测试配置加载相应插件测试 |
@@ -21,7 +22,6 @@ type: reference
 npm --prefix packages/sdk/javascript run typecheck
 npm --prefix packages/desktop run typecheck
 npm --prefix packages/desktop run check:renderer-boundary
-node packages/tooling/refactor/check-layout.mjs
 npm --prefix packages/desktop run build
 npm --prefix packages/desktop run verify:native-load
 npm --prefix packages/desktop run diagnose -- validate

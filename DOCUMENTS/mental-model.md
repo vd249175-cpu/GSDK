@@ -4,7 +4,7 @@ type: reference
 
 # GraphFramework 当前心智模型
 
-GraphFramework 是由 Rust 调度器与外层宿主承载的开放因果图微内核框架。当前 Studio 使用 Electron 主进程内的 NativeRuleSpace，独立 Rust daemon 提供另一种语言无关宿主接入。当前仓库以源码包方式构建；源码与针对性测试高于本文。
+GraphFramework 是由 Rust 调度器与外层宿主承载的开放因果图微内核框架。命名 run（`run.sh start/stop/status runs/<name>/run.config.json`）是唯一的生产与测试运行机制：每个 run 有独立配置、Rust daemon 内核进程、真实 Node 切片、run 作用域产物与物理资源；场景只在同一运行上增加输入、断言和结束条件。`runs/studio` 承载完整 Studio 图，`npm --prefix packages/desktop start`（`electron .`）已降级为 `start:legacy-electron`，不再是生产入口。当前仓库以源码包方式构建；源码与针对性测试高于本文。
 
 ## 1. 设计目标
 
@@ -16,34 +16,30 @@ GraphFramework 是由 Rust 调度器与外层宿主承载的开放因果图微�
 - **局部可理解**：生产 GraphFactory 是实际装配清单，实例分析从已构造 Node 的真实方法事实建立局部因果图，使排障和测试不依赖对全系统的记忆。
 
 微内核负责调度、一致性、取消和可观测性，零业务语义；应用 Node 负责具体业务事实和决策；只读分析层负责寻址、切片、验证和视角折叠，并由生产 `NativeRuleSpace` 按需加载。实例分析提供的是可溯源的静态证据，不替代针对性运行测试和真实物理核对。
-Rust 调度器另有 C ABI，供非 JS 宿主直接调用相同的 `admit/send/poll/settle` 操作；便携因果事实使 JS Agent 可分析外部语言节点，而不依赖其源码解析器。`packages/rust/kernel-daemon` 直接复用同一个 Rust 调度 crate，提供业务无关的独立进程宿主，持有通用 JSON State 与版本，并用 `poll + commit` 协议承载任意语言的 change；当前 Studio 生产装配尚未切换到该进程。
+Rust 调度器另有 C ABI，供非 JS 宿主直接调用相同的 `admit/send/poll/settle` 操作；便携因果事实使 JS Agent 可分析外部语言节点，而不依赖其源码解析器。`packages/rust/kernel-daemon` 直接复用同一个 Rust 调度 crate，提供业务无关的独立进程宿主，持有通用 JSON State 与版本，并用 `poll + commit` 协议承载任意语言的 change；每个命名 run 独占一个 daemon 进程，完整 Studio 图已切换到该进程。
 
-## 2. 一个业务执行面
+## 2. 一个业务执行面：命名 run
 
 ```text
-Electron renderer
-  └─ React Elements / ApplicationClient
-       │ Electron IPC：纯 DTO
-       ▼
-Electron main
-  ├─ RendererGraphBridge
-  ├─ NativeRuleSpace（生产与应用运行宿主）
-  │  ├─ Rust mailbox/change/submission 调度（packages/rust/kernel）
-  │  ├─ JS 或进程协议业务 Node、宿主持有的 State 与 change
-  │  ├─ 构造注入的 EffectAdapter
-  │  └─ JS 实例事实提取 → Rust N-API 因果分析与折叠视角（只读）
-  └─ 文件、数据库、进程与窗口宿主
+runs/<name>/run.config.json（显式配置：插件、实例、初始化/启停 Info、场景、资源）
+ ▼ run.sh start
+Rust kernel-daemon 进程（本 run 独占：调度、submission、权威 JSON State、generation）
+ ├─ 真实 Node 切片（run assembly：只构造配置实例，未选不构造）
+ │  ├─ 后端 worker：认领实例、执行 change、提交 commit
+ │  └─ Effect provider：认领 Adapter、执行物理、回传 Observation
+ ├─ 构造注入的 EffectAdapter（run 作用域端口；Electron 窗口 provider 只在前端宿主）
+ ├─ lifecycle init/start Info → submission 结算屏障（全部 submission 终态 + pending 归零）
+ └─ scenario 输入/断言/结束条件（同一运行、同一装配、同一关闭路径）
+ ▼ run.sh stop（另终端可调用，读活动快照，不读被改后的 live config）
+关闭 Info → 在途结算 → 观察源停止 → evict/dispose 确认 → daemon shutdown → 宿主停止 → 记录释放锁
+```
 
 开发期与测试规约
   ├─ KernelRuntime：TypeScript 参考规约与测试 Oracle（只读规约，不再作为生产内核维护）
-  └─ @graphvideo/sdk/analysis：JS 实例事实生成器、分析 DTO 与显式离线纯算法，不启动 Runtime
-```
+  ├─ @graphvideo/sdk/analysis：JS 实例事实生成器、分析 DTO 与显式离线纯算法，不启动 Runtime
+  └─ tooling/run：assembly（精确切片）/ mount（admit→claim→poll）/ scenario（同运行断言）/ lifecycle（对称启停记录）
 
-当前 Studio 生产 Graph 仍由 Electron main 内的 `NativeRuleSpace` 承载，renderer/main 的 IPC 是桌面安全边界。新增的 `kernel-daemon` 是可选的独立规则空间宿主，使用带版本和凭证的 loopback JSON Lines 协议；它复用同一个 `packages/rust/kernel` 调度器，不形成第二套执行语义。
-
-桌面生命周期分为独立的内核、装配和业务操作：单实例拥有者在 Electron ready 前创建空 `NativeRuleSpace`，ready 后显式装配插件，再向 `node-application-lifecycle` 注入 `SystemStartRequestedInfo`。窗口 State 由 `host-el` 持有，物理动作经 `sink-electron-window` 的 EffectAdapter 执行，`src-electron-window` 回传 Observation。关闭窗口的 UI 命令仍是 `DesktopCloseRequestedInfo`，关闭所有窗口保留图，可经 activate 或第二次启动重新开窗。
-
-应用退出通过 `before-quit`、固定 `window:quit` 命令或 SIGINT/SIGTERM 进入同一协调器：限制新业务入口，停止自动轮询，等待已接纳宿主命令和因果工作，再注入 `SystemShutdownRequestedInfo` 及收敛 Observation。应用图完整保存当前项目、关闭窗口并投影 `ShutdownReady` 后，宿主停止事件源，显式推出节点并等待清理，最后关闭空 Rust 内核、释放 IPC/Agent/遥测服务，再允许 Electron 退出。保存失败或超时保留图并报告错误，启动失败也执行有边界的清理。见[应用生命周期](./application-lifecycle.md)。Studio 图仍由 Electron 内的 N-API 承载；独立 daemon 是另一种可选宿主。
+完整 Studio 图由 `runs/studio` 在独立 daemon 进程中承载：Electron main 不再内嵌第二份生产图；设置 `GRAPHVIDEO_RUN_DAEMON_ADDRESS` 的 Electron 只做前端宿主，启动内嵌 `NativeRuleSpace` 会直接拒绝。headless daemon 运行使用 Node 实例自带的 in-memory/file 端口（窗口 OPENED、sqlite 落盘），证明执行/观察分离而不触碰 Electron IPC。
 
 ## 3. 权限与归属
 
@@ -207,7 +203,7 @@ Node 的 contains/owns 是归属，不是路径捷径。分析工具接收普通
 
 ## 8. 不可破坏的验收公理
 
-1. 同一图只有一个权威规则空间。当前 Studio 使用一个主进程 NativeRuleSpace；daemon 是可选宿主，不与它并行维护同一图的第二份 State。
+1. 同一图只有一个权威规则空间。每个命名 run 独占一个 Rust daemon 进程；Electron 不再内嵌第二份生产图（`GRAPHVIDEO_RUN_DAEMON_ADDRESS` 已设置时启动内嵌空间直接拒绝）。
 2. 每个 State 字段只有一个 Owner。
 3. Node 间只通过实际 `ctx.send` 通信。
 4. 同一 Node 的 change 严格 single-flight；单个 change 可并发等待独立 Effect，该约束不限制外部任务同时在途。
