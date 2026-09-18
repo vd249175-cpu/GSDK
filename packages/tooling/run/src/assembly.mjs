@@ -10,6 +10,11 @@ import { pathToFileURL } from 'node:url';
  * - no factory: call backend.createNodes and require the constructed set to
  *   equal the configured instances exactly. Unselected Nodes are refused, not
  *   silently filtered, so a fragment cannot hide a whole-graph assembly.
+ *
+ * Backend createNodes takes {pluginId, dependencies}: dependencies carry
+ * host-injected EffectAdapters and paths, never business State. Callers pass
+ * the run's own adapters; Studio daemon runs use in-memory/file ports scoped
+ * to the run's data directory, never Electron IPC.
  */
 export async function loadRunNodes(parsed, dependencies = {}) {
   const backends = new Map();
@@ -27,18 +32,19 @@ export async function loadRunNodes(parsed, dependencies = {}) {
     }
     backends.set(plugin.id, backend);
   }
+  const contextFor = (pluginId) => ({ pluginId, dependencies });
   const nodes = [];
   const seen = new Set();
   for (const instance of parsed.graph.instances) {
     if (seen.has(instance.nodeId)) throw new Error(`Duplicate graph instance: ${instance.nodeId}`);
     seen.add(instance.nodeId);
-    nodes.push(await constructInstance(instance, backends, dependencies));
+    nodes.push(await constructInstance(instance, backends, contextFor));
   }
   if (!parsed.graph.instances.some((instance) => instance.factory)) {
     // No explicit factories: every plugin's full product must be selected,
     // otherwise the fragment is silently hiding unselected Nodes.
     for (const [pluginId, backend] of backends) {
-      const produced = await backend.createNodes(dependencies) ?? [];
+      const produced = await backend.createNodes(contextFor(pluginId)) ?? [];
       const producedIds = (Array.isArray(produced) ? produced : [produced]).map((node) => node?.id);
       const unselected = producedIds.filter((id) => typeof id === 'string' && !seen.has(id));
       if (unselected.length > 0) {
@@ -52,7 +58,7 @@ export async function loadRunNodes(parsed, dependencies = {}) {
   return { backends, nodes };
 }
 
-async function constructInstance(instance, backends, dependencies) {
+async function constructInstance(instance, backends, contextFor) {
   if (instance.factory) {
     const backend = backends.get(instance.factory.plugin);
     if (!backend) {
@@ -62,7 +68,7 @@ async function constructInstance(instance, backends, dependencies) {
     if (typeof factory !== 'function') {
       throw new Error(`Factory ${instance.factory.plugin}/${instance.factory.name} is not exported`);
     }
-    const created = await factory(dependencies);
+    const created = await factory(contextFor(instance.factory.plugin));
     const list = Array.isArray(created) ? created : [created];
     const match = list.filter((node) => node?.id === instance.nodeId);
     if (match.length === 0) {
@@ -73,8 +79,8 @@ async function constructInstance(instance, backends, dependencies) {
     }
     return match[0];
   }
-  for (const backend of backends.values()) {
-    const created = await backend.createNodes(dependencies) ?? [];
+  for (const [pluginId, backend] of backends) {
+    const created = await backend.createNodes(contextFor(pluginId)) ?? [];
     const list = Array.isArray(created) ? created : [created];
     const match = list.filter((node) => node?.id === instance.nodeId);
     if (match.length > 0) {

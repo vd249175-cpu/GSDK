@@ -63,7 +63,9 @@ const runOverrides = {
   agentControlFile: process.env.GRAPHVIDEO_AGENT_CONTROL_FILE ?? null,
   telemetryPort: process.env.GRAPHVIDEO_RUN_TELEMETRY_PORT ? Number(process.env.GRAPHVIDEO_RUN_TELEMETRY_PORT) : null,
   viteDevServerUrl: process.env.GRAPHVIDEO_RUN_VITE_URL ?? process.env.VITE_DEV_SERVER_URL ?? null,
-}
+  daemonAddress: process.env.GRAPHVIDEO_RUN_DAEMON_ADDRESS ?? null,
+  daemonTokenFile: process.env.GRAPHVIDEO_RUN_DAEMON_TOKEN_FILE ?? null,
+};
 const application = loadApplication()
 const backendPlugins = await loadBackendPlugins(application)
 const appRoot = application.directory
@@ -572,12 +574,20 @@ async function createWindow(config = {}) {
   return window
 }
 
-const gotLock = app.requestSingleInstanceLock()
+const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
-  app.quit()
+  app.quit();
+} else if (runOverrides.daemonAddress) {
+  // Daemon-run Electron is a frontend host only: the authoritative graph
+  // lives in the run's Rust daemon (started by run.sh). Booting an embedded
+  // NativeRuleSpace here would create the forbidden second State the plan's
+  // invariant 1 rejects. Business Nodes mount in the backend worker instead.
+  throw new Error(
+    'GRAPHVIDEO_RUN_DAEMON_ADDRESS is set: launch the Studio backend worker for this run; ' +
+    'Electron must not boot an embedded NativeRuleSpace alongside the run daemon',
+  );
 } else {
-  // Empty Rust boot does not depend on Electron readiness or business startup.
-  host = initializeGraphHost()
+  host = initializeGraphHost();
   lifecycle = createStudioApplicationLifecycle({
     host, hasProject: () => Boolean(activeProjectRoot),
     closeIngress: () => commandGate.close(),
