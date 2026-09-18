@@ -200,10 +200,14 @@ function normalizeScenarios(value, instances) {
         || [...nodeIds].some((id) => id.endsWith('/*') && input.targetNodeId.startsWith(id.slice(0, -1)));
       if (!ok) fail(`${name} input targets an unassembled instance: ${input.targetNodeId}`);
     }
-    const assertions = normalizeAssertions(scenario.assertions ?? [], index, new Set([
+    const assertionScope = new Set([
       ...nodeIds,
       ...inputs.map((input) => input.targetNodeId),
-    ]));
+    ]);
+    const assertions = normalizeAssertions(scenario.assertions ?? [], index, {
+      has: (id) => assertionScope.has(id)
+        || [...assertionScope].some((known) => known.endsWith('/*') && id.startsWith(known.slice(0, -1))),
+    });
     const timeoutMs = scenario.timeoutMs ?? 30_000;
     if (!Number.isFinite(timeoutMs) || timeoutMs < 100 || timeoutMs > 300_000) {
       fail(`${name}.timeoutMs must be between 100 and 300000`);

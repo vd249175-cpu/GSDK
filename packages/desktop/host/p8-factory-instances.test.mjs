@@ -107,8 +107,7 @@ describe('P8 factory instances: same-ID dedupe plus namespaced isolation', () =>
     temporaryRoots.push(root);
     const pluginDir = join(root, 'agent-plugin');
     writeAgentFixturePlugin(pluginDir, { realNodes: true });
-    const { loadRunConfig } = await import('../../tooling/run/src/lifecycle.mjs');
-    const { connectRunDaemon, mountRunSlice, unmountRunSlice } = await import('../../tooling/run/src/mount.mjs');
+    const { connectRunDaemon } = await import('../../tooling/run/src/mount.mjs');
     const { startRun, stopRun } = await import('../../tooling/run/src/lifecycle.mjs');
     const { readFileSync } = await import('node:fs');
     const configPath = writeRun(root, 'pair', baseDocument({
@@ -119,28 +118,21 @@ describe('P8 factory instances: same-ID dedupe plus namespaced isolation', () =>
         { kind: 'graph', id: 'agent-b', factory: { plugin: 'example.agent', name: 'createAgentGraph' } },
       ] },
     }));
+    // startRun owns the supervised slice; the pair shares one daemon.
     const handle = await startRun(configPath);
-    const credential = readFileSync(join(handle.parsed.resources.runtimeDirectory, 'daemon-token'), 'utf8');
-    const control = await connectRunDaemon({ address: handle.snapshot.kernel.address, token: credential });
-    const worker = await connectRunDaemon({ address: handle.snapshot.kernel.address, token: credential });
-    const workerStop = new AbortController();
-    const watchdog = setTimeout(() => workerStop.abort(), 25_000);
+    const control = await connectRunDaemon({
+      address: handle.snapshot.kernel.address,
+      token: readFileSync(join(handle.parsed.resources.runtimeDirectory, 'daemon-token'), 'utf8'),
+    });
     try {
-      const { nodes } = await loadRunNodes(handle.parsed);
-      const mount = await mountRunSlice({ nodes, control, worker, signal: workerStop.signal });
       const projection = await control.projection();
       expect(Object.keys(projection.nodes).sort()).toEqual(['agent-a/counter', 'agent-b/counter']);
-      await unmountRunSlice({
-        control, workerStop, running: mount.running, admitted: mount.admitted, assemblies: mount.assemblies,
-      });
-      worker.close();
-      try { await control.shutdown(); } catch { /* already closed */ }
-      control.close();
     } finally {
-      clearTimeout(watchdog);
-      handle.stopKernel();
-      handle.releaseLock();
-      stopRun(handle.parsed.configPath);
+      try { control.close(); } catch { /* already closed */ }
+      try { await handle.stop(); } catch { /* already closed */ }
+      try { handle.stopKernel(); } catch { /* already closed */ }
+      try { handle.releaseLock(); } catch { /* already closed */ }
+      await stopRun(handle.parsed.configPath);
     }
   }, 60_000);
 });

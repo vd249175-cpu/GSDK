@@ -4,9 +4,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadRunNodes } from '../../tooling/run/src/assembly.mjs';
-import { loadRunConfig, startRun, stopRun } from '../../tooling/run/src/lifecycle.mjs';
-import { connectRunDaemon, injectLifecycleInfos, mountRunSlice, unmountRunSlice } from '../../tooling/run/src/mount.mjs';
-import { runDaemonEffectProvider } from '@graphvideo/sdk/effect';
+import { loadRunConfig, startRun, statusRun, stopRun } from '../../tooling/run/src/lifecycle.mjs';
+import { connectRunDaemon } from '../../tooling/run/src/mount.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const studioDir = join(repoRoot, 'app', 'plugins', 'backend', 'graphvideo.studio');
@@ -100,75 +99,29 @@ describe('P6 Studio daemon run cutover', () => {
         ],
       },
     });
+    // startRun owns kernel + slice + provider + init/start settlement.
     const handle = await startRun(configPath);
-    const credential = readFileSync(join(handle.parsed.resources.runtimeDirectory, 'daemon-token'), 'utf8');
-    const control = await connectRunDaemon({ address: handle.snapshot.kernel.address, token: credential });
-    const worker = await connectRunDaemon({ address: handle.snapshot.kernel.address, token: credential });
-    const providerConn = await connectRunDaemon({ address: handle.snapshot.kernel.address, token: credential });
-    const workerStop = new AbortController();
-    const providerStop = new AbortController();
-    const watchdog = setTimeout(() => { workerStop.abort(); providerStop.abort(); }, 25_000);
+    const control = await connectRunDaemon({
+      address: handle.snapshot.kernel.address,
+      token: readFileSync(join(handle.parsed.resources.runtimeDirectory, 'daemon-token'), 'utf8'),
+    });
     try {
-      // Headless daemon dependencies: the Node instances already carry
-      // in-memory window/file adapters as construction defaults. The provider
-      // executes through those same adapter objects: real observation path,
-      // no Electron IPC anywhere in this run.
-      const { nodes } = await loadRunNodes(handle.parsed);
-      const mount = await mountRunSlice({ nodes, control, worker, signal: workerStop.signal });
-      const capabilities = [...new Set(mount.assemblies.flatMap((assembly) => assembly.effectCapabilities ?? []))];
-      const adapterById = new Map();
-      for (const node of nodes) {
-        for (const value of Object.values(node)) {
-          if (value && typeof value === 'object' && 'id' in value && typeof value.id === 'string'
-            && typeof value.execute === 'function') {
-            adapterById.set(value.id, value);
-          }
-        }
-      }
-      const missing = capabilities.filter((id) => !adapterById.has(id));
-      expect(missing, `missing adapters: ${missing.join(',')}`).toEqual([]);
-      const providing = runDaemonEffectProvider(providerConn, {
-        signal: providerStop.signal,
-        adapters: Object.fromEntries(capabilities.map((id) => [id, (request, context) => (
-          adapterById.get(id).execute(request, { signal: providerStop.signal, changeId: context.changeId, nodeId: context.nodeId })
-        )])),
-      });
-      try {
-        await injectLifecycleInfos({
-          control,
-          infos: handle.parsed.lifecycle.startInfos,
-          prefix: `studio/start`,
-        });
-        const started = await control.projection();
-        const lifecycleState = started.nodes['studio/node-application-lifecycle'].state;
-        expect(lifecycleState, JSON.stringify({ lifecycleState, hostEl: started.nodes['studio/host-el']?.state }))
-          .toMatchObject({ phase: 'Ready', requestId });
-        expect(started.nodes['studio/host-el'].state.isWindowOpen).toBe(true);
-        await injectLifecycleInfos({
-          control,
-          infos: handle.parsed.lifecycle.stopInfos,
-          prefix: `studio/stop`,
-        });
-        const stopping = await control.projection();
-        expect(stopping.nodes['studio/node-application-lifecycle'].state).toMatchObject({ phase: 'StoppingGeneration', requestId });
-        const inspected = await control.agentInspect(0, 1000);
-        expect(JSON.stringify(inspected)).toContain('StudioLifecycleParticipantPreparedInfo');
-      } finally {
-        providerStop.abort();
-        await providing.catch(() => undefined);
-        providerConn.close();
-        await unmountRunSlice({
-          control, workerStop, running: mount.running, admitted: mount.admitted, assemblies: mount.assemblies,
-        });
-      }
-      worker.close();
-      try { await control.shutdown(); } catch { /* already closed */ }
+      const started = await control.projection();
+      const lifecycleState = started.nodes['studio/node-application-lifecycle'].state;
+      expect(lifecycleState, JSON.stringify({ lifecycleState, hostEl: started.nodes['studio/host-el']?.state }))
+        .toMatchObject({ phase: 'Ready', requestId });
+      expect(started.nodes['studio/host-el'].state.isWindowOpen).toBe(true);
+      // Supervised stop injects stopInfos, settles, evicts, and shuts down.
+      await handle.stop();
       control.close();
+      expect(statusRun(configPath)).toMatchObject({ active: false });
+      expect(handle.snapshot.stages).toContain('started');
     } finally {
-      clearTimeout(watchdog);
-      handle.stopKernel();
-      handle.releaseLock();
-      stopRun(handle.parsed.configPath);
+      try { control.close(); } catch { /* already closed */ }
+      try { await handle.stop(); } catch { /* already closed */ }
+      try { handle.stopKernel(); } catch { /* already closed */ }
+      try { handle.releaseLock(); } catch { /* already closed */ }
+      await stopRun(handle.parsed.configPath);
     }
   }, 60_000);
 });

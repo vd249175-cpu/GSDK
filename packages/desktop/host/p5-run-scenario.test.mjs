@@ -41,33 +41,11 @@ function writeRun(root, name, document = {}) {
 
 async function startSlice(configPath) {
   const handle = await startRun(configPath);
-  const credential = readFileSync(join(handle.parsed.resources.runtimeDirectory, 'daemon-token'), 'utf8');
-  const control = await connectRunDaemon({ address: handle.snapshot.kernel.address, token: credential });
-  const worker = await connectRunDaemon({ address: handle.snapshot.kernel.address, token: credential });
-  const workerStop = new AbortController();
-  const { nodes } = await loadRunNodes(handle.parsed);
-  const mount = await mountRunSlice({ nodes, control, worker, signal: workerStop.signal });
-  // Watchdog: a hung worker must not hang the test past the daemon binary.
-  const watchdog = setTimeout(() => workerStop.abort(), 25_000);
-  return { handle, control, worker, workerStop, mount, watchdog };
+  return { handle };
 }
 
 async function stopSlice(slice) {
-  clearTimeout(slice.watchdog);
-  await unmountRunSlice({
-    control: slice.control,
-    workerStop: slice.workerStop,
-    running: slice.mount.running,
-    admitted: slice.mount.admitted,
-    assemblies: slice.mount.assemblies,
-  });
-  for (const client of [slice.worker, slice.control]) {
-    try { await client.shutdown(); } catch { /* already closed */ }
-    client.close();
-  }
-  slice.handle.stopKernel();
-  slice.handle.releaseLock();
-  stopRun(slice.handle.parsed.configPath);
+  await slice.handle.stop();
 }
 
 describe('P5 same-run scenarios on the real daemon', () => {
@@ -120,20 +98,23 @@ describe('P5 same-run scenarios on the real daemon', () => {
       }],
     });
     const slice = await startSlice(configPath);
+    const control = await connectRunDaemon({
+      address: slice.handle.snapshot.kernel.address,
+      token: readFileSync(join(slice.handle.parsed.resources.runtimeDirectory, 'daemon-token'), 'utf8'),
+    });
     try {
       const runName = slice.handle.snapshot.runName;
-      await injectLifecycleInfos({ control: slice.control, infos: slice.handle.parsed.lifecycle.initInfos, prefix: `${runName}/init` });
-      await injectLifecycleInfos({ control: slice.control, infos: slice.handle.parsed.lifecycle.startInfos, prefix: `${runName}/start` });
       const report = await runScenarioSet({
         parsed: slice.handle.parsed,
         runName,
-        submitInfos: async (targetNodeId, info, submissionId) => slice.control.inject(targetNodeId, info, submissionId),
-        readProjection: async () => slice.control.projection(),
+        submitInfos: async (targetNodeId, info, submissionId) => control.inject(targetNodeId, info, submissionId),
+        readProjection: async () => control.projection(),
       });
       expect(report.failed).toBe(0);
       expect(report.scenarios).toHaveLength(1);
       const path = writeScenarioReport(slice.handle.parsed.resources.logsDirectory, runName, report);
       expect(readFileSync(path, 'utf8')).toContain('counter-reaches-two');
+      control.close();
     } finally {
       await stopSlice(slice);
     }
@@ -155,20 +136,24 @@ describe('P5 same-run scenarios on the real daemon', () => {
       }],
     });
     const slice = await startSlice(configPath);
+    const control = await connectRunDaemon({
+      address: slice.handle.snapshot.kernel.address,
+      token: readFileSync(join(slice.handle.parsed.resources.runtimeDirectory, 'daemon-token'), 'utf8'),
+    });
     try {
       const runName = slice.handle.snapshot.runName;
-      await injectLifecycleInfos({ control: slice.control, infos: slice.handle.parsed.lifecycle.initInfos, prefix: `${runName}/init` });
       const report = await runScenarioSet({
         parsed: slice.handle.parsed,
         runName,
-        submitInfos: async (targetNodeId, info, submissionId) => slice.control.inject(targetNodeId, info, submissionId),
-        readProjection: async () => slice.control.projection(),
+        submitInfos: async (targetNodeId, info, submissionId) => control.inject(targetNodeId, info, submissionId),
+        readProjection: async () => control.projection(),
       });
       expect(report.failed).toBe(1);
       expect(report.scenarios[0].ok).toBe(false);
       expect(report.scenarios[0].error).toContain('count');
       const path = writeScenarioReport(slice.handle.parsed.resources.logsDirectory, runName, report);
       expect(readFileSync(path, 'utf8')).toContain('wrong-count');
+      control.close();
     } finally {
       await stopSlice(slice);
     }

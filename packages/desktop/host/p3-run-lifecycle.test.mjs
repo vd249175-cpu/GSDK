@@ -32,7 +32,7 @@ function writeRun(root, name, document = {}) {
 }
 
 describe('P3 run start/stop/status records', () => {
-  it('starts an empty kernel, records identity, and stops idempotently', async () => {
+  it('starts the supervised slice, records identity, and stops idempotently', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gv-p3-lifecycle-'));
     temporaryRoots.push(root);
     const configPath = writeRun(root, 'alice');
@@ -40,20 +40,22 @@ describe('P3 run start/stop/status records', () => {
     try {
       expect(handle.snapshot.kernel.address).toMatch(/^127\.0\.0\.1:\d+$/);
       expect(handle.snapshot.kernel.pid).toBeGreaterThan(0);
-      expect(handle.snapshot.stages).toEqual(['validate', 'lock', 'kernel-ready']);
+      expect(handle.snapshot.stages).toEqual(['validate', 'lock', 'kernel-ready', 'hosts-ready', 'admitted', 'workers-ready', 'initialized', 'started']);
       // Credential lives in the run's generated dir, never in the config.
       expect(existsSync(join(handle.parsed.resources.runtimeDirectory, 'daemon-token'))).toBe(true);
       expect(readFileSync(configPath, 'utf8')).not.toContain('daemon-token');
       const status = statusRun(configPath);
       expect(status).toMatchObject({ active: true, runName: 'alice', pid: process.pid });
+      expect(status.stages).toContain('started');
       // Same-name start while active is rejected without touching the kernel.
       await expect(startRun(configPath)).rejects.toThrow('already active');
-    } finally {
-      handle.stopKernel();
+      await handle.stop();
+    } catch (error) {
+      try { handle.stopKernel(); } catch { /* already closed */ }
+      try { handle.releaseLock(); } catch { /* already closed */ }
+      throw error;
     }
-    expect(stopRun(configPath)).toMatchObject({ stopped: true, already: false, runName: 'alice' });
-    handle.releaseLock();
-    expect(stopRun(configPath)).toMatchObject({ stopped: true, already: true });
+    expect(await stopRun(configPath)).toMatchObject({ stopped: true, already: true, runName: 'alice' });
     expect(statusRun(configPath)).toMatchObject({ active: false, runName: 'alice' });
   });
 
@@ -76,11 +78,12 @@ describe('P3 run start/stop/status records', () => {
       // Rewrite the live config mid-run: stop must still target the snapshot.
       const rewritten = { ...JSON.parse(readFileSync(configPath, 'utf8')), name: 'mallory' };
       writeFileSync(configPath, JSON.stringify(rewritten, null, 2));
-      const stopped = stopRun(configPath);
+      const stopped = await stopRun(configPath);
       expect(stopped).toMatchObject({ stopped: true, runName: 'alice' });
     } finally {
-      handle.stopKernel();
-      handle.releaseLock();
+      try { await handle.stop(); } catch { /* already closed */ }
+      try { handle.stopKernel(); } catch { /* already closed */ }
+      try { handle.releaseLock(); } catch { /* already closed */ }
     }
   });
 
@@ -95,15 +98,17 @@ describe('P3 run start/stop/status records', () => {
       expect(statusRun(first)).toMatchObject({ active: true, runName: 'alice' });
       expect(statusRun(second)).toMatchObject({ active: true, runName: 'task-42' });
       expect(a.snapshot.kernel.address).not.toBe(b.snapshot.kernel.address);
-      expect(stopRun(first)).toMatchObject({ stopped: true, runName: 'alice' });
+      expect(await stopRun(first)).toMatchObject({ stopped: true, runName: 'alice' });
       expect(statusRun(second)).toMatchObject({ active: true, runName: 'task-42' });
     } finally {
-      a.stopKernel();
-      a.releaseLock();
-      b.stopKernel();
-      b.releaseLock();
-      stopRun(first);
-      stopRun(second);
+      try { await a.stop(); } catch { /* already closed */ }
+      try { await b.stop(); } catch { /* already closed */ }
+      try { a.stopKernel(); } catch { /* already closed */ }
+      try { a.releaseLock(); } catch { /* already closed */ }
+      try { b.stopKernel(); } catch { /* already closed */ }
+      try { b.releaseLock(); } catch { /* already closed */ }
+      await stopRun(first);
+      await stopRun(second);
     }
   });
 });

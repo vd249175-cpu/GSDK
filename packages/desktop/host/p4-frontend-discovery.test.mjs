@@ -108,8 +108,9 @@ describe('P4 run frontend discovery and command binding', () => {
       expect(readRunDiscovery(handle.parsed.resources.runtimeDirectory).frontend).toBeNull();
       expect(existsSync(join(handle.parsed.baseDirectory, '.generated', 'frontend'))).toBe(false);
     } finally {
-      handle.stopKernel();
-      handle.releaseLock();
+      try { await handle.stop(); } catch { /* already closed */ }
+      try { handle.stopKernel(); } catch { /* already closed */ }
+      try { handle.releaseLock(); } catch { /* already closed */ }
     }
   });
 
@@ -145,15 +146,17 @@ describe('P4 run frontend discovery and command binding', () => {
         targetNodeId: 'example.counter', info: { type: 'IncrementInfo' },
       })).toThrow('not assembled');
       // Closing A leaves B active on its own endpoint and roots.
-      expect(stopRun(first)).toMatchObject({ stopped: true, runName: 'alice' });
+      expect(await stopRun(first)).toMatchObject({ stopped: true, runName: 'alice' });
       expect(readRunDiscovery(b.parsed.resources.runtimeDirectory).kernel.address).toBe(b.snapshot.kernel.address);
     } finally {
-      a.stopKernel();
-      a.releaseLock();
-      b.stopKernel();
-      b.releaseLock();
-      stopRun(first);
-      stopRun(second);
+      try { await a.stop(); } catch { /* already closed */ }
+      try { await b.stop(); } catch { /* already closed */ }
+      try { a.stopKernel(); } catch { /* already closed */ }
+      try { a.releaseLock(); } catch { /* already closed */ }
+      try { b.stopKernel(); } catch { /* already closed */ }
+      try { b.releaseLock(); } catch { /* already closed */ }
+      await stopRun(first);
+      await stopRun(second);
     }
   });
 });

@@ -83,7 +83,7 @@ async function importSdkNode() {
   // packages/sdk/javascript/src and exposes the daemon bridge.
   const candidates = [
     '@graphvideo/sdk/node',
-    '../../desktop/node_modules/@graphvideo/sdk/dist/node.js',
+    '../../../sdk/javascript/dist/node.js',
   ];
   let lastError = null;
   for (const candidate of candidates) {

@@ -46,15 +46,26 @@ describe('P9 bash symmetric lifecycle', () => {
     const configPath = writeRun(root, 'alice');
     const started = sh('start', configPath);
     expect(started.started).toBe(true);
+    expect(started.stages).toContain('started');
     try {
-      // Supervisor start leaves the run active (red in the P3 slice: start
-      // boots the kernel, then kills it and releases the lock on return).
-      expect(statusRun(configPath)).toMatchObject({ active: true, runName: 'alice' });
+      const active = statusRun(configPath);
+      expect(active).toMatchObject({ active: true, runName: 'alice' });
+      expect(active.stages).toContain('started');
+      expect(active.kernel.address).toBe(started.kernel.address);
       const stopped = sh('stop', configPath);
       expect(stopped).toMatchObject({ stopped: true, already: false });
-      expect(statusRun(configPath)).toMatchObject({ active: false });
+      const closed = statusRun(configPath);
+      expect(closed).toMatchObject({ active: false });
+      expect(closed.stages).toContain('closed');
+      // Kernel port is gone: the detached stop shut the daemon down.
+      expect(closed.stages).toEqual([
+        'validate', 'lock', 'kernel-ready', 'hosts-ready',
+        'admitted', 'workers-ready', 'initialized', 'started',
+        'stopping', 'settled', 'evicted', 'kernel-stopped', 'hosts-stopped', 'closed',
+      ]);
+      expect(sh('stop', configPath)).toMatchObject({ stopped: true, already: true });
     } finally {
       try { sh('stop', configPath); } catch { /* already closed */ }
     }
-  });
+  }, 120_000);
 });

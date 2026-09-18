@@ -3,10 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { loadRunNodes } from '../../tooling/run/src/assembly.mjs';
-import { loadRunConfig, startRun, stopRun } from '../../tooling/run/src/lifecycle.mjs';
-import { connectRunDaemon, injectLifecycleInfos, mountRunSlice, unmountRunSlice } from '../../tooling/run/src/mount.mjs';
-import { runDaemonEffectProvider } from '@graphvideo/sdk/effect';
+import { startRun } from '../../tooling/run/src/lifecycle.mjs';
+import { connectRunDaemon } from '../../tooling/run/src/mount.mjs';
 import { runScenarioSet, writeScenarioReport } from '../../tooling/run/src/scenario.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -36,60 +34,13 @@ function writeRun(root, name, document) {
   return configPath;
 }
 
-async function startSlice(configPath, { withProvider = false } = {}) {
+async function startSlice(configPath) {
   const handle = await startRun(configPath);
-  const credential = readFileSync(join(handle.parsed.resources.runtimeDirectory, 'daemon-token'), 'utf8');
-  const control = await connectRunDaemon({ address: handle.snapshot.kernel.address, token: credential });
-  const worker = await connectRunDaemon({ address: handle.snapshot.kernel.address, token: credential });
-  const workerStop = new AbortController();
-  const watchdog = setTimeout(() => workerStop.abort(), 55_000);
-  const { nodes } = await loadRunNodes(handle.parsed);
-  const mount = await mountRunSlice({ nodes, control, worker, signal: workerStop.signal });
-  let provider = null;
-  if (withProvider) {
-    const providerConn = await connectRunDaemon({ address: handle.snapshot.kernel.address, token: credential });
-    const providerStop = new AbortController();
-    const capabilities = [...new Set(mount.assemblies.flatMap((assembly) => assembly.effectCapabilities ?? []))];
-    const adapterById = new Map();
-    for (const node of nodes) {
-      for (const value of Object.values(node)) {
-        if (value && typeof value === 'object' && 'id' in value && typeof value.id === 'string'
-          && typeof value.execute === 'function') {
-          adapterById.set(value.id, value);
-        }
-      }
-    }
-    provider = {
-      conn: providerConn,
-      stop: providerStop,
-      running: runDaemonEffectProvider(providerConn, {
-        signal: providerStop.signal,
-        adapters: Object.fromEntries(capabilities.map((id) => [id, (request, context) => (
-          adapterById.get(id).execute(request, { signal: providerStop.signal, changeId: context.changeId, nodeId: context.nodeId })
-        )])),
-      }),
-    };
-  }
-  return { handle, control, worker, workerStop, watchdog, mount, provider };
+  return { handle };
 }
 
 async function stopSlice(slice) {
-  clearTimeout(slice.watchdog);
-  if (slice.provider) {
-    slice.provider.stop.abort();
-    await slice.provider.running.catch(() => undefined);
-    slice.provider.conn.close();
-  }
-  await unmountRunSlice({
-    control: slice.control, workerStop: slice.workerStop,
-    running: slice.mount.running, admitted: slice.mount.admitted, assemblies: slice.mount.assemblies,
-  });
-  slice.worker.close();
-  try { await slice.control.shutdown(); } catch { /* already closed */ }
-  slice.control.close();
-  slice.handle.stopKernel();
-  slice.handle.releaseLock();
-  stopRun(slice.handle.parsed.configPath);
+  await slice.handle.stop();
 }
 
 describe('P7 three-run drill: studio plus two agent runs', () => {
@@ -161,9 +112,16 @@ describe('P7 three-run drill: studio plus two agent runs', () => {
       resources: {},
     });
 
-    const studio = await startSlice(studioConfig, { withProvider: true });
+    const studio = await startSlice(studioConfig);
     const alice = await startSlice(aliceConfig);
     const task = await startSlice(taskConfig);
+    const connectSlice = async (slice) => connectRunDaemon({
+      address: slice.handle.snapshot.kernel.address,
+      token: readFileSync(join(slice.handle.parsed.resources.runtimeDirectory, 'daemon-token'), 'utf8'),
+    });
+    const studioControl = await connectSlice(studio);
+    const aliceControl = await connectSlice(alice);
+    const taskControl = await connectSlice(task);
     try {
       expect(new Set([
         studio.handle.snapshot.kernel.address,
@@ -171,23 +129,21 @@ describe('P7 three-run drill: studio plus two agent runs', () => {
         task.handle.snapshot.kernel.address,
       ]).size).toBe(3);
 
-      await injectLifecycleInfos({ control: studio.control, infos: studio.handle.parsed.lifecycle.startInfos, prefix: 'studio/start' });
-      await injectLifecycleInfos({ control: alice.control, infos: alice.handle.parsed.lifecycle.initInfos, prefix: 'alice/init' });
-      await injectLifecycleInfos({ control: task.control, infos: task.handle.parsed.lifecycle.initInfos, prefix: 'task-42/init' });
-
-      for (const slice of [studio, alice, task]) {
+      // startRun already settled init/start through the barrier; scenarios
+      // run against the live supervised slices via fresh control clients.
+      for (const [slice, control] of [[studio, studioControl], [alice, aliceControl], [task, taskControl]]) {
         const report = await runScenarioSet({
           parsed: slice.handle.parsed,
           runName: slice.handle.snapshot.runName,
-          submitInfos: async (targetNodeId, info, submissionId) => slice.control.inject(targetNodeId, info, submissionId),
-          readProjection: async () => slice.control.projection(),
+          submitInfos: async (targetNodeId, info, submissionId) => control.inject(targetNodeId, info, submissionId),
+          readProjection: async () => control.projection(),
         });
         expect(report.failed).toBe(0);
         writeScenarioReport(slice.handle.parsed.resources.logsDirectory, slice.handle.snapshot.runName, report);
       }
 
       const [aliceProjection, taskProjection, studioProjection] = await Promise.all([
-        alice.control.projection(), task.control.projection(), studio.control.projection(),
+        aliceControl.projection(), taskControl.projection(), studioControl.projection(),
       ]);
       expect(aliceProjection.nodes['example.counter'].state).toMatchObject({ count: 1 });
       expect(taskProjection.nodes['example.counter'].state).toMatchObject({ count: 2 });
@@ -195,10 +151,13 @@ describe('P7 three-run drill: studio plus two agent runs', () => {
 
       await stopSlice(alice);
       expect(readFileSync(join(task.handle.parsed.resources.runtimeDirectory, 'daemon-token'), 'utf8').length).toBeGreaterThan(0);
-      const stillThere = await task.control.projection();
+      const stillThere = await taskControl.projection();
       expect(stillThere.nodes['example.counter'].state).toMatchObject({ count: 2 });
       alice.stopped = true;
     } finally {
+      for (const control of [studioControl, aliceControl, taskControl]) {
+        try { control.close(); } catch { /* already closed */ }
+      }
       await stopSlice(studio).catch(() => undefined);
       await stopSlice(task).catch(() => undefined);
       if (!alice.stopped) await stopSlice(alice).catch(() => undefined);
