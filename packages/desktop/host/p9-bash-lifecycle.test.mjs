@@ -57,6 +57,13 @@ describe('P9 bash symmetric lifecycle', () => {
       expect(active).toMatchObject({ active: true, runName: 'alice' });
       expect(active.stages).toContain('started');
       expect(active.kernel.address).toBe(started.kernel.address);
+
+      const health = sh('analyze', configPath);
+      expect(health).toHaveProperty('nodeCount');
+
+      const inspect = sh('inspect', configPath);
+      expect(inspect).toHaveProperty('projection');
+
       const stopped = sh('stop', configPath);
       expect(stopped).toMatchObject({ stopped: true, already: false });
       const closed = statusRun(configPath);

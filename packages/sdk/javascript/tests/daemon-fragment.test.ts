@@ -155,6 +155,32 @@ describe.skipIf(!existsSync(executable))('P2 daemon fragment lifecycle', () => {
       const projection = await control.projection();
       expect(projection.nodes['example.counter']).toMatchObject({ state: { count: 2 }, version: 2 });
       expect(projection.nodes['example.collector']).toMatchObject({ state: { seen: 2 } });
+
+      const health = await control.analyze({ op: 'health' }) as {
+        nodeCount: number;
+        cyclicNodeIds: string[];
+        stronglyConnectedComponents: string[][];
+        nodes: Array<{ nodeId: string; inboundRoutes: number; outboundRoutes: number; afferentCoupling: number; efferentCoupling: number }>;
+      };
+      expect(health.nodeCount).toBe(2);
+      expect(health.cyclicNodeIds).toEqual([]);
+      expect(health.stronglyConnectedComponents).toEqual([]);
+      const counterHealth = health.nodes.find((n) => n.nodeId === 'example.counter');
+      const collectorHealth = health.nodes.find((n) => n.nodeId === 'example.collector');
+      expect(counterHealth).toMatchObject({ nodeId: 'example.counter', outboundRoutes: 1, inboundRoutes: 0, efferentCoupling: 1 });
+      expect(collectorHealth).toMatchObject({ nodeId: 'example.collector', inboundRoutes: 1, outboundRoutes: 0, afferentCoupling: 1 });
+
+      const view = await control.analyze({ op: 'view' }) as {
+        routes: Array<{ from: string; to: string; infoType: string }>;
+      };
+      expect(view.routes).toEqual([
+        expect.objectContaining({
+          from: 'example.counter',
+          to: 'example.collector',
+          infoType: 'CountChangedInfo',
+        }),
+      ]);
+
       await control.evict('example.counter');
       await control.evict('example.collector');
       expect((await control.shutdown())).toMatchObject({ shutdown: true });

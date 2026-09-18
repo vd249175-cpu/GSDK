@@ -21,6 +21,14 @@ try {
   else if (op === 'frontends') result = await frontendOperation(config, extra);
   else if (op === 'publish-start') { result = JSON.parse(readFileSync(join(runtimeFor(config), 'business-start-result.json'), 'utf8')); startResult(config, result); }
   else if (op === 'call') result = await callRunControl(runtimeFor(config), extra);
+  else if (op === 'analyze') {
+    const request = extra ? JSON.parse(extra) : { op: 'health' };
+    result = await callRunControl(runtimeFor(config), 'analyze', { request });
+  }
+  else if (op === 'inspect') {
+    const options = extra ? JSON.parse(extra) : {};
+    result = await callRunControl(runtimeFor(config), 'inspect', options);
+  }
   else if (op === 'cancelled') {
     const health = await callRunControl(runtimeFor(config), 'health');
     process.exitCode = health.stopRequested ? 0 : 1;

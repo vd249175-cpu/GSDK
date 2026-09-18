@@ -24,7 +24,7 @@ export async function serveRunControl({ token, runId, handlers, concurrent = [] 
       const handler = handlers[input.op];
       if (typeof handler !== 'function') throw new Error(`unknown control operation: ${input.op}`);
       const run = () => handler(input.payload ?? {});
-      const independent = ['health', 'request-stop', 'wait-stop', 'projection', ...concurrent].includes(input.op);
+      const independent = ['health', 'request-stop', 'wait-stop', 'projection', 'analyze', 'inspect', ...concurrent].includes(input.op);
       const operation = independent ? run() : queue.then(run);
       if (!independent) queue = operation.catch(() => undefined);
       const output = await operation;

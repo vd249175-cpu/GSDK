@@ -115,6 +115,7 @@ export interface DaemonChangeIo {
 
 export interface RealDaemonNode {
   readonly id: string;
+  readonly analysisFacts?: unknown;
   getState(): Record<string, unknown>;
   dispose(): Promise<void>;
 }
@@ -124,6 +125,7 @@ export interface DaemonNodeAssembly {
   readonly initialState: Record<string, unknown>;
   readonly handler: DaemonNodeHandler<Record<string, unknown>>;
   readonly effectCapabilities: readonly string[];
+  readonly analysisFacts?: unknown;
   readonly dispose: () => Promise<void>;
 }
 
@@ -136,6 +138,7 @@ export interface DaemonNodeAssembly {
  */
 export function describeDaemonNode(node: RealDaemonNode): DaemonNodeAssembly {
   const initialState = daemonValueCodec.encode(node.getState()) as Record<string, unknown>;
+  const analysisFacts = (node as { readonly analysisFacts?: unknown }).analysisFacts;
   const shaped = node as RealDaemonNode & {
     readonly effectCapabilities?: unknown;
     readonly adapter?: { readonly id?: unknown };
@@ -183,6 +186,7 @@ export function describeDaemonNode(node: RealDaemonNode): DaemonNodeAssembly {
     initialState,
     handler,
     effectCapabilities,
+    analysisFacts,
     dispose: () => node.dispose(),
   };
 }
@@ -200,10 +204,25 @@ export async function admitDaemonNodes(
   const assemblies = nodes.map((node) => describeDaemonNode(node as RealDaemonNode));
   const admitted: string[] = [];
   const handlers: Record<string, DaemonNodeHandler<Record<string, unknown>>> = {};
+  const extractedSnapshots: Record<string, unknown> = {};
+  try {
+    const { extractPortableAnalysisSnapshots } = await import('../analysis/portable-facts');
+    const analyzableNodes = nodes.filter((node): node is import('./node').Node<any> => Boolean(
+      node && typeof node === 'object' && 'id' in node && typeof (node as { change?: unknown }).change === 'function',
+    ));
+    if (analyzableNodes.length > 0) {
+      for (const snapshot of extractPortableAnalysisSnapshots(analyzableNodes)) {
+        extractedSnapshots[snapshot.nodeId] = snapshot;
+      }
+    }
+  } catch {
+    // If analysis extraction fails or is unavailable, fallback gracefully
+  }
   try {
     for (const assembly of assemblies) {
       if (assembly.nodeId in handlers) throw new Error(`Duplicate daemon Node instance: ${assembly.nodeId}`);
-      await control.admit(assembly.nodeId, assembly.initialState, undefined, assembly.effectCapabilities);
+      const facts = assembly.analysisFacts ?? extractedSnapshots[assembly.nodeId];
+      await control.admit(assembly.nodeId, assembly.initialState, facts, assembly.effectCapabilities);
       admitted.push(assembly.nodeId);
       handlers[assembly.nodeId] = assembly.handler;
     }

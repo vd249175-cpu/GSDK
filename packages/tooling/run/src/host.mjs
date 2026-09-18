@@ -69,6 +69,8 @@ export async function runBackend(config) {
   const handlers = {
     health: () => ({ runId, pid: process.pid, state: readSnapshot(config).state, stopRequested: Boolean(pendingStop) }),
     projection: () => control.projection(),
+    analyze: ({ request } = {}) => control.analyze(request ?? { op: 'health' }),
+    inspect: ({ after, limit } = {}) => control.agentInspect(after, limit),
     'request-stop': async () => {
       // The supervisor acknowledges a failed attempt before accepting a retry.
       while (pendingStop && readSnapshot(config).state === 'stop-failed') await sleep();

@@ -157,6 +157,16 @@ export default { id: 'example.contract' };
     try {
       const projection = await control.projection();
       expect(Object.keys(projection.nodes).sort()).toEqual(['agent-a/counter', 'agent-b/counter']);
+
+      const health = await control.analyze({ op: 'health' });
+      expect(health.nodeCount).toBe(2);
+
+      const { callRunControl } = await import('../../tooling/run/src/control.mjs');
+      const hostHealth = await callRunControl(handle.parsed.resources.runtimeDirectory, 'analyze', { request: { op: 'health' } });
+      expect(hostHealth.nodeCount).toBe(2);
+
+      const hostInspect = await callRunControl(handle.parsed.resources.runtimeDirectory, 'inspect', { limit: 10 });
+      expect(hostInspect.projection.nodes['agent-a/counter']).toBeDefined();
     } finally {
       try { control.close(); } catch { /* already closed */ }
       try { await handle.stop(); } catch { /* already closed */ }

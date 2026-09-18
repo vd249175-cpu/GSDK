@@ -8,11 +8,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { connectKernelDaemon } from '../src/agent/daemon-client';
 import { runDaemonNodeWorker } from '../src/node/daemon-node';
 
-const executable = resolve(
-  'target', 'debug', process.platform === 'win32'
-    ? 'graphvideo-kernel-daemon.exe'
-    : 'graphvideo-kernel-daemon',
-);
+const executable = existsSync(resolve('target', 'debug', process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon'))
+  ? resolve('target', 'debug', process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon')
+  : fileURLToPath(new URL(`../../../rust/target/debug/${process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon'}`, import.meta.url));
 const portablePythonNode = fileURLToPath(new URL('./fixtures/daemon-portable-python-node.py', import.meta.url));
 const pythonAvailable = spawnSync('python', ['--version'], { windowsHide: true }).status === 0;
 const children: ChildProcessWithoutNullStreams[] = [];
