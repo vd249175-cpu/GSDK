@@ -1,3 +1,4 @@
+import { cleanupRunFixtures } from './test-run-cleanup.mjs';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -10,9 +11,7 @@ const helloCounterDir = join(repoRoot, 'app', 'plugins', 'backend', 'hello-count
 const helloCounterFileUrl = pathToFileURL(join(helloCounterDir, 'index.mjs')).href;
 const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
 const temporaryRoots = [];
-afterEach(() => {
-  for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+afterEach(() => cleanupRunFixtures(temporaryRoots));
 
 function writeRun(root, name, document) {
   const directory = join(root, name);
@@ -63,11 +62,29 @@ createAgentGraph.describe = () => ({
   requiredBindings: [],
   rendererRoots: [{ localId: 'counter', infoType: 'IncrementInfo' }],
 });
-export default { id: 'example.agent', createNodes: () => [] };
+export default { id: 'example.agent', rendererRoots: [{ targetNodeId: 'counter', infoType: 'IncrementInfo', validate: (info) => info.type === 'IncrementInfo' }] };
 `);
 }
 
 describe('P8 factory instances: explicit IDs, bindings and namespace isolation', () => {
+  it.each(['undeclared', 'kind', 'binding'])('rejects %s factory contracts before constructing Nodes', async (failure) => {
+    const root = mkdtempSync(join(tmpdir(), 'gv-p8-contract-'));
+    temporaryRoots.push(root);
+    const directory = join(root, 'plugin'); mkdirSync(directory);
+    writeFileSync(join(directory, 'graphvideo.plugin.json'), JSON.stringify({
+      id: 'example.contract', name: 'Contract', version: '1.0.0', apiVersion: 2, kind: 'backend',
+      contributes: { backend: 'index.mjs', graphFactories: failure === 'undeclared' ? [] : ['createGraph'] },
+    }));
+    writeFileSync(join(directory, 'index.mjs'), `
+export function createGraph() { throw new Error('construction must not occur'); }
+createGraph.describe = () => ({ kind: ${JSON.stringify(failure === 'kind' ? 'node' : 'graph')}, localIds: ['owner'], requiredBindings: ${JSON.stringify(failure === 'binding' ? ['sink'] : [])}, rendererRoots: [] });
+export default { id: 'example.contract' };
+`);
+    const config = writeRun(root, 'slice', baseDocument({ plugins: { backend: [{ id: 'example.contract', path: directory }], frontend: [] }, graph: { instances: [{ kind: 'graph', id: 'agent', factory: { plugin: 'example.contract', name: 'createGraph' } }] } }));
+    const { loadRunConfig } = await import('../../tooling/run/src/session.mjs');
+    await expect(loadRunNodes(loadRunConfig(config))).rejects.toThrow(failure === 'undeclared' ? 'is not exported' : failure === 'kind' ? 'kind mismatch' : 'missing binding sink');
+  });
+
   it('rejects duplicate instance IDs instead of silently sharing an Owner', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gv-p8-dedupe-'));
     temporaryRoots.push(root);

@@ -36,9 +36,9 @@ describe('Studio plugin manifest', () => {
     })
     expect(parseStudioPluginManifest({
       id: 'example.agent', name: 'Agent', version: '1.0.0', apiVersion: 2, kind: 'frontend',
-      contributes: { frontend: 'index.ts', elements: ['example.agent'] },
+      contributes: { frontend: 'index.ts', host: 'desktop/main.mjs', elements: ['example.agent'] },
     })).toMatchObject({
-      id: 'example.agent', apiVersion: 2, kind: 'frontend',
+      id: 'example.agent', apiVersion: 2, kind: 'frontend', contributes: { host: 'desktop/main.mjs' },
     })
     expect(() => parseStudioPluginManifest({
       id: 'example.agent', name: 'Agent', version: '1.0.0', apiVersion: 2, kind: 'backend',

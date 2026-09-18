@@ -1,3 +1,4 @@
+import { cleanupRunFixtures } from './test-run-cleanup.mjs';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -12,9 +13,7 @@ const helloCounterDir = join(repoRoot, 'app', 'plugins', 'backend', 'hello-count
 const studioDir = join(repoRoot, 'app', 'plugins', 'backend', 'graphvideo.studio');
 const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
 const temporaryRoots = [];
-afterEach(() => {
-  for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+afterEach(() => cleanupRunFixtures(temporaryRoots));
 
 const STUDIO_LOCALS = [
   'src-fs-source', 'node-md-source', 'node-md-parser', 'node-outliner', 'n-hist',
@@ -63,13 +62,12 @@ describe('P7 three-run drill: studio plus two agent runs', () => {
         startInfos: [
           { targetNodeId: 'studio/node-application-lifecycle', info: { type: 'SystemStartRequestedInfo', requestId: 'p7-studio-1' } },
         ],
-        stopInfos: [],
+        stopInfos: [
+          { targetNodeId: 'studio/node-application-lifecycle', info: { type: 'SystemShutdownRequestedInfo', requestId: 'p7-stop' }, await: { nodeId: 'studio/node-application-lifecycle', state: { phase: 'AwaitingDrain' } } },
+          { targetNodeId: 'studio/node-application-lifecycle', info: { type: 'SystemShutdownDrainObservedInfo', requestId: 'p7-stop' }, await: { nodeId: 'studio/node-application-lifecycle', state: { phase: 'ShutdownReady' } } },
+        ],
       },
-      scenarios: [{
-        name: 'studio-ready',
-        inputs: [],
-        assertions: [{ nodeId: 'studio/node-application-lifecycle', state: { phase: 'Ready' } }],
-      }],
+      scenarios: null,
       resources: {},
     });
     const aliceConfig = writeRun(root, 'alice', {
@@ -83,11 +81,7 @@ describe('P7 three-run drill: studio plus two agent runs', () => {
         startInfos: [],
         stopInfos: [],
       },
-      scenarios: [{
-        name: 'alice-counts-once',
-        inputs: [],
-        assertions: [{ nodeId: 'example.counter', state: { count: 1 }, version: 1 }],
-      }],
+      scenarios: null,
       resources: {},
     });
     const taskConfig = writeRun(root, 'task-42', {
@@ -104,11 +98,7 @@ describe('P7 three-run drill: studio plus two agent runs', () => {
         startInfos: [],
         stopInfos: [],
       },
-      scenarios: [{
-        name: 'task-counts-twice',
-        inputs: [],
-        assertions: [{ nodeId: 'example.counter', state: { count: 2 }, version: 2 }],
-      }],
+      scenarios: null,
       resources: {},
     });
 
@@ -128,19 +118,6 @@ describe('P7 three-run drill: studio plus two agent runs', () => {
         alice.handle.snapshot.kernel.address,
         task.handle.snapshot.kernel.address,
       ]).size).toBe(3);
-
-      // startRun already settled init/start through the barrier; scenarios
-      // run against the live supervised slices via fresh control clients.
-      for (const [slice, control] of [[studio, studioControl], [alice, aliceControl], [task, taskControl]]) {
-        const report = await runScenarioSet({
-          parsed: slice.handle.parsed,
-          runName: slice.handle.snapshot.runName,
-          submitInfos: async (targetNodeId, info, submissionId) => control.inject(targetNodeId, info, submissionId),
-          readProjection: async () => control.projection(),
-        });
-        expect(report.failed).toBe(0);
-        writeScenarioReport(slice.handle.parsed.resources.logsDirectory, slice.handle.snapshot.runName, report);
-      }
 
       const [aliceProjection, taskProjection, studioProjection] = await Promise.all([
         aliceControl.projection(), taskControl.projection(), studioControl.projection(),

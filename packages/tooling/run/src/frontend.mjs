@@ -1,8 +1,7 @@
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { readSnapshot, runtimeFor, sleep, repoRoot } from './session.mjs';
+import { readSnapshot, runtimeFor, sleep, repoRoot, updateSession } from './session.mjs';
 import { resolveEntry } from './assembly.mjs';
 import { callRunControl } from './control.mjs';
 
@@ -71,10 +70,12 @@ export async function frontendOperation(config, op) {
   const snapshot = readSnapshot(config);
   const deadline = Date.now() + snapshot.parsed.lifecycle.timeouts.startMs;
   for (const instance of snapshot.parsed.frontend.instances) {
+    if (op === 'close' && readSnapshot(config).closedFrontends?.includes(instance.id)) continue;
     for (;;) {
       try { await callRunControl(runtimeFor(config), op, {}, op === 'health' ? 1000 : snapshot.parsed.lifecycle.timeouts.startMs, `frontend-${instance.id}.json`); break; }
       catch (error) { if (op !== 'health' || Date.now() >= deadline) throw error; await sleep(); }
     }
+    if (op === 'close') updateSession(config, { closedFrontends: [...(readSnapshot(config).closedFrontends ?? []), instance.id] });
   }
   return { [op]: true };
 }

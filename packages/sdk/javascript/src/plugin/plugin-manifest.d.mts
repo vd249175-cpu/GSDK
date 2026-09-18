@@ -5,6 +5,7 @@ export interface StudioPluginManifestBase {
   readonly contributes: {
     readonly backend?: string
     readonly frontend?: string
+    readonly host?: string
     readonly elements: readonly string[]
     readonly workspaces: readonly string[]
     readonly nodeFactories: readonly string[]

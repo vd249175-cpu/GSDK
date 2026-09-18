@@ -1,3 +1,4 @@
+import { cleanupRunFixtures } from './test-run-cleanup.mjs';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -11,9 +12,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '.
 const studioDir = join(repoRoot, 'app', 'plugins', 'backend', 'graphvideo.studio');
 const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
 const temporaryRoots = [];
-afterEach(() => {
-  for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+afterEach(() => cleanupRunFixtures(temporaryRoots));
 
 const STUDIO_LOCALS = [
   'src-fs-source',
@@ -95,7 +94,8 @@ describe('P6 Studio daemon run cutover', () => {
           { targetNodeId: 'studio/node-application-lifecycle', info: { type: 'SystemStartRequestedInfo', requestId } },
         ],
         stopInfos: [
-          { targetNodeId: 'studio/node-application-lifecycle', info: { type: 'SystemShutdownRequestedInfo', requestId, hasProject: false } },
+          { targetNodeId: 'studio/node-application-lifecycle', info: { type: 'SystemShutdownRequestedInfo', requestId }, await: { nodeId: 'studio/node-application-lifecycle', state: { phase: 'AwaitingDrain' } } },
+          { targetNodeId: 'studio/node-application-lifecycle', info: { type: 'SystemShutdownDrainObservedInfo', requestId }, await: { nodeId: 'studio/node-application-lifecycle', state: { phase: 'ShutdownReady' } } },
         ],
       },
     });

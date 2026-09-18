@@ -4,17 +4,18 @@ type: guide
 
 # 通用桌面宿主
 
-本包提供 Electron 启动器、通用图宿主、插件加载、renderer 入口及源码构建。应用配置位于 `../../app/application.json`；Studio 业务代码位于 `../../app/plugins/graphvideo.studio/`。
+本包提供 Electron 物理端口、前端底座和开发检查。完整 Studio 由根目录命名 run 启动；后端插件位于 `app/plugins/backend/graphvideo.studio`，前端与 Electron 宿主位于 `app/plugins/frontend/graphvideo.studio`。
 
 在仓库根目录执行：
 
 ```bash
 npm install --prefix packages/desktop
-npm --prefix packages/desktop run build
-npm --prefix packages/desktop run start
+bash ./run.sh start runs/studio/run.config.json
+bash ./run.sh status runs/studio/run.config.json
+bash ./run.sh stop runs/studio/run.config.json
 ```
 
-外部应用通过 `GRAPHVIDEO_APPLICATION` 指定 application.json 的绝对路径。插件 path 相对于配置所在目录解析。desktop.host 和 desktop.renderer 分别引用启用插件的业务接入入口。
+每个 run 的 v2 配置显式选择插件、节点或图工厂、namespace、前端及初始化和启停 Info。相对路径以配置目录为基准。Bash 启动独立 Rust daemon、后端和前端，并将产物、缓存、日志及 Electron 用户数据写入该 run 的 `.generated/`。npm start 拒绝隐式启动。
 
 - `host/` 提供启动器、通用 Rust NativeRuleSpace 图宿主、插件加载、窗口 Adapter、目录清单和可信 Agent 控制面。
 - `renderer/` 提供通用 HTML 和主题入口，业务应用和 Element 来自启用插件。

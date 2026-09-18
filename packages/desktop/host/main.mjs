@@ -1,3 +1,1 @@
-import { pathToFileURL } from 'node:url'
-import { loadApplication } from '../application.mjs'
-await import(pathToFileURL(loadApplication().hostEntry).href)
+throw new Error('Launch a configured run from the repository root: bash ./run.sh start runs/<name>/run.config.json');

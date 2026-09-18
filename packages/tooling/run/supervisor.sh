@@ -24,7 +24,16 @@ if ! node "$cli" kernel-ready "$config" >/dev/null; then
 fi
 node "$cli" backend "$config" &
 backend_pid=$!
-node "$cli" await-host "$config" >/dev/null
+if ! node "$cli" await-host "$config" >/dev/null; then
+  node "$cli" fail-start "$config" "$run_id"
+  # Authenticated health must prove the empty kernel before stopping it.
+  node "$cli" kernel-shutdown "$config" >/dev/null && wait "$kernel_pid" && {
+    node "$cli" call "$config" close >/dev/null 2>&1 || true
+    wait "$backend_pid" || true
+    node "$cli" finalize "$config" 1 >/dev/null
+  }
+  exit 1
+fi
 if ! node "$cli" build-frontends "$config" >/dev/null; then
   node "$cli" fail-start "$config" "$run_id"
   node "$cli" kernel-shutdown "$config" >/dev/null && wait "$kernel_pid" &&
@@ -46,14 +55,18 @@ if ! node "$cli" frontends "$config" health >/dev/null; then
   exit 1
 fi
 call() { node "$cli" call "$config" "$1"; }
+kernel_stopped=no
 close_run() {
+  if [[ "$kernel_stopped" != yes ]]; then
   node "$cli" frontends "$config" gate >/dev/null &&
   call stop-business >/dev/null &&
   node "$cli" frontends "$config" stop-sources >/dev/null &&
   call evict >/dev/null &&
   node "$cli" kernel-shutdown "$config" >/dev/null &&
   wait "$kernel_pid" &&
-  node "$cli" mark "$config" kernel-stopped >/dev/null &&
+  node "$cli" mark "$config" kernel-stopped >/dev/null || return
+  kernel_stopped=yes
+  fi
   node "$cli" frontends "$config" close >/dev/null &&
   wait_frontends &&
   call close >/dev/null &&

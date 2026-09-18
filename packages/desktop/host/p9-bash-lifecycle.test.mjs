@@ -1,3 +1,4 @@
+import { cleanupRunFixtures } from './test-run-cleanup.mjs';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -9,9 +10,7 @@ import { statusRun } from '../../tooling/run/src/lifecycle.mjs';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
 const temporaryRoots = [];
-afterEach(() => {
-  for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+afterEach(() => cleanupRunFixtures(temporaryRoots));
 
 function writeRun(root, name, overrides = {}) {
   const directory = join(root, name);

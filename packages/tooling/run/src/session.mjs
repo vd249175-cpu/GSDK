@@ -160,6 +160,7 @@ export async function startRun(config) {
   const result = await promisify(execFile)(bash, [join(repoRoot, 'run.sh'), 'start', resolve(config)], { cwd: repoRoot, windowsHide: true, timeout: 150_000 });
   const snapshot = JSON.parse(result.stdout);
   const parsed = readSnapshot(config).parsed;
+  if (snapshot.scenario) return { parsed, snapshot, report: snapshot.report, async stop() { return stopRun(config); } };
   const control = await connectRunDaemon({ address: snapshot.kernel.address, token: readFileSync(join(runtimeFor(config), 'daemon-token'), 'utf8').trim() });
   return { parsed, snapshot, control, kernel: { address: snapshot.kernel.address, pid: snapshot.kernel.pid },
     async stop() { control.close(); return stopRun(config); },

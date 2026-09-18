@@ -6,7 +6,7 @@ status: implemented
 
 # 多 Agent 独立开发与运行协作指南
 
-根目录 Bash 入口（`run.sh start/stop/status`）、`runs/<name>/run.config.json` 与运行配置协议已交付：P1 配置隔离、P2 真实 Node 桥接、P3 对称启停、P4 前后端隔离、P5 同运行场景、P6 Studio 切换、P7 三 run 演练均有针对性测试覆盖。实施顺序与验收见[统一 run 实施计划](./unified-run-plan.md)。当前执行事实仍以源码、测试和[心智模型](./mental-model.md)为准。
+根目录 Bash 入口（`run.sh start/stop/status`）、v2 `runs/<name>/run.config.json` 与完整 Studio 桌面 run 已交付。测试覆盖真实 Node 切片、两个 Electron 前端并行、项目编辑后 SQLite 保存、场景自动关闭及清理失败重试。信号、启动中取消和旧插件目录收敛仍需继续验收，不能用发现文件隔离代替实际进程验证。实施顺序见[统一 run 实施计划](./unified-run-plan.md)。执行事实以源码、测试和[心智模型](./mental-model.md)为准。
 
 ## 1. 协作单位是任意命名的 run
 
@@ -55,7 +55,7 @@ run 内的源码目录按实际需要创建；无用户操作需求的 run 可�
 
 启动必须显式指定该 run 的配置文件，不依赖当前工作目录、默认 Studio 装配或全局环境变量偷偷选择另一套图。配置中的相对路径以配置文件所在目录为基准解析。
 
-目标配置协议分开描述以下内容，具体字段及校验器在实施阶段制定：
+v2 配置与 `packages/tooling/run/src/config.mjs` 分开描述以下内容：
 
 | 配置部分 | 职责 |
 | --- | --- |
@@ -83,7 +83,7 @@ bash ./run.sh status runs/alice/run.config.json
 bash ./run.sh stop runs/alice/run.config.json
 ```
 
-Bash 是外层编排入口。配置解析、协议 DTO 和断言由 `packages/tooling/run` 实现（`config`/`assembly`/`mount`/`scenario`/`lifecycle`/`discovery`），但 Rust 内核生命周期不能重新交给 Electron 或某个业务 JS 对象隐式拥有。当前 `start` 仍是前台空内核启动（校验→锁→内核就绪→记录），完整 admit→init/start→场景→stop 编排由 `mount`/`scenario`/`lifecycle` 模块在测试中覆盖，通过同一控制面执行；常驻后台交互与 Ctrl+C 同一编排是未完成项（见统一计划 §14）。
+Bash 直接启动并等待 Rust、后端 Node 与前端 Electron 进程。配置解析、协议 DTO 和断言由 `packages/tooling/run` 实现，工具只执行单阶段操作。无场景的 start 等待业务和前端 Ready 后返回，持续交互直到 stop；有场景的 start 等待报告及完整关闭后返回，失败为非零退出码。stop 认证活动快照中的控制接口，等待原始关闭 Info、业务结算、租约释放、evict/dispose 和子进程退出；清理失败保留锁与凭证以供重试。
 
 启动顺序：
 
@@ -146,7 +146,7 @@ run 配置使用 `version: 2`。`graph.instances` 显式声明 `kind/id/factory/
 
 场景失败仍执行有边界的正常清理，保留失败原因、资源清理结果和非零退出状态。持续观察的图以明确回执和屏障判断就绪及结束，不能把瞬间队列为空当成业务完成。单 Node 单测仍可使用已有 `createTestRuntime`，但它不替代真实 Rust 运行验收。
 
-整个 Studio 也必须成为一个命名 run，通过自身 `run.config.json` 正常运行。原来的 `npm --prefix packages/desktop run start` 与 Electron 内部隐式装配不满足目标，必须替换；新机制不能只服务 Agent 测试而保留旧整程序启动链路。
+完整 Studio 使用 `bash ./run.sh start runs/studio/run.config.json`，关闭使用同配置的 stop。`npm start` 拒绝隐式装配，`start:legacy-electron` 已移除。其他命名 run 可以引用同一工厂和前端宿主，以各自 namespace、配置和物理资源运行。
 
 ## 8. 任务交付
 

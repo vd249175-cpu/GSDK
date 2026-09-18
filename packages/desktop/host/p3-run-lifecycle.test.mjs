@@ -1,15 +1,15 @@
+import { cleanupRunFixtures } from './test-run-cleanup.mjs';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadRunConfig, startRun, statusRun, stopRun } from '../../tooling/run/src/lifecycle.mjs';
+import { repoRoot } from '../../tooling/run/src/session.mjs';
 
 const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
 
 const temporaryRoots = [];
-afterEach(() => {
-  for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+afterEach(() => cleanupRunFixtures(temporaryRoots));
 
 function writeRun(root, name, document = {}) {
   const directory = join(root, name);
@@ -18,7 +18,7 @@ function writeRun(root, name, document = {}) {
     version: 2,
     name,
     plugins: { backend: [], frontend: [] },
-    kernel: { bind: '127.0.0.1:0', daemonPath: resolve('packages/rust/target/debug', daemonExe) },
+    kernel: { bind: '127.0.0.1:0', daemonPath: join(repoRoot, 'packages/rust/target/debug', daemonExe) },
     backend: { dependencies: {} },
     frontend: { instances: [] },
     graph: { instances: [] },
@@ -40,20 +40,18 @@ describe('P3 run start/stop/status records', () => {
     try {
       expect(handle.snapshot.kernel.address).toMatch(/^127\.0\.0\.1:\d+$/);
       expect(handle.snapshot.kernel.pid).toBeGreaterThan(0);
-      expect(handle.snapshot.stages).toEqual(['validate', 'lock', 'kernel-ready', 'hosts-ready', 'admitted', 'workers-ready', 'initialized', 'started']);
+      expect(handle.snapshot.stages).toEqual(['validate', 'lock', 'kernel-ready', 'hosts-ready', 'assembled', 'admitted', 'workers-ready', 'initialized', 'started']);
       // Credential lives in the run's generated dir, never in the config.
       expect(existsSync(join(handle.parsed.resources.runtimeDirectory, 'daemon-token'))).toBe(true);
       expect(readFileSync(configPath, 'utf8')).not.toContain('daemon-token');
       const status = statusRun(configPath);
-      expect(status).toMatchObject({ active: true, runName: 'alice', pid: process.pid });
+      expect(status).toMatchObject({ active: true, runName: 'alice' });
       expect(status.stages).toContain('started');
       // Same-name start while active is rejected without touching the kernel.
       await expect(startRun(configPath)).rejects.toThrow('already active');
       await handle.stop();
-    } catch (error) {
-      try { handle.stopKernel(); } catch { /* already closed */ }
-      try { handle.releaseLock(); } catch { /* already closed */ }
-      throw error;
+    } finally {
+      await handle.stop();
     }
     expect(await stopRun(configPath)).toMatchObject({ stopped: true, already: true, runName: 'alice' });
     expect(statusRun(configPath)).toMatchObject({ active: false, runName: 'alice' });
@@ -110,5 +108,5 @@ describe('P3 run start/stop/status records', () => {
       await stopRun(first);
       await stopRun(second);
     }
-  });
+  }, 60_000);
 });

@@ -6,7 +6,7 @@ status: implemented-with-gaps
 
 # 统一 run 实施计划
 
-`run.sh start/stop/status` 与 v2 配置支持真实后端图和同路径场景。Bash 已直接承担进程启动、阶段排序与等待退出；活动快照控制关闭，本地 dispose 失败保留资源以供重试。P4 的实际前端进程及 P6 的完整桌面迁移尚未完成，P1–P7 有测试不等于全部验收完成。目录与协作约定见[多 Agent 协作指南](./multi-agent-run-guide.md)；源码现状见[心智模型](./mental-model.md)。
+`run.sh start/stop/status` 与 v2 配置支持实际后端、Electron 前端和完整 Studio。Bash 直接承担进程启动、阶段排序与等待退出；活动快照控制关闭，清理失败保留资源以供重试。P9/P10 已验证后台运行、场景自动关闭、两个真实桌面 run 并行及项目编辑后 SQLite 落盘。信号、启动中取消、真实保存失败重试和旧目录清理尚未全部验收。目录约定见[多 Agent 协作指南](./multi-agent-run-guide.md)，源码现状见[心智模型](./mental-model.md)。
 
 ## 1. 交付目标
 
@@ -225,14 +225,14 @@ M1：P1–P3 完成，任意最小片段可启动、停止、重启。M2：P4–
 - [x] 任意命名 run 自有配置，start/stop/status 显式指定配置。（P1/P3：`p1-run-isolation`、`p3-run-lifecycle`）
 - [x] 范围独立于插件，未选实例不构造，切口明确可断言。（P2/P5/P6：`daemon-fragment`、`p5-run-scenario`、`p6-studio-run` 全图零未选）
 - [x] 初始化与启动分开，业务初始事实与物理参数分开。（P5/P6/P7：init→start 经同一结算屏障，EffectAdapter 由宿主构造注入）
-- [ ] 内核、拓扑、Info 操作独立，Bash 对称编排。——部分：`run.sh start` 当前是前台空内核启动；admit→claim→init/start→场景→stop 的完整编排已在 `mount`/`scenario`/`lifecycle` 模块与 P5/P6/P7 测试中覆盖，但尚未收敛为常驻后台 `start`。
-- [x] 整程序和两个 Agent run 的前端、后端、权威图及资源并行隔离。（P4/P7：双前端发现隔离、`p7-three-run-drill` 三 daemon 并行，端点/State/记录互不串用）
+- [x] 内核、拓扑、Info 操作独立，Bash 对称编排。（P9：Bash 持有实际子进程，单阶段工具执行 admit、初始化、启停 Info、evict 和 Rust shutdown。）
+- [ ] 整程序与两个 Agent run 的实际前端、后端、权威图及资源同时隔离。P7 验证三个真实后端 daemon；P10 验证两个实际 Electron/后端/daemon run，并在其中一个保存关闭后确认另一个仍 Ready。三个带 UI 的 run 尚未同时验收。
 - [ ] 另终端 stop、Ctrl+C、启动中停止、重复控制及重启通过。——部分：另终端 stop、重复停止、已停止、运行中改配置、双 run 独立状态已覆盖（P3）；Ctrl+C/TERM 同一编排、`force-stop`、启动中停止与重启未交付。
-- [x] 保存失败和超时不冒充成功，原始错误与清理错误均保留。（P5：失败场景保留断言证据与清理报告；P6：保存/窗口失败进 `ShutdownFailed`，见 `application-lifecycle` 测试）
+- [ ] 保存失败和超时不冒充成功，原始错误与清理错误保留。P9 覆盖 dispose 失败保留活动资源、删除故障后重试；生命周期单测覆盖保存失败进入 ShutdownFailed。实际桌面保存故障仍待端到端验收。
 - [x] handler、Effect、租约和本地 dispose 有明确结算确认。（P2/P5/P6：commit 结算、provider completeEffect、claim/release 租约、`unmountRunSlice` evict+dispose）
-- [x] 场景与正常运行共用真实装配、Rust 调度及完整关闭。（P5/P7：同一控制面、同一 `stopSlice` 路径，无第二套测试启动器）
-- [ ] Studio 完整运行与全量保存通过，旧整程序启动路径已替换。——部分：完整 Studio 图在 headless daemon 上 Ready→StoppingGeneration 已覆盖（P6/P7），Electron 不再内嵌第二份生产图（`GRAPHVIDEO_RUN_DAEMON_ADDRESS` 守卫），`npm start` 已改为报错入口并保留 `start:legacy-electron`；真实项目全量落盘/保存失败回滚仍走既有 `application-lifecycle` N-API 路径，未在 daemon run 上端到端覆盖。
-- [x] 修改配置、陈旧 PID/端点和端口冲突不误操作其他运行。（P3：stop 读活动快照；锁携带 pid 身份；双 run 独立）
-- [x] 参考文档、实际入口、产物和协作指南一致，凭证与生成物未提交。（本轮：mental-model/sdk/指南收敛；`.gitignore` 覆盖 `runs/*/.generated` 与 `run.lock.json`；`runs/studio` 见下）
+- [x] 场景与正常运行共用真实装配、Rust 调度及完整关闭。（P5/P9/P10：均调用根 Bash，场景结束后自动关闭，失败退出码保留。）
+- [ ] Studio 完整运行与旧代码收敛。P10 已验证真实界面启动、项目读取、Markdown 编辑和关闭后 SQLite 内容；旧 npm/Electron 启动入口已禁止。重复插件源码与旧构建入口仍需清理，真实保存失败重试仍待端到端验收。
+- [x] 关闭使用原始活动快照与认证身份。（P3/P9：配置被改写或删除仍使用原始关闭 Info；认证控制请求校验 runId 和私有 token，不按元数据 PID 杀进程。）
+- [x] 当前入口和协作指南同步，生成物与凭证未提交。`runs/studio/run.config.json` 与后端装配已提交；run 产物位于被忽略的 `.generated/`。
 
-未完成项：常驻后台 `start`（admit→场景→stop 全编排）、Ctrl+C/TERM 同一停机、`force-stop`、daemon run 真实项目全量落盘、UI 场景（本 run 前端）覆盖。`runs/studio` 正式完整程序 run 配置尚未提交——P6/P7 用临时目录中的同构配置验证，协调者选定正式名称后按 `runs/alice` 格式提交即可。
+未完成项：Ctrl+C/TERM 和启动中取消验收、重启与并发启动边界、实际桌面保存故障重试、三个带 UI 的 run 同时验收、重复插件与旧构建入口收敛。force-stop 尚无公开入口，正常关闭不默认强杀。

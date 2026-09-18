@@ -40,11 +40,15 @@ export async function loadRunNodes(parsed, dependencies = {}) {
     if (typeof entry !== 'string' || !entry) throw new Error(`Plugin has no backend entry: ${plugin.id}`);
     const module = await importBackendEntry(plugin.directory, entry, parsed);
     const backend = module.default;
-    if (!backend || backend.id !== plugin.id || typeof backend.createNodes !== 'function') {
+    if (!backend || backend.id !== plugin.id) {
       throw new Error(`Invalid backend plugin: ${plugin.id}`);
     }
     backends.set(plugin.id, backend);
     modules.set(plugin.id, module);
+    for (const instance of parsed.graph.instances.filter((item) => item.factory.plugin === plugin.id)) {
+      const names = raw.contributes?.[instance.kind === 'node' ? 'nodeFactories' : 'graphFactories'] ?? [];
+      if (!names.includes(instance.factory.name)) throw new Error(`Factory ${plugin.id}/${instance.factory.name} is not exported in the ${instance.kind} manifest`);
+    }
   }
   const contextFor = (pluginId, instance) => ({
     pluginId,
@@ -101,6 +105,13 @@ async function constructInstance(instance, backends, modules, contextFor) {
   const factory = backend[instance.factory.name] ?? module?.[instance.factory.name];
   if (typeof factory !== 'function') {
     throw new Error(`Factory ${instance.factory.plugin}/${instance.factory.name} is not exported`);
+  }
+  const description = factory.describe?.();
+  if (description) {
+    if (description.kind !== instance.kind) throw new Error(`Factory kind mismatch for ${instance.id}`);
+    for (const name of description.requiredBindings ?? []) {
+      if (typeof instance.bindings?.[name] !== 'string' || !instance.bindings[name]) throw new Error(`Factory ${instance.factory.name} missing binding ${name} for ${instance.id}`);
+    }
   }
   const created = await factory(contextFor(instance.factory.plugin, instance));
   const list = Array.isArray(created) ? created : [created];

@@ -66,7 +66,7 @@
 
 ## 7. 多 Agent 与统一 run 的目标约定
 
-- 涉及并行开发、运行入口或宿主装配时，先读 [多 Agent 协作指南](DOCUMENTS/multi-agent-run-guide.md) 和 [统一 run 实施计划](DOCUMENTS/unified-run-plan.md)。两者记录已确认目标，运行脚本和配置协议尚未实现，不能当成当前可执行 API。
+- 涉及并行开发、运行入口或宿主装配时，先读 [多 Agent 协作指南](DOCUMENTS/multi-agent-run-guide.md) 和 [统一 run 实施计划](DOCUMENTS/unified-run-plan.md)。Bash `run.sh start/stop/status`、v2 配置与完整 Studio run 已实现；验收差距以实施计划和源码测试为准。
 - 为每个 Agent 分配任意且不重复的稳定名称及 `runs/<name>/`，独立配置前端、后端、权威图运行时和物理资源；运行范围可为任意片段、完整插件或全部程序，不以插件为运行单位。
 - 目标入口由 Bash 显式读取本 run 配置，完整提供启动和关闭。整个 Studio 必须迁入同一 run 机制，不能只增加测试入口或用 Bash 包装旧 Electron 自启动方式宣称完成。
 - 同一工作树中的共享源码和 Git 索引必须明确所有权；目录隔离不能代替文件协调和串行集成提交。

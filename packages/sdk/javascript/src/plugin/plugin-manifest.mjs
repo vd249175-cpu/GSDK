@@ -72,7 +72,7 @@ function parseV2Manifest(value, contributes) {
     throw new Error(`Plugin ${value.id} kind 必须是 backend 或 frontend`)
   }
   if (value.kind === 'backend') {
-    if ('elements' in contributes || 'workspaces' in contributes) {
+    if ('elements' in contributes || 'workspaces' in contributes || 'host' in contributes || 'frontend' in contributes) {
       throw new Error(`Plugin ${value.id} kind 与 contributes 不一致`)
     }
     return Object.freeze({
@@ -100,6 +100,7 @@ function parseV2Manifest(value, contributes) {
     kind: 'frontend',
     contributes: Object.freeze({
       frontend: contributes.frontend === undefined ? undefined : String(contributes.frontend).replace(/\\/g, '/'),
+      host: optionalEntry(contributes.host, 'contributes.host'),
       elements: Object.freeze(stringList(contributes.elements, 'contributes.elements')),
       workspaces: Object.freeze(stringList(contributes.workspaces, 'contributes.workspaces')),
     }),
@@ -109,4 +110,3 @@ function parseV2Manifest(value, contributes) {
 export function defineStudioPluginManifest(manifest) {
   return parseStudioPluginManifest(manifest)
 }
-

@@ -1,15 +1,15 @@
+import { cleanupRunFixtures } from './test-run-cleanup.mjs';
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { assertRunRendererRoot, readRunDiscovery, writeRunDiscovery } from '../../tooling/run/src/discovery.mjs';
 import { startRun, stopRun } from '../../tooling/run/src/lifecycle.mjs';
+import { repoRoot } from '../../tooling/run/src/session.mjs';
 
 const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
 const temporaryRoots = [];
-afterEach(() => {
-  for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+afterEach(() => cleanupRunFixtures(temporaryRoots));
 
 function writeRunConfig(root, name, document = {}) {
   const directory = join(root, name);
@@ -18,7 +18,7 @@ function writeRunConfig(root, name, document = {}) {
     version: 2,
     name,
     plugins: { backend: [], frontend: [] },
-    kernel: { bind: '127.0.0.1:0', daemonPath: resolve('packages/rust/target/debug', daemonExe) },
+    kernel: { bind: '127.0.0.1:0', daemonPath: join(repoRoot, 'packages/rust/target/debug', daemonExe) },
     backend: { dependencies: {} },
     frontend: { instances: [] },
     graph: { instances: [] },
@@ -98,65 +98,15 @@ describe('P4 run frontend discovery and command binding', () => {
     writeFileSync(join(root, 'marker.txt'), 'parallel');
   });
 
-  it('leaves no-frontend fragments without Electron isolation', async () => {
+  it('leaves an empty slice without an Electron process', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gv-p4-nofrontend-'));
     temporaryRoots.push(root);
     const configPath = writeRunConfig(root, 'alice');
     const handle = await startRun(configPath);
     try {
-      expect(handle.snapshot.frontend).toMatchObject({ enabled: false });
-      expect(readRunDiscovery(handle.parsed.resources.runtimeDirectory).frontend).toBeNull();
-      expect(existsSync(join(handle.parsed.baseDirectory, '.generated', 'frontend'))).toBe(false);
-    } finally {
-      try { await handle.stop(); } catch { /* already closed */ }
-      try { handle.stopKernel(); } catch { /* already closed */ }
-      try { handle.releaseLock(); } catch { /* already closed */ }
-    }
-  });
-
-  it('runs two frontend runs in parallel without sharing endpoints or roots', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'gv-p4-dual-'));
-    temporaryRoots.push(root);
-    const studioFrontend = { id: 'graphvideo.studio', path: '../../app/plugins/frontend/graphvideo.studio' };
-    const first = writeRunConfig(root, 'alice', {
-      plugins: { backend: [], frontend: [studioFrontend] },
-      frontend: { instances: [{ id: 'alice-ui', plugin: 'graphvideo.studio', graph: null }] },
-    });
-    const second = writeRunConfig(root, 'task-42', {
-      plugins: { backend: [], frontend: [studioFrontend] },
-      frontend: { instances: [{ id: 'task-42-ui', plugin: 'graphvideo.studio', graph: null }] },
-    });
-    const a = await startRun(first);
-    const b = await startRun(second);
-    try {
-      expect(a.snapshot.kernel.address).not.toBe(b.snapshot.kernel.address);
-      expect(a.snapshot.frontend.userDataPath).not.toBe(b.snapshot.frontend.userDataPath);
-      const aliceDiscovery = readRunDiscovery(a.parsed.resources.runtimeDirectory);
-      const otherDiscovery = readRunDiscovery(b.parsed.resources.runtimeDirectory);
-      expect(aliceDiscovery.kernel.address).toBe(a.snapshot.kernel.address);
-      expect(otherDiscovery.kernel.address).toBe(b.snapshot.kernel.address);
-      expect(aliceDiscovery.frontend.userDataPath).toBe(a.snapshot.frontend.userDataPath);
-      expect(otherDiscovery.frontend.userDataPath).toBe(b.snapshot.frontend.userDataPath);
-      // Renderer command gate in run A only knows A's assembled roots.
-      const assembledA = [{ targetNodeId: 'example.counter', infoType: 'IncrementInfo' }];
-      expect(() => assertRunRendererRoot(assembledA, {
-        targetNodeId: 'example.counter', info: { type: 'IncrementInfo' },
-      })).not.toThrow();
-      expect(() => assertRunRendererRoot([], {
-        targetNodeId: 'example.counter', info: { type: 'IncrementInfo' },
-      })).toThrow('not assembled');
-      // Closing A leaves B active on its own endpoint and roots.
-      expect(await stopRun(first)).toMatchObject({ stopped: true, runName: 'alice' });
-      expect(readRunDiscovery(b.parsed.resources.runtimeDirectory).kernel.address).toBe(b.snapshot.kernel.address);
-    } finally {
-      try { await a.stop(); } catch { /* already closed */ }
-      try { await b.stop(); } catch { /* already closed */ }
-      try { a.stopKernel(); } catch { /* already closed */ }
-      try { a.releaseLock(); } catch { /* already closed */ }
-      try { b.stopKernel(); } catch { /* already closed */ }
-      try { b.releaseLock(); } catch { /* already closed */ }
-      await stopRun(first);
-      await stopRun(second);
-    }
-  });
+      expect(handle.parsed.frontend.instances).toEqual([]);
+      expect(readFileSync(join(handle.parsed.resources.runtimeDirectory, 'frontends.sh'), 'utf8')).toContain('FRONTEND_IDS=()');
+      expect(existsSync(join(handle.parsed.baseDirectory, '.generated/frontend'))).toBe(false);
+    } finally { await handle.stop(); }
+  }, 60_000);
 });

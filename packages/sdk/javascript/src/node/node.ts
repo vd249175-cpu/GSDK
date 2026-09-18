@@ -74,6 +74,7 @@ export abstract class Node<
 
   private disposers: Set<Disposer> = new Set();
   private disposalPromise?: Promise<void>;
+  private unmountConfirmed = false;
   private abortController: AbortController = new AbortController();
 
   private kernel: any = null;
@@ -462,13 +463,14 @@ export abstract class Node<
       this.abort();
       const errors: unknown[] = [];
       for (const disposer of this.disposers) {
-        try { await disposer(); } catch (error) { errors.push(error); }
+        try { await disposer(); this.disposers.delete(disposer); } catch (error) { errors.push(error); }
       }
-      this.disposers.clear();
-      try { this.onUnmount(); } catch (error) { errors.push(error); }
+      if (!this.unmountConfirmed && errors.length === 0) {
+        try { this.onUnmount(); this.unmountConfirmed = true; } catch (error) { errors.push(error); }
+      }
       this.status = 'IDLE';
       if (errors.length) throw new AggregateError(errors, `Node ${this.id} cleanup failed`);
-    });
+    }).catch((error) => { this.disposalPromise = undefined; throw error; });
     return this.disposalPromise;
   }
 
