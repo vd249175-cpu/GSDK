@@ -4,7 +4,7 @@ type: reference
 
 # GraphFramework 当前心智模型
 
-GraphFramework 是由 Rust 调度器与外层宿主承载的开放因果图微内核框架。命名 run（`run.sh start/stop/status runs/<name>/run.config.json`）支持独立配置、Rust daemon、后端真实 Node 切片和作用域产物。Bash supervisor 直接启动并等待 Rust/Node 子进程；Node 工具实现单阶段操作和认证控制接口，不掌控内核进程。无场景 start 等待 Ready 后返回，后台运行持续到 stop；有场景 start 等待报告和同一路径关闭后返回。完整 Studio 的 headless 图可以装配；前端实例的进程启动与完整桌面迁移尚未完成，不能把配置声明视为可用 GUI。源码与针对性测试高于本文。
+GraphFramework 是由 Rust 调度器与外层宿主承载的开放因果图微内核框架。命名 run（`run.sh start/stop/status runs/<name>/run.config.json`）支持独立配置、Rust daemon、后端真实 Node 切片和作用域产物。Bash supervisor 直接启动并等待 Rust、后端 Node 和配置中的 Electron 前端子进程；Node 工具实现单阶段操作和认证控制接口，不掌控内核进程。无场景 start 等待业务和界面 Ready 后返回，后台运行持续到 stop；有场景 start 等待报告和同一路径关闭后返回。`runs/studio` 装配完整桌面程序；针对性测试已验证两个真实桌面 run 并行、编辑项目后关闭并核对 SQLite 落盘。源码与针对性测试高于本文。
 
 ## 1. 设计目标
 
@@ -39,7 +39,7 @@ Rust kernel-daemon 进程（本 run 独占：调度、submission、权威 JSON S
   ├─ @graphvideo/sdk/analysis：JS 实例事实生成器、分析 DTO 与显式离线纯算法，不启动 Runtime
   └─ tooling/run：assembly（精确切片）/ mount（admit→claim→poll）/ scenario（同运行断言）/ lifecycle（对称启停记录）
 
-`runs/studio` 声明完整 Studio 图；headless daemon 使用实例自带的内存/file 端口。Electron 的 daemon 分支仍有未实现的投影和注入接口，不能当成完整桌面运行。正常 stop 读取活动快照，即使 live config 修改或删除也使用原始关闭 Info；等待结算后释放 worker/provider 租约、evict 和本地 dispose，再由 Bash 关闭并等待 Rust 和后端。清理错误保留认证控制接口与锁，返回失败并允许下一次 stop 重试；成功后清除凭证和生成的环境文件。
+`runs/studio` 通过 `backend.host` 构造注入每个图实例的物理端口，前端承担窗口、项目文件和数据库的实际访问。界面只读本图的 EncodedValue 投影，并通过已选工厂的公开根命令注入 Info；可信宿主观察入口另行校验。JSON 传输用 `daemonValueCodec` 无截断保留 Map、Set 等 State 值。正常 stop 读取活动快照，即使 live config 修改或删除也使用原始关闭 Info；先关闭前端命令入口并结算业务保存，再停止观察源、释放 worker/provider 租约、evict 和本地 dispose，由 Bash 关闭并等待 Rust、前端和后端退出。清理错误保留认证控制接口与锁，返回失败并允许下一次 stop 重试；成功后清除凭证和生成的环境文件。
 
 ## 3. 权限与归属
 

@@ -1,5 +1,7 @@
 interface Window {
-  graphvideoDesktop?: {
+    graphvideoDesktop?: {
+      graphNamespace: string
+      lifecycle: { ready(): void; failed(message: string): void }
     platform: string
     versions: {
       electron: string

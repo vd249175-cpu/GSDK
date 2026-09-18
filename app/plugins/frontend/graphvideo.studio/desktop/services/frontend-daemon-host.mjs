@@ -1,60 +1,56 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { defaultValueCodec, daemonValueCodec } from '@graphvideo/sdk/protocol';
+import { callRunControl, serveRunControl } from '../../../../../../packages/tooling/run/src/control.mjs';
+import { writeJsonRecord } from '../../../../../../packages/tooling/run/src/record.mjs';
 
-/**
- * Frontend daemon host: resolves the run's authoritative daemon endpoint for
- * Electron without ever booting an embedded NativeRuleSpace. The run
- * supervisor writes frontend-discovery.json (address + run identity); the
- * daemon token is read from the run's generated dir via
- * GRAPHVIDEO_RUN_DAEMON_TOKEN_FILE and never bundled into the renderer.
- * Booting an embedded space here stays refused by the caller.
- */
-export async function readRunDiscoveryForElectron(runOverrides) {
-  const discoveryFile = runOverrides.daemonDiscoveryFile
-    ?? process.env.GRAPHVIDEO_RUN_DISCOVERY_FILE
-    ?? null;
-  if (!discoveryFile) {
-    throw new Error(
-      'GRAPHVIDEO_RUN_DAEMON_ADDRESS is set but no discovery file is configured: ' +
-      'set GRAPHVIDEO_RUN_DISCOVERY_FILE to the run .generated/runtime/frontend-discovery.json; ' +
-      'Electron must not boot an embedded NativeRuleSpace alongside the run daemon',
-    );
-  }
-  let discovery;
-  try {
-    discovery = JSON.parse(readFileSync(discoveryFile, 'utf8'));
-  } catch (error) {
-    throw new Error(`cannot read run discovery file ${discoveryFile}: ${error?.message ?? error}`);
-  }
-  const address = discovery?.kernel?.address ?? runOverrides.daemonAddress;
-  if (typeof address !== 'string' || !address) {
-    throw new Error('run discovery file has no kernel address; Electron must not boot an embedded NativeRuleSpace');
-  }
-  const tokenFile = runOverrides.daemonTokenFile ?? process.env.GRAPHVIDEO_RUN_DAEMON_TOKEN_FILE ?? null;
-  let token = null;
-  if (tokenFile) {
-    try {
-      token = readFileSync(tokenFile, 'utf8').trim();
-    } catch (error) {
-      throw new Error(`cannot read daemon token file ${tokenFile}: ${error?.message ?? error}`);
-    }
-  }
-  // Minimal host surface the lifecycle/services need: daemon-backed
-  // projection reads and root Info injection through the run token.
-  // Full daemon RPC wiring lands with the Electron run host; until then this
-  // object documents the endpoint without embedding a second State.
+export const frontendContext = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+
+/** A read-only projection cache and authenticated host port, no runtime/State. */
+export async function connectFrontendHost({ effects, stopSources, closeServices, closeIngress, quit, broadcast, rendererReady }) {
+  const context = frontendContext;
+  const runtime = context.runtimeDirectory;
+  const token = readFileSync(join(runtime, 'control-token'), 'utf8').trim();
+  let projection = { revision: 0, nodes: [], scheduler: { pendingDeliveries: 0, activeChanges: 0, scheduledGraphMicrotasks: 0 } };
+  let stopped = false;
+  let polling;
+  const qualify = (id) => id.startsWith(`${context.instance.graph}/`) ? id : `${context.instance.graph}/${id}`;
+  const refresh = async () => {
+    const raw = await callRunControl(runtime, 'projection');
+    const nodes = Object.entries(raw.nodes).filter(([id]) => id.startsWith(`${context.instance.graph}/`)).map(([nodeId, value]) => ({ nodeId,
+      state: defaultValueCodec.encode(daemonValueCodec.decode(value.state), { maxDepth: 100, maxArrayLength: Number.MAX_SAFE_INTEGER }), version: value.version, generation: value.generation, status: 'IDLE' }));
+    projection = { revision: nodes.reduce((sum, node) => sum + node.version, 0), nodes,
+      scheduler: { pendingDeliveries: raw.pending, activeChanges: 0, scheduledGraphMicrotasks: 0 } };
+    broadcast('graph:event', { event: 'graph.projection.updated', payload: { projection } });
+    return projection;
+  };
+  await refresh();
+  const timer = setInterval(() => { if (!stopped && !polling) { polling = refresh().catch((error) => console.error(error.message)).finally(() => { polling = null; }); } }, 100);
+  const server = await serveRunControl({ token, runId: context.runId, concurrent: ['effect'], handlers: {
+    health: () => ({ runId: context.runId, pid: process.pid, instanceId: context.instance.id }),
+    ready: () => rendererReady,
+    gate: async () => { await closeIngress(); return { gated: true }; },
+    effect: async ({ adapter, request }) => {
+      if (stopped || !effects[adapter]) throw new Error(`Frontend Effect unavailable: ${adapter}`);
+      return daemonValueCodec.encode(await effects[adapter].execute(daemonValueCodec.decode(request), {}));
+    },
+    'stop-sources': async () => { await stopSources(); return { stopped: true }; },
+    close: async () => {
+      stopped = true; clearInterval(timer); await polling;
+      await closeServices();
+      setImmediate(async () => { await server.close(); quit(); });
+      return { closed: true };
+    },
+  } });
+  writeJsonRecord(join(runtime, `frontend-${context.instance.id}.json`), { runId: context.runId, address: server.address, pid: process.pid });
   return {
-    daemonBacked: true,
-    runName: discovery?.runName ?? null,
-    kernel: { address },
-    tokenConfigured: Boolean(token),
-    discoveryFile,
-    space: null,
-    readProjection() {
-      throw new Error('daemon-backed projection is not wired yet; read via the run control plane');
+    readProjection: () => projection,
+    readStaticTopology: () => ({ revision: projection.revision, nodes: projection.nodes.map((node) => ({ nodeId: node.nodeId })), routes: [] }),
+    injectRoot: async (id, info) => {
+      const result = await callRunControl(runtime, 'inject-renderer', { frontendId: context.instance.id, targetNodeId: qualify(id), info });
+      return { ...result, projection: await refresh() };
     },
-    async injectRoot() {
-      throw new Error('daemon-backed injection is not wired yet; inject via the run control plane');
-    },
+    injectHost: async (id, info) => callRunControl(runtime, 'inject-host', { frontendId: context.instance.id, targetNodeId: qualify(id), info }),
+    requestStop: async () => callRunControl(runtime, 'request-stop'),
   };
 }

@@ -22,6 +22,7 @@ export class ApplicationErrorBoundary extends Component<
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('GraphVideo Renderer 渲染失败', error, info.componentStack)
+    window.graphvideoDesktop?.lifecycle?.failed(error.message)
   }
 
   render() {

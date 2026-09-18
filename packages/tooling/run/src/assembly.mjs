@@ -27,7 +27,7 @@ import { pathToFileURL } from 'node:url';
 export async function loadRunNodes(parsed, dependencies = {}) {
   const backends = new Map();
   const modules = new Map();
-  const backendPlugins = parsed.plugins.backend ?? parsed.plugins.filter?.(() => true) ?? [];
+  const backendPlugins = parsed.plugins.backend;
   for (const plugin of backendPlugins) {
     const raw = JSON.parse(readFileSync(resolve(plugin.directory, 'graphvideo.plugin.json'), 'utf8'));
     if (raw.id !== plugin.id) {
@@ -48,7 +48,7 @@ export async function loadRunNodes(parsed, dependencies = {}) {
   }
   const contextFor = (pluginId, instance) => ({
     pluginId,
-    dependencies,
+    dependencies: typeof dependencies === 'function' ? dependencies(instance) : dependencies,
     instanceId: instance.id,
     nodeId: instance.id,
     params: instance.params ?? {},
@@ -61,6 +61,7 @@ export async function loadRunNodes(parsed, dependencies = {}) {
     },
   });
   const constructed = [];
+  const rendererRoots = [];
   const expandedNodeIds = new Set();
   try {
     for (const instance of parsed.graph.instances) {
@@ -71,8 +72,18 @@ export async function loadRunNodes(parsed, dependencies = {}) {
         if (expandedNodeIds.has(node.id)) throw new Error(`Duplicate Node ID: ${node.id}`);
         expandedNodeIds.add(node.id);
       }
+      const backend = backends.get(instance.factory.plugin);
+      const factory = backend[instance.factory.name] ?? modules.get(instance.factory.plugin)?.[instance.factory.name];
+      const description = factory.describe?.();
+      for (const root of description?.rendererRoots ?? []) {
+        const targetNodeId = instance.kind === 'node' ? instance.id : `${instance.id}/${root.localId}`;
+        if (!nodes.some((node) => node.id === targetNodeId)) throw new Error(`Renderer root outside factory product: ${targetNodeId}`);
+        const validator = backend.rendererRoots?.find((candidate) => candidate.infoType === root.infoType);
+        if (!validator || typeof validator.validate !== 'function') throw new Error(`Renderer root has no validator: ${targetNodeId} ${root.infoType}`);
+        rendererRoots.push({ targetNodeId, infoType: root.infoType, validate: validator.validate });
+      }
     }
-    return { backends, nodes: constructed, expandedNodeIds };
+    return { backends, nodes: constructed, expandedNodeIds, rendererRoots };
   } catch (error) {
     const cleanup = await Promise.allSettled(constructed.map((node) => node?.dispose?.()));
     const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
@@ -159,7 +170,7 @@ export function resolveEntry(pluginDirectory, entry) {
  * generated dir (never beside plugin sources). Plain .mjs entries import
  * directly. Build output is per-run, so parallel runs never share bundles.
  */
-async function importBackendEntry(pluginDirectory, entry, parsed) {
+export async function importBackendEntry(pluginDirectory, entry, parsed) {
   const target = resolveEntry(pluginDirectory, entry);
   if (target.endsWith('.mjs') || target.endsWith('.js')) {
     return import(pathToFileURL(target).href);

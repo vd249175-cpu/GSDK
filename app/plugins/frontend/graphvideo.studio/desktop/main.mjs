@@ -3,13 +3,9 @@ import { existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createEmptyNativeGraphHost } from '@graphvideo/desktop/graph-host'
-import { startAgentControlServer } from '@graphvideo/desktop/agent-control'
 import { createCommandGate, bindCommandIpc } from '@graphvideo/desktop/command-gate'
-import { createStudioApplicationLifecycle } from './services/application-lifecycle.mjs'
-import { loadApplication } from '@graphvideo/desktop/application'
-import { loadBackendPlugins } from '@graphvideo/desktop/plugin-loader'
-import { NodeGenerationAdapter } from './effects/node-generation-adapter.js'
+import { connectFrontendHost, frontendContext } from './services/frontend-daemon-host.mjs'
+import { NodeGenerationAdapter } from './effects/node-generation-adapter.ts'
 import { createElectronWindowAdapter } from '@graphvideo/desktop/electron-window'
 import {
   openLocalProject,
@@ -56,7 +52,10 @@ import {
   importStyleProbeMedia,
 } from './services/style-probe-store.mjs'
 
-const here = dirname(fileURLToPath(import.meta.url))
+const failHost = (error) => { console.error(error?.stack ?? error); app.exit(1) }
+process.on('uncaughtException', failHost)
+process.on('unhandledRejection', failHost)
+const here = join(frontendContext.pluginDirectory, 'desktop')
 const runOverrides = {
   userDataPath: process.env.GRAPHVIDEO_RUN_USER_DATA ?? null,
   dataDirectory: process.env.GRAPHVIDEO_RUN_DATA_DIR ?? null,
@@ -66,9 +65,9 @@ const runOverrides = {
   daemonAddress: process.env.GRAPHVIDEO_RUN_DAEMON_ADDRESS ?? null,
   daemonTokenFile: process.env.GRAPHVIDEO_RUN_DAEMON_TOKEN_FILE ?? null,
 };
-const application = loadApplication()
-const backendPlugins = await loadBackendPlugins(application)
-const appRoot = application.directory
+const application = { definition: frontendContext.definition, directory: frontendContext.pluginDirectory, rendererFile: frontendContext.rendererFile,
+  plugins: frontendContext.definition.plugins.map((plugin) => ({ id: plugin.id, directory: plugin.path })) }
+const appRoot = frontendContext.pluginDirectory
 const pluginRoot = join(here, '..')
 let agentControl = null
 const commandGate = createCommandGate()
@@ -79,7 +78,7 @@ let allowQuit = false
 let handlingQuit = false
 let acceptingObservations = true
 let stopTelemetrySubscription = () => {}
-const requestQuit = () => app.quit()
+const requestQuit = () => { void host.requestStop().catch((error) => dialog.showErrorBox('GraphVideo 未完成退出', error.message)) }
 
 function loadEnvFile(filePath) {
   if (!existsSync(filePath)) return
@@ -148,37 +147,14 @@ const electronWindowAdapter = createElectronWindowAdapter({
   getWindow: () => mainWindow,
 })
 
-// Only the single-instance owner mounts the Rust-backed Studio graph.
 let host = null
-function initializeGraphHost() {
-  return createEmptyNativeGraphHost({
-    dependencies: {
-      electronWindowAdapter,
-      generationAdapterOperation: generationAdapter,
-      sqlitePersistAdapter: {
-        id: 'effect:adapter:sqlite-metadata',
-        async execute(request, context) {
-          if (!activeProjectRoot) throw new Error('SQLite Remote Effect 需要已打开项目')
-          return persistGraphMetadata(activeProjectRoot, request?.records)
-        },
-      },
-      projectStructurePersistAdapter: {
-        id: 'effect:adapter:project-structure',
-        async execute(request, context) {
-          if (!activeProjectRoot) throw new Error('Project Structure Effect 需要已打开项目')
-          return saveProjectStructure(activeProjectRoot, request)
-        },
-      },
-    },
-    plugins: backendPlugins,
-    userDataPath: runOverrides.userDataPath,
-    dataDirectory: runOverrides.dataDirectory,
-  })
-}
-
+let resolveRendererReady, rejectRendererReady
+const rendererReady = new Promise((resolve, reject) => { resolveRendererReady = resolve; rejectRendererReady = reject })
+void rendererReady.catch(() => undefined)
+electronIpcMain.once('frontend:ready', () => resolveRendererReady({ ready: true }))
+electronIpcMain.once('frontend:failed', (_event, message) => rejectRendererReady(new Error(String(message))))
 async function submitDesktopInfo(info) {
-  const submissionId = host.space.injectRoot('host-el', info)
-  await host.space.waitForSubmission(submissionId)
+  await host.injectHost('host-el', info)
 }
 
 function submitDesktopInfoFromEvent(info) {
@@ -347,13 +323,8 @@ function registerIpcHandlers() {
   // 窗口基础控制
   ipcMain.on('window:minimize', () => submitDesktopInfoFromEvent({ type: 'WindowActionTaskInfo', action: 'MINIMIZE' }))
   ipcMain.on('window:toggle-maximize', () => submitDesktopInfoFromEvent({ type: 'WindowActionTaskInfo', action: 'TOGGLE_MAXIMIZE' }))
-  ipcMain.on('window:close', () => submitDesktopInfoFromEvent({ type: 'DesktopCloseRequestedInfo' }))
+  ipcMain.on('window:close', requestQuit)
   ipcMain.on('window:reload', () => submitDesktopInfoFromEvent({ type: 'WindowActionTaskInfo', action: 'RELOAD' }))
-
-  // 广播微内核原生因果遥测（供 3D 拓扑流看板与分析工具实时观察）
-  stopTelemetrySubscription = host.subscribeCausalTelemetry((event) => {
-    recordAndBroadcastTelemetry(event)
-  })
 
   // 微内核因果通信接口
   ipcMain.handle('graph:request', async (_event, { method, input }) => {
@@ -541,12 +512,19 @@ async function createWindow(config = {}) {
     backgroundColor: '#0c0e12',
     title: config.title ?? 'GraphVideo Desktop',
     webPreferences: {
+      sandbox: false,
+      additionalArguments: [`--graphvideo-context=${process.argv[2]}`],
       preload: join(here, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   })
   mainWindow = window
+  window.on('close', (event) => {
+    if (physicalClosing || closingServices) return;
+    event.preventDefault();
+    requestQuit();
+  })
 
   window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     console.log(`[Renderer L${level}] ${message} (${sourceId}:${line})`)
@@ -555,8 +533,7 @@ async function createWindow(config = {}) {
   window.on('closed', () => {
     if (mainWindow === window) mainWindow = null
     if (!acceptingObservations) return
-    const submissionId = host.space.injectRoot('src-electron-window', { type: 'ElectronWindowClosedObservedInfo' })
-    pendingCloseObservation = host.space.waitForSubmission(submissionId)
+    pendingCloseObservation = physicalClosing ? Promise.resolve() : host.injectHost('src-electron-window', { type: 'ElectronWindowClosedObservedInfo' })
     void pendingCloseObservation.catch((error) => {
       console.error('[GraphVideo] Window close observation failed:', error)
     })
@@ -575,132 +552,59 @@ async function createWindow(config = {}) {
   return window
 }
 
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
-  app.quit();
-} else if (runOverrides.daemonAddress) {
-  // Daemon-run Electron is a frontend host only: the authoritative graph
-  // lives in the run's Rust daemon (started by run.sh start). This branch
-  // never boots an embedded NativeRuleSpace (that would be the forbidden
-  // second State); it serves windows/IPC/telemetry against the run's
-  // frontend-discovery endpoint. The daemon token stays in the run's
-  // generated dir and is never bundled into the renderer.
-  const { readRunDiscoveryForElectron } = await import('./services/frontend-daemon-host.mjs');
-  host = await readRunDiscoveryForElectron(runOverrides);
-  lifecycle = createStudioApplicationLifecycle({
-    host, hasProject: () => Boolean(activeProjectRoot),
-    closeIngress: () => commandGate.close(),
-    waitForBoot: () => bootstrapPromise,
-    waitForAcceptedWork: () => commandGate.drain(),
-    stopSources: async () => {
-      projectExternalSync.stop()
-      await pendingCloseObservation
-      acceptingObservations = false
-    },
-    closeServices: async () => {
-      stopTelemetrySubscription()
-      commandIpc?.dispose()
-    },
-  });
-} else {
-  host = initializeGraphHost();
-  lifecycle = createStudioApplicationLifecycle({
-    host, hasProject: () => Boolean(activeProjectRoot),
-    closeIngress: () => commandGate.close(),
-    waitForBoot: () => bootstrapPromise,
-    waitForAcceptedWork: () => commandGate.drain(),
-    stopSources: async () => {
-      projectExternalSync.stop()
-      await pendingCloseObservation
-      acceptingObservations = false
-    },
-    closeServices: async () => {
-      const results = await Promise.allSettled([
-        Promise.resolve().then(() => {
-          stopTelemetrySubscription()
-          commandIpc?.dispose()
-          electronIpcMain.removeListener('window:quit', requestQuit)
-          process.removeListener('SIGINT', requestQuit)
-          process.removeListener('SIGTERM', requestQuit)
-        }),
-        (async () => {
-          if (app.isReady() && await protocol.isProtocolHandled('graphvideo-asset')) protocol.unhandle('graphvideo-asset')
-        })(),
-        Promise.resolve().then(() => agentControl?.close()),
-        (async () => {
-          for (const client of sseClients) client.end()
-          sseClients.clear()
-          if (!telemetryServer) return
-          const server = telemetryServer
-          telemetryServer = null
-          await new Promise((resolve, reject) => {
-            server.close((error) => error && error.code !== 'ERR_SERVER_NOT_RUNNING' ? reject(error) : resolve())
-            server.closeAllConnections()
-          })
-        })(),
-      ])
-      const errors = results.filter((result) => result.status === 'rejected').map((result) => result.reason)
-      if (errors.length) throw new AggregateError(errors, 'Host service cleanup failed')
-    },
-  })
-  app.on('before-quit', (event) => {
-    if (allowQuit) return
-    event.preventDefault()
-    if (handlingQuit) return
-    handlingQuit = true
-    void lifecycle.shutdown().then(() => {
-      allowQuit = true
-      app.quit()
-    }).catch((error) => {
-      handlingQuit = false
-      console.error('[GraphVideo] Application shutdown failed:', error)
-      if (lifecycle.stopped) { allowQuit = true; app.exit(1) }
-      else dialog.showErrorBox('GraphVideo 未完成退出', error.message)
-    })
-  })
-  electronIpcMain.on('window:quit', requestQuit)
-  process.on('SIGINT', requestQuit)
-  process.on('SIGTERM', requestQuit)
-  try { getProjectHistory(runOverrides.userDataPath ?? app.getPath('userData')) } catch {}
-  if (runOverrides.userDataPath) app.setPath('userData', runOverrides.userDataPath)
-  app.on('second-instance', () => {
-    if (lifecycle.closing) return
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
-    } else {
-      reopenDesktopFromEvent()
-    }
-  })
-
-  app.on('activate', () => {
-    if (!mainWindow) reopenDesktopFromEvent()
-  })
-
-  bootstrapPromise = app.whenReady().then(async () => {
-    if (lifecycle.closing) return
-    await host.mountPlugins()
-    if (lifecycle.closing) return
-    registerIpcHandlers()
-    startTelemetryLoopbackServer(runOverrides.telemetryPort ?? 51888)
-    try {
-      agentControl = await startAgentControlServer(host, {
-        acceptCommand: (action) => commandGate.run(action),
-        ...(runOverrides.agentControlFile ? { discoveryPath: runOverrides.agentControlFile } : {}),
-      })
-    } catch (error) {
-      console.error('[GraphVideo] Agent control failed to start:', error)
-    }
-    protocol.handle('graphvideo-asset', handleAssetRequest)
-    if (!lifecycle.closing) await lifecycle.start()
-  }).catch(async (error) => {
-    console.error('[GraphVideo] Desktop bootstrap failed:', error)
-    try { await lifecycle.abortBootstrap() } catch (failure) { console.error('[GraphVideo] Bootstrap cleanup failed:', failure) }
-    allowQuit = true
-    app.exit(1)
-  })
-}
-
-app.on('window-all-closed', () => {
-  // Closing the desktop viewport does not terminate its graph host or Rust scheduler.
+// This process is a configured frontend host. Bash owns all lifecycle ordering.
+app.setPath('userData', frontendContext.userDataDirectory)
+getProjectHistory(frontendContext.userDataDirectory)
+if (!app.requestSingleInstanceLock()) throw new Error('Frontend instance is already active')
+let physicalClosing = false
+let closingServices = false
+app.on('before-quit', (event) => {
+  if (allowQuit) return
+  event.preventDefault()
+  requestQuit()
 })
+electronIpcMain.on('window:quit', requestQuit)
+app.whenReady().then(async () => {
+protocol.handle('graphvideo-asset', handleAssetRequest)
+host = await connectFrontendHost({
+  rendererReady,
+  broadcast,
+  effects: {
+    project: { async execute(request) {
+      if (request.type !== 'OPEN' || typeof request.path !== 'string') throw new Error('Invalid project host request')
+      return openProjectAtPath(request.path)
+    } },
+    window: { async execute(request, context) {
+      physicalClosing = request.type === 'CLOSE'
+      try { return await electronWindowAdapter.execute(request, context) }
+      finally { physicalClosing = false }
+    } },
+    generation: generationAdapter,
+    sqlite: { async execute(request) {
+      if (!activeProjectRoot) throw new Error('SQLite Effect 需要已打开项目')
+      return persistGraphMetadata(activeProjectRoot, request.records)
+    } },
+    structure: { async execute(request) {
+      if (!activeProjectRoot) throw new Error('Structure Effect 需要已打开项目')
+      return saveProjectStructure(activeProjectRoot, request)
+    } },
+  },
+  stopSources: async () => {
+    projectExternalSync.stop()
+    await pendingCloseObservation
+    acceptingObservations = false
+  },
+  closeIngress: async () => { commandGate.close(); await commandGate.drain() },
+  closeServices: async () => {
+    closingServices = true
+    commandGate.close()
+    await commandGate.drain()
+    commandIpc?.dispose()
+    electronIpcMain.removeListener('window:quit', requestQuit)
+    if (await protocol.isProtocolHandled('graphvideo-asset')) protocol.unhandle('graphvideo-asset')
+  },
+  quit: () => { allowQuit = true; app.quit() },
+})
+registerIpcHandlers()
+app.on('window-all-closed', () => {})
+}).catch(failHost)

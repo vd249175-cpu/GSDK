@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** Authenticated run-local RPC. It owns no kernel or lifecycle sequence. */
-export async function serveRunControl({ token, runId, handlers }) {
+export async function serveRunControl({ token, runId, handlers, concurrent = [] }) {
   let queue = Promise.resolve();
   const server = createServer(async (req, res) => {
     const supplied = Buffer.from(String(req.headers.authorization ?? ''));
@@ -24,7 +24,7 @@ export async function serveRunControl({ token, runId, handlers }) {
       const handler = handlers[input.op];
       if (typeof handler !== 'function') throw new Error(`unknown control operation: ${input.op}`);
       const run = () => handler(input.payload ?? {});
-      const independent = ['health', 'request-stop', 'wait-stop', 'projection'].includes(input.op);
+      const independent = ['health', 'request-stop', 'wait-stop', 'projection', ...concurrent].includes(input.op);
       const operation = independent ? run() : queue.then(run);
       if (!independent) queue = operation.catch(() => undefined);
       const output = await operation;
@@ -45,8 +45,8 @@ export async function serveRunControl({ token, runId, handlers }) {
   } };
 }
 
-export function callRunControl(runtime, op, payload = {}, timeoutMs = 60_000) {
-  const record = JSON.parse(readFileSync(join(runtime, 'control.json'), 'utf8'));
+export function callRunControl(runtime, op, payload = {}, timeoutMs = 60_000, recordName = 'control.json') {
+  const record = JSON.parse(readFileSync(join(runtime, recordName), 'utf8'));
   const token = readFileSync(join(runtime, 'control-token'), 'utf8').trim();
   const body = JSON.stringify({ runId: record.runId, op, payload });
   return new Promise((resolve, reject) => {

@@ -124,6 +124,7 @@ export const createFileSystemSourceNode = defineNodeFactory(
       document: t.document,
       writer: t.writer,
       host: t.host,
+      lifecycle: t.lifecycle,
     });
   },
 );

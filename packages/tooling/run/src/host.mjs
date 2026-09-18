@@ -1,11 +1,13 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { serveRunControl } from './control.mjs';
+import { serveRunControl, callRunControl } from './control.mjs';
 import { loadRunNodes } from './assembly.mjs';
 import { connectRunDaemon, mountRunSlice, unmountRunSlice, injectLifecycleInfos, waitForSubmissions } from './mount.mjs';
 import { runtimeFor, readSnapshot, updateSession, sleep, startResult } from './session.mjs';
 import { runScenarioSet, writeScenarioReport } from './scenario.mjs';
+import { pathToFileURL } from 'node:url';
+import { writeJsonRecord } from './record.mjs';
 
 export async function waitForState(control, ready, timeoutMs) {
   if (!ready) return;
@@ -30,6 +32,7 @@ export async function runBackend(config) {
   const providerStop = new AbortController();
   let nodes = [];
   let backends = new Map();
+  let rendererRoots = [];
   let mount = null;
   let worker = null;
   let provider = null;
@@ -39,6 +42,7 @@ export async function runBackend(config) {
   let attempt = 0;
   let closing = false;
   let server;
+  let outerHost;
   let resolveDone;
   const done = new Promise((resolve) => { resolveDone = resolve; });
   const mark = (stage, patch = {}) => updateSession(config, patch, stage);
@@ -70,7 +74,11 @@ export async function runBackend(config) {
       while (pendingStop && readSnapshot(config).state === 'stop-failed') await sleep();
       return requestStop();
     },
-    'wait-stop': () => pendingStop ?? new Promise((resolve) => { stopWaiting = resolve; }),
+    'wait-stop': async () => {
+      const deadline = Date.now() + 5000;
+      while (!pendingStop && Date.now() < deadline) await sleep(100);
+      return pendingStop ? { ...pendingStop, requested: true } : { requested: false };
+    },
     'stop-failed': ({ error }) => {
       const previous = readSnapshot(config);
       mark(undefined, { state: 'stop-failed', lastError: previous.state === 'stop-failed' ? previous.lastError : error || 'run teardown failed', stopAttempt: attempt });
@@ -78,9 +86,14 @@ export async function runBackend(config) {
       return { failed: true };
     },
     assemble: async () => {
-      const assembled = await loadRunNodes(parsed, parsed.backend.dependencies);
+      if (parsed.backend.host) {
+        const module = await import(pathToFileURL(parsed.backend.host).href);
+        outerHost = await module.createRunHost({ parsed, runtimeDirectory: runtime, callFrontend: (id, op, payload) => callRunControl(runtime, op, payload, parsed.lifecycle.timeouts.stopMs, `frontend-${id}.json`) });
+      }
+      const assembled = await loadRunNodes(parsed, outerHost?.dependenciesFor ?? parsed.backend.dependencies);
       nodes = assembled.nodes;
       backends = assembled.backends;
+      rendererRoots = assembled.rendererRoots;
       mark('assembled');
       return { nodeIds: nodes.map((node) => node.id) };
     },
@@ -121,7 +134,7 @@ export async function runBackend(config) {
       await waitForState(control, parsed.lifecycle.ready, parsed.lifecycle.timeouts.startMs);
       const snapshot = mark('started', { state: 'running' });
       const result = { started: true, runId, runName, pid: process.pid, configPath: parsed.configPath, kernel: snapshot.kernel, stages: snapshot.stages, scenario: Boolean(parsed.scenarios?.length) };
-      startResult(config, result);
+      writeJsonRecord(join(runtime, 'business-start-result.json'), result);
       return result;
     },
     scenario: async () => {
@@ -140,6 +153,7 @@ export async function runBackend(config) {
       return { settled: true };
     },
     evict: async () => {
+      await outerHost?.stopSources?.();
       if (mount) {
         await unmountRunSlice({ control, workerStop, running: mount.running, admitted: mount.admitted, assemblies: mount.assemblies });
         mount = null;
@@ -149,16 +163,23 @@ export async function runBackend(config) {
       providerStop.abort();
       if (providing) { await providing; providing = null; }
       worker?.close(); provider?.close();
+      await outerHost?.dispose?.();
       mark('evicted');
       return { evicted: true };
     },
     'inject-renderer': async ({ targetNodeId, info }) => {
       assertReady();
-      const root = [...backends.values()].flatMap((backend) => backend.rendererRoots ?? []).find((candidate) => candidate.infoType === info?.type && (targetNodeId === candidate.targetNodeId || targetNodeId.endsWith(`/${candidate.targetNodeId}`)));
+      const root = rendererRoots.find((candidate) => candidate.infoType === info?.type && targetNodeId === candidate.targetNodeId);
       if (!root || !root.validate(info) || !nodes.some((node) => node.id === targetNodeId)) throw new Error('renderer command not authorized');
       const submissionId = `${runId}/renderer/${randomUUID()}`;
       await injectLifecycleInfos({ control, infos: [{ targetNodeId, info }], prefix: submissionId });
       return { status: 'accepted', submissionId: `${submissionId}/1`, projection: await control.projection() };
+    },
+    'inject-host': async ({ frontendId, targetNodeId, info }) => {
+      assertReady();
+      if (!outerHost?.hostRoots?.some((root) => root.frontendId === frontendId && root.targetNodeId === targetNodeId && root.infoType === info?.type)) throw new Error('host command not authorized');
+      await injectLifecycleInfos({ control, infos: [{ targetNodeId, info }], prefix: `${runId}/host/${randomUUID()}` });
+      return { status: 'accepted' };
     },
     close: async () => {
       control.close();

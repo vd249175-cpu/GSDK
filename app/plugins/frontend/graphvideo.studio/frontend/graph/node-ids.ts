@@ -25,7 +25,7 @@ export function nodeIds(namespace: string): Record<string, string> {
 }
 
 /** Default namespace keeps single-Studio readers working; run frontends override it. */
-const DEFAULT_NAMESPACE = 'studio';
+const DEFAULT_NAMESPACE = typeof window === 'undefined' ? 'studio' : window.graphvideoDesktop?.graphNamespace ?? 'studio';
 
 function scopedIds(): Record<string, string> {
   return nodeIds(DEFAULT_NAMESPACE);

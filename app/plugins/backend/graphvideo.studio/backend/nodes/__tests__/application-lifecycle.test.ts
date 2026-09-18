@@ -36,6 +36,16 @@ function fixture(failSave = false) {
 }
 
 describe('Studio application lifecycle', () => {
+  it('uses the observed project fact when shutdown does not override it', async () => {
+    const { runtime, calls, inject } = fixture();
+    try {
+      await inject({ type: 'SystemProjectOpenedObservedInfo' });
+      await inject({ type: 'SystemStartRequestedInfo', requestId: 'boot' });
+      await inject({ type: 'SystemShutdownRequestedInfo', requestId: 'quit' });
+      await inject({ type: 'SystemShutdownDrainObservedInfo', requestId: 'quit' });
+      expect(calls).toEqual(['OPEN', 'save', 'CLOSE']);
+    } finally { await runtime.dispose(); }
+  });
   it('requires a drain observation and an actual save before closing the window', async () => {
     const { runtime, calls, inject } = fixture();
     try {

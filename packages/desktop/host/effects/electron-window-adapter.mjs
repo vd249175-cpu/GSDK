@@ -52,8 +52,23 @@ export function createElectronWindowAdapter({ openWindow, getWindow }) {
         return observation('RELOADED', window)
       }
       if (request.type === 'CLOSE') {
-        window.close()
-        if (!window.isDestroyed()) throw new Error('Window close was canceled')
+        await new Promise((resolve, reject) => {
+          const finish = (error) => {
+            clearTimeout(timer)
+            window.removeListener('closed', closed)
+            window.removeListener('close', closing)
+            if (error) reject(error); else resolve()
+          }
+          const closed = () => finish()
+          const closing = (event) => queueMicrotask(() => {
+            if (event.defaultPrevented) finish(new Error('Window close was canceled'))
+          })
+          const timer = setTimeout(() => finish(new Error('Window close timed out')), 30000)
+          window.once('closed', closed)
+          window.once('close', closing)
+          try { window.close(); if (window.isDestroyed()) finish() }
+          catch (error) { finish(error) }
+        })
         return observation('CLOSED', null)
       }
       throw new Error(`Unsupported window action: ${request.type}`)

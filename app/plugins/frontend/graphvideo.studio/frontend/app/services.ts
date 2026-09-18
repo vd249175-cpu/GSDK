@@ -94,8 +94,7 @@ const stopExternalMarkdownUpdates = onExternalProjectMarkdownUpdate((markdown) =
     type: 'UserMarkdownEditedInfo', markdown,
   }).catch(() => undefined)
 })
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', () => {
+export function disposeApplicationServices() {
     stopExternalProjectUpdates()
     stopExternalMarkdownUpdates()
     void elementRuntimes.disposeAll()
@@ -105,7 +104,6 @@ if (typeof window !== 'undefined') {
     stopApplicationHandlers()
     applicationHost.dispose()
     graphHost.dispose()
-  }, { once: true })
 }
 const elements = new ElementLoader({
   panels,
@@ -211,8 +209,9 @@ let initialization: Promise<void> | null = null
 function initializeApplication() {
   if (!initialization) {
     const connectKernel = graphHost.connect()
-    const loadElements = desktopElementSource.start(elements, clientState, plugins).catch((error: unknown) => {
-      elements.reportError(error instanceof Error ? error.message : 'Element 初始化失败')
+      const loadElements = desktopElementSource.start(elements, clientState, plugins).catch((error: unknown) => {
+        elements.reportError(error instanceof Error ? error.message : 'Element 初始化失败')
+        throw error
     })
     const restoreProject = connectKernel.then(() => restoreLastProjectAtStartup(
       () => desktop.restoreLastProject(),

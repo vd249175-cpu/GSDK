@@ -131,4 +131,18 @@ export default { id: 'fixture.cleanup', createNodes: () => [] };
     expect(JSON.parse(readFileSync(marker, 'utf8'))).toEqual(['IncrementInfo', 'OriginalStopInfo']);
     expect(statusRun(config).active).toBe(false);
   }, 120_000);
+  it('preserves a failed scenario exit status after successful cleanup', () => {
+    const root = mkdtempSync(join(tmpdir(), 'gv-p9-scene-failed-')); temporaryRoots.push(root);
+    const { config, marker } = resourceRun(root, { scenario: true });
+    const definition = JSON.parse(readFileSync(config, 'utf8')); definition.scenarios[0].assertions[0].state.count = 2;
+    writeFileSync(config, JSON.stringify(definition));
+    const bash = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash';
+    let failure;
+    try { execFileSync(bash, ['./run.sh', 'start', config], { cwd: repoRoot, encoding: 'utf8', timeout: 90000, stdio: ['ignore', 'pipe', 'pipe'] }); }
+    catch (error) { failure = error; }
+    expect(failure.status).toBe(1);
+    expect(JSON.parse(failure.stdout)).toMatchObject({ stopped: true, exitCode: 1, report: { failed: 1, passed: 0 } });
+    expect(existsSync(marker)).toBe(true);
+    expect(statusRun(config).active).toBe(false);
+  }, 120_000);
 });

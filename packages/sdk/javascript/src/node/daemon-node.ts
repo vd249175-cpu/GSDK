@@ -135,7 +135,7 @@ export interface DaemonNodeAssembly {
  * read back, so a hot-swapped leftover cannot leak stale facts.
  */
 export function describeDaemonNode(node: RealDaemonNode): DaemonNodeAssembly {
-  const initialState = { ...node.getState() };
+  const initialState = daemonValueCodec.encode(node.getState()) as Record<string, unknown>;
   const shaped = node as RealDaemonNode & {
     readonly effectCapabilities?: unknown;
     readonly adapter?: { readonly id?: unknown };
@@ -165,17 +165,17 @@ export function describeDaemonNode(node: RealDaemonNode): DaemonNodeAssembly {
   // `change` is protected on the Node base class; invoke it structurally so
   // subclasses keep their visibility while the daemon reuses the real body.
   const invoke = shaped.change.bind(shaped);
-  const handler: DaemonNodeHandler<Record<string, unknown>> = (info, ctx) => invoke(info, {
-    read: (key: string) => ctx.read(key),
-    write: (key: string, value: unknown) => ctx.write(key, value),
-    patchState: (patch: Record<string, unknown>) => ctx.patchState(patch),
+  const handler: DaemonNodeHandler<Record<string, unknown>> = (info, ctx) => invoke(daemonValueCodec.decode(info), {
+    read: (key: string) => daemonValueCodec.decode(ctx.read(key)),
+    write: (key: string, value: unknown) => ctx.write(key, daemonValueCodec.encode(value)),
+    patchState: (patch: Record<string, unknown>) => ctx.patchState(daemonValueCodec.encode(patch) as Record<string, unknown>),
     send: (
       child: { readonly type: string; readonly [key: string]: unknown },
       targetNodeId: string,
     ) => {
-      ctx.send(child, targetNodeId);
+      ctx.send(daemonValueCodec.encode(child) as typeof child, targetNodeId);
     },
-    effectAdapter: (adapter: DaemonChangeAdapter, request: unknown) => ctx.effect(adapter.id, request),
+    effectAdapter: async (adapter: DaemonChangeAdapter, request: unknown) => daemonValueCodec.decode(await ctx.effect(adapter.id, daemonValueCodec.encode(request))),
     span: <T>(name: string, action: () => Promise<T> | T): Promise<T> | T => action(),
   });
   return {
@@ -242,3 +242,4 @@ export async function runDaemonNodeAssembly(
     await Promise.allSettled(assemblies.map((assembly) => assembly.dispose()));
   }
 }
+import { daemonValueCodec } from '../protocol/daemon-value';

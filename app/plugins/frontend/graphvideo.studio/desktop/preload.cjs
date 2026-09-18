@@ -1,4 +1,6 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron')
+const { readFileSync } = require('node:fs')
+const runContext = JSON.parse(readFileSync(process.argv.find((arg) => arg.startsWith('--graphvideo-context=')).slice('--graphvideo-context='.length), 'utf8'))
 
 /**
  * 预加载桥：向渲染进程暴露安全的强类型命令白名单。
@@ -6,6 +8,8 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron')
  */
 contextBridge.exposeInMainWorld('graphvideoDesktop', {
   platform: process.platform,
+  graphNamespace: runContext.instance.graph,
+  lifecycle: { ready: () => ipcRenderer.send('frontend:ready'), failed: (message) => ipcRenderer.send('frontend:failed', String(message)) },
   versions: Object.freeze({
     electron: process.versions.electron,
     chrome: process.versions.chrome,

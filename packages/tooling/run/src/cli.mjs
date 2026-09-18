@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { runBackend } from './host.mjs';
+import { buildRunFrontends, frontendOperation } from './frontend.mjs';
 import { callRunControl } from './control.mjs';
 import { prepareRun, kernelReady, kernelShutdown, awaitHost, awaitStart, readSnapshot, runtimeFor, updateSession, finalizeRun, statusRun, stopRun, startResult, sleep, loadRunConfig, resolveDaemonBinary } from './session.mjs';
 
@@ -16,6 +17,9 @@ try {
   else if (op === 'kernel-shutdown') { await kernelShutdown(config); result = { shutdown: true }; }
   else if (op === 'backend') await runBackend(config);
   else if (op === 'await-host') result = await awaitHost(config);
+  else if (op === 'build-frontends') result = await buildRunFrontends(config);
+  else if (op === 'frontends') result = await frontendOperation(config, extra);
+  else if (op === 'publish-start') { result = JSON.parse(readFileSync(join(runtimeFor(config), 'business-start-result.json'), 'utf8')); startResult(config, result); }
   else if (op === 'call') result = await callRunControl(runtimeFor(config), extra);
   else if (op === 'cancelled') {
     const health = await callRunControl(runtimeFor(config), 'health');

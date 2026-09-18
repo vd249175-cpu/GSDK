@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createElectronWindowAdapter } from './electron-window-adapter.mjs'
+import { EventEmitter } from 'node:events'
 
 function fixture() {
   let window = null
@@ -8,7 +9,7 @@ function fixture() {
     let maximized = false
     let title = config.title
     let size = [config.width, config.height]
-    window = {
+    window = Object.assign(new EventEmitter(), {
       isDestroyed: () => destroyed,
       isMinimized: () => false,
       isMaximized: () => maximized,
@@ -21,8 +22,8 @@ function fixture() {
       maximize: () => { maximized = true },
       unmaximize: () => { maximized = false },
       webContents: { reload: vi.fn() },
-      close: () => { destroyed = true },
-    }
+      close: () => { window.emit('close', { defaultPrevented: false }); setImmediate(() => { destroyed = true; window.emit('closed') }); },
+    })
     return window
   })
   return { adapter: createElectronWindowAdapter({ openWindow, getWindow: () => window }), openWindow }

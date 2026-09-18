@@ -1,4 +1,5 @@
 import type { DaemonPolledEffect, KernelDaemonClient } from '../agent/daemon-client';
+import { daemonValueCodec } from '../protocol/daemon-value';
 
 export interface DaemonEffectProviderClient {
   claimEffects(adapterIds: readonly string[]): Promise<unknown>;
@@ -45,13 +46,13 @@ export async function runDaemonEffectProvider(
       const adapter = options.adapters[effect.adapterId];
       try {
         if (!adapter) throw new Error(`No provider for claimed EffectAdapter: ${effect.adapterId}`);
-        const observation = await adapter(effect.request, {
+        const observation = await adapter(daemonValueCodec.decode(effect.request), {
           effectId: effect.effectId,
           changeId: effect.changeId,
           nodeId: effect.nodeId,
           generation: effect.generation,
         });
-        await client.completeEffect(effect.effectId, { ok: true, observation });
+        await client.completeEffect(effect.effectId, { ok: true, observation: daemonValueCodec.encode(observation) });
       } catch (cause) {
         await client.completeEffect(effect.effectId, {
           ok: false,

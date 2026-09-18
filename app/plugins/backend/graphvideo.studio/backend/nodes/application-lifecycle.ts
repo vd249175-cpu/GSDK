@@ -31,6 +31,10 @@ export class StudioApplicationLifecycleNode extends Node<StudioApplicationLifecy
 
   protected override change(info: Info, ctx: DomainChangeContext<StudioApplicationLifecycleState>): void {
     const phase = ctx.read('phase');
+    if (info.type === 'SystemProjectOpenedObservedInfo') {
+      ctx.write('hasProject', true);
+      return;
+    }
     if (info.type === 'SystemStartRequestedInfo') {
       if (!['Idle', 'StartFailed'].includes(phase) || typeof info.requestId !== 'string') return;
       ctx.patchState({ phase: 'Starting', requestId: info.requestId, lastError: null });
@@ -39,7 +43,7 @@ export class StudioApplicationLifecycleNode extends Node<StudioApplicationLifecy
     }
     if (info.type === 'SystemShutdownRequestedInfo') {
       if (typeof info.requestId !== 'string' || ['StoppingGeneration', 'AwaitingDrain', 'Saving', 'ClosingWindow', 'ShutdownReady'].includes(phase)) return;
-      ctx.patchState({ phase: 'StoppingGeneration', requestId: info.requestId, hasProject: info.hasProject === true, lastError: null });
+      ctx.patchState({ phase: 'StoppingGeneration', requestId: info.requestId, hasProject: typeof info.hasProject === 'boolean' ? info.hasProject : ctx.read('hasProject'), lastError: null });
       ctx.send({ type: 'StudioGenerationPrepareShutdownInfo', requestId: info.requestId }, this.targets.generationTask);
       return;
     }

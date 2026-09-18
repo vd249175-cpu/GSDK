@@ -34,7 +34,11 @@ export function updateSession(config, patch = {}, stage) {
   return next;
 }
 export function startResult(config, result) {
-  writeJsonRecord(join(runtimeFor(config), 'start-result.json'), result);
+  const runtime = runtimeFor(config);
+  writeJsonRecord(join(runtime, `start-result-${result.runId}.json`), result);
+  try {
+    if (readSnapshot(config).runId === result.runId) writeJsonRecord(join(runtime, 'start-result.json'), result);
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
 }
 const shellQuote = (value) => `'${String(value).replaceAll("'", "'\"'\"'")}'`;
 
@@ -96,7 +100,7 @@ export async function awaitStart(config, runId) {
   const deadline = Date.now() + 120_000;
   for (;;) {
     try {
-      const result = JSON.parse(readFileSync(join(runtimeFor(config), 'start-result.json'), 'utf8'));
+      const result = JSON.parse(readFileSync(join(runtimeFor(config), `start-result-${runId}.json`), 'utf8'));
       if (result.runId === runId) {
         if (!result.started) throw new Error(result.error ?? 'run start failed');
         return result;

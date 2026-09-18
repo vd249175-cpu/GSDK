@@ -12,6 +12,7 @@ export interface FileSystemTargets {
     readonly document: string;
     readonly writer: string;
     readonly host: string;
+    readonly lifecycle?: string;
 }
 export class FileSystemSourceNode extends WorldNode<FileSystemState> {
     constructor(
@@ -22,6 +23,7 @@ export class FileSystemSourceNode extends WorldNode<FileSystemState> {
             document: 'node-md-source',
             writer: 'sink-sqlite-writer',
             host: 'host-el',
+            lifecycle: 'node-application-lifecycle',
         },
     ) {
         super(id, name, {
@@ -48,6 +50,7 @@ export class FileSystemSourceNode extends WorldNode<FileSystemState> {
                 loadedBytes: project.markdown.length,
                 lastObservedAt: now,
             });
+            if (this.targets.lifecycle) ctx.send({ type: 'SystemProjectOpenedObservedInfo' }, this.targets.lifecycle);
             ctx.send({
                 type: 'ProjectMetadataHydratedInfo',
                 nodes: project.nodes,

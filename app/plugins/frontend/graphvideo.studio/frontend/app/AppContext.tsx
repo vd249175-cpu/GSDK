@@ -1,5 +1,5 @@
 ﻿import {
-  createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore,
+  createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, useState,
   type PropsWithChildren,
 } from 'react'
 import type { ApplicationState } from '../core/state/types'
@@ -44,10 +44,16 @@ export function ApplicationStartup({
   initialize,
   children,
 }: PropsWithChildren<{ initialize(): Promise<void> }>) {
+  const [ready, setReady] = useState(false)
+  const [error, setError] = useState<unknown>(null)
   useEffect(() => {
-    void initialize()
+    let active = true
+    void initialize().then(() => { if (active) setReady(true) }).catch((error) => { if (active) setError(error) })
+    return () => { active = false }
   }, [initialize])
-  return children
+  useEffect(() => { if (ready) window.graphvideoDesktop?.lifecycle?.ready() }, [ready])
+  if (error) throw error
+  return ready ? children : null
 }
 
 export function useServices() {

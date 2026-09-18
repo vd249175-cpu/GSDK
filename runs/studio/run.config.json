@@ -16,6 +16,7 @@
     "shutdownTimeoutMs": 10000
   },
   "backend": {
+    "host": "backend/host.mjs",
     "dependencies": {}
   },
   "frontend": {
@@ -34,18 +35,13 @@
       { "targetNodeId": "studio/node-application-lifecycle", "info": { "type": "SystemStartRequestedInfo", "requestId": "studio-boot" } }
     ],
     "stopInfos": [
-      { "targetNodeId": "studio/node-application-lifecycle", "info": { "type": "SystemShutdownRequestedInfo", "requestId": "studio-shutdown", "hasProject": false } }
+      { "targetNodeId": "studio/node-application-lifecycle", "info": { "type": "SystemShutdownRequestedInfo", "requestId": "studio-shutdown" }, "await": { "nodeId": "studio/node-application-lifecycle", "state": { "phase": "AwaitingDrain" } } },
+      { "targetNodeId": "studio/node-application-lifecycle", "info": { "type": "SystemShutdownDrainObservedInfo", "requestId": "studio-shutdown" }, "await": { "nodeId": "studio/node-application-lifecycle", "state": { "phase": "ShutdownReady" } } }
     ],
     "ready": { "nodeId": "studio/node-application-lifecycle", "state": { "phase": "Ready" } },
     "timeouts": { "initMs": 30000, "startMs": 30000, "stopMs": 30000, "settleMs": 30000 }
   },
-  "scenarios": [
-    {
-      "name": "studio-ready",
-      "inputs": [],
-      "assertions": [{ "nodeId": "studio/node-application-lifecycle", "state": { "phase": "Ready" } }]
-    }
-  ],
+  "scenarios": null,
   "resources": {
     "generatedDirectory": ".generated",
     "dataDirectory": ".generated/data",

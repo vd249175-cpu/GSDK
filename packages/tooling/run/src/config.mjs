@@ -310,9 +310,10 @@ export function parseRunConfig(document, { configPath, baseDirectory }) {
 
   if (document.backend !== undefined) {
     assertObject(document.backend, 'backend');
-    assertNoUnknown(document.backend, ['dependencies'], 'backend');
+    assertNoUnknown(document.backend, ['dependencies', 'host'], 'backend');
   }
-  const backend = { dependencies: assertObject(document.backend?.dependencies ?? {}, 'backend.dependencies') };
+  if (document.backend?.host !== undefined && (typeof document.backend.host !== 'string' || !document.backend.host)) fail('backend.host must be a module path');
+  const backend = { dependencies: assertObject(document.backend?.dependencies ?? {}, 'backend.dependencies'), host: document.backend?.host ? resolve(baseDirectory, document.backend.host) : null };
 
   const frontend = normalizeFrontend(document.frontend, pluginIds);
 
