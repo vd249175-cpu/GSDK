@@ -40,7 +40,7 @@ export async function loadRunNodes(parsed, dependencies = {}) {
     }
     const entry = raw.contributes?.backend;
     if (typeof entry !== 'string' || !entry) throw new Error(`Plugin has no backend entry: ${plugin.id}`);
-    const module = await import(pathToFileURL(resolveEntry(plugin.directory, entry)).href);
+    const module = await importBackendEntry(plugin.directory, entry, parsed);
     const backend = module.default;
     if (!backend || backend.id !== plugin.id || typeof backend.createNodes !== 'function') {
       throw new Error(`Invalid backend plugin: ${plugin.id}`);
@@ -52,7 +52,6 @@ export async function loadRunNodes(parsed, dependencies = {}) {
     pluginId,
     dependencies,
     instanceId: instance.id,
-    nodeId: instance.id,
     params: instance.params ?? {},
     bindings: instance.bindings ?? {},
     nodeIdFor: (localId) => {
@@ -160,4 +159,54 @@ export function resolveEntry(pluginDirectory, entry) {
   const rel = relative(pluginDirectory, target);
   if (rel === '..' || rel.startsWith(`..${sep}`)) throw new Error(`Plugin entry escapes its plugin: ${entry}`);
   return target;
+}
+
+/**
+ * Imports a backend entry, building TypeScript entries into the run's own
+ * generated dir (never beside plugin sources). Plain .mjs entries import
+ * directly. Build output is per-run, so parallel runs never share bundles.
+ */
+async function importBackendEntry(pluginDirectory, entry, parsed) {
+  const target = resolveEntry(pluginDirectory, entry);
+  if (target.endsWith('.mjs') || target.endsWith('.js')) {
+    return import(pathToFileURL(target).href);
+  }
+  const { build } = await loadEsbuild();
+  const { runBackendOutfile, defaultGeneratedLayout } = await import('./paths.mjs');
+  const layout = defaultGeneratedLayout(parsed.baseDirectory);
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(layout.backend, { recursive: true });
+  const outfile = runBackendOutfile(layout, parsed.runName ?? 'run', entry);
+  const { fileURLToPath } = await import('node:url');
+  const sdkSrc = fileURLToPath(new URL('../../../sdk/javascript/src/', import.meta.url));
+  const desktopDir = fileURLToPath(new URL('../../../desktop/', import.meta.url));
+  const { resolve: resolvePath } = await import('node:path');
+  const alias = Object.fromEntries(['protocol', 'node', 'effect', 'plugin', 'analysis', 'agent', 'testing'].map((name) => [
+    '@graphvideo/sdk/' + name, resolvePath(sdkSrc, name, 'index.ts'),
+  ]));
+  alias.yaml = resolvePath(desktopDir, 'node_modules', 'yaml', 'browser', 'index.js');
+  await build({
+    entryPoints: [target],
+    outfile,
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    alias,
+    external: ['*.node', 'typescript', 'electron', '@graphvideo/desktop/*'],
+    logLevel: 'silent',
+  });
+  return import(pathToFileURL(outfile).href);
+}
+
+async function loadEsbuild() {
+  try {
+    return await import('esbuild');
+  } catch { /* fall through to vendored copies */ }
+  const { createRequire } = await import('node:module');
+  for (const anchor of [import.meta.url, new URL('../../../desktop/package.json', import.meta.url).href]) {
+    try {
+      return createRequire(anchor)('esbuild');
+    } catch { /* try next anchor */ }
+  }
+  throw new Error("Cannot find package 'esbuild' for run backend builds");
 }

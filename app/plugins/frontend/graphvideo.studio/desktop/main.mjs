@@ -580,13 +580,28 @@ if (!gotLock) {
   app.quit();
 } else if (runOverrides.daemonAddress) {
   // Daemon-run Electron is a frontend host only: the authoritative graph
-  // lives in the run's Rust daemon (started by run.sh). Booting an embedded
-  // NativeRuleSpace here would create the forbidden second State the plan's
-  // invariant 1 rejects. Business Nodes mount in the backend worker instead.
-  throw new Error(
-    'GRAPHVIDEO_RUN_DAEMON_ADDRESS is set: launch the Studio backend worker for this run; ' +
-    'Electron must not boot an embedded NativeRuleSpace alongside the run daemon',
-  );
+  // lives in the run's Rust daemon (started by run.sh start). This branch
+  // never boots an embedded NativeRuleSpace (that would be the forbidden
+  // second State); it serves windows/IPC/telemetry against the run's
+  // frontend-discovery endpoint. The daemon token stays in the run's
+  // generated dir and is never bundled into the renderer.
+  const { readRunDiscoveryForElectron } = await import('./services/frontend-daemon-host.mjs');
+  host = await readRunDiscoveryForElectron(runOverrides);
+  lifecycle = createStudioApplicationLifecycle({
+    host, hasProject: () => Boolean(activeProjectRoot),
+    closeIngress: () => commandGate.close(),
+    waitForBoot: () => bootstrapPromise,
+    waitForAcceptedWork: () => commandGate.drain(),
+    stopSources: async () => {
+      projectExternalSync.stop()
+      await pendingCloseObservation
+      acceptingObservations = false
+    },
+    closeServices: async () => {
+      stopTelemetrySubscription()
+      commandIpc?.dispose()
+    },
+  });
 } else {
   host = initializeGraphHost();
   lifecycle = createStudioApplicationLifecycle({
