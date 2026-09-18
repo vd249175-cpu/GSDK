@@ -136,6 +136,7 @@ export async function startRun(configPath, { token } = {}) {
     });
     return {
       parsed, layout, snapshot,
+      kernel,
       releaseLock: () => lock?.release(),
       stopKernel: () => kernel?.child.kill(),
     };

@@ -76,6 +76,70 @@ function normalizeInfos(value, name) {
     return { targetNodeId: entry.targetNodeId, info: { ...entry.info } };
   });
 }
+function normalizeAssertions(value, scenarioIndex, instanceIds) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) fail(`scenarios[${scenarioIndex}].assertions must be an array`);
+  return value.map((assertion, index) => {
+    const name = `scenarios[${scenarioIndex}].assertions[${index}]`;
+    assertObject(assertion, name);
+    if ('nodeId' in assertion) {
+      for (const key of Object.keys(assertion)) {
+        if (!['nodeId', 'state', 'version'].includes(key)) fail(`${name} has unknown field: ${key}`);
+      }
+      if (typeof assertion.nodeId !== 'string' || !assertion.nodeId) fail(`${name}.nodeId must be a nonempty string`);
+      if (!instanceIds.has(assertion.nodeId)) fail(`${name} asserts an unassembled instance: ${assertion.nodeId}`);
+      if (assertion.state !== undefined) assertObject(assertion.state, `${name}.state`);
+      if (assertion.version !== undefined && (!Number.isInteger(assertion.version) || assertion.version < 0)) {
+        fail(`${name}.version must be a non-negative integer`);
+      }
+      return {
+        nodeId: assertion.nodeId,
+        ...(assertion.state === undefined ? {} : { state: { ...assertion.state } }),
+        ...(assertion.version === undefined ? {} : { version: assertion.version }),
+      };
+    }
+    if ('submission' in assertion) {
+      for (const key of Object.keys(assertion)) {
+        if (!['submission', 'status'].includes(key)) fail(`${name} has unknown field: ${key}`);
+      }
+      if (typeof assertion.submission !== 'string' || !assertion.submission) fail(`${name}.submission must be a nonempty string`);
+      if (!['completed', 'failed', 'cancelled'].includes(assertion.status)) {
+        fail(`${name}.status must be completed, failed or cancelled`);
+      }
+      return { submission: assertion.submission, status: assertion.status };
+    }
+    fail(`${name} must declare nodeId or submission`);
+  });
+}
+
+function normalizeScenarios(value, instances) {
+  if (value === undefined || value === null) return null;
+  if (!Array.isArray(value)) fail('scenarios must be an array or null');
+  const instanceIds = new Set(instances.map((instance) => instance.nodeId));
+  const names = new Set();
+  return value.map((scenario, index) => {
+    const name = `scenarios[${index}]`;
+    assertObject(scenario, name);
+    for (const key of Object.keys(scenario)) {
+      if (!['name', 'inputs', 'assertions', 'timeoutMs'].includes(key)) fail(`${name} has unknown field: ${key}`);
+    }
+    if (typeof scenario.name !== 'string' || !scenario.name) fail(`${name}.name must be a nonempty string`);
+    if (names.has(scenario.name)) fail(`duplicate scenario name: ${scenario.name}`);
+    names.add(scenario.name);
+    const inputs = normalizeInfos(scenario.inputs ?? [], `${name}.inputs`);
+    for (const input of inputs) {
+      if (!instanceIds.has(input.targetNodeId)) {
+        fail(`${name} input targets an unassembled instance: ${input.targetNodeId}`);
+      }
+    }
+    const assertions = normalizeAssertions(scenario.assertions ?? [], index, instanceIds);
+    const timeoutMs = scenario.timeoutMs ?? 30_000;
+    if (!Number.isFinite(timeoutMs) || timeoutMs < 100 || timeoutMs > 300_000) {
+      fail(`${name}.timeoutMs must be between 100 and 300000`);
+    }
+    return { name: scenario.name, inputs, assertions, timeoutMs };
+  });
+}
 
 function normalizeResources(value, baseDirectory) {
   assertObject(value, 'resources');
@@ -155,7 +219,7 @@ export function parseRunConfig(document, { configPath, baseDirectory }) {
     },
     graph: { instances },
     lifecycle: { initInfos, startInfos, stopInfos },
-    scenarios: document.scenarios ?? null,
+    scenarios: normalizeScenarios(document.scenarios, instances),
     resources,
   };
 }
