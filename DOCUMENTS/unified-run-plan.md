@@ -6,7 +6,7 @@ status: implemented-with-gaps
 
 # 统一 run 实施计划
 
- P1–P7 均已交付针对性测试覆盖，`run.sh start/stop/status`、`runs/<name>/run.config.json` 与 `packages/tooling/run`（config/assembly/mount/scenario/lifecycle/discovery）为实际可用入口；§14 验收清单标记已达成与未完成项。目录与协作约定见[多 Agent 协作指南](./multi-agent-run-guide.md)；源码现状见[心智模型](./mental-model.md)。
+`run.sh start/stop/status` 与 v2 配置支持真实后端图和同路径场景。Bash 已直接承担进程启动、阶段排序与等待退出；活动快照控制关闭，本地 dispose 失败保留资源以供重试。P4 的实际前端进程及 P6 的完整桌面迁移尚未完成，P1–P7 有测试不等于全部验收完成。目录与协作约定见[多 Agent 协作指南](./multi-agent-run-guide.md)；源码现状见[心智模型](./mental-model.md)。
 
 ## 1. 交付目标
 

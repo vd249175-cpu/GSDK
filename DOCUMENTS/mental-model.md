@@ -4,7 +4,7 @@ type: reference
 
 # GraphFramework 当前心智模型
 
-GraphFramework 是由 Rust 调度器与外层宿主承载的开放因果图微内核框架。命名 run（`run.sh start/stop/status runs/<name>/run.config.json`）是唯一的生产与测试运行机制：每个 run 有独立配置、Rust daemon 内核进程、真实 Node 切片、run 作用域产物与物理资源；场景只在同一运行上增加输入、断言和结束条件。`runs/studio` 承载完整 Studio 图，`npm --prefix packages/desktop start`（`electron .`）已降级为 `start:legacy-electron`，不再是生产入口。当前仓库以源码包方式构建；源码与针对性测试高于本文。
+GraphFramework 是由 Rust 调度器与外层宿主承载的开放因果图微内核框架。命名 run（`run.sh start/stop/status runs/<name>/run.config.json`）支持独立配置、Rust daemon、后端真实 Node 切片和作用域产物。Bash supervisor 直接启动并等待 Rust/Node 子进程；Node 工具实现单阶段操作和认证控制接口，不掌控内核进程。无场景 start 等待 Ready 后返回，后台运行持续到 stop；有场景 start 等待报告和同一路径关闭后返回。完整 Studio 的 headless 图可以装配；前端实例的进程启动与完整桌面迁移尚未完成，不能把配置声明视为可用 GUI。源码与针对性测试高于本文。
 
 ## 1. 设计目标
 
@@ -39,7 +39,7 @@ Rust kernel-daemon 进程（本 run 独占：调度、submission、权威 JSON S
   ├─ @graphvideo/sdk/analysis：JS 实例事实生成器、分析 DTO 与显式离线纯算法，不启动 Runtime
   └─ tooling/run：assembly（精确切片）/ mount（admit→claim→poll）/ scenario（同运行断言）/ lifecycle（对称启停记录）
 
-完整 Studio 图由 `runs/studio` 在独立 daemon 进程中承载：Electron main 不再内嵌第二份生产图；设置 `GRAPHVIDEO_RUN_DAEMON_ADDRESS` 的 Electron 只做前端宿主，启动内嵌 `NativeRuleSpace` 会直接拒绝。headless daemon 运行使用 Node 实例自带的 in-memory/file 端口（窗口 OPENED、sqlite 落盘），证明执行/观察分离而不触碰 Electron IPC。
+`runs/studio` 声明完整 Studio 图；headless daemon 使用实例自带的内存/file 端口。Electron 的 daemon 分支仍有未实现的投影和注入接口，不能当成完整桌面运行。正常 stop 读取活动快照，即使 live config 修改或删除也使用原始关闭 Info；等待结算后释放 worker/provider 租约、evict 和本地 dispose，再由 Bash 关闭并等待 Rust 和后端。清理错误保留认证控制接口与锁，返回失败并允许下一次 stop 重试；成功后清除凭证和生成的环境文件。
 
 ## 3. 权限与归属
 

@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from 'node:path';
 import { basename, dirname } from 'node:path';
+import { assertInsideRun } from './paths.mjs';
 
 export const RUN_CONFIG_VERSION = 2;
 
@@ -47,10 +48,7 @@ function normalizePlugins(value, baseDirectory) {
   };
   const backend = parse(table.backend, 'backend', 'plugins.backend');
   const frontend = parse(table.frontend, 'frontend', 'plugins.frontend');
-  const flat = [...backend, ...frontend];
-  flat.backend = backend;
-  flat.frontend = frontend;
-  return flat;
+  return { backend, frontend };
 }
 
 function normalizeInstances(value, pluginIds) {
@@ -106,7 +104,7 @@ function normalizeInfos(value, name) {
   if (!Array.isArray(value)) fail(`${name} must be an array`);
   return value.map((entry, index) => {
     assertObject(entry, `${name}[${index}]`);
-    assertNoUnknown(entry, ['targetNodeId', 'info'], `${name}[${index}]`);
+    assertNoUnknown(entry, ['targetNodeId', 'info', 'await'], `${name}[${index}]`);
     if (typeof entry.targetNodeId !== 'string' || !entry.targetNodeId) {
       fail(`${name}[${index}].targetNodeId must be a nonempty string`);
     }
@@ -114,7 +112,15 @@ function normalizeInfos(value, name) {
     if (typeof entry.info.type !== 'string' || !entry.info.type) {
       fail(`${name}[${index}].info.type must be a nonempty string`);
     }
-    return { targetNodeId: entry.targetNodeId, info: { ...entry.info } };
+    let ready;
+    if (entry.await !== undefined) {
+      assertObject(entry.await, `${name}[${index}].await`);
+      assertNoUnknown(entry.await, ['nodeId', 'state'], `${name}[${index}].await`);
+      if (typeof entry.await.nodeId !== 'string' || !entry.await.nodeId) fail('Info await requires a nodeId');
+      if (entry.await.state !== undefined) assertObject(entry.await.state, 'Info await state');
+      ready = { ...entry.await };
+    }
+    return { targetNodeId: entry.targetNodeId, info: { ...entry.info }, ...(ready ? { await: ready } : {}) };
   });
 }
 
@@ -253,7 +259,7 @@ function normalizeResources(value, baseDirectory) {
   const resolveRunPath = (relativePath, name) => {
     if (typeof relativePath !== 'string' || !relativePath) fail(`resources.${name} must be a nonempty path`);
     if (isAbsolute(relativePath)) fail(`resources.${name} must be run-relative, got ${relativePath}`);
-    return resolve(baseDirectory, relativePath);
+    return assertInsideRun(baseDirectory, relativePath, `resources.${name}`);
   };
   return {
     generatedDirectory: resolveRunPath(value.generatedDirectory ?? '.generated', 'generatedDirectory'),
@@ -290,7 +296,7 @@ export function parseRunConfig(document, { configPath, baseDirectory }) {
   const pluginIds = {
     backend: new Set(plugins.backend.map((plugin) => plugin.id)),
     frontend: new Set(plugins.frontend.map((plugin) => plugin.id)),
-    has: (id) => plugins.some((plugin) => plugin.id === id),
+    has: (id) => plugins.backend.some((plugin) => plugin.id === id),
   };
 
   const kernel = assertObject(document.kernel ?? {}, 'kernel');

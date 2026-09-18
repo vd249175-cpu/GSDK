@@ -1,53 +1,54 @@
-import { resolve } from 'node:path';
-import { startRun, statusRun, stopRun } from './lifecycle.mjs';
+import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { runBackend } from './host.mjs';
+import { callRunControl } from './control.mjs';
+import { prepareRun, kernelReady, kernelShutdown, awaitHost, awaitStart, readSnapshot, runtimeFor, updateSession, finalizeRun, statusRun, stopRun, startResult, sleep, loadRunConfig, resolveDaemonBinary } from './session.mjs';
 
-const [op, configArg] = process.argv.slice(2);
-if (!op || !configArg || !['start', 'stop', 'status', '_run'].includes(op)) {
-  console.error('Usage: node packages/tooling/run/src/cli.mjs start|stop|status runs/<name>/run.config.json');
-  process.exitCode = 2;
-} else if (op === 'status') {
-  console.log(JSON.stringify(statusRun(resolve(configArg)), null, 2));
-} else if (op === 'stop') {
-  console.log(JSON.stringify(await stopRun(resolve(configArg)), null, 2));
-} else if (op === '_run') {
-  // Background supervisor: owns kernel/worker/provider for the run lifetime.
-  // Prints the started record on stdout, then sleeps until a shutdown signal
-  // arrives (run.sh stop sends SIGTERM; Ctrl+C sends SIGINT), at which point
-  // the full supervised close runs (stop Infos, settle, evict, daemon
-  // shutdown) before exiting.
-  const handle = await startRun(resolve(configArg));
-  console.log(JSON.stringify({
-    started: true,
-    runName: handle.snapshot.runName,
-    pid: handle.snapshot.pid,
-    configPath: handle.snapshot.configPath,
-    kernel: handle.snapshot.kernel,
-    stages: handle.snapshot.stages,
-  }, null, 2));
-  let shuttingDown = false;
-  const shutdown = async () => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    try {
-      await handle.stop();
-    } catch (error) {
-      console.error(`supervisor shutdown failed: ${error?.message ?? error}`);
-      try { handle.stopKernel(); } catch { /* already closed */ }
-      try { handle.releaseLock(); } catch { /* already closed */ }
-    } finally {
-      process.exit(0);
+const [op, argument, extra] = process.argv.slice(2);
+const config = argument ? resolve(argument) : null;
+try {
+  let result;
+  if (op === 'id') result = randomUUID();
+  else if (op === 'validate') { resolveDaemonBinary(loadRunConfig(config)); result = { valid: true }; }
+  else if (op === 'prepare') result = prepareRun(config, extra);
+  else if (op === 'kernel-ready') result = await kernelReady(config);
+  else if (op === 'kernel-shutdown') { await kernelShutdown(config); result = { shutdown: true }; }
+  else if (op === 'backend') await runBackend(config);
+  else if (op === 'await-host') result = await awaitHost(config);
+  else if (op === 'call') result = await callRunControl(runtimeFor(config), extra);
+  else if (op === 'cancelled') {
+    const health = await callRunControl(runtimeFor(config), 'health');
+    process.exitCode = health.stopRequested ? 0 : 1;
+  }
+  else if (op === 'mark') result = updateSession(config, {}, extra);
+  else if (op === 'fail-start') startResult(config, { runId: extra, started: false, error: 'run startup failed; see supervisor.log' });
+  else if (op === 'fail-stop') result = await callRunControl(runtimeFor(config), 'stop-failed', { error: extra });
+  else if (op === 'finalize') { finalizeRun(config, Number(extra ?? 0)); result = { closed: true }; }
+  else if (op === 'await-start') {
+    result = await awaitStart(config, extra);
+    if (result.scenario) {
+      for (;;) {
+        const snapshot = readSnapshot(config);
+        if (snapshot.state === 'stop-failed') throw new Error(snapshot.lastError);
+        if (snapshot.state === 'closed') {
+          const close = JSON.parse(readFileSync(join(runtimeFor(config), 'close-result.json'), 'utf8'));
+          result = { ...result, report: snapshot.scenarioReport, stopped: true, exitCode: close.exitCode };
+          process.exitCode = close.exitCode;
+          break;
+        }
+        await sleep();
+      }
     }
-  };
-  process.once('SIGINT', () => void shutdown());
-  process.once('SIGTERM', () => void shutdown());
-  process.once('SIGHUP', () => void shutdown());
-  // Sleep until stopped externally.
-  const keepAlive = setInterval(() => undefined, 1000);
-  keepAlive.unref?.();
-  await new Promise(() => undefined);
-} else {
-  // Foreground start is not supported: interactive runs need a supervisor
-  // that outlives the start command. Use `bash ./run.sh start <config>`.
-  console.error('run start must go through the supervisor: bash ./run.sh start runs/<name>/run.config.json');
-  process.exitCode = 2;
-}
+  }
+  else if (op === 'stop') result = await stopRun(config);
+  else if (op === 'status') {
+    result = statusRun(config);
+    if (result.active) {
+      try { const health = await callRunControl(runtimeFor(config), 'health', {}, 1000); result = { ...result, verified: true, pid: health.pid }; }
+      catch (error) { result = { ...result, active: false, state: 'unreachable', cleanupRequired: true, error: error.message }; }
+    }
+  }
+  else throw new Error(`unknown run command: ${op}`);
+  if (result !== undefined) console.log(typeof result === 'string' ? result : JSON.stringify(result, null, 2));
+} catch (error) { console.error(error?.stack ?? String(error)); process.exitCode = 1; }

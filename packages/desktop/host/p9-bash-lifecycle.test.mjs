@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -13,7 +13,7 @@ afterEach(() => {
   for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-function writeRun(root, name) {
+function writeRun(root, name, overrides = {}) {
   const directory = join(root, name);
   mkdirSync(join(directory, '.generated', 'runtime'), { recursive: true });
   const payload = {
@@ -26,6 +26,7 @@ function writeRun(root, name) {
     graph: { instances: [] },
     lifecycle: { initInfos: [], startInfos: [], stopInfos: [] },
     resources: {},
+    ...overrides,
   };
   const configPath = join(directory, 'run.config.json');
   writeFileSync(configPath, JSON.stringify(payload, null, 2));
@@ -33,9 +34,14 @@ function writeRun(root, name) {
 }
 
 function sh(op, configPath) {
-  const out = execFileSync('bash', ['./run.sh', op, configPath], {
+  let out;
+  const bash = process.env.GRAPHVIDEO_BASH ?? (process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash');
+  try { out = execFileSync(bash, ['./run.sh', op, configPath], {
     cwd: repoRoot, timeout: 90_000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  }); } catch (error) {
+    const log = join(dirname(configPath), '.generated/logs/supervisor.log');
+    throw new Error(`${error.message}\n${existsSync(log) ? readFileSync(log, 'utf8') : ''}`, { cause: error });
+  }
   return JSON.parse(out);
 }
 
@@ -60,12 +66,69 @@ describe('P9 bash symmetric lifecycle', () => {
       // Kernel port is gone: the detached stop shut the daemon down.
       expect(closed.stages).toEqual([
         'validate', 'lock', 'kernel-ready', 'hosts-ready',
-        'admitted', 'workers-ready', 'initialized', 'started',
+        'assembled', 'admitted', 'workers-ready', 'initialized', 'started',
         'stopping', 'settled', 'evicted', 'kernel-stopped', 'hosts-stopped', 'closed',
       ]);
       expect(sh('stop', configPath)).toMatchObject({ stopped: true, already: true });
     } finally {
       try { sh('stop', configPath); } catch { /* already closed */ }
     }
+  }, 120_000);
+
+  function resourceRun(root, { scenario = false, failDispose = false } = {}) {
+    const plugin = join(root, 'plugin');
+    const marker = join(root, 'disposed.json');
+    const failure = join(root, 'fail-dispose');
+    mkdirSync(plugin);
+    if (failDispose) writeFileSync(failure, 'fail');
+    writeFileSync(join(plugin, 'graphvideo.plugin.json'), JSON.stringify({ id: 'fixture.cleanup', name: 'Fixture', version: '1.0.0', apiVersion: 2, kind: 'backend', contributes: { backend: 'index.mjs', nodeFactories: ['createResource'] } }));
+    writeFileSync(join(plugin, 'index.mjs'), `
+import { existsSync, writeFileSync } from 'node:fs';
+export function createResource(ctx) {
+  const seen = [];
+  let disposed = false;
+  return { id: ctx.nodeId, getState: () => ({ count: 0 }),
+    change(info, change) { seen.push(info.type); if (info.type === 'IncrementInfo') change.write('count', change.read('count') + 1); },
+    async dispose() { if (disposed) return; if (existsSync(${JSON.stringify(failure)})) throw new Error('fixture disposal failed'); writeFileSync(${JSON.stringify(marker)}, JSON.stringify(seen)); disposed = true; }
+  };
+}
+export default { id: 'fixture.cleanup', createNodes: () => [] };
+`);
+    const config = writeRun(root, 'resource', {
+      plugins: { backend: [{ id: 'fixture.cleanup', path: plugin }], frontend: [] },
+      graph: { instances: [{ kind: 'node', id: 'resource-node', factory: { plugin: 'fixture.cleanup', name: 'createResource' } }] },
+      lifecycle: { initInfos: [], startInfos: [], stopInfos: [{ targetNodeId: 'resource-node', info: { type: 'OriginalStopInfo' } }] },
+      ...(scenario ? { scenarios: [{ name: 'increment', inputs: [{ targetNodeId: 'resource-node', info: { type: 'IncrementInfo' } }], assertions: [{ nodeId: 'resource-node', state: { count: 1 } }] }] } : {}),
+    });
+    return { config, marker, failure };
+  }
+  it('stops a real slice using its immutable snapshot and confirms local disposal', () => {
+    const root = mkdtempSync(join(tmpdir(), 'gv-p9-resource-')); temporaryRoots.push(root);
+    const { config, marker } = resourceRun(root);
+    sh('start', config);
+    rmSync(config);
+    expect(sh('stop', config).stopped).toBe(true);
+    expect(JSON.parse(readFileSync(marker, 'utf8'))).toEqual(['OriginalStopInfo']);
+  }, 120_000);
+  it('retains failed cleanup and permits a verified retry', () => {
+    const root = mkdtempSync(join(tmpdir(), 'gv-p9-retry-')); temporaryRoots.push(root);
+    const { config, marker, failure } = resourceRun(root, { failDispose: true });
+    sh('start', config);
+    try {
+      expect(() => sh('stop', config)).toThrow();
+      expect(statusRun(config)).toMatchObject({ active: true, state: 'stop-failed', lastError: expect.stringContaining('fixture disposal failed') });
+      expect(existsSync(marker)).toBe(false);
+      rmSync(failure);
+      expect(sh('stop', config).stopped).toBe(true);
+      expect(existsSync(marker)).toBe(true);
+    } finally { rmSync(failure, { force: true }); sh('stop', config); }
+  }, 120_000);
+  it('runs configured scenarios through the same root entry and closes before returning', () => {
+    const root = mkdtempSync(join(tmpdir(), 'gv-p9-scene-')); temporaryRoots.push(root);
+    const { config, marker } = resourceRun(root, { scenario: true });
+    const result = sh('start', config);
+    expect(result).toMatchObject({ started: true, stopped: true, exitCode: 0, report: { passed: 1, failed: 0 } });
+    expect(JSON.parse(readFileSync(marker, 'utf8'))).toEqual(['IncrementInfo', 'OriginalStopInfo']);
+    expect(statusRun(config).active).toBe(false);
   }, 120_000);
 });

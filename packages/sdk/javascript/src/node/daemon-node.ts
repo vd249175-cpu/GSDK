@@ -30,6 +30,7 @@ export interface DaemonNodeWorkerOptions {
   readonly handlers: Readonly<Record<string, DaemonNodeHandler<Record<string, unknown>>>>;
   readonly signal?: AbortSignal;
   readonly longPollMs?: number;
+  readonly onReady?: () => void;
 }
 
 function localContext<S extends Record<string, unknown>>(
@@ -76,6 +77,7 @@ export async function runDaemonNodeWorker(
   const nodeIds = Object.keys(options.handlers).sort();
   if (nodeIds.length === 0) throw new Error('Daemon Node worker requires at least one handler');
   await client.claim(nodeIds);
+  options.onReady?.();
   try {
     while (!options.signal?.aborted) {
       const polled = await client.poll(options.longPollMs ?? 1000);
@@ -94,7 +96,7 @@ export async function runDaemonNodeWorker(
       await client.commit(polled.change.changeId, operations, error);
     }
   } finally {
-    await client.release(nodeIds).catch(() => undefined);
+    await client.release(nodeIds);
   }
 }
 

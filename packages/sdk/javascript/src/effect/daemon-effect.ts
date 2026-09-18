@@ -26,6 +26,7 @@ export interface DaemonEffectProviderOptions {
   readonly adapters: Readonly<Record<string, DaemonEffectAdapter>>;
   readonly signal?: AbortSignal;
   readonly longPollMs?: number;
+  readonly onReady?: () => void;
 }
 
 /** Runs physical adapters outside Rust; adapter IDs and DTOs remain opaque to the daemon. */
@@ -36,6 +37,7 @@ export async function runDaemonEffectProvider(
   const adapterIds = Object.keys(options.adapters).sort();
   if (adapterIds.length === 0) throw new Error('Effect provider requires at least one adapter');
   await client.claimEffects(adapterIds);
+  options.onReady?.();
   try {
     while (!options.signal?.aborted) {
       const effect = await client.pollEffect(options.longPollMs ?? 1000);
@@ -58,6 +60,6 @@ export async function runDaemonEffectProvider(
       }
     }
   } finally {
-    await client.releaseEffects(adapterIds).catch(() => undefined);
+    await client.releaseEffects(adapterIds);
   }
 }

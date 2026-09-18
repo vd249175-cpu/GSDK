@@ -20,7 +20,12 @@ export async function mountRunSlice({ nodes, control, worker, signal }) {
   const admitted = Object.keys(handlers);
   let running = null;
   try {
-    running = sdkNode.runDaemonNodeWorker(worker, { handlers, longPollMs: 50, ...(signal ? { signal } : {}) });
+    let resolveReady;
+    const ready = new Promise((resolve) => { resolveReady = resolve; });
+    running = sdkNode.runDaemonNodeWorker(worker, { handlers, longPollMs: 50, onReady: resolveReady, ...(signal ? { signal } : {}) });
+    await Promise.race([ready, running.then(() => { throw new Error('worker exited before readiness'); })]);
+    // Observe failures after readiness without discarding them: unmount awaits running.
+    void running.catch(() => undefined);
     return { assemblies, handlers, running, admitted };
   } catch (error) {
     if (running) await running.catch(() => undefined);
@@ -70,11 +75,16 @@ export async function waitForSubmissions({ control, submissionIds, timeoutMs = 3
 
 export async function unmountRunSlice({ control, workerStop, running, admitted, assemblies }) {
   workerStop?.abort();
-  if (running) await running.catch(() => undefined);
+  if (running) await running;
+  const errors = [];
   for (const nodeId of [...(admitted ?? [])].reverse()) {
-    await control.evict?.(nodeId).catch(() => undefined);
+    try {
+      const remaining = (await control.projection()).nodes ?? {};
+      if (nodeId in remaining) await control.evict(nodeId);
+      await (assemblies ?? []).find((assembly) => assembly.nodeId === nodeId)?.dispose();
+    } catch (error) { errors.push(error); }
   }
-  await Promise.allSettled((assemblies ?? []).map((assembly) => assembly.dispose()));
+  if (errors.length) throw new AggregateError(errors, 'Node eviction/disposal failed');
 }
 
 async function importSdkNode() {

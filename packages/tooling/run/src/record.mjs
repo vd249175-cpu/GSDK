@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -9,8 +9,23 @@ import { join } from 'node:path';
 export function writeSnapshotRecord(runtimeDirectory, snapshot) {
   mkdirSync(runtimeDirectory, { recursive: true });
   const path = join(runtimeDirectory, 'config-snapshot.json');
-  writeFileSync(path, `${JSON.stringify(snapshot, null, 2)}\n`);
+  writeJsonRecord(path, snapshot);
   return path;
+}
+
+export function writeJsonRecord(path, value) {
+  const temporary = `${path}.${process.pid}.next`;
+  writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`);
+  // Windows readers/antivirus may briefly deny replacement; never truncate
+  // the committed record or expose an incomplete JSON document.
+  const deadline = Date.now() + 1000;
+  for (;;) {
+    try { renameSync(temporary, path); break; }
+    catch (error) {
+      if (!['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || Date.now() >= deadline) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+    }
+  }
 }
 
 export function appendStageLog(logsDirectory, runName, line) {
