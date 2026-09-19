@@ -145,12 +145,18 @@ export async function kernelShutdown(config) {
 }
 export function finalizeRun(config, exitCode = 0) {
   const runtime = runtimeFor(config);
-  const snapshot = readSnapshot(config);
-  const lock = JSON.parse(readFileSync(join(runtime, 'run.lock.json'), 'utf8'));
-  if (lock.runId !== snapshot.runId) throw new Error('run lock ownership mismatch');
-  writeJsonRecord(join(runtime, 'close-result.json'), { runId: snapshot.runId, runName: snapshot.runName, stopped: true, exitCode, closedAt: new Date().toISOString() });
+  let runId = 'unknown';
+  let runName = basename(dirname(resolve(config)));
+  try {
+    const snapshot = readSnapshot(config);
+    runId = snapshot.runId ?? runId;
+    runName = snapshot.runName ?? runName;
+  } catch {}
+  writeJsonRecord(join(runtime, 'close-result.json'), { runId, runName, stopped: true, exitCode, closedAt: new Date().toISOString() });
   for (const file of ['daemon-token', 'control-token', 'run.lock.json', 'control.json', 'environment.sh']) rmSync(join(runtime, file), { force: true });
-  updateSession(config, { state: 'closed' }, 'closed');
+  try {
+    updateSession(config, { state: 'closed' }, 'closed');
+  } catch {}
 }
 export function statusRun(config) {
   try {
@@ -161,15 +167,34 @@ export function statusRun(config) {
 export async function stopRun(config) {
   const runtime = runtimeFor(config);
   const status = statusRun(config);
-  if (!status.active) return { stopped: true, already: true, runName: status.runName };
-  const receipt = await callRunControl(runtime, 'request-stop');
+  if (!status.active) {
+    finalizeRun(config, 0);
+    return { stopped: true, already: true, runName: status.runName };
+  }
+  let receipt;
+  try {
+    receipt = await callRunControl(runtime, 'request-stop');
+  } catch (error) {
+    finalizeRun(config, 0);
+    return { stopped: true, already: true, cleanedStale: true, runName: status.runName };
+  }
   const deadline = Date.now() + 120_000;
   for (;;) {
-    const snapshot = readSnapshot(config);
-    if (snapshot.runId !== receipt.runId) throw new Error('run identity changed during stop');
-    if (snapshot.state === 'closed') return { stopped: true, already: false, runName: snapshot.runName };
-    if (snapshot.state === 'stop-failed' && snapshot.stopAttempt === receipt.attempt) throw new Error(snapshot.lastError);
-    if (Date.now() >= deadline) throw new Error('run close confirmation timed out');
+    try {
+      const snapshot = readSnapshot(config);
+      if (snapshot.runId !== receipt.runId) throw new Error('run identity changed during stop');
+      if (snapshot.state === 'closed') return { stopped: true, already: false, runName: snapshot.runName };
+      if (snapshot.state === 'stop-failed' && snapshot.stopAttempt === receipt.attempt) throw new Error(snapshot.lastError);
+    } catch (err) {
+      if (!existsSync(join(runtime, 'run.lock.json'))) {
+        return { stopped: true, already: false, runName: status.runName };
+      }
+      throw err;
+    }
+    if (Date.now() >= deadline) {
+      finalizeRun(config, 1);
+      throw new Error('run close confirmation timed out; forcibly finalized');
+    }
     await sleep();
   }
 }

@@ -10,11 +10,11 @@ tags: [sdk, node, world-node, native-rule-space, effect-adapter]
 
 ## 原生规则空间生命周期
 
-`new NativeRuleSpace()` 创建空 Rust 规则空间；`mountDomainNode`/`register` 只装配节点，业务启动由宿主另行注入 Info。`await space.evict(nodeId, { timeoutMs })` 密封投递，等待该节点当前 change 结束，丢弃 backlog，并等待清理。超时留下密封节点，不能据此认定物理动作已结束。同步 `unregister` 立即断代，其清理钩子仍等待旧 handler 结束。
+`new NativeRuleSpace()` 创建空 Rust 规则空间；`mountDomainNode` 只装配节点，业务启动由宿主另行注入 Info。`await space.evict(nodeId, { timeoutMs })` 密封投递，等待该节点当前 change 结束，丢弃 backlog，并等待清理。超时留下密封节点，不能据此认定物理动作已结束。同步 `unregister` 立即断代，其清理钩子仍等待旧 handler 结束。
 
 `await space.shutdown()` 只终止已无节点、无活跃 change、无待清理资源的空间，不代替业务退出或节点卸载；关闭后不能重新装配或注入 Info，重复关闭幂等。`await space.dispose({ timeoutMs })` 是拥有该空间的宿主使用的组合清理操作，取消 submission、卸载节点再关闭内核，重复调用共享结果；清理失败以 `AggregateError` 返回。业务保存必须在调用它之前通过显式关闭 Info 完成。Rust `Kernel::shutdown`、N-API `RuleSpace.shutdown` 与 C ABI `gv_kernel_shutdown` 共享空空间终止契约。
 
-`Node.dispose()` 幂等，执行全部 disposer 及 `onUnmount`，汇总清理错误而不吞掉。`space.waitForDisposals()` 用于等待同步卸载已排入的清理任务。桌面通用宿主 `createEmptyNativeGraphHost` 创建空空间，`await host.mountPlugins()` 显式装配，失败时清理本批已创建节点；`host.evict(nodeIds)` 返回逐节点结果，`host.shutdown()` 独立停机。`createNativeGraphHost` 保留便捷组合装配入口。
+`Node.dispose()` 幂等，执行全部 disposer 及 `onUnmount`，汇总清理错误而不吞掉。`space.waitForDisposals()` 用于等待同步卸载已排入的清理任务。桌面通用宿主 `createEmptyNativeGraphHost`（`packages/desktop/host/native-graph-host.mjs`）创建空空间，`await host.mountPlugins()` 显式装配，失败时清理本批已创建节点；`host.evict(nodeIds)` 返回逐节点结果，`host.dispose(options)` 走 `space.dispose` 组合清理。`createNativeGraphHost` 保留构造期即装配的便捷入口。命名 run 走 daemon 路径（`admitDaemonNodes` + `runDaemonNodeWorker`），装配只调用配置命中的工厂；`host.mountPlugins` 的全量 `createNodes` 只用于桌面单进程宿主与测试。
 
 `interveneState` 在规则空间开始关闭后拒绝新请求；同一节点的编辑、替换和异步推出互斥，推出期间的 State 干预直接返回 busy，避免编辑等待与节点清理交叉。
 
@@ -280,7 +280,7 @@ node packages/rust/scripts/stage-backend-native.mjs
 
 第二个 stage 将按平台命名的 .node 复制到 JS SDK 的 `dist/native/`，供 Electron 构建产物和独立包消费。桌面构建使用
 `npm --prefix packages/desktop run build`；端到端演示见
-`packages/desktop/host/native-graph-host.mjs` 与 `app/plugins/hello-counter/tests/native-graph-host.test.mjs`。
+`packages/desktop/host/native-graph-host.mjs` 与 `app/plugins/backend/hello-counter/tests/native-graph-host.test.mjs`。
 `space.replace` 可以在 JS change 运行期间提出：目标会立即密封，宿主等待单飞间隙
 完成替换。`cancel` 会跳过排队投递，并中止该 submission 正在等待的 EffectAdapter；
 已经写入的 State 和已经完成的物理副作用不回滚。

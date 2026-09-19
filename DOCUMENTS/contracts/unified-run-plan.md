@@ -89,7 +89,7 @@ M1：P1–P3 完成，任意最小片段可启动、停止、重启。M2：P4–
 **任务：**
 
 1. 分类硬编码：进程、目录、端口和凭证进入宿主参数；实例身份、目标绑定和 Adapter 进入构造装配；业务初始事实进入初始化 Info。
-2. 明确宿主可装配、worker/provider 可执行、初始化结算、业务就绪和关闭完成的独立确认。通用工具不要求 Studio 生命周期 Node 存在，不硬编码业务 Info。
+2. 明确宿主可装配、worker/provider 可执行、初始化结算、业务就绪和关闭完成的独立确认。通用工具不要求任何业务生命周期 Node 存在，不硬编码业务 Info。
 3. 核对 NativeRuleSpace 即时写入与 daemon 本地快照/有序 commit 的差异，明确异常、取消和断连时已接受 State/send 的保留语义，不能引入隐式回滚。
 4. 核对 send 反馈、effectAdapter、Clock、AbortSignal、span、EncodedValue 和 WorldNode 权限。现有 daemon handler Context 不能被假定与 Node Context 完全等价。
 5. 明确 daemon evict 与 worker dispose 的外层握手；delivery、handler、Effect 和本地清理分别确认。

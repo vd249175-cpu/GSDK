@@ -11,6 +11,13 @@ case "$op" in
   start)
     node "$cli" validate "$config" >/dev/null
     runtime="$config_dir/.generated/runtime"
+    if [[ -f "$runtime/run.lock.json" ]]; then
+      status_json="$(node "$cli" status "$config" 2>/dev/null || true)"
+      if grep -q '"cleanupRequired": true' <<<"$status_json" || grep -q '"state": "unreachable"' <<<"$status_json"; then
+        echo "Auto-cleaning stale lock from inactive run..." >&2
+        node "$cli" stop "$config" >/dev/null 2>&1 || true
+      fi
+    fi
     [[ ! -f "$runtime/run.lock.json" ]] || { echo 'Run is already active' >&2; exit 1; }
     mkdir -p "$runtime" "$config_dir/.generated/logs"
     run_id="$(node "$cli" id)"

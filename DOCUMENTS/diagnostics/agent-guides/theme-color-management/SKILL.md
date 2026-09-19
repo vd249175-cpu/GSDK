@@ -2,13 +2,13 @@
 type: guide
 name: theme-color-management
 description: >-
-  GraphFramework Studio theme styling rules (dark, light, xueqing, shiliuqun). Use when editing
+  GraphFramework workbench theme styling rules (dark, light, xueqing, shiliuqun). Use when editing
   CSS or TSX styles, adding components, fixing contrast, or migrating legacy palette aliases
   to semantic tokens.
 ---
 
 # Theme and Color Management
-Read `DOCUMENTS/guides/design-system.md` and inspect `packages/frontend/theme/styles/theme.css`, `theme-light.css` and the corresponding `styles/base/` files before editing.
+Read `DOCUMENTS/guides/design-system.md` and inspect `packages/frontend/theme/styles/theme.css`, `theme-light.css`, `theme-traditional.css` before editing.
 
 The desktop entry imports `@graphframework/workbench/styles/index.css` followed by `@graphframework/theme`. Workbench layout CSS imports `@graphframework/theme/base.css`; the files above own the theme values.
 

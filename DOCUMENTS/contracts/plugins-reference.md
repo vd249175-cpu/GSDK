@@ -83,10 +83,20 @@ tags: [plugins, reference, topology, contracts]
 }
 ```
 
-### 2.2 后端入口规范 (`backend.ts`)
-后端通过 `defineBackendPlugin` 导出，提供节点实例与前端白名单：
+### 2.2 后端入口规范（`index.mjs`）
+后端通过 `defineBackendPlugin` 导出，提供节点实例与前端白名单；命名 run 只调用配置命中的工厂（`nodeFactories/graphFactories`），不调用全量 `createNodes`（当前实例见 `app/plugins/backend/demo-topology/index.mjs` 与 `app/plugins/backend/hello-counter/index.mjs`）：
 ```ts
 import { defineBackendPlugin } from '@graphframework/sdk/plugin'
+export default defineBackendPlugin({
+  id: 'demo.topology',
+  createNodes: (ctx) => Object.values(createDemoTopology(ctx)),
+  rendererRoots: [{
+    targetNodeId: 'demo.orders',
+    infoType: 'SubmitOrder',
+    validate: (info) => info?.type === 'SubmitOrder' && typeof info?.orderId === 'string',
+  }],
+})
+```
 
 ## 3. 当前插件清单：`demo.topology`
 `demo.topology` 是当前默认应用（`app/application.json`，`graphframework-demo`）装配的订单履约演示图：`demo.orders` 为唯一入口，`demo.router` 负责扇出，`demo.ledger` 汇总回执。后端实现见 `app/plugins/backend/demo-topology/index.mjs`，前端宿主与界面见 `app/plugins/frontend/demo-topology/`。

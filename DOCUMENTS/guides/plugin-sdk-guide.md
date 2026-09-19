@@ -13,7 +13,7 @@ tags: [sdk, plugin, manifest, hot-reload, lifecycle]
 ```text
 app/plugins/<plugin-directory>/
   graphframework.plugin.json
-  backend.ts|mjs                     返回普通 Node 的扁平列表
+  backend.mjs|index.mjs              普通 Node 与实例工厂（命名 run 只调用配置命中的工厂）
   frontend/ desktop/ resources/      插件自己的业务接入、界面与资源
   elements/ workspaces/              可选工作台贡献
 packages/sdk/javascript/src/
