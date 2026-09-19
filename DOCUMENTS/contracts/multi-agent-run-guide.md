@@ -34,6 +34,8 @@ GVSDK/
 └─ runs/
    ├─ alice/                      # 任意分配的名称
    │  ├─ run.config.json          # 本 run 的运行与测试配置
+   │  ├─ start.sh / stop.sh       # 人类一键便捷启停脚本（Bash / 跨平台，透传委托根目录 run.sh）
+   │  ├─ start.cmd / stop.cmd     # Windows 双击/命令行一键便捷脚本（透传委托根目录 run.sh）
    │  ├─ plugins/                 # 本 Agent 开发的普通插件
    │  ├─ frontend/                # 前端装配与服务绑定
    │  ├─ backend/                 # 后端宿主与 Adapter 装配
@@ -84,6 +86,11 @@ bash ./run.sh start runs/alice/run.config.json
 bash ./run.sh status runs/alice/run.config.json
 bash ./run.sh stop runs/alice/run.config.json
 ```
+
+同时，每个 run 目录内均包含开箱即用的人类便捷脚本：
+- **Bash 用户**：可直接在目标 run 目录内执行 `./start.sh`、`./stop.sh` 或 `./status.sh`；
+- **Windows 用户**：可直接在 Explorer 中双击或在终端运行 `start.cmd`、`stop.cmd`、`status.cmd`。
+这些便捷脚本在实现上纯粹透传委托给根目录唯一的 `run.sh` 规约入口，不引入任何旁路逻辑。
 
 Bash 直接启动并等待 Rust、后端 Node 与前端 Electron 进程。配置解析、协议 DTO 和断言由 `packages/tooling/run` 实现，工具只执行单阶段操作。无场景的 start 等待业务和前端 Ready 后返回，持续交互直到 stop；有场景的 start 等待报告及完整关闭后返回，失败为非零退出码。stop 认证活动快照中的控制接口，等待原始关闭 Info、业务结算、租约释放、evict/dispose 和子进程退出；清理失败保留锁与凭证以供重试。
 

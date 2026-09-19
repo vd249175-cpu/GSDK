@@ -94,4 +94,10 @@
    - **Step 6 受控通讯与达芬奇界面渲染**：Electron 前端通过 `connectFrontendHost` 注册控制接口，建立与 Rust daemon 的只读投影缓存订阅与受限根 Info 注入，窗口加载并渲染达芬奇 UI。
    - **Step 7 界面布局与业务就绪**：supervisor 验证前端 `health` 与 `ready`（确认工作区面板具有可见几何布局），完成初始化与启动 Info 结算，正式进入运行态。
    - **Step 8 对称平稳停机**：任何退出均须通过 `run.sh stop` 触发（前端入站门禁关闭 → 业务在途与数据保存 → 停止物理观察源 → 推出节点与释放租约 → 关闭内核 → 关闭 Electron 与后端进程）。
+4. **每个 run 目录下的人类一键启停脚本约定**：
+   为了方便人类开发者日常使用与一键操作，每个 `runs/<name>/` 目录下均应配备专属的一键启动与关闭便捷脚本：
+   - **Bash / 跨平台一键脚本**：`runs/<name>/start.sh` 与 `runs/<name>/stop.sh`（以及可选的 `status.sh`）；
+   - **Windows 一键脚本**：`runs/<name>/start.cmd` 与 `runs/<name>/stop.cmd`（以及可选的 `status.cmd`），方便 Windows 环境下直接双击或在命令行运行；
+   - **纯委托原则**：这些便捷脚本在实现上必须严格透传委托根目录唯一的规范入口（例如 `bash "$REPO_ROOT/run.sh" start "$CONFIG" "$@"`），绝对禁止在便捷脚本内编写旁路拉起逻辑或绕过 supervisor 编排。
+
 
