@@ -1,12 +1,12 @@
 ---
 type: Contract
-title: SDK 与插件分发验收契约
-description: 镜像 SDK、独立制品、版本兼容、任意目录接入与性能验收的协作要求。
+title: SDK、插件与飞书协作分发契约
+description: 镜像 SDK、飞书知识与能力包分享、独立制品、版本兼容、任意目录接入与性能验收的协作要求。
 status: stable
-tags: [distribution, packaging, acceptance, compatibility]
+tags: [distribution, packaging, collaboration, feishu, acceptance, compatibility]
 ---
 
-# SDK 与插件分发验收契约
+# SDK、插件与飞书协作分发契约
 
 本文件规定正式交付必须满足的要求。目录职责以 [SDK 心智模型](../architecture/sdk-mental-model.md) §1 为准（包边界、应用装配、源码构建组织）；目录归位不等于制品已经通过独立发布验收。这里的制品清单不表示仓库存在自动打包、安装或发布流水线。
 
@@ -34,7 +34,7 @@ JavaScript 可用 N-API 或 daemon，Python SDK 当前使用 daemon；Python cty
 
 应用以 `application.json` 显式选择插件及路径。本仓库插件在 `app/plugins/`，外部插件可以位于其它目录。平台生产源码不得导入业务插件实现；插件不得相对导入另一个插件的内部源码。
 
-正式插件仍是普通插件，只由指定发布者整体更新。接收方的自动化、工作流与团队定制放在自己的普通插件中，通过公开目标 Node 与定向 Info 协作。完整规则见[插件发布与协作契约](plugin-collaboration-contract.md)。
+正式插件仍是普通插件，只由指定发布者整体更新。接收方为工作流补充的自动化能力与团队定制 Node 放在自己的普通插件中，通过公开目标 Node 与定向 Info 协作；工作流正文自身是飞书知识库文档，不是插件。完整规则见[插件发布与协作契约](plugin-collaboration-contract.md)。
 
 发布插件的交付形状为：
 
@@ -52,11 +52,52 @@ JavaScript 可用 N-API 或 daemon，Python SDK 当前使用 daemon；Python cty
 
 这是正式交付要求，不是当前示例插件全部具备这些文件的声明。PACKAGE.md 使用 OKF，记录职责、发布者、公开 Info/Projection、兼容版本、整体更新限制、升级影响和摘要。推荐折叠文件覆盖该插件的全部基础 Node；完整应用的 folds 由消费方显式组合，不由 Rust 自动合并。
 
-需要通过聊天工具分享一组后端 Node、前端和它们的组合关系时，外层压缩包还必须携带一个 run assembly contribution。该模块通过 `backendPlugin/frontendPlugin/node/graph/frontend/requireNode` 重新建立实例、绑定、UI 与既有核心 Node 依赖；工作流和知识正文仍可只保存在共享数据库中。只压缩插件目录而不携带 assembly，会丢失跨插件装配逻辑，不能视为可运行的完整分享物。
+需要通过聊天工具分享一组后端 Node、前端和它们的组合关系时，外层压缩包还必须携带一个 run assembly contribution。该模块通过 `backendPlugin/frontendPlugin/node/graph/frontend/requireNode` 重新建立实例、绑定、UI 与既有核心 Node 依赖；工作流和知识正文只保存在飞书知识库中。只压缩插件目录而不携带 assembly，会丢失跨插件装配逻辑，不能视为可运行的完整分享物。
 
 前端保持达芬奇色彩与排版语言、现有工作台切分/停靠/尺寸调整/浮动页面、刷新与页面联动。面板内部按钮、表单和业务命令由插件自行实现，不要求统一控件 DSL；无用户操作需求的后台插件无需前端。
 
-## 3. 独立制品与兼容信息
+## 3. 飞书分享策略
+
+团队协作内容分成两个飞书通道，二者职责不得混合；基础软件另走批量更新：
+
+| 分享对象 | 分发载体 | 权威内容 | 不携带内容 |
+| --- | --- | --- | --- |
+| 通用知识与工作流 | 飞书知识库 | 可共同维护的知识正文、工作流步骤、适用条件及所需能力版本 | Node/前端源码、二进制、凭证 |
+| 组合能力包 | 指定飞书群聊中的版本化 ZIP 附件 | `assembly.mjs`、该 assembly 实际提供的后端插件与前端插件 | 工作流正文、核心 Node、SDK、内核、桌面宿主、`AGENTS.md`、Skills |
+| 基础软件更新 | 团队批量更新通道 | SDK、内核、桌面宿主、核心组件及统一插件版本 | 个人上下文和工作流选择 |
+
+飞书知识库是通用知识和工作流正文的唯一协作来源。`AGENTS.md` 只保存“什么任务去读哪个知识库页面”的稳定索引和使用约束，不复制正文，不携带账号凭证，也不随能力 ZIP 分发；工作流不再包装成 Workflow Skill。不同成员可以按职责持有不同的页面索引，因此不要求所有人的 `AGENTS.md`、工具 Skills 或模型上下文完全相同。
+
+一份工作流页面至少说明：稳定名称与维护者、适用任务、前置知识页面、所需能力包及最低版本、向哪些专用 WorldNode 发送什么 Info、等待或监听哪些 Observation/完成事实，以及失败与人工确认边界。工作流不定义新的注入协议、消息总线或运行时；Agent 读取页面后，仍只使用已装配的专用 WorldNode 和现有 Info 契约完成发送与等待。
+
+### 3.1 群聊能力包
+
+能力包使用 `<capability-id>-<version>.zip` 命名，保持简单目录形状：
+
+```text
+<capability-id>/
+  assembly.mjs
+  plugins/backend/<plugin-id>/...
+  plugins/frontend/<plugin-id>/...    # 仅在需要 UI 时存在
+```
+
+其中每个插件继续携带自己的 Manifest、`PACKAGE.md` 和接入说明；`assembly.mjs` 使用相对路径贡献插件、Node/Graph 实例、bindings、前端实例和 `requireNode` 依赖。`requireNode` 指向的核心组件由基础软件批量更新提供，不复制进能力包。ZIP 不得包含 `node_modules`、`.generated`、缓存、日志、State 数据、账号令牌或其它本地凭证。
+
+发布者在群消息中同时写明能力包 ID、版本、用途摘要、最低 GraphFramework 版本、对应工作流知识库链接和 ZIP 的 SHA-256。附件是不可变发布快照；更新时发送新版本文件和新摘要，不覆盖旧附件，也不把群聊消息当作工作流正文。
+
+接收方只接收可信团队成员发布的包，先核对文件名、版本和 SHA-256，再解压到受管理的能力目录，并把其中的 assembly 模块加入主 run 的 `assembly.modules`。assembly 是会在取得 run 锁前执行的可信代码，不能直接装载来源不明的群聊附件。装配后先执行 run 配置校验，再通过唯一入口 `run.sh` 启动。
+
+多个能力包重复贡献完全相同的插件、Node/Graph 实例或前端实例时，由 run 装配按 ID 自动去重，不需要人为复制或改名。相同 ID 的工厂、参数、bindings 或来源不同则是真实冲突；Agent 必须比较双方定义，明确选择保留版本或在扩展插件中做兼容，禁止静默覆盖核心 Owner。
+
+### 3.2 发布与接收顺序
+
+发布顺序固定为：先更新飞书知识库中的知识或工作流页面并标注所需能力版本；再验证 assembly 能在完整主 run 中装配；随后压缩能力目录、计算 SHA-256，并在指定群聊发送附件及上述元数据。
+
+接收顺序固定为：从 `AGENTS.md` 定位知识库页面并确认需要的能力版本；从指定群聊取得对应 ZIP；校验发布者、版本与摘要；解压并选择 assembly；运行配置校验；若没有冲突则并入统一主 run。工作流页面的更新不自动修改代码，能力包更新也不自动改写成员的 `AGENTS.md`。
+
+当前仓库已经支持执行 assembly contribution 和重复声明去重，但尚未提供自动压缩、摘要生成、群聊上传、下载或安装脚本；在这些工具落地前，上述步骤由成员或 Agent 显式完成，不能宣称已经自动发布。
+
+## 4. 独立制品与兼容信息
 
 按实际发布范围交付制品，并为每个制品提供独立版本、内容清单、SHA-256 和接入指南：
 
@@ -70,7 +111,7 @@ JavaScript 可用 N-API 或 daemon，Python SDK 当前使用 daemon；Python cty
 | Rust C ABI | 动态库、头文件、协议版本与宿主 State 所有权说明 |
 | Rust N-API | 按平台命名的 `.node` 及包内定位说明 |
 | 普通业务插件 | 含 OKF、接入指南、推荐折叠配置的版本化 ZIP |
-| 组合能力分享包 | 工作流数据库引用、run assembly contribution，以及该贡献实际提供的后端/前端插件 ZIP；不复制 `requireNode` 指向的核心组件 |
+| 组合能力分享包 | 飞书知识库工作流链接、run assembly contribution，以及该贡献实际提供的后端/前端插件 ZIP；不复制 `requireNode` 指向的核心组件 |
 | 桌面应用 | 对应平台的 Electron 分发制品及 application 配置 |
 
 发布清单记录 SDK、daemon、C ABI、N-API 与桌面宿主兼容版本，插件声明实际需要的最低版本。当前 desktop/frontend 使用源码和本仓库 file 依赖；run 已能执行代码 assembly contribution，但尚没有 Electron 安装包制作、组合能力压缩脚本或插件 ZIP 安装工具。正式分发必须单独验证这些边界，不能把本地 build 成功当作发布完成。
@@ -79,7 +120,7 @@ JS SDK 的默认运行出口是 dist，`graphframework-source` 条件供能够�
 
 SDK 和 Rust 微内核都不负责 Git 拉取、编译器定位、虚拟环境创建、依赖安装、构建、文件监听或进程守护。接收者的外层工具可以提供这些能力。generation 替换继续刻意丢弃旧 backlog、重置 State、使旧租约失效；不增加自动回滚、State 继承/迁移或跨代消息保留。
 
-## 4. 独立目录发布验收
+## 5. 独立目录发布验收
 
 在仓库外的空目录执行，保留实际命令、平台、版本和测试结果：
 
@@ -93,7 +134,7 @@ SDK 和 Rust 微内核都不负责 Git 拉取、编译器定位、虚拟环境�
 
 演练不得读取 GVSDK 源码目录，也不要求插件位于固定位置。每个 operation 的 schema/黄金用例完整性、完整镜像矩阵、多平台制品和独立包演练都应作为独立验收项记录；当前契约文件数量或局部测试不能替代它们。
 
-## 5. 性能与完成判据
+## 6. 性能与完成判据
 
 执行热路径只维护必要的调度、revision 与有界事件，不解析分析事实或运行结构算法。分析按请求取得一致快照后计算，State 值变化不触发无关索引重建；Node/上下文/字段集合变化必须使相关缓存失效。见[常驻 Rust 图宿主协议](../protocols/kernel-daemon-protocol.md)。
 

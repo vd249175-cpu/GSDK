@@ -32,7 +32,7 @@ GraphFramework 是一个面向桌面与后端系统的因果应用微内核运�
 ### 4. 协作、分发与演进契约 ([contracts/](contracts/))
 - [插件全景与契约索引](contracts/plugins-reference.md)：业务插件规范、Node/Info/Element 清单与内核稳定消费规约。
 - [插件发布与协作契约](contracts/plugin-collaboration-contract.md)：正式插件所有权、禁止污染、独立插件扩展与发布规则。
-- [SDK 与插件分发验收契约](contracts/distribution-contract.md)：七能力面镜像、独立制品、版本兼容与性能要求。
+- [SDK、插件与飞书协作分发契约](contracts/distribution-contract.md)：飞书知识库与群聊双通道分享、七能力面镜像、独立制品、版本兼容与性能要求。
 - [多 Agent 独立开发与运行协作指南](contracts/multi-agent-run-guide.md)：已确认的命名 run、目录所有权与 Bash 启停并行隔离规范。
 - [统一 run 实施计划](contracts/unified-run-plan.md)：默认应用、图片段和场景测试迁入统一配置驱动运行机制。
 

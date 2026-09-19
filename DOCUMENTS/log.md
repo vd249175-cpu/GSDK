@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-09-19
+* **Update**: 确立飞书双通道分享策略：知识与工作流正文进入共同维护的知识库，版本化 assembly 能力 ZIP 经指定群聊分发，核心软件继续批量更新。
 * **Update**: 引入可分享的 run 代码装配贡献，统一表达插件、Node/Graph 工厂、绑定、前端实例和既有 Node 依赖；相同定义自动去重，冲突在启动前报告。
 * **Update**: 明确 JS 静态因果事实只通过 TypeScript AST 与实例数据生成，禁止使用正则、源码子串或括号计数推导关系。
 * **Update**: 记录 `mountDomainNode` 生成 `PortableAnalysisSnapshot`、Rust 保存事实、`readStaticTopology` 仅聚合已保存 send 证据的边界。
