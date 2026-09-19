@@ -71,8 +71,18 @@
   --icon-node-audio: #059669;
   --icon-node-style: #ca8a04;
   --canvas-grid-dot: rgba(115, 86, 177, 0.08);
-  --edge-conduit: rgba(115, 86, 177, 0.35);
   --port-idle: #9286a6;
+  --node-bg: #ffffff;
+  --node-header-bg: #fbfbfe;
+  --node-border: #e9e5f2;
+  --node-border-selected: #7356b1;
+  --node-port-in: #7356b1;
+  --node-port-out: #b8860b;
+  --node-port-idle: #9286a6;
+  --edge-conduit-default: #d7d0e5;
+  --edge-conduit-active: #7356b1;
+  --edge-conduit-pulse: #9370db;
+  --node-subtitle-bg: #f7f6fa;
 
   /* Scrollbars and Overlays */
   --scrollbar-thumb: rgba(115, 86, 177, 0.2);
@@ -206,8 +216,18 @@
   --icon-node-audio: #059669;
   --icon-node-style: #ca8a04;
   --canvas-grid-dot: rgba(179, 57, 47, 0.08);
-  --edge-conduit: rgba(179, 57, 47, 0.35);
   --port-idle: #968582;
+  --node-bg: #ffffff;
+  --node-header-bg: #fcfbfa;
+  --node-border: #e8e6e0;
+  --node-border-selected: #b3392f;
+  --node-port-in: #b3392f;
+  --node-port-out: #c27c2c;
+  --node-port-idle: #968582;
+  --edge-conduit-default: #d5d1c8;
+  --edge-conduit-active: #b3392f;
+  --edge-conduit-pulse: #d97706;
+  --node-subtitle-bg: #f7f6f3;
 
   /* Scrollbars and Overlays */
   --scrollbar-thumb: rgba(179, 57, 47, 0.2);

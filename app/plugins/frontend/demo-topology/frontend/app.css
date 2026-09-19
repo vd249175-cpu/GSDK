@@ -598,7 +598,7 @@ body {
   width: 220px;
   flex: none;
   border-left: 1px solid var(--border-subtle, #22252c);
-  background: var(--surface-header, #111318);
+  background: var(--surface-panel-subtle, #111318);
   padding: 12px;
   overflow-y: auto;
 }
@@ -622,7 +622,7 @@ body {
   width: 230px;
   flex: none;
   border-right: 1px solid var(--border-subtle, #22252c);
-  background: var(--surface-header, #111318);
+  background: var(--surface-panel-subtle, #111318);
   padding: 12px;
   overflow-y: auto;
 }

@@ -58,6 +58,17 @@
   --canvas-grid-dot: rgba(148, 163, 184, 0.08);
   --edge-conduit: rgba(100, 116, 139, 0.45);
   --port-idle: #64748b;
+  --node-bg: #14171d;
+  --node-header-bg: #1a1d24;
+  --node-border: #2a2e38;
+  --node-border-selected: #38bdf8;
+  --node-port-in: #38bdf8;
+  --node-port-out: #f59e0b;
+  --node-port-idle: #64748b;
+  --edge-conduit-default: #334155;
+  --edge-conduit-active: #38bdf8;
+  --edge-conduit-pulse: #facc15;
+  --node-subtitle-bg: rgba(255, 255, 255, 0.04);
 
   /* Semantic tokens */
   --surface-canvas: var(--palette-neutral-950);

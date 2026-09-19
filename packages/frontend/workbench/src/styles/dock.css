@@ -205,9 +205,13 @@
 .dock-resizer {
   z-index: 10;
   padding: 0;
-  background: var(--surface-app);
+  margin: 0;
+  border: none;
+  outline: none;
+  background: var(--border-subtle);
   border-radius: 0;
   touch-action: none;
+  transition: background-color 0.12s linear;
 }
 
 .dock-split.is-horizontal > .dock-resizer {
@@ -220,7 +224,7 @@
 
 .dock-resizer:hover,
 .is-resizing .dock-resizer {
-  background: var(--surface-selected);
+  background: var(--accent-primary);
 }
 
 body.is-resizing {

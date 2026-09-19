@@ -72,6 +72,7 @@
   --edge-conduit-default: #334155;
   --edge-conduit-active: #38bdf8;
   --edge-conduit-pulse: #facc15;
+  --node-subtitle-bg: rgba(255, 255, 255, 0.04);
 
   /* Source palette: preserves existing component tones during migration. */
   --palette-source-hex-0003: #0003;

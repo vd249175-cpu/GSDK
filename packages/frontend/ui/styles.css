@@ -292,8 +292,8 @@
   padding: 2px 8px;
   font-size: var(--font-size-xs, 9px);
   color: var(--text-tertiary, #64748b);
-  border-bottom: 1px solid var(--border-subtle, #22252c);
-  background: rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid var(--node-border, var(--border-subtle, #22252c));
+  background: var(--node-subtitle-bg, var(--surface-panel-subtle, rgba(0, 0, 0, 0.04)));
 }
 
 .gv-node-body {
@@ -358,7 +358,7 @@
   gap: 6px;
   padding: 2px 0;
   font-size: var(--font-size-xs, 10px);
-  border-bottom: 1px dotted var(--border-subtle, #22252c);
+  border-bottom: 1px dotted var(--node-border, var(--border-subtle, #22252c));
 }
 
 .gv-node-prop-key {
