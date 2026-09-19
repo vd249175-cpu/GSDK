@@ -14,9 +14,10 @@ case "$op" in
     [[ ! -f "$runtime/run.lock.json" ]] || { echo 'Run is already active' >&2; exit 1; }
     mkdir -p "$runtime" "$config_dir/.generated/logs"
     run_id="$(node "$cli" id)"
-    nohup bash "$repo_root/packages/tooling/run/supervisor.sh" "$config" "$run_id" >>"$config_dir/.generated/logs/supervisor.log" 2>&1 &
+    nohup bash "$repo_root/packages/tooling/run/supervisor.sh" "$config" "$run_id" >>"$config_dir/.generated/logs/supervisor.log" 2>&1 & disown 2>/dev/null || true
     trap 'node "$cli" stop "$config" >&2; exit 130' INT TERM HUP
     node "$cli" await-start "$config" "$run_id"
+    trap - INT TERM HUP
     ;;
   *) echo 'Unknown run operation' >&2; exit 2 ;;
 esac

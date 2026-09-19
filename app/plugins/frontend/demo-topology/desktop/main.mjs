@@ -8,6 +8,12 @@ const context = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const runtime = context.runtimeDirectory;
 const token = readFileSync(join(runtime, 'control-token'), 'utf8').trim();
 
+process.on('uncaughtException', (err) => console.error('[Host UncaughtException]', err?.stack ?? err));
+process.on('unhandledRejection', (err) => console.error('[Host UnhandledRejection]', err?.stack ?? err));
+app.on('window-all-closed', () => console.log('[Host] window-all-closed'));
+app.on('before-quit', (e) => console.log('[Host] before-quit'));
+app.on('will-quit', () => console.log('[Host] will-quit'));
+
 let mainWindow = null;
 let orderCount = 1;
 let stopped = false;
@@ -148,11 +154,19 @@ async function startHost() {
     },
   });
 
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    console.log(`[Renderer L${level}] ${message} (${sourceId}:${line})`);
+  });
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    console.error(`[Renderer did-fail-load] ${errorCode}: ${errorDescription}`);
+  });
+
   mainWindow.loadFile(context.rendererFile);
 
   mainWindow.on('close', (event) => {
+    console.log('[Host] mainWindow close event, stopped:', stopped);
     if (!stopped) {
-      callRunControl(runtime, 'request-stop').catch(() => {});
+      callRunControl(runtime, 'request-stop').catch((err) => console.error('[Host] request-stop error:', err));
     }
   });
 }
