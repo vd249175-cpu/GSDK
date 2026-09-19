@@ -1,5 +1,4 @@
-import { isAbsolute, resolve } from 'node:path';
-import { basename, dirname } from 'node:path';
+import { basename, isAbsolute, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { assertInsideRun } from './paths.mjs';
 
@@ -113,6 +112,24 @@ function normalizeInstances(value, pluginIds) {
   return normalized;
 }
 
+function normalizeAssembly(value, baseDirectory) {
+  if (value === undefined) return { modules: [], resolved: true, contributions: [], requiredNodeIds: [] };
+  assertObject(value, 'assembly');
+  assertNoUnknown(value, ['modules'], 'assembly');
+  const modules = value.modules ?? [];
+  if (!Array.isArray(modules)) fail('assembly.modules must be an array');
+  const unique = [];
+  const seen = new Set();
+  for (const [index, modulePath] of modules.entries()) {
+    if (typeof modulePath !== 'string' || !modulePath) fail(`assembly.modules[${index}] must be a module path`);
+    const absolute = resolve(baseDirectory, modulePath);
+    if (seen.has(absolute)) continue;
+    seen.add(absolute);
+    unique.push(absolute);
+  }
+  return { modules: unique, resolved: unique.length === 0, contributions: [], requiredNodeIds: [] };
+}
+
 function normalizeInfos(value, name) {
   if (value === undefined) return [];
   if (!Array.isArray(value)) fail(`${name} must be an array`);
@@ -201,7 +218,7 @@ function expandInstanceNodeIds(instances) {
   return ids;
 }
 
-function normalizeScenarios(value, instances) {
+function normalizeScenarios(value, instances, allowAssemblyTargets = false) {
   if (value === undefined || value === null) return null;
   if (!Array.isArray(value)) fail('scenarios must be an array or null');
   const nodeIds = expandInstanceNodeIds(instances);
@@ -219,14 +236,14 @@ function normalizeScenarios(value, instances) {
     for (const input of inputs) {
       const ok = nodeIds.has(input.targetNodeId)
         || [...nodeIds].some((id) => id.endsWith('/*') && input.targetNodeId.startsWith(id.slice(0, -1)));
-      if (!ok) fail(`${name} input targets an unassembled instance: ${input.targetNodeId}`);
+      if (!allowAssemblyTargets && !ok) fail(`${name} input targets an unassembled instance: ${input.targetNodeId}`);
     }
     const assertionScope = new Set([
       ...nodeIds,
       ...inputs.map((input) => input.targetNodeId),
     ]);
     const assertions = normalizeAssertions(scenario.assertions ?? [], index, {
-      has: (id) => assertionScope.has(id)
+      has: (id) => allowAssemblyTargets || assertionScope.has(id)
         || [...assertionScope].some((known) => known.endsWith('/*') && id.startsWith(known.slice(0, -1))),
     });
     const timeoutMs = scenario.timeoutMs ?? 30_000;
@@ -294,7 +311,7 @@ export function parseRunConfig(document, { configPath, baseDirectory }) {
   assertObject(document, 'run configuration');
   assertNoUnknown(
     document,
-    ['version', 'name', 'plugins', 'kernel', 'backend', 'frontend', 'graph', 'lifecycle', 'scenarios', 'resources'],
+    ['version', 'name', 'assembly', 'plugins', 'kernel', 'backend', 'frontend', 'graph', 'lifecycle', 'scenarios', 'resources'],
     'run configuration',
   );
   if (document.version !== RUN_CONFIG_VERSION) {
@@ -309,6 +326,7 @@ export function parseRunConfig(document, { configPath, baseDirectory }) {
     }
   }
   const plugins = normalizePlugins(document.plugins ?? {}, baseDirectory);
+  const assembly = normalizeAssembly(document.assembly, baseDirectory);
   const pluginIds = {
     backend: new Set(plugins.backend.map((plugin) => plugin.id)),
     frontend: new Set(plugins.frontend.map((plugin) => plugin.id)),
@@ -364,6 +382,7 @@ export function parseRunConfig(document, { configPath, baseDirectory }) {
     configPath,
     baseDirectory,
     runName: basename(baseDirectory),
+    assembly,
     plugins,
     kernel: {
       daemonPath,
@@ -375,7 +394,41 @@ export function parseRunConfig(document, { configPath, baseDirectory }) {
     frontend,
     graph: { instances },
     lifecycle: { initInfos, startInfos, stopInfos, ready, timeouts },
-    scenarios: normalizeScenarios(document.scenarios, instances),
+    scenarios: normalizeScenarios(document.scenarios, instances, assembly.modules.length > 0),
     resources,
+  };
+}
+
+export function mergeRunAssemblyDeclarations(parsed, additions) {
+  const plugins = normalizePlugins({
+    backend: [
+      ...parsed.plugins.backend.map(({ id, path }) => ({ id, path })),
+      ...(additions.plugins?.backend ?? []),
+    ],
+    frontend: [
+      ...parsed.plugins.frontend.map(({ id, path }) => ({ id, path })),
+      ...(additions.plugins?.frontend ?? []),
+    ],
+  }, parsed.baseDirectory);
+  const pluginIds = {
+    backend: new Set(plugins.backend.map((plugin) => plugin.id)),
+    frontend: new Set(plugins.frontend.map((plugin) => plugin.id)),
+    has: (id) => plugins.backend.some((plugin) => plugin.id === id),
+  };
+  const stripInstance = ({ kind, id, factory, params, bindings }) => ({ kind, id, factory, params, bindings });
+  const instances = normalizeInstances([
+    ...parsed.graph.instances.map(stripInstance),
+    ...(additions.graph?.instances ?? []),
+  ], pluginIds);
+  const frontend = normalizeFrontend({ instances: [
+    ...parsed.frontend.instances,
+    ...(additions.frontend?.instances ?? []),
+  ] }, pluginIds);
+  return {
+    ...parsed,
+    plugins,
+    graph: { instances },
+    frontend,
+    scenarios: normalizeScenarios(parsed.scenarios, instances),
   };
 }

@@ -1,10 +1,9 @@
 {
   "version": 2,
   "name": "alice",
+  "assembly": { "modules": ["assembly.mjs"] },
   "plugins": {
-    "backend": [
-      { "id": "example.hello-counter", "path": "../../app/plugins/backend/hello-counter" }
-    ],
+    "backend": [],
     "frontend": []
   },
   "kernel": {
@@ -20,13 +19,7 @@
     "instances": []
   },
   "graph": {
-    "instances": [
-      {
-        "kind": "node",
-        "id": "example.counter",
-        "factory": { "plugin": "example.hello-counter", "name": "createCounterNode" }
-      }
-    ]
+    "instances": []
   },
   "lifecycle": {
     "initInfos": [],

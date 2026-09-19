@@ -5,6 +5,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { parseRunConfig } from './config.mjs';
+import { resolveRunAssembly } from './assembly.mjs';
 import { writeSnapshotRecord, writeJsonRecord, appendStageLog } from './record.mjs';
 import { callRunControl } from './control.mjs';
 import { connectRunDaemon } from './mount.mjs';
@@ -49,8 +50,8 @@ export function startResult(config, result) {
 const shellQuote = (value) => `'${String(value).replaceAll("'", "'\"'\"'")}'`;
 
 /** Prepare immutable inputs. Rust and all hosts are started by Bash. */
-export function prepareRun(config, runId = randomUUID()) {
-  const parsed = loadRunConfig(config);
+export async function prepareRun(config, runId = randomUUID()) {
+  const parsed = await resolveRunAssembly(loadRunConfig(config));
   const runtime = runtimeFor(config);
   if (parsed.resources.runtimeDirectory !== runtime || parsed.resources.generatedDirectory !== join(parsed.baseDirectory, '.generated')) {
     throw new Error('generated/runtime directories must use this run .generated and .generated/runtime');

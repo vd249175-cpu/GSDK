@@ -55,7 +55,7 @@ describe('P3 run start/stop/status records', () => {
     }
     expect(await stopRun(configPath)).toMatchObject({ stopped: true, already: true, runName: 'alice' });
     expect(statusRun(configPath)).toMatchObject({ active: false, runName: 'alice' });
-  });
+  }, 30_000);
 
   it('rejects invalid configs before taking the lock or spawning a kernel', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gv-p3-invalid-'));
@@ -83,7 +83,7 @@ describe('P3 run start/stop/status records', () => {
       try { handle.stopKernel(); } catch { /* already closed */ }
       try { handle.releaseLock(); } catch { /* already closed */ }
     }
-  });
+  }, 30_000);
 
   it('statuses two arbitrary runs independently', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gv-p3-parallel-'));

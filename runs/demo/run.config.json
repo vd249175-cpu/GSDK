@@ -1,19 +1,12 @@
 {
   "version": 2,
   "name": "demo",
+  "assembly": {
+    "modules": ["assembly.mjs"]
+  },
   "plugins": {
-    "backend": [
-      {
-        "id": "demo.topology",
-        "path": "../../app/plugins/backend/demo-topology"
-      }
-    ],
-    "frontend": [
-      {
-        "id": "demo.topology",
-        "path": "../../app/plugins/frontend/demo-topology"
-      }
-    ]
+    "backend": [],
+    "frontend": []
   },
   "kernel": {
     "daemonPath": "../../packages/rust/target/debug/graphframework-kernel-daemon",
@@ -25,26 +18,10 @@
     "dependencies": {}
   },
   "frontend": {
-    "instances": [
-      {
-        "id": "demo-ui",
-        "plugin": "demo.topology",
-        "graph": "topology",
-        "entry": null
-      }
-    ]
+    "instances": []
   },
   "graph": {
-    "instances": [
-      {
-        "kind": "graph",
-        "id": "topology",
-        "factory": {
-          "plugin": "demo.topology",
-          "name": "createDemoTopologyGraph"
-        }
-      }
-    ]
+    "instances": []
   },
   "lifecycle": {
     "initInfos": [],

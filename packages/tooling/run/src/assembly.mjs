@@ -1,6 +1,74 @@
 import { readFileSync } from 'node:fs';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { mergeRunAssemblyDeclarations } from './config.mjs';
+
+export function defineRunAssemblyContribution(definition) {
+  if (!definition || typeof definition !== 'object' || Array.isArray(definition)) {
+    throw new Error('Run assembly contribution must be an object');
+  }
+  if (typeof definition.id !== 'string' || !definition.id) {
+    throw new Error('Run assembly contribution requires an id');
+  }
+  if (typeof definition.contribute !== 'function') {
+    throw new Error(`Run assembly contribution ${definition.id} requires contribute(run)`);
+  }
+  return Object.freeze({ id: definition.id, contribute: definition.contribute });
+}
+
+export async function resolveRunAssembly(parsed) {
+  if (parsed.assembly?.resolved !== false) return parsed;
+  const additions = {
+    plugins: { backend: [], frontend: [] },
+    graph: { instances: [] },
+    frontend: { instances: [] },
+  };
+  const requiredNodeIds = new Set(parsed.assembly.requiredNodeIds ?? []);
+  const contributions = [];
+  const contributionModules = new Map();
+  for (const modulePath of parsed.assembly.modules) {
+    const loaded = await nativeImport(pathToFileURL(modulePath).href);
+    const contribution = defineRunAssemblyContribution(loaded.default ?? loaded.contribution);
+    const previous = contributionModules.get(contribution.id);
+    if (previous) {
+      throw new Error(`Run assembly contribution conflict: ${contribution.id}; existing=${previous} incoming=${modulePath}`);
+    }
+    contributionModules.set(contribution.id, modulePath);
+    const moduleDirectory = dirname(modulePath);
+    const addPlugin = (kind, entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error(`${contribution.id} ${kind}Plugin requires an object`);
+      additions.plugins[kind].push({ ...entry, path: resolve(moduleDirectory, entry.path) });
+    };
+    const addInstance = (kind, entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error(`${contribution.id} ${kind} requires an object`);
+      const { id, plugin, factory, params = {}, bindings = {} } = entry;
+      additions.graph.instances.push({ kind, id, factory: { plugin, name: factory }, params, bindings });
+    };
+    const run = Object.freeze({
+      backendPlugin: (entry) => addPlugin('backend', entry),
+      frontendPlugin: (entry) => addPlugin('frontend', entry),
+      node: (entry) => addInstance('node', entry),
+      graph: (entry) => addInstance('graph', entry),
+      frontend: (entry) => additions.frontend.instances.push({ ...entry }),
+      requireNode: (nodeId) => {
+        if (typeof nodeId !== 'string' || !nodeId) throw new Error(`${contribution.id} requireNode requires a Node ID`);
+        requiredNodeIds.add(nodeId);
+      },
+    });
+    await contribution.contribute(run);
+    contributions.push({ id: contribution.id, module: modulePath });
+  }
+  const resolved = mergeRunAssemblyDeclarations(parsed, additions);
+  return {
+    ...resolved,
+    assembly: {
+      ...parsed.assembly,
+      resolved: true,
+      contributions,
+      requiredNodeIds: [...requiredNodeIds],
+    },
+  };
+}
 
 /**
  * Loads split backend plugin modules and constructs exactly the Nodes named
@@ -27,6 +95,7 @@ import { pathToFileURL } from 'node:url';
  * to the run's data directory, never Electron IPC.
  */
 export async function loadRunNodes(parsed, dependencies = {}) {
+  parsed = await resolveRunAssembly(parsed);
   const backends = new Map();
   const modules = new Map();
   const backendPlugins = parsed.plugins.backend;
@@ -89,7 +158,10 @@ export async function loadRunNodes(parsed, dependencies = {}) {
         rendererRoots.push({ targetNodeId, infoType: root.infoType, validate: validator.validate });
       }
     }
-    return { backends, nodes: constructed, expandedNodeIds, rendererRoots };
+    for (const nodeId of parsed.assembly?.requiredNodeIds ?? []) {
+      if (!expandedNodeIds.has(nodeId)) throw new Error(`Assembly requires missing Node: ${nodeId}`);
+    }
+    return { parsed, backends, nodes: constructed, expandedNodeIds, rendererRoots };
   } catch (error) {
     const cleanup = await Promise.allSettled(constructed.map((node) => node?.dispose?.()));
     const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : []);

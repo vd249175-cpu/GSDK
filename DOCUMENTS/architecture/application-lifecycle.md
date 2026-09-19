@@ -26,7 +26,7 @@ STOP_STAGES = stopping → settled → evicted → kernel-stopped → hosts-stop
 prepare（校验配置 + 原子取得 run.lock + 写 environment.sh/快照）
 → 启动空 Rust kernel-daemon，等待 RPC ready（kernel-ready）
 → 启动后端宿主，确认可装配（hosts-ready）
-→ assemble：只构造配置 graph.instances 选中的实例，未选不构造
+→ assemble：解析选中的 assembly 代码贡献，只构造归并后的实例，未选不构造
 → admit：全部实例 admit 后 worker 才 claim，再挂 provider（admitted/workers-ready）
 → initialize：注入 lifecycle.initInfos，经同一结算屏障确认（initialized）
 → start：注入 lifecycle.startInfos + lifecycle.ready 状态等待（started/running）

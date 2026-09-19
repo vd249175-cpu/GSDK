@@ -25,10 +25,10 @@ Rust 调度器另有 C ABI，供非 JS 宿主直接调用相同的 `admit/send/p
 ## 2. 一个业务执行面：命名 run
 
 ```text
-runs/<name>/run.config.json（显式配置：插件、实例、初始化/启停 Info、场景、资源）
+runs/<name>/run.config.json + assembly.mjs（物理配置 + 可分享的代码装配贡献）
  ▼ run.sh start
 Rust kernel-daemon 进程（本 run 独占：调度、submission、权威 JSON State、generation）
- ├─ 真实 Node 切片（run assembly：只构造配置实例，未选不构造）
+ ├─ 真实 Node 切片（run assembly：代码贡献插件、实例、绑定和前端，未选不构造）
  │  ├─ 后端 worker：认领实例、执行 change、提交 commit
  │  └─ Effect provider：认领 Adapter、执行物理、回传 Observation
  ├─ 构造注入的 EffectAdapter（run 作用域端口；Electron 窗口 provider 只在前端宿主）
@@ -43,8 +43,8 @@ Rust kernel-daemon 进程（本 run 独占：调度、submission、权威 JSON S
   ├─ @graphframework/sdk/analysis：JS 实例事实生成器、分析 DTO 与显式离线纯算法，不启动 Runtime
   └─ tooling/run：assembly（精确切片）/ mount（admit→claim→poll）/ scenario（同运行断言）/ lifecycle（对称启停记录）
 
-`runs/demo` 以 `graph.instances` 选中 `createDemoTopologyGraph` 装配订单履约图，可选 `backend.host` 注入外层 run 宿主能力（如构造期依赖与前端命令面）；`runs/alice` 等模板 run 只装配 counter 单节点。前端宿主（如 demo 的 Electron `desktop/main.mjs`）读取 run `context.json`，经 run 控制面拉取投影、用 `defaultValueCodec.decode` 解码后渲染，并经 `inject-renderer` 把已选工厂的公开根命令（`SubmitOrder → <graph>/orders`）注入；可信宿主观察入口另行校验。JSON 传输用 `daemonValueCodec` 无截断保留 Map、Set 等 State 值。正常 stop 读取活动快照，即使 live config 修改或删除也使用原始关闭 Info；先关闭前端命令入口（`gate`）并结算业务，再停止观察源、释放 worker/provider 租约、evict 和本地 dispose，由 Bash 关闭并等待 Rust、前端和后端退出。清理错误保留认证控制接口与锁，返回失败并允许下一次 stop 重试；成功后清除凭证和生成的环境文件。
-run 配置归一化会在工厂执行前按 ID 去除定义完全相同的插件、图实例和前端实例声明，使多个工作流可以安全复用同一不可变 Node 组件。相同 ID 若指向不同工厂、参数、绑定或来源则属于装配冲突，配置错误会同时给出既有定义和传入定义，供 Agent 比较后修改装配或扩展侧兼容；运行时不静默替换 State Owner。
+`runs/demo/assembly.mjs` 以代码贡献 `demo.topology` 后端、前端、`createDemoTopologyGraph` 图实例及 UI 绑定；`runs/alice` 等模板的 assembly 贡献 counter 单节点。`run.config.json` 只选择可信 assembly 模块并保存内核、生命周期和资源参数；可选 `backend.host` 注入外层 run 宿主能力（如构造期依赖与前端命令面）。前端宿主（如 demo 的 Electron `desktop/main.mjs`）读取 run `context.json`，经 run 控制面拉取投影、用 `defaultValueCodec.decode` 解码后渲染，并经 `inject-renderer` 把已选工厂的公开根命令（`SubmitOrder → <graph>/orders`）注入；可信宿主观察入口另行校验。JSON 传输用 `daemonValueCodec` 无截断保留 Map、Set 等 State 值。正常 stop 读取活动快照，即使 live config 修改或删除也使用原始关闭 Info；先关闭前端命令入口（`gate`）并结算业务，再停止观察源、释放 worker/provider 租约、evict 和本地 dispose，由 Bash 关闭并等待 Rust、前端和后端退出。清理错误保留认证控制接口与锁，返回失败并允许下一次 stop 重试；成功后清除凭证和生成的环境文件。
+assembly 代码通过 `backendPlugin/frontendPlugin/node/graph/frontend/requireNode` 贡献装配事实；解析器在取得锁和物理资源前执行这些可信模块。归一化会在工厂执行前按 ID 去除定义完全相同的插件、图实例和前端实例声明，使多个工作流可以安全复用同一不可变 Node 组件；`requireNode` 只声明对已有 Owner 的依赖。同 ID 若指向不同工厂、参数、绑定或来源则属于装配冲突，配置错误会同时给出既有定义和传入定义，供 Agent 比较后修改装配或扩展侧兼容；运行时不静默替换 State Owner。
 前端构建（`buildRunFrontends`）把配置中的前端入口打包进本 run `.generated/frontend/<id>/`（产物 `dist/`、宿主 `host.mjs`、注入的 `context.json`），supervisor 再用平台 Electron 二进制执行 `host.mjs`。前端 Ready 除业务 `started` 外，还要求各前端实例 `health` 通过；有场景的 run 在场景报告后走同一关闭路径自动退出。
 
 ## 3. 权限与归属

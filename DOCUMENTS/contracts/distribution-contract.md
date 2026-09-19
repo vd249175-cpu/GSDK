@@ -52,6 +52,8 @@ JavaScript 可用 N-API 或 daemon，Python SDK 当前使用 daemon；Python cty
 
 这是正式交付要求，不是当前示例插件全部具备这些文件的声明。PACKAGE.md 使用 OKF，记录职责、发布者、公开 Info/Projection、兼容版本、整体更新限制、升级影响和摘要。推荐折叠文件覆盖该插件的全部基础 Node；完整应用的 folds 由消费方显式组合，不由 Rust 自动合并。
 
+需要通过聊天工具分享一组后端 Node、前端和它们的组合关系时，外层压缩包还必须携带一个 run assembly contribution。该模块通过 `backendPlugin/frontendPlugin/node/graph/frontend/requireNode` 重新建立实例、绑定、UI 与既有核心 Node 依赖；工作流和知识正文仍可只保存在共享数据库中。只压缩插件目录而不携带 assembly，会丢失跨插件装配逻辑，不能视为可运行的完整分享物。
+
 前端保持达芬奇色彩与排版语言、现有工作台切分/停靠/尺寸调整/浮动页面、刷新与页面联动。面板内部按钮、表单和业务命令由插件自行实现，不要求统一控件 DSL；无用户操作需求的后台插件无需前端。
 
 ## 3. 独立制品与兼容信息
@@ -68,9 +70,10 @@ JavaScript 可用 N-API 或 daemon，Python SDK 当前使用 daemon；Python cty
 | Rust C ABI | 动态库、头文件、协议版本与宿主 State 所有权说明 |
 | Rust N-API | 按平台命名的 `.node` 及包内定位说明 |
 | 普通业务插件 | 含 OKF、接入指南、推荐折叠配置的版本化 ZIP |
+| 组合能力分享包 | 工作流数据库引用、run assembly contribution，以及该贡献实际提供的后端/前端插件 ZIP；不复制 `requireNode` 指向的核心组件 |
 | 桌面应用 | 对应平台的 Electron 分发制品及 application 配置 |
 
-发布清单记录 SDK、daemon、C ABI、N-API 与桌面宿主兼容版本，插件声明实际需要的最低版本。当前 desktop/frontend 使用源码和本仓库 file 依赖；没有 Electron 安装包制作或插件 ZIP 安装工具。正式分发必须单独验证这些边界，不能把本地 build 成功当作发布完成。
+发布清单记录 SDK、daemon、C ABI、N-API 与桌面宿主兼容版本，插件声明实际需要的最低版本。当前 desktop/frontend 使用源码和本仓库 file 依赖；run 已能执行代码 assembly contribution，但尚没有 Electron 安装包制作、组合能力压缩脚本或插件 ZIP 安装工具。正式分发必须单独验证这些边界，不能把本地 build 成功当作发布完成。
 
 JS SDK 的默认运行出口是 dist，`graphframework-source` 条件供能够加载 TypeScript 的源码宿主使用。仓库内 Vite/esbuild 明确绑定 SDK 源码；独立制品不得隐含依赖 GVSDK 的绝对路径或本仓库 source alias。Node_modules、Cargo target、缓存、密钥和用户数据不随插件交付。
 

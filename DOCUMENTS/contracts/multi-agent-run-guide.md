@@ -34,6 +34,7 @@ GVSDK/
 └─ runs/
    ├─ alice/                      # 任意分配的名称
    │  ├─ run.config.json          # 本 run 的运行与测试配置
+   │  ├─ assembly.mjs            # 插件、Node、绑定和前端的代码装配贡献
    │  ├─ start.sh / stop.sh       # 人类一键便捷启停脚本（Bash / 跨平台，透传委托根目录 run.sh）
    │  ├─ start.cmd / stop.cmd     # Windows 双击/命令行一键便捷脚本（透传委托根目录 run.sh）
    │  ├─ plugins/                 # 本 Agent 开发的普通插件
@@ -63,11 +64,11 @@ v2 配置与 `packages/tooling/run/src/config.mjs` 分开描述以下内容：
 
 | 配置部分 | 职责 |
 | --- | --- |
-| 版本与来源 | 配置版本、插件目录、公开装配入口和依赖 |
+| 版本与来源 | 配置版本、可信 `assembly.modules` 和宿主入口 |
 | 内核 | Rust 可执行文件、绑定参数、启动与关闭超时 |
 | 前端 | 入口、Element 集合、连接绑定、监听参数、是否启用 |
 | 后端 | 宿主入口、worker/provider 装配、Adapter 和物理能力 |
-| 图装配 | 实际节点实例及构造依赖，切片边界的明确处理 |
+| 图装配 | assembly 代码贡献实际节点实例、绑定、前端及 `requireNode` 依赖 |
 | 因果输入 | 定向初始化、启动和关闭 Info，类型与 payload 校验 |
 | 结算条件 | 就绪回执、在途工作屏障、关闭完成事实与超时 |
 | 场景 | 可选输入、投影与边界断言、时钟及结束条件 |
@@ -139,7 +140,7 @@ Bash 直接启动并等待 Rust、后端 Node 与前端 Electron 进程。配置
 
 ## 6. 任意图片段与初始化边界
 
-run 配置使用 `version: 2`。`graph.instances` 显式声明 `kind/id/factory/params/bindings`；单节点工厂收到实际 `nodeId`，图工厂通过 `nodeIdFor(localId)` 分配本实例地址。完全相同的插件、实例和前端声明按 ID 在工厂执行前自动去重，因此多个工作流可以无负担地复用同一不可变 Node 组件；同 ID 的工厂、参数、绑定或来源不同则报告双方定义为装配冲突，由 Agent 比较后修改装配、选择保留项或在扩展侧建立兼容，不能静默替换 Owner。`bindings` 可覆盖命名通信目标（如 demo `router/billing/inventory` 目标）；静态分析从实际实例的目标字段读取证据。
+run 配置使用 `version: 2`，以 `assembly.modules` 选择可信的代码装配模块。每个模块导出稳定 ID 和 `contribute(run)`，通过 `backendPlugin/frontendPlugin/node/graph/frontend/requireNode` 贡献可分享的完整组合；单节点工厂收到实际 `nodeId`，图工厂通过 `nodeIdFor(localId)` 分配本实例地址。完全相同的插件、实例和前端声明按 ID 在工厂执行前自动去重，因此多个工作流可以无负担地复用同一不可变 Node 组件；同 ID 的工厂、参数、绑定或来源不同则报告双方定义为装配冲突，由 Agent 比较后修改装配、选择保留项或在扩展侧建立兼容，不能静默替换 Owner。`bindings` 可覆盖命名通信目标（如 demo `router/billing/inventory` 目标）；`requireNode` 只确认所依赖的 Owner 已由完整装配提供；静态分析从实际实例的目标字段读取证据。
 
 运行配置显式选择真实节点实例，不能先装配整图再隐藏未选择节点。切片可以跨越插件目录，但插件协作必须遵守公开契约，不能相对导入其他插件的私有实现。
 

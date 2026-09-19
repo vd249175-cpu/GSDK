@@ -22,7 +22,26 @@ packages/frontend/
   client/ workbench/ context/ theme/ ui/
 ```
 
-当前 `app/application.json` 显式列出启用插件及目录（当前默认应用 `graphframework-demo` 装配 `demo.topology` 后端与前端），`packages/desktop/host/plugin-loader.mjs` 加载各插件后端构建入口，通用图宿主调用 `plugin.createNodes({ dependencies })` 并挂载到唯一 `NativeRuleSpace`。命名 run 的后端装配改走 `packages/tooling/run/src/assembly.mjs`：只调用配置 `graph.instances` 命中的 `nodeFactories/graphFactories`，未选实例不构造。renderer 通过构建期虚拟模块加载启用插件的 Element；不加载后端模块，也不持有 Kernel。当前没有 ZIP 安装器或自动目录监听发布流程。
+当前 `app/application.json` 显式列出启用插件及目录（当前默认应用 `graphframework-demo` 装配 `demo.topology` 后端与前端），`packages/desktop/host/plugin-loader.mjs` 加载各插件后端构建入口，通用图宿主调用 `plugin.createNodes({ dependencies })` 并挂载到唯一 `NativeRuleSpace`。命名 run 的生产装配走 `packages/tooling/run/src/assembly.mjs`：`run.config.json` 选择代码 assembly 模块，模块贡献命中的 `nodeFactories/graphFactories`、构造参数、目标绑定和前端实例，未选实例不构造。renderer 通过构建期虚拟模块加载启用插件的 Element；不加载后端模块，也不持有 Kernel。当前没有 ZIP 安装器或自动目录监听发布流程。
+
+## Run 代码装配贡献
+
+可分享能力以纯装配模块表达跨插件组合，而不是把业务关系留在接收方私有的 `run.config.json` 中：
+
+```js
+export default {
+  id: 'example.reconciliation',
+  contribute(run) {
+    run.backendPlugin({ id: 'example.finance', path: './backend' })
+    run.frontendPlugin({ id: 'example.finance', path: './frontend' })
+    run.node({ id: 'finance/reconciliation', plugin: 'example.finance', factory: 'createReconciliationNode', bindings: { orders: 'core.orders' } })
+    run.frontend({ id: 'finance-ui', plugin: 'example.finance', graph: 'finance' })
+    run.requireNode('core.orders')
+  },
+}
+```
+
+模块相对路径以 assembly 文件所在目录解析。贡献代码只描述构造与绑定，不启动进程、不读写业务 State，也不增加运行时 Edge/Flow；Node 内协作仍只通过实际 `ctx.send`。同一定义重复贡献会去重，定义不同的同 ID 贡献在取得运行锁前失败并报告双方定义。`requireNode` 不复制或构造依赖，只验证完整装配确实提供该 Node。
 
 正式插件与同事自行开发的自动化插件使用完全相同的运行接口；“核心”只表示发布与维护归属，不是另一种内核插件类型。发布包的不可修改边界、独立插件扩展方式、OKF 说明和折叠建议见[插件发布与协作契约](../contracts/plugin-collaboration-contract.md)。
 

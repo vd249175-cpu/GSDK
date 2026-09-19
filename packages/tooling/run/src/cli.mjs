@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { runBackend } from './host.mjs';
 import { buildRunFrontends, frontendOperation } from './frontend.mjs';
+import { resolveRunAssembly } from './assembly.mjs';
 import { callRunControl } from './control.mjs';
 import { prepareRun, kernelReady, kernelShutdown, awaitHost, awaitStart, readSnapshot, runtimeFor, updateSession, finalizeRun, statusRun, stopRun, startResult, sleep, loadRunConfig, resolveDaemonBinary } from './session.mjs';
 
@@ -11,8 +12,8 @@ const config = argument ? resolve(argument) : null;
 try {
   let result;
   if (op === 'id') result = randomUUID();
-  else if (op === 'validate') { resolveDaemonBinary(loadRunConfig(config)); result = { valid: true }; }
-  else if (op === 'prepare') result = prepareRun(config, extra);
+  else if (op === 'validate') { resolveDaemonBinary(await resolveRunAssembly(loadRunConfig(config))); result = { valid: true }; }
+  else if (op === 'prepare') result = await prepareRun(config, extra);
   else if (op === 'kernel-ready') result = await kernelReady(config);
   else if (op === 'kernel-shutdown') { await kernelShutdown(config); result = { shutdown: true }; }
   else if (op === 'backend') await runBackend(config);

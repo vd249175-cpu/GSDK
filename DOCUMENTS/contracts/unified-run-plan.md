@@ -185,7 +185,7 @@ M1：P1–P3 完成，任意最小片段可启动、停止、重启。M2：P4–
 ## 11. P6：默认应用切换与旧入口移除
 **修改范围：**demo 前端宿主（`app/plugins/frontend/demo-topology/desktop/main.mjs`）、后端工厂（`app/plugins/backend/demo-topology/index.mjs`）及前端界面；desktop package.json、`host/main.mjs` 和 application 参数；`runs/demo/run.config.json`。
 **任务：**
-1. demo run 配置显式列出订单履约图、前后端、项目参数和初始化/启停输入（`SubmitOrder → topology/orders`），使用 P1–P5 已验证机制。
+1. demo run 以 `assembly.mjs` 显式贡献订单履约图、前后端与构造绑定，配置保留初始化/启停输入（`SubmitOrder → topology/orders`）及物理运行参数，使用 P1–P5 已验证机制。
 2. Electron 只做前端宿主：读 run `context.json`，经 run 控制面读写投影/注入根 Info，不持有第二份权威 State。后端执行真实 demo Node，Electron 不装配内核。
 3. 旧 `npm start` 自启动装配已由 `host/main.mjs` 守卫拒绝；剩余工作是清理遗留插件目录（`app/plugins/demo-topology`、`app/plugins/hello-counter` 的 apiVersion 1 形态）与旧构建入口，不再新增自启动链路。
 4. 验证订单下单、扇出、回执汇总与投影；完整退出先结算业务、再推出节点、关闭内核及宿主。

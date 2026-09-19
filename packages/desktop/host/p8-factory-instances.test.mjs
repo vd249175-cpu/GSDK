@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { loadRunNodes } from '../../tooling/run/src/assembly.mjs';
+import { loadRunNodes, resolveRunAssembly } from '../../tooling/run/src/assembly.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const helloCounterDir = join(repoRoot, 'app', 'plugins', 'backend', 'hello-counter');
@@ -99,6 +99,98 @@ export default { id: 'example.contract' };
     const { nodes } = await loadRunNodes(parsed);
     expect(nodes.map((node) => node.id)).toEqual(['example.counter']);
     await nodes[0].dispose();
+  });
+
+  it('loads shareable code assembly contributions for backend Nodes and frontends', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'gv-p8-contribution-'));
+    temporaryRoots.push(root);
+    const frontendDir = join(root, 'frontend-plugin');
+    mkdirSync(frontendDir, { recursive: true });
+    writeFileSync(join(frontendDir, 'graphframework.plugin.json'), JSON.stringify({
+      id: 'example.counter-ui', name: 'Counter UI', version: '1.0.0', apiVersion: 2, kind: 'frontend',
+      contributes: { host: 'host.mjs', frontend: 'index.tsx', elements: [], workspaces: [] },
+    }));
+    const contributionPath = join(root, 'counter.assembly.mjs');
+    writeFileSync(contributionPath, `
+export default {
+  id: 'example.counter-capability',
+  contribute(run) {
+    for (let i = 0; i < 2; i += 1) {
+      run.backendPlugin({ id: 'example.hello-counter', path: ${JSON.stringify(helloCounterDir)} });
+      run.frontendPlugin({ id: 'example.counter-ui', path: ${JSON.stringify(frontendDir)} });
+      run.node({ id: 'example.counter', plugin: 'example.hello-counter', factory: 'createCounterNode' });
+      run.frontend({ id: 'counter-ui', plugin: 'example.counter-ui', graph: null });
+      run.requireNode('example.counter');
+    }
+  },
+};
+`);
+    const { loadRunConfig } = await import('../../tooling/run/src/lifecycle.mjs');
+    const configPath = writeRun(root, 'shared', baseDocument({
+      assembly: { modules: [contributionPath, contributionPath] },
+      plugins: { backend: [], frontend: [] },
+      graph: { instances: [] },
+      scenarios: [{
+        name: 'contributed-counter',
+        inputs: [{ targetNodeId: 'example.counter', info: { type: 'IncrementInfo' } }],
+        assertions: [{ nodeId: 'example.counter', state: { count: 1 } }],
+        timeoutMs: 1000,
+      }],
+    }));
+    const parsed = loadRunConfig(configPath);
+    expect(parsed.assembly.modules).toEqual([contributionPath]);
+    const resolved = await resolveRunAssembly(parsed);
+    expect(resolved.assembly.contributions).toEqual([{ id: 'example.counter-capability', module: contributionPath }]);
+    expect(resolved.plugins.backend).toHaveLength(1);
+    expect(resolved.plugins.frontend).toHaveLength(1);
+    expect(resolved.graph.instances).toHaveLength(1);
+    expect(resolved.frontend.instances).toHaveLength(1);
+    expect(resolved.assembly.requiredNodeIds).toEqual(['example.counter']);
+    expect(resolved.scenarios[0].inputs[0].targetNodeId).toBe('example.counter');
+    const { nodes } = await loadRunNodes(parsed);
+    expect(nodes.map((node) => node.id)).toEqual(['example.counter']);
+    await nodes[0].dispose();
+  });
+
+  it('rejects an assembly contribution whose required Node is absent', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'gv-p8-requirement-'));
+    temporaryRoots.push(root);
+    const contributionPath = join(root, 'missing.assembly.mjs');
+    writeFileSync(contributionPath, `
+export default { id: 'example.missing', contribute(run) { run.requireNode('core.missing'); } };
+`);
+    const { loadRunConfig } = await import('../../tooling/run/src/lifecycle.mjs');
+    const configPath = writeRun(root, 'missing', baseDocument({
+      assembly: { modules: [contributionPath] },
+      plugins: { backend: [], frontend: [] },
+      graph: { instances: [] },
+    }));
+    await expect(loadRunNodes(loadRunConfig(configPath))).rejects.toThrow('Assembly requires missing Node: core.missing');
+  });
+
+  it('reports conflicting Node definitions contributed by assembly code', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'gv-p8-contribution-conflict-'));
+    temporaryRoots.push(root);
+    const first = join(root, 'first.assembly.mjs');
+    const second = join(root, 'second.assembly.mjs');
+    const contribution = (id, step) => `
+export default {
+  id: ${JSON.stringify(id)},
+  contribute(run) {
+    run.backendPlugin({ id: 'example.hello-counter', path: ${JSON.stringify(helloCounterDir)} });
+    run.node({ id: 'example.counter', plugin: 'example.hello-counter', factory: 'createCounterNode', params: { step: ${step} } });
+  },
+};
+`;
+    writeFileSync(first, contribution('example.first', 1));
+    writeFileSync(second, contribution('example.second', 2));
+    const { loadRunConfig } = await import('../../tooling/run/src/lifecycle.mjs');
+    const configPath = writeRun(root, 'conflict', baseDocument({
+      assembly: { modules: [first, second] },
+      plugins: { backend: [], frontend: [] },
+      graph: { instances: [] },
+    }));
+    await expect(resolveRunAssembly(loadRunConfig(configPath))).rejects.toThrow('conflicting graph instance: example.counter');
   });
 
   it('injects a standalone Node ID and explicit targets', async () => {
