@@ -64,12 +64,6 @@ describe('P1 run configuration and isolation', () => {
     expect(() => parseRunConfig(versioned.document, {
       configPath: versioned.configPath, baseDirectory: versioned.runRoot,
     })).toThrow('unsupported version');
-    const duplicated = writeConfig(root, 'dup', {
-      graph: { instances: [{ kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }, { kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }] },
-    });
-    expect(() => parseRunConfig(duplicated.document, {
-      configPath: duplicated.configPath, baseDirectory: duplicated.runRoot,
-    })).toThrow('duplicate graph instance');
     const missing = writeConfig(root, 'missing', {
       lifecycle: { startInfos: [{ targetNodeId: 'example.counter', info: { kind: 'IncrementInfo' } }] },
     });
@@ -82,6 +76,52 @@ describe('P1 run configuration and isolation', () => {
     expect(() => parseRunConfig(badEntry.document, {
       configPath: badEntry.configPath, baseDirectory: badEntry.runRoot,
     })).toThrow('not a declared frontend plugin');
+  });
+
+  it('deduplicates identical plugin, graph and frontend declarations', () => {
+    const root = mkdtempSync(join(tmpdir(), 'gv-p1-deduplicate-'));
+    temporaryDirectories.push(root);
+    const configured = writeConfig(root, 'shared', {
+      plugins: {
+        backend: [
+          { id: 'example.hello-counter', path: '../../app/plugins/backend/hello-counter' },
+          { id: 'example.hello-counter', path: '../../app/plugins/backend/hello-counter' },
+        ],
+        frontend: [
+          { id: 'example.counter-ui', path: '../../app/plugins/frontend/counter' },
+          { id: 'example.counter-ui', path: '../../app/plugins/frontend/counter' },
+        ],
+      },
+      frontend: { instances: [
+        { id: 'counter-ui', plugin: 'example.counter-ui', graph: null },
+        { id: 'counter-ui', plugin: 'example.counter-ui', graph: null },
+      ] },
+      graph: { instances: [
+        { kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } },
+        { kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } },
+      ] },
+    });
+    const parsed = parseRunConfig(configured.document, {
+      configPath: configured.configPath, baseDirectory: configured.runRoot,
+    });
+    expect(parsed.plugins.backend).toHaveLength(1);
+    expect(parsed.plugins.frontend).toHaveLength(1);
+    expect(parsed.graph.instances).toHaveLength(1);
+    expect(parsed.frontend.instances).toHaveLength(1);
+  });
+
+  it('reports same-ID declarations whose definitions conflict', () => {
+    const root = mkdtempSync(join(tmpdir(), 'gv-p1-conflict-'));
+    temporaryDirectories.push(root);
+    const configured = writeConfig(root, 'conflict', {
+      graph: { instances: [
+        { kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' }, params: { step: 1 } },
+        { kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' }, params: { step: 2 } },
+      ] },
+    });
+    expect(() => parseRunConfig(configured.document, {
+      configPath: configured.configPath, baseDirectory: configured.runRoot,
+    })).toThrow('conflicting graph instance: example.counter');
   });
 
   it('builds two arbitrary runs in parallel without cross-writing sources or caches', async () => {

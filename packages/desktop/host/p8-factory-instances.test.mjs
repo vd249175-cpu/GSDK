@@ -85,7 +85,7 @@ export default { id: 'example.contract' };
     await expect(loadRunNodes(loadRunConfig(config))).rejects.toThrow(failure === 'undeclared' ? 'is not exported' : failure === 'kind' ? 'kind mismatch' : 'missing binding sink');
   });
 
-  it('rejects duplicate instance IDs instead of silently sharing an Owner', async () => {
+  it('deduplicates repeated declarations before constructing the shared Owner', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gv-p8-dedupe-'));
     temporaryRoots.push(root);
     const { loadRunConfig } = await import('../../tooling/run/src/lifecycle.mjs');
@@ -94,7 +94,11 @@ export default { id: 'example.contract' };
       plugins: { backend: [{ id: 'example.hello-counter', path: helloCounterDir }], frontend: [] },
       graph: { instances: [{ kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }, { kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }] },
     }));
-    expect(() => loadRunConfig(configPath)).toThrow('duplicate graph instance');
+    const parsed = loadRunConfig(configPath);
+    expect(parsed.graph.instances).toHaveLength(1);
+    const { nodes } = await loadRunNodes(parsed);
+    expect(nodes.map((node) => node.id)).toEqual(['example.counter']);
+    await nodes[0].dispose();
   });
 
   it('injects a standalone Node ID and explicit targets', async () => {

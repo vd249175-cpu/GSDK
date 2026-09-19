@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from 'node:path';
 import { basename, dirname } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { assertInsideRun } from './paths.mjs';
 
 export const RUN_CONFIG_VERSION = 2;
@@ -28,23 +29,35 @@ function assertPluginEntry(value, name) {
   }
 }
 
+function appendUniqueById(entries, byId, entry, label, equivalent = isDeepStrictEqual) {
+  const existing = byId.get(entry.id);
+  if (!existing) {
+    byId.set(entry.id, entry);
+    entries.push(entry);
+    return;
+  }
+  if (equivalent(existing, entry)) return;
+  fail(`conflicting ${label}: ${entry.id}; existing=${JSON.stringify(existing)} incoming=${JSON.stringify(entry)}`);
+}
+
 function normalizePlugins(value, baseDirectory) {
   const table = assertObject(value ?? {}, 'plugins');
   assertNoUnknown(table, ['backend', 'frontend'], 'plugins');
   const parse = (entries, kind, name) => {
     if (entries === undefined) return [];
     if (!Array.isArray(entries)) fail(`${name} must be an array`);
-    const ids = new Set();
-    return entries.map((plugin, index) => {
+    const normalized = [];
+    const byId = new Map();
+    entries.forEach((plugin, index) => {
       assertObject(plugin, `${name}[${index}]`);
       assertNoUnknown(plugin, ['id', 'path'], `${name}[${index}]`);
       if (typeof plugin.id !== 'string' || !plugin.id) fail(`${name}[${index}].id must be a nonempty string`);
-      if (ids.has(plugin.id)) fail(`duplicate plugin id: ${plugin.id}`);
-      ids.add(plugin.id);
       if (typeof plugin.path !== 'string' || !plugin.path) fail(`${name}[${index}].path must be a nonempty string`);
       const directory = resolve(baseDirectory, plugin.path);
-      return { id: plugin.id, path: plugin.path, directory, kind };
+      const entry = { id: plugin.id, path: plugin.path, directory, kind };
+      appendUniqueById(normalized, byId, entry, 'plugin id', (left, right) => left.directory === right.directory && left.kind === right.kind);
     });
+    return normalized;
   };
   const backend = parse(table.backend, 'backend', 'plugins.backend');
   const frontend = parse(table.frontend, 'frontend', 'plugins.frontend');
@@ -53,8 +66,9 @@ function normalizePlugins(value, baseDirectory) {
 
 function normalizeInstances(value, pluginIds) {
   if (!Array.isArray(value)) fail('graph.instances must be an array');
-  const ids = new Set();
-  return value.map((instance, index) => {
+  const normalized = [];
+  const byId = new Map();
+  value.forEach((instance, index) => {
     const name = `graph.instances[${index}]`;
     assertObject(instance, name);
     assertNoUnknown(instance, ['kind', 'id', 'factory', 'params', 'bindings'], name);
@@ -65,8 +79,6 @@ function normalizeInstances(value, pluginIds) {
       fail(`${name}.id must be a nonempty string`);
     }
     if (/\s/.test(instance.id)) fail(`${name}.id must not contain whitespace`);
-    if (ids.has(instance.id)) fail(`duplicate graph instance: ${instance.id}`);
-    ids.add(instance.id);
     if (instance.kind === 'graph' && !NAMESPACE.test(instance.id)) {
       fail(`${name}.id must be a namespace (${NAMESPACE}), got ${JSON.stringify(instance.id)}`);
     }
@@ -88,7 +100,7 @@ function normalizeInstances(value, pluginIds) {
         fail(`${name}.bindings[${key}] must be a nonempty Node id`);
       }
     }
-    return {
+    const entry = {
       kind: instance.kind,
       id: instance.id,
       nodeId: instance.id,
@@ -96,7 +108,9 @@ function normalizeInstances(value, pluginIds) {
       params,
       bindings,
     };
+    appendUniqueById(normalized, byId, entry, 'graph instance');
   });
+  return normalized;
 }
 
 function normalizeInfos(value, name) {
@@ -229,23 +243,25 @@ function normalizeFrontend(value, pluginIds) {
   assertNoUnknown(value, ['instances'], 'frontend');
   const instances = value.instances ?? [];
   if (!Array.isArray(instances)) fail('frontend.instances must be an array');
-  const ids = new Set();
+  const normalized = [];
+  const byId = new Map();
+  instances.forEach((entry, index) => {
+    const name = `frontend.instances[${index}]`;
+    assertObject(entry, name);
+    assertNoUnknown(entry, ['id', 'plugin', 'graph', 'entry'], name);
+    if (typeof entry.id !== 'string' || !entry.id) fail(`${name}.id must be a nonempty string`);
+    if (typeof entry.plugin !== 'string' || !entry.plugin) fail(`${name}.plugin must be a plugin id`);
+    if (!pluginIds.frontend.has(entry.plugin)) fail(`${name}.plugin is not a declared frontend plugin: ${entry.plugin}`);
+    if (entry.graph !== null && entry.graph !== undefined && (typeof entry.graph !== 'string' || !entry.graph)) {
+      fail(`${name}.graph must be a backend namespace or null`);
+    }
+    if (entry.entry !== undefined && entry.entry !== null) assertPluginEntry(entry.entry, `${name}.entry`);
+    appendUniqueById(normalized, byId, {
+      id: entry.id, plugin: entry.plugin, graph: entry.graph ?? null, entry: entry.entry ?? null,
+    }, 'frontend instance');
+  });
   return {
-    instances: instances.map((entry, index) => {
-      const name = `frontend.instances[${index}]`;
-      assertObject(entry, name);
-      assertNoUnknown(entry, ['id', 'plugin', 'graph', 'entry'], name);
-      if (typeof entry.id !== 'string' || !entry.id) fail(`${name}.id must be a nonempty string`);
-      if (ids.has(entry.id)) fail(`duplicate frontend instance: ${entry.id}`);
-      ids.add(entry.id);
-      if (typeof entry.plugin !== 'string' || !entry.plugin) fail(`${name}.plugin must be a plugin id`);
-      if (!pluginIds.frontend.has(entry.plugin)) fail(`${name}.plugin is not a declared frontend plugin: ${entry.plugin}`);
-      if (entry.graph !== null && entry.graph !== undefined && (typeof entry.graph !== 'string' || !entry.graph)) {
-        fail(`${name}.graph must be a backend namespace or null`);
-      }
-      if (entry.entry !== undefined && entry.entry !== null) assertPluginEntry(entry.entry, `${name}.entry`);
-      return { id: entry.id, plugin: entry.plugin, graph: entry.graph ?? null, entry: entry.entry ?? null };
-    }),
+    instances: normalized,
   };
 }
 

@@ -139,7 +139,7 @@ Bash 直接启动并等待 Rust、后端 Node 与前端 Electron 进程。配置
 
 ## 6. 任意图片段与初始化边界
 
-run 配置使用 `version: 2`。`graph.instances` 显式声明 `kind/id/factory/params/bindings`；单节点工厂收到实际 `nodeId`，图工厂通过 `nodeIdFor(localId)` 分配本实例地址。重复实例或 Node ID 会报错，不会自动合并 Owner。`bindings` 可覆盖命名通信目标（如 demo `router/billing/inventory` 目标）；静态分析从实际实例的目标字段读取证据。
+run 配置使用 `version: 2`。`graph.instances` 显式声明 `kind/id/factory/params/bindings`；单节点工厂收到实际 `nodeId`，图工厂通过 `nodeIdFor(localId)` 分配本实例地址。完全相同的插件、实例和前端声明按 ID 在工厂执行前自动去重，因此多个工作流可以无负担地复用同一不可变 Node 组件；同 ID 的工厂、参数、绑定或来源不同则报告双方定义为装配冲突，由 Agent 比较后修改装配、选择保留项或在扩展侧建立兼容，不能静默替换 Owner。`bindings` 可覆盖命名通信目标（如 demo `router/billing/inventory` 目标）；静态分析从实际实例的目标字段读取证据。
 
 运行配置显式选择真实节点实例，不能先装配整图再隐藏未选择节点。切片可以跨越插件目录，但插件协作必须遵守公开契约，不能相对导入其他插件的私有实现。
 

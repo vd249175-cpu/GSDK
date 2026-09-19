@@ -16,8 +16,10 @@ import { pathToFileURL } from 'node:url';
  * - No createNodes fallback: whole-plugin assembly is refused. Slices never
  *   assemble the whole graph first.
  *
- * Duplicate Node IDs are errors. Every declared instance is constructed once;
- * failed assembly disposes all returned products and reports cleanup errors.
+ * Config normalization deduplicates repeated declarations before any factory
+ * runs. If different factory products still claim one Node ID, assembly reports
+ * a definition conflict instead of silently replacing an Owner. Failed
+ * assembly disposes all returned products and reports cleanup errors.
  *
  * Backend factories take {pluginId, dependencies}: dependencies carry
  * host-injected EffectAdapters and paths, never business State. Callers pass
@@ -73,7 +75,7 @@ export async function loadRunNodes(parsed, dependencies = {}) {
       constructed.push(...nodes);
       for (const node of nodes) {
         if (!node || typeof node.id !== 'string' || !node.id) throw new Error('Run assembly produced a Node without an id');
-        if (expandedNodeIds.has(node.id)) throw new Error(`Duplicate Node ID: ${node.id}`);
+        if (expandedNodeIds.has(node.id)) throw new Error(`Node assembly conflict: multiple factory products claim ${node.id}`);
         expandedNodeIds.add(node.id);
       }
       const backend = backends.get(instance.factory.plugin);
