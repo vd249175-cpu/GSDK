@@ -16,16 +16,16 @@
   --selection-indicator: #0284c7;
   --surface-backdrop: rgba(15, 23, 42, 0.35);
 
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-tertiary: #94a3b8;
-  --content-primary: #0f172a;
-  --content-secondary: #475569;
-  --content-tertiary: #94a3b8;
+  --text-primary: #090d16;
+  --text-secondary: #27364b;
+  --text-tertiary: #4b5563;
+  --content-primary: #090d16;
+  --content-secondary: #27364b;
+  --content-tertiary: #4b5563;
   --content-on-action: #ffffff;
 
-  --border-default: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --border-default: #cbd5e1;
+  --border-strong: #94a3b8;
   --border-subtle: #e2e8f0;
   --focus-ring: #0284c7;
 

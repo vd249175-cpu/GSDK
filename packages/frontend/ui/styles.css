@@ -291,7 +291,8 @@
 .gv-node-subtitle {
   padding: 2px 8px;
   font-size: var(--font-size-xs, 9px);
-  color: var(--text-tertiary, #64748b);
+  font-weight: 500;
+  color: var(--text-secondary, #475569);
   border-bottom: 1px solid var(--node-border, var(--border-subtle, #22252c));
   background: var(--node-subtitle-bg, var(--surface-panel-subtle, rgba(0, 0, 0, 0.04)));
 }

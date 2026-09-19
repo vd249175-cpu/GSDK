@@ -31,17 +31,17 @@
   --surface-backdrop: rgba(31, 22, 51, 0.28);
 
   /* Content - 高对比清晰文字 */
-  --text-primary: #1e172e;
-  --text-secondary: #5a4f70;
-  --text-tertiary: #9286a6;
-  --content-primary: #1e172e;
-  --content-secondary: #5a4f70;
-  --content-tertiary: #9286a6;
+  --text-primary: #130e1d;
+  --text-secondary: #372b4c;
+  --text-tertiary: #55486d;
+  --content-primary: #130e1d;
+  --content-secondary: #372b4c;
+  --content-tertiary: #55486d;
   --content-on-action: #ffffff;
 
   /* Borders - 极其细致淡雅的紫灰微边 */
-  --border-default: #e9e5f2;
-  --border-strong: #d7d0e5;
+  --border-default: #d7d0e5;
+  --border-strong: #9286a6;
   --border-subtle: #f2eef8;
   --focus-ring: #7356b1;
 
@@ -135,17 +135,17 @@
   --surface-backdrop: rgba(42, 29, 27, 0.28);
 
   /* Content - 清晰高对比深暖褐文字 */
-  --text-primary: #241918;
-  --text-secondary: #63504d;
-  --text-tertiary: #968582;
-  --content-primary: #241918;
-  --content-secondary: #63504d;
-  --content-tertiary: #968582;
+  --text-primary: #190f0e;
+  --text-secondary: #3d2b29;
+  --text-tertiary: #594644;
+  --content-primary: #190f0e;
+  --content-secondary: #3d2b29;
+  --content-tertiary: #594644;
   --content-on-action: #ffffff;
 
   /* Borders - 温润玉石细边框 */
-  --border-default: #e8e6e0;
-  --border-strong: #d5d1c8;
+  --border-default: #d5d1c8;
+  --border-strong: #968582;
   --border-subtle: #f1efe9;
   --focus-ring: #b3392f;
 

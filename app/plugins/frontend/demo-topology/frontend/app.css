@@ -300,7 +300,8 @@ body {
 
 .metric-card-label {
   font-size: 9px;
-  color: var(--text-tertiary, #64748b);
+  color: var(--text-secondary, #475569);
+  font-weight: 500;
   letter-spacing: 0.02em;
 }
 
@@ -343,7 +344,7 @@ body {
 
 .dag-hud-hint {
   font-size: 10px;
-  color: var(--text-tertiary, #64748b);
+  color: var(--text-secondary, #475569);
 }
 
 .dag-canvas-container {
@@ -443,7 +444,7 @@ body {
 
 .dag-inspector-lore {
   font-size: 10px;
-  color: var(--text-tertiary, #64748b);
+  color: var(--text-secondary, #475569);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -670,7 +671,7 @@ body {
 .scope-title-text p {
   margin: 2px 0 0;
   font-size: 10px;
-  color: var(--text-tertiary, #64748b);
+  color: var(--text-secondary, #475569);
 }
 
 .scope-lore-text {
