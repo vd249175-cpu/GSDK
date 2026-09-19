@@ -1,9 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Settings } from 'lucide-react'
 import {
   WorkbenchHostContext,
   WorkspacePages,
+  readThemePreference,
+  applyThemePreference,
+  type ThemeName,
+  readTypographyPreferences,
+  applyTypographyPreferences,
+  type InterfaceFont,
+  type InterfaceFontSize,
+  saveWorkspaceDefault,
+  saveActiveWorkspacePreference,
 } from '@graphframework/workbench'
 import '@graphframework/workbench/styles/index.css'
+import {
+  SettingsDialog,
+  IndustrialChip,
+} from '@graphframework/ui'
 import './app.css'
 import {
   DemoContext,
@@ -33,34 +47,14 @@ declare global {
   }
 }
 
-const THEMES = [
-  { value: 'dark', label: '深色' },
-  { value: 'light', label: '浅色' },
-  { value: 'xueqing', label: '雪青' },
-  { value: 'shiliuqun', label: '石榴裙' },
-] as const
-
-type ThemeValue = (typeof THEMES)[number]['value']
-
-const THEME_STORAGE_KEY = 'example.theme'
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform)
 
-function readInitialTheme(): ThemeValue {
-  try {
-    const saved = localStorage.getItem(THEME_STORAGE_KEY)
-    if (THEMES.some((entry) => entry.value === saved)) return saved as ThemeValue
-  } catch {
-    // 忽略异常
-  }
-  return 'dark'
-}
-
 const PAGE_TABS = [
-  { key: 'editing', label: '万象工台', icon: '🪐', badge: 'Blender 分屏' },
-  { key: 'astrolabe', label: '因果星盘', icon: '🌌' },
-  { key: 'prophecy', label: '预言编织', icon: '📜' },
-  { key: 'pantheon', label: '神格示波', icon: '⚖️' },
-  { key: 'chronicle', label: '万象编年', icon: '🏛️' },
+  { key: 'editing', label: '工台分屏', icon: '◫', badge: 'Blender' },
+  { key: 'astrolabe', label: '因果拓扑', icon: '☍' },
+  { key: 'prophecy', label: '因果流变', icon: '☵' },
+  { key: 'pantheon', label: '节点矩阵', icon: '▦' },
+  { key: 'chronicle', label: '全域编年', icon: '☰' },
   { key: 'sandbox', label: '内核基石', icon: '⚡', badge: 'DTO' },
 ]
 
@@ -70,7 +64,9 @@ export function App() {
   const [viewingAct, setViewingAct] = useState<number>(0)
   const [snapshot, setSnapshot] = useState<DemoSnapshot | null>(null)
   const [count, setCount] = useState<number | null>(null)
-  const [theme, setTheme] = useState<ThemeValue>(readInitialTheme)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [theme, setTheme] = useState<ThemeName>(() => readThemePreference('dark'))
+  const [typography, setTypography] = useState(() => readTypographyPreferences())
   const [busy, setBusy] = useState(false)
   const [playing, setPlaying] = useState(false)
   const busyRef = useRef(false)
@@ -78,16 +74,45 @@ export function App() {
   // 监听当前激活的工作区 ID
   const activeWorkspaceId = workbenchAdapter.useWorkspaceState((state) => state.activeWorkspaceId)
 
-  // 主题注入
+  // 主题与排版偏好初始化与广播
   useEffect(() => {
-    if (theme === 'dark') delete document.documentElement.dataset.theme
-    else document.documentElement.dataset.theme = theme
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, theme)
-    } catch {
-      // 忽略
+    applyThemePreference(theme)
+    applyTypographyPreferences(typography)
+  }, [])
+
+  const handleThemeChange = useCallback((newTheme: ThemeName) => {
+    setTheme(newTheme)
+    applyThemePreference(newTheme)
+  }, [])
+
+  const handleFontChange = useCallback((font: InterfaceFont) => {
+    setTypography((prev) => {
+      const next = { ...prev, font }
+      applyTypographyPreferences(next)
+      return next
+    })
+  }, [])
+
+  const handleDensityChange = useCallback((size: InterfaceFontSize) => {
+    setTypography((prev) => {
+      const next = { ...prev, size }
+      applyTypographyPreferences(next)
+      return next
+    })
+  }, [])
+
+  const handleSaveWorkspaceDefault = useCallback(() => {
+    const snapshot = workbenchAdapter.getWorkspaceSnapshot()
+    const ws = snapshot.items[activeWorkspaceId]
+    if (ws) {
+      saveWorkspaceDefault(ws)
+      saveActiveWorkspacePreference(activeWorkspaceId)
     }
-  }, [theme])
+  }, [workbenchAdapter, activeWorkspaceId])
+
+  const handleResetWorkspaceDefault = useCallback(() => {
+    void workbenchAdapter.services.commands.execute('workspace.resetLayout', activeWorkspaceId)
+  }, [workbenchAdapter, activeWorkspaceId])
 
   // 刷新计数
   const refreshCounter = useCallback(async () => {
@@ -181,15 +206,16 @@ export function App() {
     <DemoContext.Provider value={demoContextValue}>
       <WorkbenchHostContext.Provider value={workbenchAdapter}>
         <div className="app-shell">
-          {/* 顶栏：无缝暗黑无边框（拖拽区 + 快捷控制 + 主题 + 窗口控制） */}
+          {/* 顶栏：无缝暗黑无边框（拖拽区 + 快捷控制 + 设置 + 窗口控制） */}
           <header className={`app-topbar${isMac ? ' is-mac' : ''}`}>
             <div className="brand-cluster">
-              <span className="brand-glyph">🪐</span>
-              <span className="app-title">星辰因果仪 · 达芬奇工作台</span>
-              <span className="topbar-phase-badge">
-                <i className="topbar-phase-dot" />
-                第 {snapshot ? snapshot.phase : 0} 幕 / 5
-              </span>
+              <span className="brand-glyph">⬡</span>
+              <span className="app-title">GraphFramework · 达芬奇工作台</span>
+              <IndustrialChip
+                label={`PHASE ${snapshot?.phase ?? 0} / 5`}
+                tone="accent"
+                monospace
+              />
             </div>
 
             <span className="topbar-spacer" />
@@ -203,7 +229,7 @@ export function App() {
                 onClick={() => void runTopologyOp(() => window.demo.step())}
                 title="驱动因果流转进入下一幕"
               >
-                {busy && !playing ? '应验中…' : '⚡ 应验此言'}
+                {busy && !playing ? '运转中…' : '⚡ 推进因果'}
               </button>
               <button
                 type="button"
@@ -211,7 +237,7 @@ export function App() {
                 disabled={!snapshot || busy}
                 onClick={() => setPlaying(!playing)}
               >
-                {playing ? '⏸ 暂停演进' : '▶ 宣讲预言'}
+                {playing ? '⏸ 暂停演进' : '▶ 连续演进'}
               </button>
               <button
                 type="button"
@@ -221,20 +247,17 @@ export function App() {
               >
                 ↺ 重溯
               </button>
-            </div>
 
-            {/* 主题切换 */}
-            <div className="theme-switch" role="group" aria-label="主题">
-              {THEMES.map((entry) => (
-                <button
-                  key={entry.value}
-                  type="button"
-                  aria-pressed={theme === entry.value}
-                  onClick={() => setTheme(entry.value)}
-                >
-                  {entry.label}
-                </button>
-              ))}
+              {/* 工业设置入口按钮 */}
+              <button
+                type="button"
+                className="action-btn"
+                onClick={() => setIsSettingsOpen(true)}
+                title="工作台全局偏好设置 (主题 / 字体 / 布局)"
+              >
+                <Settings size={12} />
+                <span>设置</span>
+              </button>
             </div>
 
             {/* 窗口三键（Windows/Linux 下由达芬奇顶栏接管） */}
@@ -306,6 +329,21 @@ export function App() {
             <span className="footer-spacer" />
             <span>GraphFramework · DaVinci & Blender Dock Suite</span>
           </footer>
+
+          {/* 全局偏好设置弹窗 */}
+          <SettingsDialog
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            currentTheme={theme}
+            onThemeChange={handleThemeChange}
+            currentFont={typography.font}
+            onFontChange={handleFontChange}
+            currentDensity={typography.size}
+            onDensityChange={handleDensityChange}
+            activeWorkspaceId={activeWorkspaceId}
+            onSaveWorkspaceDefault={handleSaveWorkspaceDefault}
+            onResetWorkspaceDefault={handleResetWorkspaceDefault}
+          />
         </div>
       </WorkbenchHostContext.Provider>
     </DemoContext.Provider>

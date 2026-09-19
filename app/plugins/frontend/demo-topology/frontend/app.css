@@ -1,4 +1,8 @@
-/* 达芬奇式多分页联动与星辰预言绘本：严格消费 @graphframework/workbench 语义 Token */
+/* ==========================================================================
+   GraphFramework · 达芬奇工作台与瑞士平面实用主义视效系统
+   严格消费 @graphframework/theme 与 @graphframework/ui 规范 Token
+   ========================================================================== */
+
 html,
 body,
 #root {
@@ -7,32 +11,37 @@ body,
 
 body {
   margin: 0;
-  background: var(--surface-canvas);
-  color: var(--content-primary);
+  background: var(--surface-canvas, #080a0d);
+  color: var(--text-primary, #f8fafc);
   font-family: var(--font-family-ui);
+  font-size: var(--font-size-base, 12px);
   overflow: hidden;
   user-select: none;
+}
+
+.is-mono {
+  font-family: var(--font-family-mono);
 }
 
 .app-shell {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--surface-app);
+  background: var(--surface-app, #0c0e12);
 }
 
 /* ==========================================================================
-   顶栏：拖拽区 + 标题 + 全局因果推演快捷集群 + 主题切换 + 窗口控制
+   1. 顶栏：无缝暗黑无边框（拖拽区 + 快捷控制 + 设置 + 窗口控制）
    ========================================================================== */
 .app-topbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  height: 44px;
+  gap: 10px;
+  height: 38px;
   flex: none;
-  padding: 0 0 0 16px;
-  background: var(--surface-header);
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 0 0 12px;
+  background: var(--surface-header, #111318);
+  border-bottom: 1px solid var(--border-subtle, #22252c);
   -webkit-app-region: drag;
 }
 
@@ -47,43 +56,22 @@ body {
 }
 
 .brand-glyph {
-  font-size: 16px;
-  filter: drop-shadow(0 0 4px var(--action-primary-bg));
+  font-size: 14px;
+  color: var(--accent-primary, #38bdf8);
 }
 
 .app-title {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--content-primary);
+  font-size: var(--font-size-xs, 11px);
+  font-weight: 600;
+  color: var(--text-primary, #f8fafc);
   letter-spacing: 0.04em;
   white-space: nowrap;
-}
-
-.topbar-phase-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--surface-input);
-  border: 1px solid var(--border-subtle);
-  font-size: var(--font-size-xs);
-  color: var(--content-secondary);
-}
-
-.topbar-phase-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--action-primary-bg);
-  box-shadow: 0 0 6px var(--action-primary-bg);
 }
 
 .topbar-spacer {
   flex: 1;
 }
 
-/* 顶部快速步进控制集群 */
 .topbar-actions {
   display: flex;
   align-items: center;
@@ -91,73 +79,48 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* 顶部操作按钮（瑞士平面工具块） */
 .action-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 6px;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-xs, 2px);
+  font-size: var(--font-size-xs, 10px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
   cursor: pointer;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface-panel);
-  color: var(--content-primary);
-  transition: all 0.15s ease;
+  border: 1px solid var(--border-subtle, #22252c);
+  background: var(--surface-panel, #17191e);
+  color: var(--text-primary, #f8fafc);
+  transition: background 0.1s linear, border-color 0.1s linear;
+  box-shadow: none !important;
+  white-space: nowrap;
 }
 
 .action-btn:hover:not(:disabled) {
-  background: var(--surface-hover);
-  border-color: var(--border-default);
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+  border-color: var(--border-strong, #343842);
 }
 
 .action-btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: default;
 }
 
 .action-btn.is-primary {
-  background: var(--action-primary-bg);
-  color: var(--content-on-action);
-  border-color: var(--action-primary-border);
-  box-shadow: 0 0 10px rgba(122, 91, 0, 0.2);
+  background: var(--accent-primary, #38bdf8);
+  color: #000000;
+  border-color: var(--accent-primary, #38bdf8);
+  font-weight: 600;
 }
 
 .action-btn.is-primary:hover:not(:disabled) {
-  background: var(--action-primary-bg-hover);
+  background: #7dd3fc;
 }
 
-.theme-switch {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  background: var(--surface-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  -webkit-app-region: no-drag;
-}
-
-.theme-switch button {
-  border: 0;
-  background: transparent;
-  color: var(--content-tertiary);
-  font-size: var(--font-size-xs);
-  line-height: 1;
-  padding: 6px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.theme-switch button:hover {
-  color: var(--content-primary);
-}
-
-.theme-switch button[aria-pressed='true'] {
-  background: var(--action-primary-bg);
-  color: var(--content-on-action);
-}
-
+/* 窗口控制三键 */
 .window-controls {
   display: flex;
   align-self: stretch;
@@ -168,253 +131,125 @@ body {
 .window-controls button {
   display: grid;
   place-items: center;
-  width: 46px;
+  width: 44px;
   border: 0;
   background: transparent;
-  color: var(--content-tertiary);
+  color: var(--text-tertiary, #64748b);
   cursor: pointer;
-}
-
-.window-controls button:hover {
-  color: var(--content-primary);
-  background: var(--surface-hover);
-}
-
-.window-controls .window-close:hover {
-  color: var(--content-on-action);
-  background: var(--state-danger-fg);
-}
-
-/* ==========================================================================
-   页面容器
-   ========================================================================== */
-.app-content {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-  position: relative;
-  overflow: hidden;
-  background: var(--surface-canvas);
-}
-
-.app-content > .workspace-pages {
-  width: 100%;
-  height: 100%;
-}
-
-.page-container,
-.panel-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow-y: auto;
-  padding: 14px 18px;
-  box-sizing: border-box;
-  min-height: 0;
-  min-width: 0;
-}
-
-.prophecy-panel-root,
-.astrolabe-panel-root,
-.pantheon-panel-root,
-.chronicle-panel-root,
-.kernel-panel-root {
-  background: var(--surface-canvas);
-}
-
-.chronicle-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.chronicle-split {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  flex: 1;
-  min-height: 0;
-}
-
-.chronicle-book {
-  background: var(--surface-panel);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  padding: 14px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.chronicle-records-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  overflow-y: auto;
-}
-
-.chronicle-record-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: var(--surface-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
   font-size: 11px;
 }
 
-.record-tag {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--surface-raised);
-  color: var(--content-secondary);
+.window-controls button:hover {
+  color: var(--text-primary, #f8fafc);
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
 }
 
-.record-tag.is-gold {
-  background: #7a5b00;
-  color: #ffd76a;
+.window-controls button.window-close:hover {
+  background: #dc2626;
+  color: #ffffff;
 }
-
-.record-tag.is-blue {
-  background: #1a365d;
-  color: #92b3ff;
-}
-
-.record-tag.is-green {
-  background: #1c4532;
-  color: #82e0aa;
-}
-
 
 /* ==========================================================================
-   达芬奇风格底部页面导航坞 (DaVinci Dock)
+   2. 主工作区与达芬奇 Dock 导航底栏
    ========================================================================== */
+.app-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
 .davinci-dock {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  height: 52px;
+  gap: 2px;
+  height: 38px;
   flex: none;
-  background: var(--surface-header);
-  border-top: 1px solid var(--border-default);
-  padding: 0 16px;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15);
-  z-index: 10;
+  background: var(--surface-header, #111318);
+  border-top: 1px solid var(--border-subtle, #22252c);
+  padding: 0 8px;
 }
 
 .dock-item {
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 3px;
-  height: 42px;
-  min-width: 120px;
-  padding: 0 14px;
-  border-radius: 8px;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
   border: 1px solid transparent;
+  border-radius: var(--radius-xs, 2px);
   background: transparent;
-  color: var(--content-secondary);
+  color: var(--text-secondary, #94a3b8);
+  font-size: var(--font-size-xs, 11px);
   cursor: pointer;
-  position: relative;
-  transition: all 0.15s ease;
+  transition: all 0.1s linear;
 }
 
 .dock-item:hover {
-  color: var(--content-primary);
-  background: var(--surface-hover);
+  color: var(--text-primary, #f8fafc);
+  background: var(--surface-hover, rgba(255, 255, 255, 0.05));
 }
 
 .dock-item.is-active {
-  color: var(--content-primary);
-  background: var(--surface-selected);
-  border-color: var(--border-default);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.dock-item.is-active::after {
-  content: '';
-  position: absolute;
-  top: -1px;
-  left: 20%;
-  right: 20%;
-  height: 3px;
-  border-radius: 0 0 4px 4px;
-  background: var(--action-primary-bg);
-  box-shadow: 0 0 8px var(--action-primary-bg);
+  color: var(--text-primary, #f8fafc);
+  background: var(--surface-panel, #17191e);
+  border-color: var(--border-subtle, #22252c);
+  font-weight: 500;
+  box-shadow: inset 0 -2px 0 var(--accent-primary, #38bdf8);
 }
 
 .dock-icon {
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1;
 }
 
 .dock-label {
-  font-size: 11px;
-  font-weight: var(--font-weight-medium);
-  letter-spacing: 0.02em;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .dock-badge {
-  font-size: 9px;
-  padding: 1px 5px;
-  border-radius: 999px;
-  background: var(--surface-input);
-  color: var(--content-tertiary);
-  border: 1px solid var(--border-subtle);
-  margin-left: 4px;
+  font-size: 8px;
+  font-family: var(--font-family-mono);
+  padding: 1px 4px;
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent-primary, #38bdf8);
+  border-radius: 2px;
+  line-height: 1;
 }
 
-/* ==========================================================================
-   底栏极客监控条
-   ========================================================================== */
+/* 底部状态条 */
 .app-footer {
   display: flex;
   align-items: center;
-  gap: 16px;
-  height: 24px;
+  gap: 12px;
+  height: 22px;
   flex: none;
-  padding: 0 16px;
-  background: var(--surface-panel);
-  border-top: 1px solid var(--border-subtle);
-  font-size: 11px;
-  color: var(--content-tertiary);
-  user-select: none;
+  padding: 0 12px;
+  background: var(--surface-canvas, #080a0d);
+  border-top: 1px solid var(--border-subtle, #22252c);
+  font-size: 10px;
+  color: var(--text-tertiary, #64748b);
 }
 
 .connection-dot {
   display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-right: 6px;
-  border-radius: 50%;
-  background: var(--state-success-fg);
-  box-shadow: 0 0 6px var(--state-success-fg);
-  vertical-align: 1px;
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--status-success, #10b981);
+  margin-right: 5px;
 }
 
 .connection-dot.is-offline {
-  background: var(--state-warning-fg);
-  box-shadow: none;
-}
-
-.footer-meta-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--content-secondary);
+  background: var(--status-danger, #ef4444);
 }
 
 .footer-meta-tag code {
   font-family: var(--font-family-mono);
-  color: var(--content-primary);
+  color: var(--text-secondary, #94a3b8);
 }
 
 .footer-spacer {
@@ -422,502 +257,469 @@ body {
 }
 
 /* ==========================================================================
-   分页 1：【预言编织 (Prophecy View)】
+   3. 面板基类与通用布局
    ========================================================================== */
-.prophecy-layout {
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 20px;
+.panel-container {
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  min-height: 0;
+  overflow: hidden;
+  background: var(--surface-panel, #17191e);
+  color: var(--text-primary, #f8fafc);
 }
 
-/* 预言篇章翻页器 (Chapter Pagination Stepper) */
-.chapter-stepper {
+.sidebar-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary, #94a3b8);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle, #22252c);
+}
+
+.metric-card {
+  padding: 8px 10px;
+  background: var(--surface-header, #111318);
+  border: 1px solid var(--border-subtle, #22252c);
+  border-radius: var(--radius-xs, 2px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-card-label {
+  font-size: 9px;
+  color: var(--text-tertiary, #64748b);
+  letter-spacing: 0.02em;
+}
+
+.metric-card-val {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #f8fafc);
+}
+
+/* ==========================================================================
+   4. 【因果拓扑 · 工业节点图】 (Causal DAG Panel)
+   ========================================================================== */
+.causal-dag-root {
+  background: var(--surface-canvas, #080a0d);
+}
+
+.dag-hud-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  flex: none;
+  padding: 0 12px;
+  background: var(--surface-header, #111318);
+  border-bottom: 1px solid var(--border-subtle, #22252c);
+}
+
+.dag-hud-left {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 16px;
-  padding: 6px 12px;
-  background: var(--surface-panel);
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
+}
+
+.dag-hud-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-primary, #f8fafc);
+}
+
+.dag-hud-hint {
+  font-size: 10px;
+  color: var(--text-tertiary, #64748b);
+}
+
+.dag-canvas-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: auto;
+  background-color: var(--surface-canvas, #080a0d);
+  background-image: radial-gradient(var(--canvas-grid-dot, rgba(148, 163, 184, 0.08)) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.dag-conduits-layer {
+  position: absolute;
+  inset: 0;
+  width: 900px;
+  height: 350px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.conduit-path {
+  fill: none;
+  stroke: var(--edge-conduit-default, #334155);
+  stroke-width: 1.5;
+  transition: stroke 0.15s ease;
+}
+
+.conduit-path.is-active {
+  stroke: var(--edge-conduit-active, #38bdf8);
+  stroke-width: 1.8;
+}
+
+.conduit-path.is-dropped {
+  stroke: var(--status-danger, #ef4444);
+  stroke-dasharray: 4 3;
+}
+
+.dag-nodes-layer {
+  position: absolute;
+  inset: 0;
+  width: 900px;
+  height: 350px;
+  z-index: 2;
+}
+
+.dag-node-wrapper {
+  position: absolute;
+  user-select: none;
+}
+
+.dag-inspector-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 48px;
+  flex: none;
+  padding: 0 16px;
+  background: var(--surface-header, #111318);
+  border-top: 1px solid var(--border-subtle, #22252c);
+}
+
+.dag-inspector-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dag-inspector-glyph {
+  font-size: 16px;
+}
+
+.dag-inspector-id-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dag-inspector-id {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary, #f8fafc);
+}
+
+.dag-inspector-name {
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dag-inspector-lore {
+  font-size: 10px;
+  color: var(--text-tertiary, #64748b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 480px;
+}
+
+.dag-inspector-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.dag-inspector-dto-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-tertiary, #64748b);
+  letter-spacing: 0.02em;
+}
+
+.dag-inspector-dto {
+  font-size: 10px;
+  color: var(--accent-primary, #38bdf8);
+  background: var(--surface-canvas, #080a0d);
+  padding: 2px 6px;
+  border: 1px solid var(--border-subtle, #22252c);
+  border-radius: var(--radius-xs, 2px);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   5. 【预言编织】 (Prophecy Panel)
+   ========================================================================== */
+.chapter-stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background: var(--surface-header, #111318);
+  border-bottom: 1px solid var(--border-subtle, #22252c);
   overflow-x: auto;
 }
 
 .chapter-step-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid transparent;
+  height: 24px;
+  padding: 0 8px;
   background: transparent;
-  color: var(--content-tertiary);
-  font-size: var(--font-size-xs);
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs, 2px);
+  color: var(--text-secondary, #94a3b8);
+  font-size: 10px;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s ease;
 }
 
 .chapter-step-btn:hover {
-  color: var(--content-primary);
-  background: var(--surface-hover);
+  background: var(--surface-hover, rgba(255, 255, 255, 0.05));
+  color: var(--text-primary, #f8fafc);
 }
 
 .chapter-step-btn.is-active {
-  color: var(--content-primary);
-  background: var(--surface-selected);
-  border-color: var(--border-default);
-  font-weight: var(--font-weight-semibold);
-}
-
-.chapter-step-btn.is-fulfilled {
-  color: var(--content-secondary);
-}
-
-.chapter-step-btn.is-fulfilled::before {
-  content: '✓';
-  color: var(--state-success-fg);
-  font-size: 11px;
+  background: var(--surface-panel, #17191e);
+  border-color: var(--border-subtle, #22252c);
+  color: var(--text-primary, #f8fafc);
+  font-weight: 500;
 }
 
 .chapter-step-num {
-  font-family: var(--font-family-mono);
-  font-size: 10px;
-  opacity: 0.7;
+  font-size: 9px;
+  color: var(--accent-primary, #38bdf8);
 }
 
-/* 预言古卷核心卡 */
+.prophecy-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
 .prophecy-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  background: var(--surface-panel);
-  border: 1px solid var(--border-default);
-  border-radius: 14px;
-  box-shadow: var(--shadow-floating);
-  padding: 24px;
-  position: relative;
-  overflow: hidden;
-}
-
-.prophecy-scroll::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #ffd76a, #7a5b00, #4a5878);
+  gap: 16px;
 }
 
 .scroll-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.scroll-act-tag {
-  font-size: var(--font-size-xs);
-  color: var(--content-secondary);
-  font-family: var(--font-family-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+  border-bottom: 1px solid var(--border-subtle, #22252c);
+  padding-bottom: 8px;
 }
 
 .scroll-title {
-  margin: 4px 0 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
-  color: var(--content-primary);
+  margin: 6px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #f8fafc);
 }
 
 .scroll-content-box {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin: 12px 0 20px;
+  gap: 12px;
 }
 
-/* 谶语预示框 */
-.foretold-card {
-  padding: 16px;
-  border-radius: 10px;
-  background: var(--surface-input);
-  border-left: 3px solid #ffd76a;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.foretold-label {
-  font-size: 11px;
-  font-weight: var(--font-weight-bold);
-  text-transform: uppercase;
-  color: #ffd76a;
-  letter-spacing: 0.08em;
-  margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.foretold-text {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  line-height: 1.7;
-  color: var(--content-primary);
-  font-style: italic;
-}
-
-/* 现实应验框 */
+.foretold-card,
 .fulfillment-card {
-  padding: 16px;
-  border-radius: 10px;
-  background: var(--surface-panel-subtle);
-  border: 1px solid var(--border-subtle);
+  padding: 10px 12px;
+  background: var(--surface-header, #111318);
+  border: 1px solid var(--border-subtle, #22252c);
+  border-radius: var(--radius-xs, 2px);
 }
 
+.foretold-label,
 .fulfillment-label {
-  font-size: 11px;
-  font-weight: var(--font-weight-bold);
-  text-transform: uppercase;
-  color: var(--content-secondary);
-  letter-spacing: 0.08em;
   margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
+.foretold-text,
 .fulfillment-text {
   margin: 0;
-  font-size: var(--font-size-sm);
+  font-size: 11px;
   line-height: 1.6;
-  color: var(--content-primary);
+  color: var(--text-secondary, #94a3b8);
 }
 
 .kernel-insight {
-  font-size: 11px;
-  color: var(--content-tertiary);
-  margin-top: 6px;
-  line-height: 1.5;
-  border-top: 1px dashed var(--border-subtle);
-  padding-top: 6px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  font-size: 10px;
+  background: var(--surface-canvas, #080a0d);
+  border-left: 2px solid var(--accent-primary, #38bdf8);
+  color: var(--text-tertiary, #64748b);
+  line-height: 1.4;
 }
 
-/* 仪式推演行动栏 */
 .ritual-controls {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.ritual-primary-btn {
-  flex: 1;
-  height: 42px;
-  border-radius: 8px;
-  border: 1px solid var(--action-primary-border);
-  background: var(--action-primary-bg);
-  color: var(--content-on-action);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.04em;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   gap: 8px;
-  transition: all 0.15s ease;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  margin-top: auto;
+  padding-top: 12px;
 }
 
-.ritual-primary-btn:hover:not(:disabled) {
-  background: var(--action-primary-bg-hover);
-  transform: translateY(-1px);
-}
-
-.ritual-primary-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-  transform: none;
-}
-
-/* 侧边登场角色卡片组 */
 .prophecy-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  width: 220px;
+  flex: none;
+  border-left: 1px solid var(--border-subtle, #22252c);
+  background: var(--surface-header, #111318);
+  padding: 12px;
   overflow-y: auto;
 }
 
-.sidebar-title {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--content-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0 0 4px;
-}
-
-.character-card {
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: var(--surface-panel);
-  border: 1px solid var(--border-subtle);
-  cursor: pointer;
-  transition: all 0.15s ease;
+.prophecy-node-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.character-card:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-default);
-  transform: translateX(2px);
-}
-
-.character-card.is-selected {
-  border-color: var(--action-primary-bg);
-  background: var(--surface-selected);
-  box-shadow: 0 0 10px rgba(122, 91, 0, 0.15);
-}
-
-.char-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.char-name-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.char-glyph {
-  font-size: 16px;
-}
-
-.char-name {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--content-primary);
-}
-
-.char-gen-badge {
-  font-family: var(--font-family-mono);
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--surface-input);
-  color: var(--content-secondary);
-  border: 1px solid var(--border-subtle);
-}
-
-.char-gen-badge.is-elevated {
-  background: #7a5b00;
-  color: #ffd76a;
-  border-color: #ffd76a;
-  font-weight: bold;
-}
-
-.char-title {
-  font-size: 11px;
-  color: var(--content-tertiary);
-}
-
-.char-stat-summary {
-  font-family: var(--font-family-mono);
-  font-size: 11px;
-  color: var(--content-secondary);
-  background: var(--surface-input);
-  padding: 4px 8px;
-  border-radius: 4px;
+  gap: 8px;
 }
 
 /* ==========================================================================
-   分页 2：【因果星盘 (Astrolabe View - Fusion Style)】
-   ========================================================================== */
-.astrolabe-layout {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  gap: 16px;
-}
-
-.astrolabe-canvas-box {
-  flex: 1;
-  background: #080a12;
-  border: 1px solid var(--border-default);
-  border-radius: 12px;
-  overflow: hidden;
-  position: relative;
-  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.6);
-  min-height: 420px;
-}
-
-.astrolabe-canvas-box svg {
-  width: 100%;
-  height: 100%;
-}
-
-.astrolabe-inspector-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 18px;
-  background: var(--surface-panel);
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-}
-
-/* ==========================================================================
-   分页 3：【神格示波 (Pantheon & State - Color Style)】
+   6. 【神格示波】 (Pantheon Panel)
    ========================================================================== */
 .pantheon-layout {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 20px;
-  height: 100%;
+  flex: 1;
   min-height: 0;
+  display: flex;
 }
 
 .pantheon-roster {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  width: 230px;
+  flex: none;
+  border-right: 1px solid var(--border-subtle, #22252c);
+  background: var(--surface-header, #111318);
+  padding: 12px;
   overflow-y: auto;
 }
 
-.pantheon-scope {
-  background: var(--surface-panel);
-  border: 1px solid var(--border-default);
-  border-radius: 12px;
-  padding: 24px;
-  overflow-y: auto;
+.pantheon-cards-grid {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 8px;
+}
+
+.pantheon-scope {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .scope-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle, #22252c);
 }
 
 .scope-main-title {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .scope-char-symbol {
-  font-size: 32px;
-  background: var(--surface-input);
-  width: 52px;
-  height: 52px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--border-subtle);
+  font-size: 20px;
 }
 
 .scope-title-text h2 {
   margin: 0;
-  font-size: var(--font-size-md);
-  color: var(--content-primary);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .scope-title-text p {
   margin: 2px 0 0;
-  font-size: var(--font-size-xs);
-  color: var(--content-secondary);
+  font-size: 10px;
+  color: var(--text-tertiary, #64748b);
+}
+
+.scope-lore-text {
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+  line-height: 1.6;
 }
 
 .scope-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.metric-card {
-  padding: 14px;
-  border-radius: 8px;
-  background: var(--surface-input);
-  border: 1px solid var(--border-subtle);
-}
-
-.metric-card-label {
-  font-size: 11px;
-  color: var(--content-tertiary);
-  margin-bottom: 6px;
-}
-
-.metric-card-val {
-  font-size: 20px;
-  font-weight: var(--font-weight-bold);
-  font-family: var(--font-family-mono);
-  color: var(--content-primary);
+.scope-dto-section {
+  display: flex;
+  flex-direction: column;
 }
 
 .scope-json-box {
-  background: var(--surface-canvas);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 14px;
-  font-family: var(--font-family-mono);
-  font-size: 12px;
-  color: var(--content-secondary);
-  overflow-x: auto;
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--surface-canvas, #080a0d);
+  border: 1px solid var(--border-subtle, #22252c);
+  border-radius: var(--radius-xs, 2px);
+  font-size: 10px;
+  color: var(--accent-primary, #38bdf8);
+  overflow: auto;
+  max-height: 240px;
 }
 
 /* ==========================================================================
-   分页 4：【万象编年 (Chronicle & Ledger)】
+   7. 【万象编年】与【内核基石】 (Chronicle & Kernel)
    ========================================================================== */
-.chronicle-layout {
+.chronicle-layout,
+.kernel-layout {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: 100%;
-  overflow-y: auto;
 }
 
-.chronicle-stats-grid {
+.chronicle-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.ledger-feed-box {
-  background: var(--surface-panel);
-  border: 1px solid var(--border-default);
-  border-radius: 12px;
-  padding: 20px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+.chronicle-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
-.ledger-feed-title {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  margin: 0;
-  color: var(--content-primary);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.chronicle-book {
+  padding: 12px;
+  background: var(--surface-header, #111318);
+  border: 1px solid var(--border-subtle, #22252c);
+  border-radius: var(--radius-xs, 2px);
 }
 
-.ledger-item-list {
+.chronicle-records-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -925,108 +727,20 @@ body {
   overflow-y: auto;
 }
 
-.ledger-item {
+.chronicle-record-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: var(--surface-input);
-  border: 1px solid var(--border-subtle);
-  font-size: 12px;
-}
-
-.ledger-type-badge {
+  gap: 8px;
+  padding: 4px 6px;
+  background: var(--surface-canvas, #080a0d);
+  border: 1px solid var(--border-subtle, #22252c);
+  border-radius: var(--radius-xs, 2px);
   font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: var(--font-weight-semibold);
 }
 
-.ledger-type-badge.receipt {
-  background: rgba(255, 215, 106, 0.15);
-  color: #ffd76a;
-  border: 1px solid rgba(255, 215, 106, 0.3);
-}
-
-.ledger-type-badge.reservation {
-  background: rgba(100, 180, 255, 0.15);
-  color: #64b4ff;
-  border: 1px solid rgba(100, 180, 255, 0.3);
-}
-
-.ledger-type-badge.verdict {
-  background: rgba(180, 140, 255, 0.15);
-  color: #b48cff;
-  border: 1px solid rgba(180, 140, 255, 0.3);
-}
-
-/* ==========================================================================
-   分页 5：【内核基石 (Core Sandbox)】
-   ========================================================================== */
-.counter-sandbox-layout {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-}
-
-.counter-card {
-  width: 420px;
-  max-width: 100%;
-  padding: 36px;
-  background: var(--surface-panel);
-  border: 1px solid var(--border-default);
-  border-radius: 14px;
-  box-shadow: var(--shadow-floating);
-  text-align: center;
-}
-
-.counter-label {
-  margin: 0 0 8px;
-  font-size: var(--font-size-sm);
-  color: var(--content-secondary);
-}
-
-.count-value {
-  margin: 0 0 24px;
-  font-size: 64px;
-  line-height: 1;
-  font-weight: var(--font-weight-bold);
-  font-variant-numeric: tabular-nums;
-  color: var(--content-primary);
-}
-
-.primary-button {
-  width: 100%;
-  height: 42px;
-  border: 1px solid var(--action-primary-border);
-  border-radius: 8px;
-  background: var(--action-primary-bg);
-  color: var(--content-on-action);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.primary-button:hover:not(:disabled) {
-  background: var(--action-primary-bg-hover);
-}
-
-.primary-button:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.hint {
-  margin: 16px 0 0;
-  font-size: var(--font-size-xs);
-  line-height: 1.6;
-  color: var(--content-tertiary);
-}
-
-.hint code {
-  font-family: var(--font-family-mono);
-  color: var(--content-secondary);
+.kernel-card {
+  padding: 16px;
+  background: var(--surface-header, #111318);
+  border: 1px solid var(--border-subtle, #22252c);
+  border-radius: var(--radius-xs, 2px);
 }

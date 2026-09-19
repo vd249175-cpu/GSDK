@@ -51,7 +51,11 @@ class WorkspaceStore {
 let counter = 0
 const nextId = (prefix: string) => `${prefix}-${Date.now()}-${++counter}`
 
-export function createDemoWorkbenchAdapter(panels: PanelDefinition[]): WorkbenchHostAdapter {
+export interface DemoWorkbenchAdapter extends WorkbenchHostAdapter {
+  getWorkspaceSnapshot: () => ClientWorkspaceState
+}
+
+export function createDemoWorkbenchAdapter(panels: PanelDefinition[]): DemoWorkbenchAdapter {
   const commands = new CommandRegistry()
   const panelRegistry = new PanelRegistry()
   const extensions = new ExtensionRegistry()
@@ -388,6 +392,7 @@ function shallowEqual(a: any, b: any): boolean {
 
   return {
     services,
+    getWorkspaceSnapshot: () => store.getSnapshot(),
     useWorkspaceState<T>(selector: (state: ClientWorkspaceState) => T): T {
       const cacheRef = useRef<{ state: ClientWorkspaceState; value: T } | null>(null)
       const selectorRef = useRef(selector)

@@ -58,6 +58,21 @@
   --edge-conduit: rgba(100, 116, 139, 0.45);
   --port-idle: #64748b;
 
+  /* Swiss & Industrial Tooling Tokens */
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --node-bg: #14171d;
+  --node-header-bg: #1a1d24;
+  --node-border: #2a2e38;
+  --node-border-selected: #38bdf8;
+  --node-port-in: #38bdf8;
+  --node-port-out: #f59e0b;
+  --node-port-idle: #64748b;
+  --edge-conduit-default: #334155;
+  --edge-conduit-active: #38bdf8;
+  --edge-conduit-pulse: #facc15;
+
   /* Source palette: preserves existing component tones during migration. */
   --palette-source-hex-0003: #0003;
   --palette-source-hex-0008: #0008;

@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useMemo } from 'react'
 import {
   BookOpen,
   Compass,
@@ -7,6 +7,12 @@ import {
   Cpu,
 } from 'lucide-react'
 import type { PanelDefinition, PanelProps } from '@graphframework/workbench'
+import {
+  NodeCard,
+  IndustrialChip,
+  PropertySection,
+  PropertyRow,
+} from '@graphframework/ui'
 
 /* ==========================================================================
    类型定义与神格设定（多角色史诗因果录）
@@ -36,7 +42,10 @@ export interface CharacterMeta {
   title: string
   glyph: string
   lore: string
-  pos: { x: number; y: number }
+  x: number
+  y: number
+  hasInput: boolean
+  hasOutput: boolean
 }
 
 export const CHARACTERS: Record<string, CharacterMeta> = {
@@ -46,7 +55,10 @@ export const CHARACTERS: Record<string, CharacterMeta> = {
     title: '万象星盘持有者',
     glyph: '🌟',
     lore: '居于苍穹圣坛之巅，每次转动星盘便掷出一枚命定诏令（SubmitOrder），点燃全域因果之线。',
-    pos: { x: 70, y: 190 },
+    x: 20,
+    y: 110,
+    hasInput: false,
+    hasOutput: true,
   },
   'demo.router': {
     id: 'demo.router',
@@ -54,7 +66,10 @@ export const CHARACTERS: Record<string, CharacterMeta> = {
     title: '命运棱镜执掌者',
     glyph: '🪐',
     lore: '执掌以太星晶雕琢的命运棱镜，折射并引动因果流光至各神殿，能感应神座坍塌并记录熄灭星痕（Dropped）。',
-    pos: { x: 195, y: 190 },
+    x: 230,
+    y: 110,
+    hasInput: true,
+    hasOutput: true,
   },
   'demo.billing': {
     id: 'demo.billing',
@@ -62,7 +77,10 @@ export const CHARACTERS: Record<string, CharacterMeta> = {
     title: '神圣法典裁定者',
     glyph: '⚖️',
     lore: '手持永不磨损的金羽笔，在黄金法典上核算每一笔因果对价，向终末天平呈递不灭的金印回执。',
-    pos: { x: 345, y: 70 },
+    x: 450,
+    y: 16,
+    hasInput: true,
+    hasOutput: true,
   },
   'demo.fraud': {
     id: 'demo.fraud',
@@ -70,7 +88,10 @@ export const CHARACTERS: Record<string, CharacterMeta> = {
     title: '真实之眼破妄者',
     glyph: '👁️',
     lore: '本隐于界壁裂隙，当因果动荡时被大密咒召入神殿（Admit），以真实之眼洞穿诏令并烙印破妄断言。',
-    pos: { x: 345, y: 190 },
+    x: 450,
+    y: 110,
+    hasInput: true,
+    hasOutput: true,
   },
   'demo.inventory': {
     id: 'demo.inventory',
@@ -78,7 +99,10 @@ export const CHARACTERS: Record<string, CharacterMeta> = {
     title: '星核神石镇守者',
     glyph: '🛡️',
     lore: '手托星核宝库，曾于天劫风暴中神格破碎坠入深渊（Evict），黎明时洗尽铅华以二转神格重生（Gen 1）。',
-    pos: { x: 345, y: 310 },
+    x: 450,
+    y: 204,
+    hasInput: true,
+    hasOutput: true,
   },
   'demo.ledger': {
     id: 'demo.ledger',
@@ -86,9 +110,22 @@ export const CHARACTERS: Record<string, CharacterMeta> = {
     title: '万象法典终汇者',
     glyph: '📜',
     lore: '端坐于因果终焉的神圣天平前，将四方奔流的金印回执、巨灵神石与审判断言汇聚编织进不朽的世界卷轴。',
-    pos: { x: 555, y: 190 },
+    x: 670,
+    y: 110,
+    hasInput: true,
+    hasOutput: false,
   },
 }
+
+export const DAG_CONDUITS: Array<{ from: string; to: string }> = [
+  { from: 'demo.orders', to: 'demo.router' },
+  { from: 'demo.router', to: 'demo.billing' },
+  { from: 'demo.router', to: 'demo.fraud' },
+  { from: 'demo.router', to: 'demo.inventory' },
+  { from: 'demo.billing', to: 'demo.ledger' },
+  { from: 'demo.fraud', to: 'demo.ledger' },
+  { from: 'demo.inventory', to: 'demo.ledger' },
+]
 
 export interface ProphecyAct {
   act: number
@@ -106,27 +143,27 @@ export const PROPHECY_ACTS: ProphecyAct[] = [
     title: '星盘初启·众神就位',
     actTag: 'Act 0 · Genesis',
     foretold:
-      '“万籁寂静，星轨未启。古卷谶语：神谕司祭艾尔将掷出命运之矢，因果之轮划破长夜，黄金贤者与山岳巨灵将自沉睡中醒来。”',
-    fulfillment: '天地初开，五大主神位装配就绪，星轨静止，静候第一道命定诏令注入。',
-    kernelInsight: '微内核装配完成；demo 域拓扑 5 节点处于初态，尚未注入任何 Root Info。',
+      '“预言言道：当第七颗因果之星划破太虚，圣坛之上的神谕司祭将掷出首枚命定诏令。星盘转动，沉睡的诸神自长夜苏醒……”',
+    fulfillment: '微内核启动完毕，基础神殿就绪（Orders, Router, Billing, Inventory, Ledger 在位，代次 GEN 0）。等待第一声神谕召唤。',
+    kernelInsight: '阶段初始化：静态组装（Assemble）后准入（Admit），节点处于 Gen 0 干净初始态。',
     featuredCharacters: ['demo.orders', 'demo.router'],
   },
   {
     act: 1,
     title: '因果奔涌·双星入账',
-    actTag: 'Act I · The Flow',
+    actTag: 'Act I · Dual Echoes',
     foretold:
-      '“预言言道：双星飞驰！金律殿中金印生辉，神库之内神石共鸣，两道命定回执已汇入终末天平。”',
-    fulfillment: '艾尔司祭连续降下两道星辰诏令（order-1, order-2）。金律贤者与守库巨灵顺利结算，终末天平已平稳收讫。',
-    kernelInsight: '稳态因果流转：OrderPlaced 经 router 扇出，下游独立处理并提交 ReceiptPosted、StockReserved。',
-    featuredCharacters: ['demo.billing', 'demo.inventory', 'demo.ledger'],
+      '“预言言道：星轨初辟，一念动而双星应。金律贤者展阅黄金法典，山岳泰坦捧出守护神石，终末天平铭刻下最初的印记。”',
+    fulfillment: '首枚诏令（order-1）穿越命运棱镜！金律贤者如实核算，守库泰坦如数备石，终末天平已记下首道完备回执！',
+    kernelInsight: '静态拓扑扩散：单个 Input 经 Router 扇出（Fan-out）至 Billing 与 Inventory，最终原子汇聚于 Ledger。',
+    featuredCharacters: ['demo.billing', 'demo.inventory'],
   },
   {
     act: 2,
-    title: '深渊破界·巡察降临',
-    actTag: 'Act II · The Inquisitor',
+    title: '大密咒动·虚空巡察',
+    actTag: 'Act II · The Summoning',
     foretold:
-      '“预言言道：极北虚空雷鸣，深渊巡察使破界而来！枢机长老将施展星轨牵引术，将审判之眼接入命运棱镜……”',
+      '“预言言道：当第二道星芒破晓，界壁裂隙间将降下隐秘的巡察使。祂睁开真实之眼，自虚空之中降临神殿，洞察一切因果的伪饰。”',
     fulfillment: '运行中动态接纳（Admit）：虚空巡察使已降临圣坛！星轨枢机使已将其挂接至筛查网络（AttachScreening）。',
     kernelInsight: '运行时动态装载：RuleSpace.mountDomainNode(FraudNode)，并在 router 状态写入 screening 白名单。',
     featuredCharacters: ['demo.fraud', 'demo.router'],
@@ -188,15 +225,36 @@ export function summarizeDemoNode(entry: DemoNodeView): string {
   }
 }
 
-function edgePath(from: { x: number; y: number }, to: { x: number; y: number }): string {
-  const mx = (from.x + to.x) / 2
-  const my = (from.y + to.y) / 2 - 28
-  return `M ${from.x} ${from.y} Q ${mx} ${my} ${to.x} ${to.y}`
+function getNodeProperties(nodeId: string, state?: Record<string, unknown>) {
+  if (!state) return []
+  const list = (key: string): unknown[] => {
+    const value = state[key]
+    return Array.isArray(value) ? value : []
+  }
+  switch (nodeId) {
+    case 'demo.orders':
+      return [{ label: 'Placed', value: String(state.placed ?? 0), monospace: true }]
+    case 'demo.router':
+      return [
+        { label: 'Routed', value: String(state.routed ?? 0), monospace: true },
+        { label: 'Dropped', value: String(state.dropped ?? 0), monospace: true },
+      ]
+    case 'demo.billing':
+      return [{ label: 'Billed', value: String(list('billed').length), monospace: true }]
+    case 'demo.fraud':
+      return [{ label: 'Screened', value: String(list('screened').length), monospace: true }]
+    case 'demo.inventory':
+      return [{ label: 'Reserved', value: String(list('reserved').length), monospace: true }]
+    case 'demo.ledger':
+      return [
+        { label: 'Receipts', value: String(list('receipts').length), monospace: true },
+        { label: 'Settled', value: String(list('reservations').length), monospace: true },
+      ]
+    default:
+      return []
+  }
 }
 
-/* ==========================================================================
-   共享 Demo 上下文
-   ========================================================================== */
 export interface DemoContextValue {
   snapshot: DemoSnapshot | null
   selectedCharId: string
@@ -238,7 +296,7 @@ export function ProphecyPanel(_props: PanelProps) {
 
   return (
     <div className="panel-container prophecy-panel-root">
-      {/* 篇章翻页器 */}
+      {/* 篇章步进工具条 */}
       <div className="chapter-stepper" role="navigation" aria-label="篇章翻页">
         {PROPHECY_ACTS.map((act) => {
           const isCurrentPhase = snapshot?.phase === act.act
@@ -253,9 +311,11 @@ export function ProphecyPanel(_props: PanelProps) {
               }`}
               onClick={() => setViewingAct(act.act)}
             >
-              <span className="chapter-step-num">ACT {act.act}</span>
+              <span className="chapter-step-num is-mono">ACT {act.act}</span>
               <span>{act.title}</span>
-              {isCurrentPhase && <span className="dock-badge">当前</span>}
+              {isCurrentPhase && (
+                <IndustrialChip label="CURRENT" tone="accent" monospace />
+              )}
             </button>
           )
         })}
@@ -265,7 +325,7 @@ export function ProphecyPanel(_props: PanelProps) {
         <article className="prophecy-scroll">
           <header className="scroll-header">
             <div>
-              <span className="scroll-act-tag">{currentAct.actTag}</span>
+              <IndustrialChip label={currentAct.actTag} tone="accent" monospace />
               <h1 className="scroll-title">{currentAct.title}</h1>
             </div>
           </header>
@@ -273,22 +333,26 @@ export function ProphecyPanel(_props: PanelProps) {
           <div className="scroll-content-box">
             <div className="foretold-card">
               <div className="foretold-label">
-                <span>📜</span> 谶语 · 命定之预示
+                <IndustrialChip label="Foretold · 谶语预示" monospace />
               </div>
               <p className="foretold-text">{currentAct.foretold}</p>
             </div>
 
             <div className="fulfillment-card">
               <div className="fulfillment-label">
-                <span>⚡</span> 现实应验 · 因果流变
+                <IndustrialChip
+                  label="Fulfillment · 因果应验"
+                  tone={snapshot && snapshot.phase >= currentAct.act ? 'success' : 'muted'}
+                  monospace
+                />
               </div>
               <p className="fulfillment-text">
                 {snapshot && snapshot.phase >= currentAct.act
                   ? currentAct.fulfillment
                   : '因果尚未行至此幕，等待预言之音应验……'}
               </p>
-              <div className="kernel-insight">
-                <strong>🏛️ 微内核法则映射：</strong> {currentAct.kernelInsight}
+              <div className="kernel-insight is-mono">
+                [KERNEL_RULE] {currentAct.kernelInsight}
               </div>
             </div>
           </div>
@@ -296,15 +360,15 @@ export function ProphecyPanel(_props: PanelProps) {
           <footer className="ritual-controls">
             <button
               type="button"
-              className="ritual-primary-btn"
+              className="gv-action-tool-btn is-primary"
               disabled={!snapshot || busy || playing || (snapshot?.phase ?? 0) >= 5}
               onClick={() => void runTopologyOp(() => window.demo.step())}
             >
-              {busy ? '因果运转中…' : '🔮 应验此言 · 驱动命运之轮'}
+              {busy ? '因果运转中…' : '⚡ 应验此言 · 驱动命运之轮'}
             </button>
             <button
               type="button"
-              className="action-btn"
+              className="gv-action-tool-btn"
               disabled={!snapshot || busy}
               onClick={() => setPlaying(!playing)}
             >
@@ -312,7 +376,7 @@ export function ProphecyPanel(_props: PanelProps) {
             </button>
             <button
               type="button"
-              className="action-btn"
+              className="gv-action-tool-btn"
               disabled={!snapshot || busy}
               onClick={() => void runTopologyOp(() => window.demo.reset())}
             >
@@ -322,38 +386,29 @@ export function ProphecyPanel(_props: PanelProps) {
         </article>
 
         <aside className="prophecy-sidebar">
-          <h2 className="sidebar-title">本幕焦点神格 (点击联动选视)</h2>
-          {currentAct.featuredCharacters.map((charId) => {
-            const meta = CHARACTERS[charId]
-            if (!meta) return null
-            const entry = liveNodesMap.get(charId)
-            const isSelected = selectedCharId === charId
-            return (
-              <div
-                key={charId}
-                className={`character-card${isSelected ? ' is-selected' : ''}`}
-                onClick={() => setSelectedCharId(charId)}
-              >
-                <div className="char-header">
-                  <div className="char-name-group">
-                    <span className="char-glyph">{meta.glyph}</span>
-                    <span className="char-name">{meta.name}</span>
-                  </div>
-                  <span
-                    className={`char-gen-badge${
-                      (entry?.generation ?? 0) > 0 ? ' is-elevated' : ''
-                    }`}
-                  >
-                    {entry ? `GEN ${entry.generation}` : '已放逐'}
-                  </span>
-                </div>
-                <div className="char-title">{meta.title}</div>
-                <div className="char-stat-summary">
-                  {entry ? summarizeDemoNode(entry) : '神位空悬，静待重生'}
-                </div>
-              </div>
-            )
-          })}
+          <div className="sidebar-section-title">焦点神格 (FOCUS NODE)</div>
+          <div className="prophecy-node-list">
+            {currentAct.featuredCharacters.map((charId) => {
+              const meta = CHARACTERS[charId]
+              if (!meta) return null
+              const entry = liveNodesMap.get(charId)
+              const isSelected = selectedCharId === charId
+              return (
+                <NodeCard
+                  key={charId}
+                  nodeId={charId}
+                  title={meta.name}
+                  subtitle={meta.title}
+                  generation={entry?.generation ?? null}
+                  status={entry ? 'ONLINE' : 'OFFLINE'}
+                  statusTone={entry ? 'active' : 'evicted'}
+                  selected={isSelected}
+                  properties={getNodeProperties(charId, entry?.state)}
+                  onClick={() => setSelectedCharId(charId)}
+                />
+              )
+            })}
+          </div>
         </aside>
       </div>
     </div>
@@ -361,7 +416,7 @@ export function ProphecyPanel(_props: PanelProps) {
 }
 
 /* ==========================================================================
-   Panel 2: 【因果星盘 · 天体拓扑】 (demo.astrolabe)
+   Panel 2: 【因果拓扑 · 工业节点图】 (demo.astrolabe)
    ========================================================================== */
 export function AstrolabePanel(_props: PanelProps) {
   const { snapshot, selectedCharId, setSelectedCharId } = useDemo()
@@ -371,186 +426,140 @@ export function AstrolabePanel(_props: PanelProps) {
   const selectedCharEntry = live.get(selectedCharId)
 
   return (
-    <div className="panel-container astrolabe-panel-root">
-      <div className="astrolabe-canvas-box">
-        <svg viewBox="0 0 650 380" width="100%" height="100%" role="img" aria-label="因果星盘">
+    <div className="panel-container causal-dag-root">
+      {/* 顶部工程 HUD 信息条 */}
+      <div className="dag-hud-bar">
+        <div className="dag-hud-left">
+          <span className="dag-hud-title">CAUSAL ROUTING DAG · 权威规则空间拓扑</span>
+          <IndustrialChip label={`NODES: ${snapshot?.nodes.length ?? 0}`} monospace />
+          <IndustrialChip label={`REVISION: ${snapshot?.revision ?? 0}`} tone="accent" monospace />
+          {routerDropped > 0 && (
+            <IndustrialChip label={`DROPPED ×${routerDropped}`} tone="danger" monospace />
+          )}
+        </div>
+        <div className="dag-hud-right">
+          <span className="dag-hud-hint">点击节点检视因果状态 · 矢量正交导管实时寻路</span>
+        </div>
+      </div>
+
+      {/* 节点图主画布 */}
+      <div className="dag-canvas-container">
+        {/* SVG 导管连线层 */}
+        <svg className="dag-conduits-layer" width="100%" height="100%">
           <defs>
-            <radialGradient id="celestialSpace" cx="50%" cy="40%" r="75%">
-              <stop offset="0%" stopColor="#1e233d" />
-              <stop offset="60%" stopColor="#0d1020" />
-              <stop offset="100%" stopColor="#05060b" />
-            </radialGradient>
-            <filter id="celestialGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
+            <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <polygon points="0 0, 6 3, 0 6" fill="#334155" />
+            </marker>
+            <marker id="arrowhead-active" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <polygon points="0 0, 6 3, 0 6" fill="#38bdf8" />
+            </marker>
           </defs>
 
-          <rect x="0" y="0" width="650" height="380" fill="url(#celestialSpace)" />
+          {DAG_CONDUITS.map((edge) => {
+            const fromNode = CHARACTERS[edge.from]
+            const toNode = CHARACTERS[edge.to]
+            if (!fromNode || !toNode) return null
+            const x1 = fromNode.x + 180
+            const y1 = fromNode.y + 44
+            const x2 = toNode.x
+            const y2 = toNode.y + 44
+            const dx = Math.max(30, (x2 - x1) * 0.5)
+            const pathD = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`
+            const isAlive = live.has(edge.from) && live.has(edge.to)
+            const isDroppedEdge = edge.to === 'demo.inventory' && !live.has('demo.inventory')
 
-          <circle cx="325" cy="190" r="160" fill="none" stroke="#252d4a" strokeWidth="1" strokeDasharray="3 6" opacity="0.6" />
-          <circle cx="325" cy="190" r="110" fill="none" stroke="#2c3659" strokeWidth="1" strokeDasharray="4 8" opacity="0.4" />
-          <circle cx="590" cy="46" r="22" fill="#fff5d9" opacity="0.85" filter="url(#celestialGlow)" />
-          <circle cx="582" cy="40" r="20" fill="#0d1020" opacity="0.3" />
-
-          {[
-            [50, 45], [130, 30], [240, 56], [320, 30], [420, 48], [490, 85],
-            [80, 330], [180, 345], [300, 340], [460, 335], [570, 320], [280, 110],
-          ].map(([x, y]) => (
-            <circle key={`${x}-${y}`} cx={x} cy={y} r="1.3" fill="#d0dbff" opacity="0.75" />
-          ))}
-
-          {(snapshot?.edges ?? []).map((edge) => {
-            const from = CHARACTERS[edge.from]
-            const to = CHARACTERS[edge.to]
-            if (!from || !to) return null
-            const d = edgePath(from.pos, to.pos)
             return (
-              <g key={`${edge.from}->${edge.to}`}>
-                <path d={d} fill="none" stroke="#5d6e94" strokeWidth="1.6" strokeDasharray="4 4" opacity="0.75" />
-                {[0, 1].map((i) => (
-                  <circle key={i} r="3" fill="#ffd76a" filter="url(#celestialGlow)">
-                    <animateMotion dur={`${2.2 + i * 1.1}s`} begin={`${-i * 1.2}s`} repeatCount="indefinite" path={d} />
+              <g key={`${edge.from}->${edge.to}`} className={`conduit-group${isAlive ? ' is-alive' : ' is-broken'}`}>
+                <path
+                  d={pathD}
+                  className={`conduit-path${isAlive ? ' is-active' : ''}${isDroppedEdge ? ' is-dropped' : ''}`}
+                  markerEnd={isAlive ? 'url(#arrowhead-active)' : 'url(#arrowhead)'}
+                />
+                {isAlive && (
+                  <circle r="2.5" fill="#facc15">
+                    <animateMotion dur="2.4s" repeatCount="indefinite" path={pathD} />
                   </circle>
-                ))}
+                )}
               </g>
             )
           })}
+        </svg>
 
+        {/* DOM 工业节点层 */}
+        <div className="dag-nodes-layer">
           {Object.entries(CHARACTERS).map(([id, meta]) => {
             const entry = live.get(id)
             const isSelected = selectedCharId === id
-            const isEvicted = !entry
+            const gen = entry?.generation ?? null
+            const isEvicted = !entry && id === 'demo.inventory'
+            const isUnmounted = !entry && id === 'demo.fraud'
 
+            let statusLabel = 'ACTIVE'
+            let statusTone: 'idle' | 'active' | 'warning' | 'danger' | 'evicted' = 'active'
             if (isEvicted) {
-              return (
-                <g
-                  key={id}
-                  onClick={() => setSelectedCharId(id)}
-                  style={{ cursor: 'pointer' }}
-                  opacity="0.45"
-                >
-                  <circle
-                    cx={meta.pos.x}
-                    cy={meta.pos.y}
-                    r="18"
-                    fill="none"
-                    stroke="#ff6060"
-                    strokeWidth="1.6"
-                    strokeDasharray="4 4"
-                  />
-                  <text x={meta.pos.x} y={meta.pos.y - 24} textAnchor="middle" fill="#ff9090" fontSize="11" fontWeight="bold">
-                    {meta.glyph} {meta.name}
-                  </text>
-                  <text x={meta.pos.x} y={meta.pos.y + 32} textAnchor="middle" fill="#ff7070" fontSize="10">
-                    [神位剥离·坠入深渊]
-                  </text>
-                </g>
-              )
+              statusLabel = 'EVICTED'
+              statusTone = 'evicted'
+            } else if (isUnmounted) {
+              statusLabel = 'UNMOUNTED'
+              statusTone = 'idle'
             }
 
-            const gen = entry.generation ?? 0
-            const isElevatedGen = gen > 0
+            const props = getNodeProperties(id, entry?.state)
 
             return (
-              <g
+              <div
                 key={id}
-                onClick={() => setSelectedCharId(id)}
-                style={{ cursor: 'pointer' }}
+                className="dag-node-wrapper"
+                style={{
+                  position: 'absolute',
+                  left: meta.x,
+                  top: meta.y,
+                  width: 180,
+                }}
               >
-                {isSelected && (
-                  <circle
-                    cx={meta.pos.x}
-                    cy={meta.pos.y}
-                    r="28"
-                    fill="none"
-                    stroke="#ffd76a"
-                    strokeWidth="2"
-                    strokeDasharray="6 3"
-                  >
-                    <animateTransform
-                      attributeName="transform"
-                      type="rotate"
-                      from={`0 ${meta.pos.x} ${meta.pos.y}`}
-                      to={`360 ${meta.pos.x} ${meta.pos.y}`}
-                      dur="8s"
-                      repeatCount="indefinite"
-                    />
-                  </circle>
-                )}
-
-                <circle
-                  cx={meta.pos.x}
-                  cy={meta.pos.y}
-                  r={isElevatedGen ? 22 : 18}
-                  fill={isElevatedGen ? '#ffd76a' : '#5a78c8'}
-                  opacity={isSelected ? 0.35 : 0.18}
-                  filter="url(#celestialGlow)"
+                <NodeCard
+                  nodeId={id}
+                  title={meta.name}
+                  subtitle={meta.title}
+                  generation={gen}
+                  status={statusLabel}
+                  statusTone={statusTone}
+                  selected={isSelected}
+                  ports={{
+                    in: meta.hasInput ? [{ id: `${id}:in`, active: Boolean(entry) }] : undefined,
+                    out: meta.hasOutput ? [{ id: `${id}:out`, active: Boolean(entry) }] : undefined,
+                  }}
+                  properties={props}
+                  onClick={() => setSelectedCharId(id)}
                 />
-
-                <circle
-                  cx={meta.pos.x}
-                  cy={meta.pos.y}
-                  r="10"
-                  fill={isElevatedGen ? '#ffd76a' : '#92b3ff'}
-                  stroke="#0d1020"
-                  strokeWidth="2"
-                />
-
-                {isElevatedGen && (
-                  <circle
-                    cx={meta.pos.x}
-                    cy={meta.pos.y}
-                    r="15"
-                    fill="none"
-                    stroke="#ffd76a"
-                    strokeWidth="1.2"
-                    strokeDasharray="2 3"
-                  />
-                )}
-
-                <text
-                  x={meta.pos.x}
-                  y={meta.pos.y - 24}
-                  textAnchor="middle"
-                  fill="#f5f7fc"
-                  fontSize="12"
-                  fontWeight={isSelected ? 'bold' : 'normal'}
-                >
-                  {meta.glyph} {meta.name}
-                  {isElevatedGen ? ` [GEN ${gen} 涅槃]` : ` @${gen}`}
-                </text>
-
-                <text x={meta.pos.x} y={meta.pos.y + 32} textAnchor="middle" fill="#a0adc9" fontSize="10">
-                  {summarizeDemoNode(entry)}
-                </text>
-              </g>
+              </div>
             )
           })}
-
-          {routerDropped > 0 && (
-            <g transform="translate(195, 250)">
-              <rect x="-65" y="-12" width="130" height="24" rx="12" fill="#2d1217" stroke="#ff5c5c" strokeWidth="1" />
-              <text x="0" y="4" textAnchor="middle" fill="#ff8585" fontSize="11" fontWeight="bold">
-                ✦ 虚空湮灭 (Dropped ×{routerDropped})
-              </text>
-            </g>
-          )}
-        </svg>
+        </div>
       </div>
 
-      <div className="astrolabe-inspector-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '20px' }}>{selectedCharMeta.glyph}</span>
+      {/* 底部工业检视栏 */}
+      <div className="dag-inspector-bar">
+        <div className="dag-inspector-left">
+          <span className="dag-inspector-glyph">{selectedCharMeta.glyph}</span>
           <div>
-            <strong style={{ fontSize: '13px' }}>{selectedCharMeta.name}</strong>
-            <span style={{ fontSize: '11px', color: 'var(--content-secondary)', marginLeft: '8px' }}>
-              {selectedCharMeta.title} · {selectedCharEntry ? `代次: GEN ${selectedCharEntry.generation}` : '状态: 离席'}
-            </span>
+            <div className="dag-inspector-id-row">
+              <span className="dag-inspector-id is-mono">{selectedCharMeta.id}</span>
+              <span className="dag-inspector-name">{selectedCharMeta.name}</span>
+              <IndustrialChip
+                label={selectedCharEntry ? `GEN ${selectedCharEntry.generation}` : 'OFFLINE'}
+                tone={selectedCharEntry ? 'accent' : 'danger'}
+                monospace
+              />
+            </div>
+            <div className="dag-inspector-lore">{selectedCharMeta.lore}</div>
           </div>
         </div>
-        <div style={{ fontSize: '11px', color: 'var(--content-tertiary)' }}>
-          {selectedCharMeta.lore}
+        <div className="dag-inspector-right">
+          <span className="dag-inspector-dto-label">DECODED STATE</span>
+          <code className="dag-inspector-dto is-mono">
+            {JSON.stringify(selectedCharEntry?.state ?? {})}
+          </code>
         </div>
       </div>
     </div>
@@ -570,35 +579,27 @@ export function PantheonPanel(_props: PanelProps) {
     <div className="panel-container pantheon-panel-root">
       <div className="pantheon-layout">
         <div className="pantheon-roster">
-          <div className="sidebar-title">神殿六神座</div>
-          {Object.entries(CHARACTERS).map(([id, meta]) => {
-            const entry = live.get(id)
-            const isSelected = selectedCharId === id
-            return (
-              <div
-                key={id}
-                className={`character-card${isSelected ? ' is-selected' : ''}`}
-                onClick={() => setSelectedCharId(id)}
-              >
-                <div className="char-header">
-                  <div className="char-name-group">
-                    <span className="char-glyph">{meta.glyph}</span>
-                    <span className="char-name">{meta.name}</span>
-                  </div>
-                  <span
-                    className={`char-gen-badge${
-                      (entry?.generation ?? 0) > 0 ? ' is-elevated' : ''
-                    }`}
-                  >
-                    {entry ? `GEN ${entry.generation}` : '离席'}
-                  </span>
-                </div>
-                <div className="char-stat-summary">
-                  {entry ? summarizeDemoNode(entry) : '神位空悬'}
-                </div>
-              </div>
-            )
-          })}
+          <div className="sidebar-section-title">神殿六神座 (NODE MATRIX)</div>
+          <div className="pantheon-cards-grid">
+            {Object.entries(CHARACTERS).map(([id, meta]) => {
+              const entry = live.get(id)
+              const isSelected = selectedCharId === id
+              return (
+                <NodeCard
+                  key={id}
+                  nodeId={id}
+                  title={meta.name}
+                  subtitle={meta.title}
+                  generation={entry?.generation ?? null}
+                  status={entry ? 'ONLINE' : 'OFFLINE'}
+                  statusTone={entry ? 'active' : 'evicted'}
+                  selected={isSelected}
+                  properties={getNodeProperties(id, entry?.state)}
+                  onClick={() => setSelectedCharId(id)}
+                />
+              )
+            })}
+          </div>
         </div>
 
         <div className="pantheon-scope">
@@ -607,51 +608,48 @@ export function PantheonPanel(_props: PanelProps) {
               <div className="scope-char-symbol">{selectedCharMeta.glyph}</div>
               <div className="scope-title-text">
                 <h2>{selectedCharMeta.name}</h2>
-                <p>
-                  {selectedCharMeta.title} · 万象坐标 <code>{selectedCharMeta.id}</code>
+                <p className="is-mono">
+                  {selectedCharMeta.title} · <code>{selectedCharMeta.id}</code>
                 </p>
               </div>
             </div>
-            <span
-              className={`char-gen-badge${
-                (selectedCharEntry?.generation ?? 0) > 0 ? ' is-elevated' : ''
-              }`}
-              style={{ padding: '4px 12px', fontSize: '12px' }}
-            >
-              代次: GEN {selectedCharEntry ? selectedCharEntry.generation : '–'}
-            </span>
+            <IndustrialChip
+              label={`GEN ${selectedCharEntry ? selectedCharEntry.generation : '–'}`}
+              tone={(selectedCharEntry?.generation ?? 0) > 0 ? 'elevated' : 'default'}
+              monospace
+            />
           </div>
 
-          <div style={{ fontSize: '13px', color: 'var(--content-secondary)', lineHeight: 1.6 }}>
+          <div className="scope-lore-text">
             {selectedCharMeta.lore}
           </div>
 
           <div className="scope-grid">
             <div className="metric-card">
               <div className="metric-card-label">神座存续状态</div>
-              <div className="metric-card-val" style={{ color: selectedCharEntry ? 'var(--state-success-fg)' : 'var(--state-danger-fg)' }}>
+              <div className="metric-card-val" style={{ color: selectedCharEntry ? 'var(--status-success)' : 'var(--status-danger)' }}>
                 {selectedCharEntry ? '在位守护' : '神位放逐'}
               </div>
             </div>
             <div className="metric-card">
               <div className="metric-card-label">生命代次 (Generation)</div>
-              <div className="metric-card-val">
+              <div className="metric-card-val is-mono">
                 {selectedCharEntry ? selectedCharEntry.generation : '—'}
               </div>
             </div>
             <div className="metric-card">
               <div className="metric-card-label">因果交互归属</div>
-              <div className="metric-card-val" style={{ fontSize: '14px' }}>
+              <div className="metric-card-val" style={{ fontSize: '12px' }}>
                 {selectedCharId === 'demo.orders' ? 'Root 外部发信源' : 'Domain 纯领域因果'}
               </div>
             </div>
           </div>
 
-          <div>
-            <div className="sidebar-title" style={{ marginBottom: '8px' }}>
+          <div className="scope-dto-section">
+            <div className="sidebar-section-title">
               PROJECTION 解码私有状态 (DECODED STATE DTO)
             </div>
-            <pre className="scope-json-box">
+            <pre className="scope-json-box is-mono">
               {JSON.stringify(selectedCharEntry?.state ?? {}, null, 2)}
             </pre>
           </div>
@@ -674,33 +672,32 @@ export function ChroniclePanel(_props: PanelProps) {
   const routerState = live.get('demo.router')?.state ?? {}
   const routedCount = Number(routerState.routed ?? 0)
   const routerDropped = Number(routerState.dropped ?? 0)
-  const screeningList = Array.isArray(routerState.screening) ? routerState.screening : []
 
   return (
     <div className="panel-container chronicle-panel-root">
       <div className="chronicle-layout">
         <div className="chronicle-summary-grid">
           <div className="metric-card">
-            <div className="metric-card-label">⚖️ 黄金法典收讫 (Receipts)</div>
-            <div className="metric-card-val" style={{ color: '#ffd76a' }}>
+            <div className="metric-card-label">黄金法典收讫 (Receipts)</div>
+            <div className="metric-card-val is-mono" style={{ color: '#ffd76a' }}>
               {receiptsList.length}
             </div>
           </div>
           <div className="metric-card">
-            <div className="metric-card-label">🛡️ 泰坦神石镇守 (Reservations)</div>
-            <div className="metric-card-val" style={{ color: '#92b3ff' }}>
+            <div className="metric-card-label">泰坦神石镇守 (Reservations)</div>
+            <div className="metric-card-val is-mono" style={{ color: '#92b3ff' }}>
               {reservationsList.length}
             </div>
           </div>
           <div className="metric-card">
-            <div className="metric-card-label">👁️ 真实之眼断言 (Verdicts)</div>
-            <div className="metric-card-val" style={{ color: '#82e0aa' }}>
+            <div className="metric-card-label">真实之眼断言 (Verdicts)</div>
+            <div className="metric-card-val is-mono" style={{ color: '#82e0aa' }}>
               {verdictsList.length}
             </div>
           </div>
           <div className="metric-card">
-            <div className="metric-card-label">✦ 虚空因果湮灭 (Dropped)</div>
-            <div className="metric-card-val" style={{ color: routerDropped > 0 ? '#ff6060' : 'var(--content-tertiary)' }}>
+            <div className="metric-card-label">虚空因果湮灭 (Dropped)</div>
+            <div className="metric-card-val is-mono" style={{ color: routerDropped > 0 ? '#ef4444' : 'var(--text-tertiary)' }}>
               {routerDropped}
             </div>
           </div>
@@ -708,30 +705,30 @@ export function ChroniclePanel(_props: PanelProps) {
 
         <div className="chronicle-split">
           <div className="chronicle-book">
-            <div className="sidebar-title">终末天平 · 世界卷轴流水账</div>
+            <div className="sidebar-section-title">终末天平 · 世界卷轴流水账</div>
             <div className="chronicle-records-list">
               {receiptsList.length === 0 && reservationsList.length === 0 && verdictsList.length === 0 ? (
-                <div style={{ color: 'var(--content-tertiary)', fontSize: '12px', padding: '16px' }}>
+                <div style={{ color: 'var(--text-tertiary)', fontSize: '11px', padding: '16px' }}>
                   卷轴空白，尚无因果汇聚……
                 </div>
               ) : (
                 <>
                   {receiptsList.map((item, index) => (
                     <div className="chronicle-record-item" key={`rec-${index}`}>
-                      <span className="record-tag is-gold">金印回执</span>
-                      <code>{JSON.stringify(item)}</code>
+                      <IndustrialChip label="金印回执" tone="elevated" monospace />
+                      <code className="is-mono">{JSON.stringify(item)}</code>
                     </div>
                   ))}
                   {reservationsList.map((item, index) => (
                     <div className="chronicle-record-item" key={`res-${index}`}>
-                      <span className="record-tag is-blue">神石定额</span>
-                      <code>{JSON.stringify(item)}</code>
+                      <IndustrialChip label="神石定额" tone="accent" monospace />
+                      <code className="is-mono">{JSON.stringify(item)}</code>
                     </div>
                   ))}
                   {verdictsList.map((item, index) => (
                     <div className="chronicle-record-item" key={`ver-${index}`}>
-                      <span className="record-tag is-green">破妄断言</span>
-                      <code>{JSON.stringify(item)}</code>
+                      <IndustrialChip label="破妄断言" tone="success" monospace />
+                      <code className="is-mono">{JSON.stringify(item)}</code>
                     </div>
                   ))}
                 </>
@@ -740,21 +737,15 @@ export function ChroniclePanel(_props: PanelProps) {
           </div>
 
           <div className="chronicle-book">
-            <div className="sidebar-title">枢机长老 · 星轨折射日志</div>
+            <div className="sidebar-section-title">枢机长老 · 路由折射流水</div>
             <div className="chronicle-records-list">
               <div className="chronicle-record-item">
-                <span className="record-tag">累计分发</span>
-                <span>{routedCount} 枚星辰诏令</span>
+                <IndustrialChip label="累计分发" tone="default" monospace />
+                <span className="is-mono">{routedCount} 条星辰诏令</span>
               </div>
               <div className="chronicle-record-item">
-                <span className="record-tag">湮灭信件</span>
-                <span style={{ color: routerDropped > 0 ? '#ff8585' : 'inherit' }}>
-                  {routerDropped} 枚因果断点 (Dropped)
-                </span>
-              </div>
-              <div className="chronicle-record-item">
-                <span className="record-tag">筛查节点挂接</span>
-                <span>[{screeningList.join(', ') || '未挂接'}]</span>
+                <IndustrialChip label="湮灭信件" tone={routerDropped > 0 ? 'danger' : 'muted'} monospace />
+                <span className="is-mono">{routerDropped} 条（因果断链）</span>
               </div>
             </div>
           </div>
@@ -765,55 +756,104 @@ export function ChroniclePanel(_props: PanelProps) {
 }
 
 /* ==========================================================================
-   Panel 5: 【内核基石 · 规约底座】 (demo.kernel)
+   Panel 5: 【内核基石 · 权威调度】 (demo.kernel)
    ========================================================================== */
 export function KernelPanel(_props: PanelProps) {
-  const { snapshot } = useDemo()
+  const { snapshot, busy, playing, setPlaying, runTopologyOp } = useDemo()
 
   return (
     <div className="panel-container kernel-panel-root">
-      <div className="sidebar-title">Rust 微内核 RuleSpace 权威图状态投影</div>
-      <div style={{ fontSize: '11px', color: 'var(--content-tertiary)', marginBottom: '12px' }}>
-        物理调度由 Rust 微内核运行，无业务语义微内核；本面板为从 IPC 缓存读取到的已解码 State 投影。
+      <div className="kernel-layout">
+        <div className="kernel-card">
+          <div className="sidebar-section-title">微内核状态探针 (KERNEL OBSERVABILITY)</div>
+          <div className="scope-grid">
+            <div className="metric-card">
+              <div className="metric-card-label">全域拓扑修订 (Revision)</div>
+              <div className="metric-card-val is-mono">{snapshot?.revision ?? 0}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-card-label">准入节点数 (Admitted)</div>
+              <div className="metric-card-val is-mono">{snapshot?.nodes.length ?? 0}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-card-label">因果导轨数 (Edges)</div>
+              <div className="metric-card-val is-mono">{snapshot?.edges.length ?? 0}</div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '16px' }}>
+            <div className="sidebar-section-title">权威调度操作控制台</div>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+              <button
+                type="button"
+                className="gv-action-tool-btn is-primary"
+                disabled={!snapshot || busy || playing}
+                onClick={() => void runTopologyOp(() => window.demo.step())}
+              >
+                ⚡ 提交推演信件 (SubmitOrder)
+              </button>
+              <button
+                type="button"
+                className="gv-action-tool-btn"
+                disabled={!snapshot || busy}
+                onClick={() => setPlaying(!playing)}
+              >
+                {playing ? '⏸ 暂停自动推演' : '▶ 启动时钟演进'}
+              </button>
+              <button
+                type="button"
+                className="gv-action-tool-btn"
+                disabled={!snapshot || busy}
+                onClick={() => void runTopologyOp(() => window.demo.reset())}
+              >
+                ↺ 全域清零重溯
+              </button>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '16px' }}>
+            <div className="sidebar-section-title">全量快照原始 DTO (RAW SNAPSHOT JSON)</div>
+            <pre className="scope-json-box is-mono" style={{ maxHeight: '280px' }}>
+              {JSON.stringify(snapshot ?? {}, null, 2)}
+            </pre>
+          </div>
+        </div>
       </div>
-      <pre className="scope-json-box" style={{ height: 'calc(100% - 60px)', margin: 0 }}>
-        {JSON.stringify(snapshot ?? {}, null, 2)}
-      </pre>
     </div>
   )
 }
 
 /* ==========================================================================
-   面板定义集合 (供 Workbench 注册)
+   Panel 注册表：导出标准 PanelDefinition
    ========================================================================== */
 export const DEMO_PANEL_DEFINITIONS: PanelDefinition[] = [
   {
     id: 'demo.prophecy',
-    title: '预言编织 · 命运古卷',
+    title: '预言编织',
     icon: BookOpen,
     component: ProphecyPanel,
   },
   {
     id: 'demo.astrolabe',
-    title: '因果星盘 · 天体拓扑',
+    title: '因果拓扑',
     icon: Compass,
     component: AstrolabePanel,
   },
   {
     id: 'demo.pantheon',
-    title: '神格示波 · 状态透镜',
+    title: '神格示波',
     icon: Sliders,
     component: PantheonPanel,
   },
   {
     id: 'demo.chronicle',
-    title: '万象编年 · 终末法典',
+    title: '万象编年',
     icon: Layers,
     component: ChroniclePanel,
   },
   {
     id: 'demo.kernel',
-    title: '内核基石 · 规约底座',
+    title: '内核基石',
     icon: Cpu,
     component: KernelPanel,
   },

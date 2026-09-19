@@ -36,6 +36,16 @@
   --canvas-grid-dot: rgba(15, 23, 42, 0.08);
   --edge-conduit: rgba(2, 132, 199, 0.35);
   --port-idle: #94a3b8;
+  --node-bg: #ffffff;
+  --node-header-bg: #f1f5f9;
+  --node-border: #cbd5e1;
+  --node-border-selected: #0284c7;
+  --node-port-in: #0284c7;
+  --node-port-out: #d97706;
+  --node-port-idle: #94a3b8;
+  --edge-conduit-default: #94a3b8;
+  --edge-conduit-active: #0284c7;
+  --edge-conduit-pulse: #eab308;
 
   --palette-neutral-1000: #ffffff;
   --palette-neutral-950: #f8fafc;
