@@ -8,7 +8,12 @@
         "path": "../../app/plugins/backend/demo-topology"
       }
     ],
-    "frontend": []
+    "frontend": [
+      {
+        "id": "demo.topology",
+        "path": "../../app/plugins/frontend/demo-topology"
+      }
+    ]
   },
   "kernel": {
     "daemonPath": "../../packages/rust/target/debug/graphframework-kernel-daemon",
@@ -20,7 +25,14 @@
     "dependencies": {}
   },
   "frontend": {
-    "instances": []
+    "instances": [
+      {
+        "id": "demo-ui",
+        "plugin": "demo.topology",
+        "graph": "topology",
+        "entry": null
+      }
+    ]
   },
   "graph": {
     "instances": [
@@ -54,38 +66,7 @@
       "settleMs": 30000
     }
   },
-  "scenarios": [
-    {
-      "name": "order-fulfillment",
-      "inputs": [
-        {
-          "targetNodeId": "topology/orders",
-          "info": {
-            "type": "SubmitOrder",
-            "orderId": "order-2"
-          }
-        }
-      ],
-      "assertions": [
-        {
-          "nodeId": "topology/orders",
-          "state": {
-            "placed": 2
-          }
-        },
-        {
-          "nodeId": "topology/ledger",
-          "state": {
-            "receipts": [
-              "order-1",
-              "order-2"
-            ]
-          }
-        }
-      ],
-      "timeoutMs": 10000
-    }
-  ],
+  "scenarios": null,
   "resources": {
     "generatedDirectory": ".generated",
     "dataDirectory": ".generated/data",
