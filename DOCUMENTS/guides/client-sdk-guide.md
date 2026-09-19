@@ -14,7 +14,7 @@ tags: [sdk, client, element, projection, workbench]
 
 禁止直接修改业务投影、调用 `Node.change`，或在 renderer 构造 Kernel。应用客户端若把命令翻译为根 Info，目标与 Info 类型必须由后端插件通过 `rendererRoots` 显式公开，并在主进程用 `assertRendererRoot` 校验。
 
-当前 `app/application.json` 装配 Studio 插件。Studio 在自己的 `frontend/app/AppContext.tsx` 中绑定通用 Context/hooks，并由 `frontend/app/elementSource.ts` 接入 ElementSource；通用桌面 Vite 构建按启用插件生成 Element 加载表，主进程 ElementCatalog 读取对应目录中的贡献清单。业务 preload 属于 Studio 的 `desktop/preload.cjs`，公开项目、生成、资源、面板及窗口固定接口；counter 是独立的测试与诊断插件。
+当前 `app/application.json` 装配 `demo.topology` 后端与前端插件。demo 前端不使用 `@graphframework/client` hooks：`app/plugins/frontend/demo-topology/frontend/app.tsx` 直接调用 `desktop/preload.cjs` 暴露的 `window.demo/window.graph/window.shell` 固定通道，`desktop/main.mjs` 把通道翻译为 run 控制面的 `projection` 读取与 `inject-renderer` 根 Info 注入；主进程 ElementCatalog 只读取各插件贡献清单中的 Element/Workspace（demo 为空）。counter 是独立的测试与诊断插件。
 
 ## 2. Context 与 Hooks
 
@@ -54,7 +54,7 @@ export const {
 ## 3. 命令与图外服务
 
 - 业务变迁由应用客户端转换为经过授权的根 Info。
-- 本地对话框、剪贴板等宿主服务由宿主客户端提供；Studio 窗口控制入口转换为图内生命周期 Info，再由执行 Node 的 Adapter 操作 BrowserWindow。
+- 本地窗口控制等宿主服务由宿主客户端提供；demo 把 `shell:close` 转为 run 控制面的 `request-stop`，再由执行侧走完整关闭路径，不直接杀内核。
 - 两者可以由同一个前端服务集合暴露，但图外服务不会伪装成 Node、Info 或 State。
 - SDK 不规定命令返回值；命令是否返回 revision、何时释放本地草稿，由具体业务客户端契约决定。
 

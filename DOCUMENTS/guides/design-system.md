@@ -27,11 +27,10 @@ tags: [design-system, theme, tokens, styling, workbench]
   → workbench/src/styles/{dock,workspace-tabs,controls,panel-chrome,scrollbars}.css
 @graphframework/theme
   → theme/styles/{typography,theme,theme-light,theme-traditional,globals}.css
-Studio 自有样式
-  → app/plugins/graphframework.studio/frontend/styles/index.css
+demo 自有样式
+  → app/plugins/frontend/demo-topology/frontend/app.css
 ```
-
-`app/plugins/demo-topology/frontend/app.css` 只包含示例应用自身布局，并消费工作台 Token。主题通过根元素的 `data-theme="light|xueqing|shiliuqun"` 切换；无属性时使用 dark。
+`app/plugins/frontend/demo-topology/frontend/app.css` 只包含示例应用自身布局，并消费工作台 Token。主题通过根元素的 `data-theme="light|xueqing|shiliuqun"` 切换；无属性时使用 dark。
 
 ## 3. 新代码使用的 Token
 

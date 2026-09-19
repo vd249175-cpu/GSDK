@@ -1,39 +1,57 @@
 ---
 type: Architecture Specification
-title: Studio 应用生命周期
-description: Studio 应用的状态机流转、窗口与后台宿主生命周期，以及 generation 破坏性断代机制。
+title: 命名 run 生命周期
+description: run.sh 启停阶段、活动快照、关闭语义与 generation 破坏性断代机制。
 status: stable
 tags: [lifecycle, generation, state-machine, runtime]
 ---
 
-# Studio 应用生命周期
+# 命名 run 生命周期
 
-内核、拓扑与业务命令各自独立。`createEmptyNativeGraphHost` 创建空 Rust 规则空间，`mountPlugins` 装配节点，业务由另行注入的 Info 推进。正常停机先完成业务准备，再显式推出节点，最后关闭空规则空间；`NativeRuleSpace.shutdown` 不隐式卸载节点或保存数据。
-
-## 应用协议
-
-Studio 插件中的 `node-application-lifecycle` 是应用生命周期 State 的唯一 Owner，窗口 State 仍由 `host-el` 持有。启动根 Info 为 `SystemStartRequestedInfo`，携带 `requestId`；窗口执行与观察完成后，生命周期投影进入 `Ready`，失败进入 `StartFailed`。
-
-`SystemShutdownRequestedInfo` 携带 `requestId` 和 `hasProject`，依次推进：
+一个 run 的生命周期完全由根目录 `run.sh` 驱动，Bash 独占编排顺序，`packages/tooling/run/src` 只做单阶段操作。阶段常量见 `packages/tooling/run/src/lifecycle.mjs`：
 
 ```text
-StoppingGeneration → AwaitingDrain → Saving → ClosingWindow → ShutdownReady
+START_STAGES = validate → lock → kernel-ready → hosts-ready → assembled
+  → admitted → workers-ready → initialized → started
+STOP_STAGES = stopping → settled → evicted → kernel-stopped → hosts-stopped → closed
 ```
 
-- 生成 Owner 接收定向准备 Info，关闭自动轮询并拒绝新批次和轮询意图；仍处理已在途提交、下载和落盘的 Observation。外部已提交任务不被宣称为远端取消。
-- 生成准备回执后进入 `AwaitingDrain`。宿主确认已接纳的工作收敛后，注入同一 requestId 的 `SystemShutdownDrainObservedInfo`；不能仅凭某个 submission 完成就跨过此屏障。
-- Markdown Owner 提供当前文档，SQLite Owner 提供当前元数据和保留记录，执行节点通过注入 Adapter 做完整项目保存，观察节点将落盘结果回传。只有 `shutdown/<requestId>` 对应的结果才能完成本轮准备；没有打开项目时跳过保存。
-- 桌面 `saveProjectStructure` 的 `full` 模式在同一 SQLite 事务写入文档、全部活动节点元数据与显式保留记录；标题未变化的 prompt/content/history 同样更新。失败回滚，不返回成功 Observation。
-- 保存成功后才请求关闭窗口。窗口执行结果经观察回传，应用投影才进入 `ShutdownReady`。保存或窗口失败进入 `ShutdownFailed`，不报告退出成功。
+`createEmptyNativeGraphHost`（`packages/desktop/host/native-graph-host.mjs`）创建空 Rust 规则空间，`mountPlugins` 装配调用方传入的普通插件节点，业务由另行注入的 Info 推进。`NativeRuleSpace.shutdown` 不隐式卸载节点或保存数据；正常停机先结算业务，再显式推出节点，最后关闭空规则空间。
 
-回执类型是 `StudioLifecycleParticipantPreparedInfo`，明确携带 `requestId`、`participant` 与 `ok`。旧请求、重复或不符合当前阶段的回执不推进生命周期。Node 异常可由宿主定向至生命周期 Owner；活动阶段收到 `@error/NodeFailed` 会投影失败。宿主超时事实使用 `SystemLifecycleTimeoutObservedInfo`，不能把超时当成任务已停止。
+## 启动顺序
 
-生命周期测试显式导入插件 `backend.ts` 源码，防止旧的生成产物遮蔽当前实现。JS 因果事实的关系 ID 包含证据位置；同一 change 的不同发送或读写位置保留独立证据，同一位置的重复提取只保存一次，符合 Rust 分析对关系 ID 唯一性的校验。
+`packages/tooling/run/supervisor.sh` 按以下顺序推进，任一阶段失败即按关闭路径回滚已获资源并以非零退出：
+
+```text
+prepare（校验配置 + 原子取得 run.lock + 写 environment.sh/快照）
+→ 启动空 Rust kernel-daemon，等待 RPC ready（kernel-ready）
+→ 启动后端宿主，确认可装配（hosts-ready）
+→ assemble：只构造配置 graph.instances 选中的实例，未选不构造
+→ admit：全部实例 admit 后 worker 才 claim，再挂 provider（admitted/workers-ready）
+→ initialize：注入 lifecycle.initInfos，经同一结算屏障确认（initialized）
+→ start：注入 lifecycle.startInfos + lifecycle.ready 状态等待（started/running）
+→ 无场景则保持交互直到 stop；有场景则执行 scenario 后走同一关闭路径自动退出
+```
+
+初始化与启动是两次独立注入：`lifecycle.initInfos` 携带 Owner 应接受的业务初始事实，`lifecycle.startInfos` 触发业务就绪；物理端口、目标绑定和 Adapter 属于构造装配（`params/bindings/dependencies`），不塞进 Info。`runs/demo` 的 startInfos 即 `SubmitOrder → topology/orders`。
+
+## 停止顺序
+
+`run.sh stop` 读活动快照（`.generated/runtime/config-snapshot.json`），不读运行中被改写的 live config；`stopRun` 校验 `runId` 一致，重复停止直接返回成功：
+
+```text
+request-stop → stop-business（注入 lifecycle.stopInfos + shutdown drain 结算）
+→ evict（unmountRunSlice：密封投递、等 handler/Effect 结算、evict + dispose、释放租约）
+→ kernel-shutdown（节点、pending、租约、Effect 全部归零才允许 shutdown，否则拒绝）
+→ 关闭前端宿主与后端控制面 → finalize（写 close-result.json，删除 token/lock/control.json）
+```
+
+清理失败保留锁、凭证与诊断（`stop-failed` + `lastError`），允许下一次 stop 重试；原始业务错误与清理错误分别保留，场景报告的失败退出码不被清理成功覆盖。`supervisor.sh` 的 `close_run` 顺序为：前端门禁 `gate` → `stop-business` → `stop-sources` → `evict` → `kernel-shutdown` → 前端 `close` → 后端 `close` → `finalize`。
+
+## generation 破坏性断代
+
+Node 热替换与 evict 是刻意的因果断代：`replace` 等待旧 Node 到达单飞间隙，随后丢弃旧 mailbox backlog、使旧 worker 租约失效，并用新实例声明的初始 State 干净启动。旧 State 不自动继承或迁移，旧 Info 不跨 generation 重放，新版本失败也不自动回滚；这些丢失与不回滚语义是有意设计，不是待补缺陷。
 
 ## 资源边界
 
-业务准备与资源销毁分开：保存发生在有效的 change 中，节点 `dispose` 只终结本地生命周期与释放资源。异步 `evict` 先密封投递，等当前 handler 结束后丢弃 backlog，再等待清理；超时节点仍密封。清理错误汇总返回，不能吞掉。窗口关闭与应用退出是不同意图，关闭窗口允许图继续驻留。
-
-Electron 单实例拥有者在 ready 前启动空内核，ready 后装配并启动业务。`before-quit`、preload `windowControls.quit()`、SIGINT/SIGTERM 使用同一关闭协调器，重复调用复用 Promise。窗口 `close()` 继续只关闭视窗。退出期间 activate 和第二次启动不能重新开窗。
-
-宿主入口通过 command gate 限制新 IPC/Agent 写操作并等待已接纳操作；投影读取与必要 Observation 保留。等待已接纳 submission 前先暂停自动轮询，避免周期任务无法收敛。准备阶段默认超时 15 秒，单节点清理及服务关闭默认 5 秒。保存失败保持图和窗口，允许再次请求退出；超时后的迟到结果不能把失败转成成功。业务准备完成后停止文件监听及窗口观察入口，推出全部节点，再关闭内核和 IPC、Agent、遥测/SSE、资源协议。启动中退出可直接关闭尚未装配的空内核；启动失败清理已获得的资源并以非零状态退出。强制杀进程不经过此协议。
+业务结算与资源销毁分开：`stop-business` 发生在有效的 change 结算中，节点 `dispose` 只终结本地生命周期与释放资源。异步 `evict` 先密封投递，等当前 handler 结束后丢弃 backlog，再等待清理；清理错误汇总返回，不能吞掉。`kernelShutdown` 在关闭前核对 kernel pid 所有权；`finalizeRun` 核对 lock 的 `runId` 所有权后才释放锁。强制杀进程不经过此协议。

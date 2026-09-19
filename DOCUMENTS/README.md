@@ -61,7 +61,7 @@ node packages/rust/scripts/stage-backend-native.mjs
 npm --prefix packages/desktop run build
 ```
 
-启动命令：`npm --prefix packages/desktop run start`。
+启动命令：`bash ./run.sh start runs/<name>/run.config.json`（`packages/desktop/host/main.mjs` 拒绝直接 `npm start` 拉起；唯一合法入口见仓库 `AGENTS.md` §8）。
 
 ## 常用验证
 
@@ -69,7 +69,7 @@ npm --prefix packages/desktop run build
 npm --prefix packages/sdk/javascript run typecheck
 npm --prefix packages/desktop run typecheck
 npm --prefix packages/desktop test -- <目标> --silent
-npm --prefix packages/desktop run diagnose -- validate
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
 npm --prefix packages/desktop run verify
 cargo test --manifest-path packages/rust/Cargo.toml -p <crate>
 ```

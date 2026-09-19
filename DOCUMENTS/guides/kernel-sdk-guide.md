@@ -66,7 +66,7 @@ ctx.send({
 ctx.send(makeCounterChangedInfo(count), 'node-consumer')
 ```
 
-这条约束不限制 payload 的复杂度，只要求因果协议判别字段在发送点可证明。`@graphframework/sdk/analysis` 的 `validateCausalIndex` 遇到无法证明的发送会报告 `unresolved-info-type`（本地应用内经 `npm --prefix packages/desktop run diagnose -- validate` 触发），且不会把函数名或 `UnknownInfo` 加入分析图。
+这条约束不限制 payload 的复杂度，只要求因果协议判别字段在发送点可证明。`@graphframework/sdk/analysis` 的 `validateCausalIndex` 遇到无法证明的发送会报告 `unresolved-info-type`（本地校验经 `node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate` 触发），且不会把函数名或 `UnknownInfo` 加入分析图。
 
 ## 2. WorldNode 与 EffectAdapter：观察与执行分离
 
@@ -251,7 +251,7 @@ const unsubscribe = space.subscribeProjection((next) => {})
 npm --prefix packages/sdk/javascript test -- <target-test> --silent
 npm --prefix packages/sdk/javascript run typecheck
 npm --prefix packages/desktop run typecheck
-npm --prefix packages/desktop run diagnose -- validate
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
 ```
 
 ## 7. 原生规则空间宿主（Rust 调度 + 多语言 Node）

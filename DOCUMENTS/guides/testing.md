@@ -12,7 +12,7 @@ tags: [testing, vitest, cargo-test, verification, tdd]
 
 | 范围 | 位置 | 入口 |
 | --- | --- | --- |
-| 命名 run（配置/装配/场景/启停） | `packages/tooling/run/src` + `packages/desktop/host/p*-run-*.test.mjs` | `npm --prefix packages/desktop test -- host/p5-run-scenario.test.mjs host/p6-studio-run.test.mjs host/p7-three-run-drill.test.mjs --silent` |
+| 命名 run（配置/装配/场景/启停） | `packages/tooling/run/src` + `packages/desktop/host/p*-run-*.test.mjs` | `npm --prefix packages/desktop test -- host/p1-run-isolation.test.mjs host/p3-run-lifecycle.test.mjs host/p4-frontend-discovery.test.mjs host/p5-run-scenario.test.mjs host/p8-factory-instances.test.mjs host/p9-bash-lifecycle.test.mjs --silent` |
 | JavaScript SDK | `packages/sdk/javascript/tests` | `npm --prefix packages/sdk/javascript test -- <目标> --silent` |
 | 桌面宿主 | `packages/desktop/host`、`application.test.mjs` | `npm --prefix packages/desktop test -- <目标> --silent` |
 | 插件 | `app/plugins/*` | 桌面测试配置加载相应插件测试 |
@@ -28,7 +28,7 @@ npm --prefix packages/desktop run typecheck
 npm --prefix packages/desktop run check:renderer-boundary
 npm --prefix packages/desktop run build
 npm --prefix packages/desktop run verify:native-load
-npm --prefix packages/desktop run diagnose -- validate
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
 git diff --check
 ```
 
@@ -48,7 +48,7 @@ SDK 类型检查不依赖 frontend；客户端泛型断言位于 `packages/front
 | JS 事实提取与显式离线分析 | SDK tests 中对应分析测试 |
 | Electron 或源码构建边界 | renderer 边界、类型、main/renderer build、Electron smoke；需要整体应用回归时运行 desktop verify |
 
-`diagnose -- validate` 默认只校验 hello-counter 示例。修改 Studio 或其它插件时，必须用该插件实际装配的 Node/事实校验，或查询运行中宿主的 Agent `analyze { op: 'validate' }`；counter 校验通过不能代表其它插件正确。
+`node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate` 只校验 hello-counter 示例。修改其它插件时，必须用该插件实际装配的 Node/事实校验，或查询运行中宿主的 Agent `analyze { op: 'validate' }`；counter 校验通过不能代表其它插件正确。
 
 ## Node 与 Effect 测试原则
 

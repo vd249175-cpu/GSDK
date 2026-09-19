@@ -8,7 +8,7 @@ tags: [multi-agent, run-environment, supervisor, isolation]
 
 # 多 Agent 独立开发与运行协作指南
 
-根目录 Bash 入口（`run.sh start/stop/status`）、v2 `runs/<name>/run.config.json` 与完整 Studio 桌面 run 已交付。测试覆盖真实 Node 切片、两个 Electron 前端并行、项目编辑后 SQLite 保存、场景自动关闭及清理失败重试。信号、启动中取消和旧插件目录收敛仍需继续验收，不能用发现文件隔离代替实际进程验证。实施顺序见[统一 run 实施计划](unified-run-plan.md)。执行事实以源码、测试和[心智模型](../architecture/mental-model.md)为准。
+根目录 Bash 入口（`run.sh start/stop/status`）、v2 `runs/<name>/run.config.json` 与 demo 桌面 run 已交付。测试覆盖真实 Node 切片（`host/p1/p3/p4/p5/p8/p9`）、场景自动关闭及清理失败重试。信号、启动中取消和旧插件目录收敛仍需继续验收，不能用发现文件隔离代替实际进程验证。实施顺序见[统一 run 实施计划](unified-run-plan.md)。执行事实以源码、测试和[心智模型](../architecture/mental-model.md)为准。
 
 ## 1. 协作单位是任意命名的 run
 
@@ -57,7 +57,7 @@ run 内的源码目录按实际需要创建；无用户操作需求的 run 可�
 
 ## 3. 配置文件决定运行
 
-启动必须显式指定该 run 的配置文件，不依赖当前工作目录、默认 Studio 装配或全局环境变量偷偷选择另一套图。配置中的相对路径以配置文件所在目录为基准解析。
+启动必须显式指定该 run 的配置文件，不依赖当前工作目录、默认应用装配或全局环境变量偷偷选择另一套图。配置中的相对路径以配置文件所在目录为基准解析。
 
 v2 配置与 `packages/tooling/run/src/config.mjs` 分开描述以下内容：
 
@@ -127,7 +127,7 @@ Bash 直接启动并等待 Rust、后端 Node 与前端 Electron 进程。配置
 业务保存失败或停机超时必须报告失败、保留诊断与控制入口，不冒充干净退出（`scenario` 报告保留断言证据与清理结果，原始失败退出码不被清理成功覆盖）。
 ## 5. 并行资源与源码所有权
 
-每个 run 独立拥有 Rust 规则空间、前端实例、后端宿主、端口、发现文件、Electron 用户数据及单实例身份、SQLite/文件锁、日志、测试缓存和可写构建产物。默认端口动态分配；显式端口冲突应报错，不能悄悄连接其他 run。
+每个 run 独立拥有 Rust 规则空间、前端实例、后端宿主、端口、发现文件、Electron 用户数据及单实例身份、文件锁、日志、测试缓存和可写构建产物。默认端口动态分配；显式端口冲突应报错，不能悄悄连接其他 run。
 
 共用 SDK、Rust 制品和正式插件可以作为只读输入。运行与测试不覆盖共用 `.node` 文件，不写回插件源码旁的生成 JS，不删除共用依赖目录。构建共用平台制品由协调者串行完成，或写入任务独立输出目录。
 
@@ -139,7 +139,7 @@ Bash 直接启动并等待 Rust、后端 Node 与前端 Electron 进程。配置
 
 ## 6. 任意图片段与初始化边界
 
-run 配置使用 `version: 2`。`graph.instances` 显式声明 `kind/id/factory/params/bindings`；单节点工厂收到实际 `nodeId`，图工厂通过 `nodeIdFor(localId)` 分配本实例地址。重复实例或 Node ID 会报错，不会自动合并 Owner。Studio 的 `bindings` 可覆盖命名通信目标；静态分析从实际实例的目标字段读取证据。
+run 配置使用 `version: 2`。`graph.instances` 显式声明 `kind/id/factory/params/bindings`；单节点工厂收到实际 `nodeId`，图工厂通过 `nodeIdFor(localId)` 分配本实例地址。重复实例或 Node ID 会报错，不会自动合并 Owner。`bindings` 可覆盖命名通信目标（如 demo `router/billing/inventory` 目标）；静态分析从实际实例的目标字段读取证据。
 
 运行配置显式选择真实节点实例，不能先装配整图再隐藏未选择节点。切片可以跨越插件目录，但插件协作必须遵守公开契约，不能相对导入其他插件的私有实现。
 
@@ -155,7 +155,7 @@ run 配置使用 `version: 2`。`graph.instances` 显式声明 `kind/id/factory/
 
 场景失败仍执行有边界的正常清理，保留失败原因、资源清理结果和非零退出状态。持续观察的图以明确回执和屏障判断就绪及结束，不能把瞬间队列为空当成业务完成。单 Node 单测仍可使用已有 `createTestRuntime`，但它不替代真实 Rust 运行验收。
 
-完整 Studio 使用 `bash ./run.sh start runs/studio/run.config.json`，关闭使用同配置的 stop。`npm start` 拒绝隐式装配，`start:legacy-electron` 已移除。其他命名 run 可以引用同一工厂和前端宿主，以各自 namespace、配置和物理资源运行。
+当前默认应用使用 `bash ./run.sh start runs/demo/run.config.json`（订单履约演示图，含 Electron 前端），关闭使用同配置的 stop。`packages/desktop/host/main.mjs` 拒绝直接 `npm start` 隐式装配；旧 Electron 自启动装配已移除。其他命名 run 可以引用同一工厂和前端宿主，以各自 namespace、配置和物理资源运行。
 
 ## 8. 任务交付
 

@@ -39,20 +39,19 @@ Info 用“类型 + 目标 Node”精确寻址。只有查询命令明确允许�
 
 ## 3. 当前诊断命令
 
-以下 diagnose 命令分析 `hello-counter` 示例，入口是 `app/plugins/hello-counter/scripts/diagnose.mjs`；它只构造该插件 Node 实例并读取方法描述，不创建 Runtime、不加载原生模块。检查运行中的 Studio 图时，使用下一节的 Agent analyze 通道：
-
+以下 diagnose 命令分析 `hello-counter` 示例，入口是 `app/plugins/backend/hello-counter/scripts/diagnose.mjs`（仓库根目录直接 `node` 运行，无桌面 `diagnose` 转发脚本）；它只构造该插件 Node 实例并读取方法描述，不创建 Runtime、不加载原生模块。检查运行中的 run 图时，使用下一节的 Agent analyze 通道：
 ```bash
-npm --prefix packages/desktop run diagnose -- validate
-npm --prefix packages/desktop run diagnose -- node example.counter
-npm --prefix packages/desktop run diagnose -- change example.counter::IncrementInfo
-npm --prefix packages/desktop run diagnose -- info IncrementInfo@example.counter
-npm --prefix packages/desktop run diagnose -- state example.counter::count
-npm --prefix packages/desktop run diagnose -- expand state:example.counter::count
-npm --prefix packages/desktop run diagnose -- path entry:counter.increment ui:counter.count
-npm --prefix packages/desktop run diagnose -- select example.counter
-npm --prefix packages/desktop run diagnose -- frontend
-npm --prefix packages/desktop run diagnose -- health
-npm --prefix packages/desktop run diagnose -- reach example.counter
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs node example.counter
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs change example.counter::IncrementInfo
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs info IncrementInfo@example.counter
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs state example.counter::count
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs expand state:example.counter::count
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs path entry:counter.increment ui:counter.count
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs select example.counter
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs frontend
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs health
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs reach example.counter
 ```
 
 `path` 按参数顺序逐段执行有向最短路径查询。每段独立返回 `found`、`depth-limited` 或 `unreachable`；前向失败时会附带反向证据与 frontier。Node 地址只在路径端点展开为其 change/State，contains/owns 不是因果捷径。
@@ -106,5 +105,5 @@ await runtime.dispose()
 npm --prefix packages/desktop test -- <target-test> --silent
 npm --prefix packages/desktop run typecheck
 npm --prefix packages/sdk/javascript run typecheck
-npm --prefix packages/desktop run diagnose -- validate
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
 ```

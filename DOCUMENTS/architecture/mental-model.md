@@ -8,7 +8,7 @@ tags: [kernel, architecture, state-ownership, causal-order]
 
 # GraphFramework 当前心智模型
 
-GraphFramework 是由 Rust 调度器与外层宿主承载的开放因果图微内核框架。命名 run（`run.sh start/stop/status runs/<name>/run.config.json`）支持独立配置、Rust daemon、后端真实 Node 切片和作用域产物。Bash supervisor 直接启动并等待 Rust、后端 Node 和配置中的 Electron 前端子进程；Node 工具实现单阶段操作和认证控制接口，不掌控内核进程。无场景 start 等待业务和界面 Ready 后返回，后台运行持续到 stop；有场景 start 等待报告和同一路径关闭后返回。`runs/studio` 装配完整桌面程序；针对性测试已验证两个真实桌面 run 并行、编辑项目后关闭并核对 SQLite 落盘。源码与针对性测试高于本文。
+GraphFramework 是由 Rust 调度器与外层宿主承载的开放因果图微内核框架。命名 run（`run.sh start/stop/status runs/<name>/run.config.json`）支持独立配置、Rust daemon、后端真实 Node 切片和作用域产物。Bash supervisor 直接启动并等待 Rust、后端 Node 和配置中的 Electron 前端子进程；Node 工具实现单阶段操作和认证控制接口，不掌控内核进程。无场景 start 等待业务和界面 Ready 后返回，后台运行持续到 stop；有场景 start 等待报告和同一路径关闭后返回。`runs/demo` 装配订单履约演示图；其余命名 run（`alice`/`task-42` 模板）装配 counter 单节点。源码与针对性测试高于本文。
 
 ## 1. 设计目标
 
@@ -20,7 +20,7 @@ GraphFramework 是由 Rust 调度器与外层宿主承载的开放因果图微�
 - **局部可理解**：生产 GraphFactory 是实际装配清单，实例分析从已构造 Node 的真实方法事实建立局部因果图，使排障和测试不依赖对全系统的记忆。
 
 微内核负责调度、一致性、取消和可观测性，零业务语义；应用 Node 负责具体业务事实和决策；只读分析层负责寻址、切片、验证和视角折叠，并由生产 `NativeRuleSpace` 按需加载。实例分析提供的是可溯源的静态证据，不替代针对性运行测试和真实物理核对。
-Rust 调度器另有 C ABI，供非 JS 宿主直接调用相同的 `admit/send/poll/settle` 操作；便携因果事实使 JS Agent 可分析外部语言节点，而不依赖其源码解析器。`packages/rust/kernel-daemon` 直接复用同一个 Rust 调度 crate，提供业务无关的独立进程宿主，持有通用 JSON State 与版本，并用 `poll + commit` 协议承载任意语言的 change；每个命名 run 独占一个 daemon 进程，完整 Studio 图已切换到该进程。
+Rust 调度器另有 C ABI，供非 JS 宿主直接调用相同的 `admit/send/poll/settle` 操作；便携因果事实使 JS Agent 可分析外部语言节点，而不依赖其源码解析器。`packages/rust/kernel-daemon` 直接复用同一个 Rust 调度 crate，提供业务无关的独立进程宿主，持有通用 JSON State 与版本，并用 `poll + commit` 协议承载任意语言的 change；每个命名 run 独占一个 daemon 进程，当前全部 run（`runs/demo` 演示图与 counter 模板）都运行在该进程上，不存在 Electron 内嵌的第二份生产图。
 
 ## 2. 一个业务执行面：命名 run
 
@@ -43,9 +43,8 @@ Rust kernel-daemon 进程（本 run 独占：调度、submission、权威 JSON S
   ├─ @graphframework/sdk/analysis：JS 实例事实生成器、分析 DTO 与显式离线纯算法，不启动 Runtime
   └─ tooling/run：assembly（精确切片）/ mount（admit→claim→poll）/ scenario（同运行断言）/ lifecycle（对称启停记录）
 
-`runs/studio` 通过 `backend.host` 构造注入每个图实例的物理端口，前端承担窗口、项目文件和数据库的实际访问。界面只读本图的 EncodedValue 投影，并通过已选工厂的公开根命令注入 Info；可信宿主观察入口另行校验。JSON 传输用 `daemonValueCodec` 无截断保留 Map、Set 等 State 值。正常 stop 读取活动快照，即使 live config 修改或删除也使用原始关闭 Info；先关闭前端命令入口并结算业务保存，再停止观察源、释放 worker/provider 租约、evict 和本地 dispose，由 Bash 关闭并等待 Rust、前端和后端退出。清理错误保留认证控制接口与锁，返回失败并允许下一次 stop 重试；成功后清除凭证和生成的环境文件。
-
-Studio 前端入口显式加载完整主题全局样式，设置页面根节点的完整高度。前端 Ready 除了初始化完成，还检查活动工作区及其面板具有可见布局；P10 在实际 Electron 中核对根高度、三个编辑面板和底栏位置。
+`runs/demo` 以 `graph.instances` 选中 `createDemoTopologyGraph` 装配订单履约图，可选 `backend.host` 注入外层 run 宿主能力（如构造期依赖与前端命令面）；`runs/alice` 等模板 run 只装配 counter 单节点。前端宿主（如 demo 的 Electron `desktop/main.mjs`）读取 run `context.json`，经 run 控制面拉取投影、用 `defaultValueCodec.decode` 解码后渲染，并经 `inject-renderer` 把已选工厂的公开根命令（`SubmitOrder → <graph>/orders`）注入；可信宿主观察入口另行校验。JSON 传输用 `daemonValueCodec` 无截断保留 Map、Set 等 State 值。正常 stop 读取活动快照，即使 live config 修改或删除也使用原始关闭 Info；先关闭前端命令入口（`gate`）并结算业务，再停止观察源、释放 worker/provider 租约、evict 和本地 dispose，由 Bash 关闭并等待 Rust、前端和后端退出。清理错误保留认证控制接口与锁，返回失败并允许下一次 stop 重试；成功后清除凭证和生成的环境文件。
+前端构建（`buildRunFrontends`）把配置中的前端入口打包进本 run `.generated/frontend/<id>/`（产物 `dist/`、宿主 `host.mjs`、注入的 `context.json`），supervisor 再用平台 Electron 二进制执行 `host.mjs`。前端 Ready 除业务 `started` 外，还要求各前端实例 `health` 通过；有场景的 run 在场景报告后走同一关闭路径自动退出。
 
 ## 3. 权限与归属
 
@@ -179,7 +178,7 @@ renderer 图协议只有：
 
 ## 6. 应用边界
 
-主进程宿主把 renderer 方法翻译为经过 `rendererRoots` 校验的根 Info，或调用明确的图外桌面服务。图外服务不会被伪装成 Kernel 字段或边。当前 Studio preload 暴露项目、生成、资源、Element 和窗口固定接口，图协议只能向插件白名单允许的目标与 Info 类型注入；renderer 不能通过这些接口获得任意 Node 注入或 State 干预权限。`hello-counter` 仅是独立测试和离线诊断示例。Agent 控制面由独立的本机回环端口承载，使用启动时生成的随机令牌，并拒绝带浏览器 Origin 的请求；它不映射到 renderer IPC 或开放给可视化工具的遥测服务。
+主进程宿主把 renderer 方法翻译为经过 `rendererRoots` 校验的根 Info，或调用明确的图外桌面服务。图外服务不会被伪装成 Kernel 字段或边。当前 demo 前端宿主 `desktop/main.mjs` 经 `inject-renderer` 只向 `rendererRoots` 允许的目标与 Info 类型注入（`SubmitOrder → <graph>/orders`），`desktop/preload.cjs` 只暴露 `demo/graph/shell` 三个固定通道；renderer 不能通过这些接口获得任意 Node 注入或 State 干预权限。`hello-counter` 仅是独立测试和离线诊断示例。Agent 控制面由独立的本机回环端口承载，使用启动时生成的随机令牌，并拒绝带浏览器 Origin 的请求；它不映射到 renderer IPC 或开放给可视化工具的遥测服务。
 
 ## 7. 实例驱动分析
 
@@ -202,14 +201,14 @@ Node 的 contains/owns 是归属，不是路径捷径。分析工具接收普通
 
 世界就是一张一直运行的图，软件与物理世界不分家。对任意一组被框定的 Node，框外 Node 就是它的外部世界——没有第二套“外部系统”概念：
 
-- 物理世界只以 Observation 进图：`WorldNode` 经构造注入的 `EffectAdapter` 执行 I/O，返回的 Observation 经 Info 交回 State Owner（§4）。磁盘、网络、SQLite、窗口宿主不是图外的例外，只是尚未被框进来的 Node。
+- 物理世界只以 Observation 进图：`WorldNode` 经构造注入的 `EffectAdapter` 执行 I/O，返回的 Observation 经 Info 交回 State Owner（§4）。磁盘、网络、窗口宿主不是图外的例外，只是尚未被框进来的 Node。
 - 框定即定边界：`selectInducedSubgraph` 把任意 Node 集合划进来，被切断的 send/read 就是它与世界的交换面；`analyzeViewHealth` 检查这个边界是否被凿穿。内外之分是视角，不是本体。
 - 折叠即世界切分：一组基础 Node 可以折叠为当前视角中的 Node，成员事实仍来自原始因果索引；折叠不改变因果，只改变粒度。
 - 契约在 SDK，存储在消费方：`FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog`、`AnalysisView` 定义在 `@graphframework/sdk/analysis`；消费方自行决定命名视角的存储与装配。
 
 ## 8. 不可破坏的验收公理
 
-1. 同一图只有一个权威规则空间。每个命名 run 独占一个 Rust daemon 进程；Electron 不再内嵌第二份生产图（`GRAPHFRAMEWORK_RUN_DAEMON_ADDRESS` 已设置时启动内嵌空间直接拒绝）。
+1. 同一图只有一个权威规则空间。每个命名 run 独占一个 Rust daemon 进程；生产不在 Electron 内再维护第二份权威 State。
 2. 每个 State 字段只有一个 Owner。
 3. Node 间只通过实际 `ctx.send` 通信。
 4. 同一 Node 的 change 严格 single-flight；单个 change 可并发等待独立 Effect，该约束不限制外部任务同时在途。

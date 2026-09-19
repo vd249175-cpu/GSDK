@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useCallback, useRef, useSyncExternalStore } from 'react'
 import {
   CommandRegistry,
   PanelRegistry,
@@ -367,10 +367,47 @@ export function createDemoWorkbenchAdapter(panels: PanelDefinition[]): Workbench
     contexts,
   }
 
+function shallowEqual(a: any, b: any): boolean {
+  if (Object.is(a, b)) return true
+  if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+      if (!Object.is(a[i], b[i])) return false
+    }
+    return true
+  }
+  const keysA = Object.keys(a)
+  const keysB = Object.keys(b)
+  if (keysA.length !== keysB.length) return false
+  for (const k of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, k) || !Object.is(a[k], b[k])) return false
+  }
+  return true
+}
+
   return {
     services,
     useWorkspaceState<T>(selector: (state: ClientWorkspaceState) => T): T {
-      return useSyncExternalStore(store.subscribe, () => selector(store.getSnapshot()))
+      const cacheRef = useRef<{ state: ClientWorkspaceState; value: T } | null>(null)
+      const selectorRef = useRef(selector)
+      selectorRef.current = selector
+
+      const getSnapshot = useCallback(() => {
+        const currentState = store.getSnapshot()
+        if (cacheRef.current && cacheRef.current.state === currentState) {
+          return cacheRef.current.value
+        }
+        const nextValue = selectorRef.current(currentState)
+        if (cacheRef.current && shallowEqual(cacheRef.current.value, nextValue)) {
+          cacheRef.current.state = currentState
+          return cacheRef.current.value
+        }
+        cacheRef.current = { state: currentState, value: nextValue }
+        return nextValue
+      }, [])
+
+      return useSyncExternalStore(store.subscribe, getSnapshot)
     },
   }
 }

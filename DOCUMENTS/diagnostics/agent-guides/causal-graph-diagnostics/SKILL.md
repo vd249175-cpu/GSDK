@@ -62,9 +62,9 @@ Use a supplied fold hierarchy or `all-nodes` for Node inspection, health and Nod
 ## Commands
 
 ```bash
-npm --prefix packages/desktop run diagnose -- node <nodeId>
-npm --prefix packages/desktop run diagnose -- path <from-address> <to-address>
-npm --prefix packages/desktop run diagnose -- validate
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs node <nodeId>
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs path <from-address> <to-address>
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
 node packages/desktop/scripts/agent-control.mjs analyze request.json
 ```
 
@@ -80,7 +80,7 @@ Read `references/flat-causal-query.md` when implementing or changing selection, 
 npm --prefix packages/desktop test -- <target-test> --silent
 npm --prefix packages/desktop run typecheck
 npm --prefix packages/sdk/javascript run typecheck
-npm --prefix packages/desktop run diagnose -- validate
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
 ```
 
 Do not start the desktop app or use browser/computer automation for physical UI validation; leave that to the user.

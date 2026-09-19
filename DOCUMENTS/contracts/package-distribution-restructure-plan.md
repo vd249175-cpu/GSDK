@@ -14,7 +14,7 @@ tags: [workspace, distribution, packaging, boundaries]
 
 `app/application.json` 声明应用身份、默认主题、默认工作空间、启用插件及桌面入口；`app/plugins/` 保存本仓库业务插件。应用目录不包含 Electron 工程、renderer 工程或构建脚本。插件路径相对于 application.json 所在目录解析，也允许引用任意外部目录。
 
-`packages/desktop/` 提供通用 Electron 启动器、图宿主、插件目录清单、窗口 Adapter、renderer 入口及构建链。它按应用配置加载插件，不静态导入 Studio。Studio 的业务主进程接入、项目服务和资源属于 `app/plugins/graphframework.studio/`。
+`packages/desktop/` 提供通用 Electron 启动器、图宿主、插件目录清单、窗口 Adapter、renderer 入口及构建链。它按应用配置加载插件，不静态导入业务插件。业务插件的主进程接入、服务和资源收在各插件自己的目录内（如 `app/plugins/frontend/demo-topology/desktop/`）。
 
 `packages/frontend/theme/` 提供达芬奇视觉主题和排版；`workbench/` 提供现有切分、停靠、尺寸调整、浮动页面和工作空间机制；`context/` 提供跨页面上下文；`client/` 提供通用客户端 hooks；`ui/` 提供可选公共组件。插件内部界面自由编写，并消费统一主题及工作台机制。
 
@@ -38,7 +38,7 @@ tags: [workspace, distribution, packaging, boundaries]
 
 `npm --prefix packages/desktop test -- <目标文件> --silent` 执行针对性测试。
 
-`npm --prefix packages/desktop run start` 构建并启动配置中的应用；外部应用可通过 GRAPHFRAMEWORK_APPLICATION 指定 application.json 的绝对路径。
+`npm --prefix packages/desktop run start` 已被 `packages/desktop/host/main.mjs` 的守卫拒绝，唯一合法启动是根目录 `bash ./run.sh start runs/<name>/run.config.json`；外部应用可通过 `GRAPHFRAMEWORK_APPLICATION` 指定 application.json 的绝对路径。
 
 ## 发布与协作
 

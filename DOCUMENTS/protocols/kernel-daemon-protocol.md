@@ -8,9 +8,8 @@ tags: [protocol, rust, daemon, lease, poll-commit]
 
 # 常驻 Rust 图宿主协议
 
-`graphframework-kernel-daemon` 是业务无关的独立进程。它直接复用 `packages/rust/kernel`，持有 Node 注册表、mailbox、submission、权威 JSON State、State 版本和便携分析事实。它不包含 Studio、Electron、项目、媒体或任何业务 Info 名称，也不执行业务 `change`。
-
-当前阶段提供可测试的常驻宿主和语言无关执行边界；Studio 生产装配仍运行在 Electron 内的 `NativeRuleSpace`，尚未切换到 daemon。
+`graphframework-kernel-daemon` 是业务无关的独立进程。它直接复用 `packages/rust/kernel`，持有 Node 注册表、mailbox、submission、权威 JSON State、State 版本和便携分析事实。它不包含 Electron、订单演示业务或任何业务 Info 名称，也不执行业务 `change`。
+当前全部命名 run（含 `runs/demo` 演示图）都经 `run.sh` 跑在各自独占的 daemon 进程上；生产不存在 Electron 内嵌的第二份权威图。
 
 ## 启动
 
@@ -151,4 +150,4 @@ JS 物理宿主可用 `runDaemonEffectProvider` 适配现有 EffectAdapter。Eff
 - daemon 退出后不能从磁盘恢复 State、mailbox 和 submission；当前无恢复日志，数据恢复属于显式业务协议或外层宿主。
 - 当前一个 worker 连接同时只持有一条 active change；横向并行通过多个 worker 连接实现，同一 Node 仍保持 single-flight。
 - Effect provider 当前使用进程存活期的连接租约；尚未加入 effect 幂等键和 daemon 重启后的物理操作恢复。
-- daemon 不负责启动 Electron。当前 Studio 窗口已经由图内业务 Node 与物理 Adapter 管理，仍运行在 Electron 内的 NativeRuleSpace；daemon 没有接管这份应用装配。
+- daemon 不负责启动 Electron。Electron 只做前端宿主：`app/plugins/frontend/demo-topology/desktop/main.mjs` 读 run `context.json` 并经 run 控制面读写投影/注入根 Info，不持有第二份权威 State（见[命名 run 生命周期](../architecture/application-lifecycle.md)）。

@@ -57,4 +57,4 @@ Rust 内核按 Node generation 保存事实，`admit/replace` 前校验 schema�
 
 仓库包含 [Python ctypes 宿主样例](../../packages/rust/kernel-ffi/examples/ctypes_smoke.py)：Python 直接驱动 Rust 调度器，让两个 Python Node 通过 Info 通信，并读回便携分析事实。它不经过 JS。非 JS 宿主可以直接调用 `gv_analyze`，也可以把 `PortableAnalysisSnapshot` 交给 daemon；C ABI 本身不创建远程 Agent 控制通道，通道与宿主 State 观测由具体应用宿主决定。
 
-独立进程宿主见 [常驻 Rust 图宿主协议](kernel-daemon-protocol.md)。它把权威 JSON State 和版本移入 Rust daemon，通过 generation 绑定的 Node 租约定向分发 change，并把普通 change 压缩为一次 `poll` 和一次批量 `commit`；物理 Effect 由能力绑定的外部 provider 执行，Rust 只转发不透明 DTO。因此它与本页现有 JS `mountProcessNode` 的逐次 `ctx` 往返是两条不同的宿主路径。生产 Studio 尚未迁入 daemon。
+独立进程宿主见 [常驻 Rust 图宿主协议](kernel-daemon-protocol.md)。它把权威 JSON State 和版本移入 Rust daemon，通过 generation 绑定的 Node 租约定向分发 change，并把普通 change 压缩为一次 `poll` 和一次批量 `commit`；物理 Effect 由能力绑定的外部 provider 执行，Rust 只转发不透明 DTO。因此它与本页现有 JS `mountProcessNode` 的逐次 `ctx` 往返是两条不同的宿主路径。当前命名 run（含 `runs/demo`）走 daemon 路径。

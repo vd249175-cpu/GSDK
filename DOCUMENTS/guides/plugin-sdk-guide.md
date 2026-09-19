@@ -22,7 +22,7 @@ packages/frontend/
   client/ workbench/ context/ theme/ ui/
 ```
 
-当前 `app/application.json` 显式列出启用插件及目录，`packages/desktop/host/plugin-loader.mjs` 加载各插件后端构建入口，通用图宿主调用 `plugin.createNodes({ dependencies })` 并挂载到唯一 `NativeRuleSpace`。Studio 的业务主进程入口位于 `app/plugins/graphframework.studio/desktop/main.mjs`。renderer 通过构建期虚拟模块加载启用插件的 Element；不加载后端模块，也不持有 Kernel。当前没有 ZIP 安装器或自动目录监听发布流程。
+当前 `app/application.json` 显式列出启用插件及目录（当前默认应用 `graphframework-demo` 装配 `demo.topology` 后端与前端），`packages/desktop/host/plugin-loader.mjs` 加载各插件后端构建入口，通用图宿主调用 `plugin.createNodes({ dependencies })` 并挂载到唯一 `NativeRuleSpace`。命名 run 的后端装配改走 `packages/tooling/run/src/assembly.mjs`：只调用配置 `graph.instances` 命中的 `nodeFactories/graphFactories`，未选实例不构造。renderer 通过构建期虚拟模块加载启用插件的 Element；不加载后端模块，也不持有 Kernel。当前没有 ZIP 安装器或自动目录监听发布流程。
 
 正式插件与同事自行开发的自动化插件使用完全相同的运行接口；“核心”只表示发布与维护归属，不是另一种内核插件类型。发布包的不可修改边界、独立插件扩展方式、OKF 说明和折叠建议见[插件发布与协作契约](../contracts/plugin-collaboration-contract.md)。
 
@@ -76,7 +76,7 @@ renderer 只能调用 preload 暴露的固定命令，不能提交任意 Node ID
 
 ## Manifest
 
-`graphframework.plugin.json` 由 `parseStudioPluginManifest` 校验，当前字段为 `apiVersion`、`id`、`name`、`version` 和可选 `contributes.backend/elements/workspaces`。入口必须是包内相对路径，ID 与版本必须满足校验器约束。Manifest 是描述与校验契约，不会自动安装、加载或隔离代码。
+`graphframework.plugin.json` 由 `parseStudioPluginManifest` 校验：`apiVersion: 1` 为旧形态（`contributes.backend/elements/workspaces`，`app/plugins/demo-topology` 与 `app/plugins/hello-counter` 的遗留目录仍是此形态）；`apiVersion: 2` 按 `kind` 分为后端（`contributes.backend/nodeFactories/graphFactories`）与前端（`contributes.host/frontend/elements/workspaces`）两种形态，`kind` 与 `contributes` 不一致直接拒绝。入口必须是包内相对路径，ID 与版本必须满足校验器约束。Manifest 是描述与校验契约，不会自动安装、加载或隔离代码。
 
 运行中替换后端 Node 使用 `replaceDomainNode`。替换会等待旧实体到达单飞间隙，丢弃旧 backlog，以新实例的初始 State 启动；不会自动迁移 State。插件或 Node 的 `dispose` 在替换、移除和宿主关闭时由规则空间等待清理。
 
@@ -85,8 +85,8 @@ renderer 只能调用 preload 暴露的固定命令，不能提交任意 Node ID
 后端 Node 优先使用 `@graphframework/sdk/testing` 的 `createTestRuntime` 做确定性测试；原生桥接、热替换和 Electron 加载使用本仓库现有测试与验收命令：
 
 ```bash
-npm --prefix packages/desktop test -- hello-counter/backend.test.mjs --silent
-npm --prefix packages/desktop test -- native-graph-host.test.mjs --silent
-npm --prefix packages/desktop run diagnose -- validate
+npm --prefix packages/desktop test -- app/plugins/backend/hello-counter/backend.test.mjs --silent
+npm --prefix packages/desktop test -- app/plugins/backend/hello-counter/tests/native-graph-host.test.mjs --silent
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
 npm --prefix packages/desktop run verify
 ```

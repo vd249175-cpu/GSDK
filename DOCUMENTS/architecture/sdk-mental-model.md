@@ -40,7 +40,7 @@ tags: [sdk, package-boundary, plugin-author, architecture]
 
 各包独立安装构建（`packages/desktop`、`packages/sdk/javascript`、`packages/frontend/*` 持各自 `package.json`；根目录无 npm 清单和 node_modules）。`app` 只保存 application.json 与插件。桌面源码构建显式消费 SDK 源码；支持 TypeScript 的 Node 宿主可通过 `graphframework-source` 条件使用源码出口，默认出口使用 dist 发布产物。Rust/N-API 使用 `cargo build --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-node && node packages/rust/scripts/stage-native.mjs` 构建。
 
-Studio 桌面窗口由图内 `host-el`、`sink-electron-window`、`src-electron-window` 三个节点管理。Electron `ready`、窗口控制 IPC 和系统窗口关闭事件只作为根 Info 输入；物理 BrowserWindow 操作由执行节点的 `electronWindowAdapter` 完成。headless daemon 运行使用实例自带的 in-memory 端口达到同样的 OPENED/CLOSED 因果，不触碰 Electron IPC；生产 run 中 Electron 只做前端宿主，不再持有第二份权威 State。
+当前默认应用的前端宿主（`app/plugins/frontend/demo-topology/desktop/main.mjs`）不持有权威 State：它经 run 控制面读取 daemon 投影（`getDemoSnapshot` 解码后渲染），写操作只经 `inject-renderer` 走 `rendererRoots` 校验（`SubmitOrder → <graph>/orders`）。窗口关闭（`shell:close → request-stop`）请求 run 停止，走完整关闭路径，不直接杀内核。无前端的 run（如 counter 模板）不启动 Electron。
 
 ## 2. 后端心智模型：事实只进 Owner
 
@@ -125,8 +125,8 @@ npm --prefix packages/sdk/javascript test -- <目标> --silent
 cargo build --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-node && node packages/rust/scripts/stage-native.mjs  # 动原生绑定后跑（cargo 构建 + 摆放 .node）
 node packages/rust/scripts/stage-backend-native.mjs     # 复制到 SDK dist/native，供构建产物消费
 npm --prefix packages/desktop run verify                # 检查已有原生绑定并构建应用
-npm --prefix packages/desktop run diagnose -- validate   # 改 Node/Info/State/投影/联动后必跑
-npm --prefix packages/desktop run diagnose -- node <nodeId>  # 单实体切片，先看局部不看全图
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate   # 校验 counter 示例静态因果索引（直接 node 运行）
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs node <nodeId>  # 单实体切片，先看局部不看全图
 npm --prefix packages/desktop run build    # 动生产装配/Electron 后跑
 ```
 
