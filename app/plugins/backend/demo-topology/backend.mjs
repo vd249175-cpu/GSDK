@@ -35,7 +35,7 @@ export class RouterNode extends Node {
     if (info.type === 'OrderPlaced') {
       let dropped = ctx.read('dropped')
       const forward = (message, targetNodeId) => {
-        if (ctx.send(message, targetNodeId).status === 'dropped') dropped += 1
+        if (ctx.send(message, targetNodeId)?.status === 'dropped') dropped += 1
       }
       for (const nodeId of ctx.read('screening')) {
         forward({ type: 'ScreenOrder', orderId: info.orderId }, nodeId)
