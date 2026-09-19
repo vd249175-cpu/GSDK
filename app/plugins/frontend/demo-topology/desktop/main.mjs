@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain } from 'electron';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { defaultValueCodec } from '@graphframework/sdk/protocol';
@@ -138,6 +138,9 @@ async function startHost() {
     callRunControl(runtime, 'request-stop').catch(() => {});
   });
 
+  Menu.setApplicationMenu(null);
+  const isMac = process.platform === 'darwin';
+
   await app.whenReady();
 
   mainWindow = new BrowserWindow({
@@ -145,6 +148,10 @@ async function startHost() {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
+    frame: false,
+    titleBarStyle: isMac ? 'hidden' : undefined,
+    trafficLightPosition: isMac ? { x: 12, y: 11 } : undefined,
+    autoHideMenuBar: true,
     backgroundColor: '#0c0e12',
     title: 'GraphFramework Demo · DaVinci Workbench',
     webPreferences: {
