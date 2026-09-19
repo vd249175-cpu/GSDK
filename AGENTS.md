@@ -51,11 +51,13 @@
 3. 验证单 Node 行为优先使用 `@graphvideo/sdk/testing` 的 `createTestRuntime`，通过 mock Adapter 和 `waitForQuiescence()` 验证确定性收敛。
 4. 将修复固化为针对性单元测试，再执行全套静态与类型检查。
 
-## 5. 修改后的验证
+## 5. 修改后的验证与重构规范
 
-- 针对性测试：只跑与修改直接相关的 Vitest，使用 `--silent`。
-- 类型检查：代码修改必须通过 `npm --prefix packages/desktop run typecheck` 与 `npm --prefix packages/sdk/javascript run typecheck`。
-- 重构治理：跨文件重构或符号重命名使用 `node packages/tooling/refactor/refactor.mjs`。
+- **针对性测试**：只跑与修改直接相关的 Vitest，使用 `--silent`。
+- **类型检查**：代码修改必须通过 `npm --prefix packages/desktop run typecheck` 与 `npm --prefix packages/sdk/javascript run typecheck`。
+- **重构治理与 LSP 优先**：
+  - **优先使用 LSP 工具**：在进行符号重命名、跳转分析、类型定义查找及重构操作时，严格优先使用 LSP 工具，确保重构在类型系统与语义层面的绝对安全与精确。
+  - 跨文件重构或代码批量替换辅助使用 `node packages/tooling/refactor/refactor.mjs`。
 - 不无意义运行全量测试，不使用 `node -e` 临时拼凑验证。
 
 ## 6. 文档维护
