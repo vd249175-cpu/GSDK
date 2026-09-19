@@ -1,7 +1,7 @@
 ---
 type: Architecture Specification
 title: GraphFramework 当前心智模型
-description: 系统的运行本体、单写者状态权限边界、原生 Rust 调度器契约与九大架构红线。
+description: 系统的运行本体、单写者状态权限边界、原生 Rust 调度器契约与架构红线。
 status: stable
 tags: [kernel, architecture, state-ownership, causal-order]
 ---
@@ -183,7 +183,7 @@ renderer 图协议只有：
 
 ## 7. 实例驱动分析
 
-`@graphvideo/sdk/analysis` 对真实 JS Node 实例调用 `inspectNodeObjects`，把属性和方法证据转换为每 Node 的 `PortableAnalysisSnapshot`；其它语言 Node 通过 [跨语言 Node 与分析事实协议](../protocols/portable-node-protocol.md) 提供相同纯数据。事实生成器属于各语言外层；语言无关的权威计算入口属于 Rust `graphvideo-analysis`，daemon `analyze`、N-API 与 C ABI 共享同一实现。`NativeRuleSpace.analyze` 已迁至 N-API，不再执行 TS 查询、折叠或指标兼容算法，返回与 daemon 相同的 JSON DTO；JS 实例描述可通过显式 `inspectNodeObjects` 离线读取，不属于内核分析操作。Rust 内核只在装配时保存外部 Node 事实并在 `admit/replace` 前校验。分析不执行 Node.change 或 Effect。
+`@graphvideo/sdk/analysis` 对真实 JS Node 实例调用 `inspectNodeObjects`，把属性和方法证据转换为临时 TypeScript AST，再生成每 Node 的 `PortableAnalysisSnapshot`；静态关系只来自 AST 节点和实例数据，不得用正则、源码子串或括号计数猜测。其它语言 Node 通过 [跨语言 Node 与分析事实协议](../protocols/portable-node-protocol.md) 提供相同纯数据。事实生成器属于各语言外层；语言无关的权威计算入口属于 Rust `graphvideo-analysis`，daemon `analyze`、N-API 与 C ABI 共享同一实现。`NativeRuleSpace.analyze` 已迁至 N-API，不再执行 TS 查询、折叠或指标兼容算法，返回与 daemon 相同的 JSON DTO；JS 实例描述可通过显式 `inspectNodeObjects` 离线读取，不属于内核分析操作。`mountDomainNode` 在装配边界生成便携事实；Rust 内核只保存、校验这些外部事实，`readStaticTopology` 只聚合其中的 send 证据，不重新扫描方法源码。分析不执行 Node.change 或 Effect。
 
 ```text
 entry  --inject--> info@Target

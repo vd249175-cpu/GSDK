@@ -191,6 +191,8 @@ for (const node of nodes) {
 }
 ```
 
+`mountDomainNode` 同步从该实例生成 `PortableAnalysisSnapshot`，随 admission 一起保存；`readStaticTopology()` 只读取这些已校验事实并过滤未准入目标。静态路由不是 Rust 调度器从 handler 文本猜出的运行时边，也不会用正则扫描 `Function#toString()`。JS 适配器使用 TypeScript AST；无法证明的 Info 类型或目标保留为分析诊断，不进入 topology。
+
 > **注意**：旧有的纯 TypeScript `KernelRuntime` 已冻结为可执行规约与测试 Oracle（主要用于单节点无本地依赖的快速测试夹具 `createTestRuntime`），生产主线不再维护双内核并行演进。
 
 依赖通过构造显式传入 WorldNode。微内核零业务语义，不知道任何具体业务服务名称。

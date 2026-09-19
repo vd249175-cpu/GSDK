@@ -46,6 +46,21 @@ const report = validateCausalIndex(index)
 
 只有静态可证明的 `Info.type` 与目标 Node 才进入 send 边。`unresolved-info-type` 和无法解析的发送目标是源码问题，不能生成 `UnknownInfo` 或根据变量名猜测。
 
+### JS 静态事实的证据链
+
+JS 适配器把已构造实例的数据属性和值、原型上的业务方法源码转换为临时 TypeScript AST，再按语法节点提取事实。源码文本只作为解析器输入；分析器不得用正则、子串搜索或括号计数直接推导 `change`、`send`、`Info.type`、目标 Node、State 读写或 Effect 关系。字符串、注释和模板内容中的 `ctx.send(...)` 因而不会产生关系。
+
+当前可证明的主要语法包括：
+
+- `info.type` / `info['type']` 与字符串字面量的严格相等或严格不等比较，比较两侧可以互换；
+- 由上述比较构成、且能在真分支或假分支确定具体类型的 `if` 守卫，以及以 `info.type` 为判别式的 `switch`；
+- `ctx.send` 的对象字面量 `type`、可追踪的局部 Info 变量，以及字符串字面量、构造期字符串属性或嵌套属性形式的目标；
+- `ctx.read/write/patchState` 与 `ctx.effectAdapter` 的明确调用表达式。
+
+不能由 AST 和实例数据唯一证明的表达式必须进入 `unresolvedInfoTypes` 或 `unresolvedSendTargets`，不能降级成名称猜测。复杂控制流、动态属性、任意 helper 返回值和运行期拼接值需要在发送点改写为可证明形状，或由非 JS Node 的语言适配器提供显式 `PortableAnalysisSnapshot`。
+
+`mountDomainNode` 在装配边界生成该 Node 的便携事实并交给 Rust 保存。`NativeRuleSpace.readStaticTopology()` 只聚合已保存 snapshot 中的 `send` 边，并按当前 admitted Node 裁剪；它不读取 `Function#toString()`，也不在微内核中再次解析或猜测源码。`routeCount` 表示同一来源、目标和 Info 类型的静态发送证据数，不表示运行次数。
+
 ## 3. 查询与路径
 
 - `queryEntity`：按精确地址读取一个实体。

@@ -86,6 +86,7 @@ npm --prefix packages/desktop run diagnose -- reach example.counter
 | 热替换后出现旧数据 | 新实例初态、显式恢复 Info、旧 ctx/generation 是否仍被使用 |
 | `Invalid runtime capability` | 是否同时加载了两份 `@graphvideo/sdk/node` 运行模块 |
 | `unresolved-info-type` | 把完整 Info 的字面量 `type` 放回发送点，不用不透明构造器隐藏 |
+| topology 缺少静态路由 | 查看 snapshot 的 `unresolvedInfoTypes` / `unresolvedSendTargets`；不要用正则或名字猜边 |
 
 ## 6. 固化为最小测试
 

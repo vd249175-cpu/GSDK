@@ -1,5 +1,10 @@
 # Directory Update Log
 
+## 2026-09-19
+* **Update**: 明确 JS 静态因果事实只通过 TypeScript AST 与实例数据生成，禁止使用正则、源码子串或括号计数推导关系。
+* **Update**: 记录 `mountDomainNode` 生成 `PortableAnalysisSnapshot`、Rust 保存事实、`readStaticTopology` 仅聚合已保存 send 证据的边界。
+* **Update**: 补充可证明的 `Info.type` / send 语法、无法证明时的诊断行为及 topology 缺边排查入口。
+
 ## 2026-09-18
 * **Update**: 重构 `DOCUMENTS/` 为分层 OKF 0.2 知识包，建立 `architecture/`、`protocols/`、`guides/`、`contracts/`、`diagnostics/` 和 `standards/` 语义子目录。
 * **Update**: 为全量概念文档补充完整 YAML Frontmatter（包含 `type`、`title`、`description`、`status`、`tags`）。
