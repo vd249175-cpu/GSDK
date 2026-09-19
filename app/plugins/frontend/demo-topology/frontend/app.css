@@ -197,15 +197,99 @@ body {
   background: var(--surface-canvas);
 }
 
-.page-container {
+.app-content > .workspace-pages {
+  width: 100%;
+  height: 100%;
+}
+
+.page-container,
+.panel-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow-y: auto;
-  padding: 20px 28px;
+  padding: 14px 18px;
   box-sizing: border-box;
+  min-height: 0;
+  min-width: 0;
 }
+
+.prophecy-panel-root,
+.astrolabe-panel-root,
+.pantheon-panel-root,
+.chronicle-panel-root,
+.kernel-panel-root {
+  background: var(--surface-canvas);
+}
+
+.chronicle-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.chronicle-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+.chronicle-book {
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chronicle-records-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.chronicle-record-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.record-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface-raised);
+  color: var(--content-secondary);
+}
+
+.record-tag.is-gold {
+  background: #7a5b00;
+  color: #ffd76a;
+}
+
+.record-tag.is-blue {
+  background: #1a365d;
+  color: #92b3ff;
+}
+
+.record-tag.is-green {
+  background: #1c4532;
+  color: #82e0aa;
+}
+
 
 /* ==========================================================================
    达芬奇风格底部页面导航坞 (DaVinci Dock)
