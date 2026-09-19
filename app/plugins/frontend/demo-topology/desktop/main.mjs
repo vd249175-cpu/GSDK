@@ -161,6 +161,8 @@ async function startHost() {
     },
   });
 
+  mainWindow.setMenu(null);
+
   mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     console.log(`[Renderer L${level}] ${message} (${sourceId}:${line})`);
   });
