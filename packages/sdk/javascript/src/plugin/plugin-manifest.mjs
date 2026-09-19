@@ -34,11 +34,11 @@ export function parseStudioPluginManifest(textOrValue) {
     try {
       raw = JSON.parse(textOrValue)
     } catch {
-      throw new Error('graphvideo.plugin.json 不是有效 JSON')
+      throw new Error('graphframework.plugin.json 不是有效 JSON')
     }
   }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new Error('graphvideo.plugin.json 必须是对象')
+    throw new Error('graphframework.plugin.json 必须是对象')
   }
   const value = raw
   if (value.apiVersion !== 1 && value.apiVersion !== 2) throw new Error('Plugin apiVersion 必须是 1')

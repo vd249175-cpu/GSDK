@@ -52,7 +52,7 @@ def _relative_entry(value: object, field: str) -> str | None:
 def parse_studio_plugin_manifest(text_or_value: str | dict) -> StudioPluginManifest:
     raw = json.loads(text_or_value) if isinstance(text_or_value, str) else text_or_value
     if not isinstance(raw, dict):
-        raise ValueError("graphvideo.plugin.json must be an object")
+        raise ValueError("graphframework.plugin.json must be an object")
     if raw.get("apiVersion") != 1:
         raise ValueError("Plugin apiVersion must be 1")
     plugin_id = raw.get("id")

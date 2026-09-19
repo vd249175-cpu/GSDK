@@ -83,7 +83,7 @@ export function AreaShell({ workspaceId, area, floating = false, onFloatToggle }
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => {
         event.preventDefault()
-        const source = event.dataTransfer.getData('application/x-graphvideo-area').split(':')
+        const source = event.dataTransfer.getData('application/x-graphframework-area').split(':')
         if (source.length === 2 && source[0] === workspaceId) void commands.execute('workspace.area.swap', {
           workspaceId,
           sourceAreaId: source[1],
@@ -100,7 +100,7 @@ export function AreaShell({ workspaceId, area, floating = false, onFloatToggle }
             return
           }
           event.dataTransfer.effectAllowed = 'move'
-          event.dataTransfer.setData('application/x-graphvideo-area', `${workspaceId}:${area.id}`)
+          event.dataTransfer.setData('application/x-graphframework-area', `${workspaceId}:${area.id}`)
         }}
         onDragEnd={(event) => {
           if (onFloatToggle && isOutsideViewport(

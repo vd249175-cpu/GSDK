@@ -4,7 +4,7 @@ type: guide
 
 # 通用桌面宿主
 
-本包提供 Electron 物理端口、前端底座和开发检查。完整 Studio 由根目录命名 run 启动；后端插件位于 `app/plugins/backend/graphvideo.studio`，前端与 Electron 宿主位于 `app/plugins/frontend/graphvideo.studio`。
+本包提供 Electron 物理端口、前端底座和开发检查。完整 Studio 由根目录命名 run 启动；后端插件位于 `app/plugins/backend/graphframework.studio`，前端与 Electron 宿主位于 `app/plugins/frontend/graphframework.studio`。
 
 在仓库根目录执行：
 
@@ -22,7 +22,7 @@ bash ./run.sh stop runs/studio/run.config.json
 - `build/` 从 SDK 源码构建宿主和插件，从统一 frontend 包构建工作台。
 - `scripts/` 提供边界检查和控制客户端。
 
-达芬奇主题由 `@graphvideo/theme` 提供；布局、停靠、现有浮动窗口和上下文机制由 `@graphvideo/workbench` 提供。插件自行实现面板内容。
+达芬奇主题由 `@graphframework/theme` 提供；布局、停靠、现有浮动窗口和上下文机制由 `@graphframework/workbench` 提供。插件自行实现面板内容。
 
 ```bash
 npm --prefix packages/desktop run typecheck

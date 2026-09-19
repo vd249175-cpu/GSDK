@@ -4,9 +4,9 @@ import asyncio
 
 import pytest
 
-from graphvideo_sdk import agent, analysis, effect, node, plugin, protocol, testing
-from graphvideo_sdk.daemon import KernelDaemonClient
-from graphvideo_sdk.protocol import Info, ProtocolError
+from graphframework_sdk import agent, analysis, effect, node, plugin, protocol, testing
+from graphframework_sdk.daemon import KernelDaemonClient
+from graphframework_sdk.protocol import Info, ProtocolError
 
 
 def test_info_round_trips_through_dto_shape() -> None:

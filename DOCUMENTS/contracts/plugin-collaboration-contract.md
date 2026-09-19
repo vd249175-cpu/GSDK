@@ -10,7 +10,7 @@ tags: [plugins, collaboration, publishing, contract]
 
 ## 1. 只有一种插件
 
-协作交付中的插件与仓库现有插件完全相同：都使用 `graphvideo.plugin.json`、Plugin SDK、普通 Node、相同装载方式和相同生命周期。内核不区分核心插件、扩展插件或工作流插件，也不为发布者拥有的插件提供额外权限。
+协作交付中的插件与仓库现有插件完全相同：都使用 `graphframework.plugin.json`、Plugin SDK、普通 Node、相同装载方式和相同生命周期。内核不区分核心插件、扩展插件或工作流插件，也不为发布者拥有的插件提供额外权限。
 
 “核心插件”只表示该插件由指定发布者维护，是一个有明确职责和公开契约的正式交付物。例如，浏览器操作录制插件可以拥有录制控制领域 Node、浏览器事件 `ObservationWorldNode`、必要的 `ExecutionWorldNode`，以及确实用于录制操作的可选前端。这个名称不表示 Rust 微内核的一部分。
 
@@ -61,7 +61,7 @@ downstream_modification: forbidden
 ---
 ```
 
-`package_id`、`package_version` 必须与 `graphvideo.plugin.json` 一致。`update_policy: publisher-replace-only` 和 `downstream_modification: forbidden` 表示接收方只能安装发布者提供的完整新版本，不能在包内继续开发。
+`package_id`、`package_version` 必须与 `graphframework.plugin.json` 一致。`update_policy: publisher-replace-only` 和 `downstream_modification: forbidden` 表示接收方只能安装发布者提供的完整新版本，不能在包内继续开发。
 
 `PACKAGE.md` 正文至少列出：
 
@@ -92,7 +92,7 @@ downstream_modification: forbidden
 
 插件只有在需要用户发起操作、输入参数或作出决定时才贡献 Element 或 Workspace。后台自动化、观察和纯策略插件默认不增加前端。
 
-需要前端时沿用当前达芬奇工作台模式：主题与排版由 `@graphvideo/theme` 提供，布局与交互机制由 `@graphvideo/workbench` 提供。组件消费语义 Token，并使用现有切分、停靠、尺寸调整、浮动、刷新和页面 Context 联动；面板内部按钮、表单和业务操作自由编写，不要求统一控件 DSL。renderer 只发送固定的用户意图并读取 Projection；不得获得任意 Node/Info 注入、直接修改 State、执行 Node 或调用物理 Adapter 的权限。
+需要前端时沿用当前达芬奇工作台模式：主题与排版由 `@graphframework/theme` 提供，布局与交互机制由 `@graphframework/workbench` 提供。组件消费语义 Token，并使用现有切分、停靠、尺寸调整、浮动、刷新和页面 Context 联动；面板内部按钮、表单和业务操作自由编写，不要求统一控件 DSL。renderer 只发送固定的用户意图并读取 Projection；不得获得任意 Node/Info 注入、直接修改 State、执行 Node 或调用物理 Adapter 的权限。
 
 前端是否存在不改变插件之间的协作方式。前端发出的用户命令经 `rendererRoots` 白名单进入图，插件之间仍只使用 `ctx.send(info, targetNodeId)`。
 
@@ -108,7 +108,7 @@ downstream_modification: forbidden
 
 发布或转交前至少确认：
 
-1. `graphvideo.plugin.json`、后端插件 ID 和 `PACKAGE.md` 中的 ID、版本一致；
+1. `graphframework.plugin.json`、后端插件 ID 和 `PACKAGE.md` 中的 ID、版本一致；
 2. Node ID 在完整装配中唯一，公开入口只包含明确的用户意图；
 3. 每条 `ctx.send` 的 Info 类型和目标可静态证明；
 4. State 只由 Owner Node 在当前 change 中写入；

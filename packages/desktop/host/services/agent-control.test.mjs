@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile)
 
 describe('Agent control transport', () => {
   it('requires the local token and routes inspect, inject and State patch to the trusted host', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'graphvideo-agent-control-'))
+    const directory = await mkdtemp(join(tmpdir(), 'graphframework-agent-control-'))
     const discoveryPath = join(directory, 'control.json')
     const host = {
       agentInspect: vi.fn(() => ({ projection: { revision: 1 } })),
@@ -32,7 +32,7 @@ describe('Agent control transport', () => {
       expect(host.agentInspect).toHaveBeenCalledWith({ after: 3 })
       const cliPath = fileURLToPath(new URL('../../scripts/agent-control.mjs', import.meta.url))
       const { stdout } = await execFileAsync(process.execPath, [cliPath, 'inspect'], {
-        env: { ...process.env, GRAPHVIDEO_AGENT_CONTROL_FILE: discoveryPath },
+        env: { ...process.env, GRAPHFRAMEWORK_AGENT_CONTROL_FILE: discoveryPath },
       })
       expect(JSON.parse(stdout).projection.revision).toBe(1)
       expect((await (await call('/analyze', { op: 'view', foldDepth: 0 })).json()).id).toBe('fold-depth:0')
@@ -40,7 +40,7 @@ describe('Agent control transport', () => {
       const analysisRequestPath = join(directory, 'analysis-request.json')
       await writeFile(analysisRequestPath, JSON.stringify({ op: 'view', foldDepth: 0 }))
       const analyzed = await execFileAsync(process.execPath, [cliPath, 'analyze', analysisRequestPath], {
-        env: { ...process.env, GRAPHVIDEO_AGENT_CONTROL_FILE: discoveryPath },
+        env: { ...process.env, GRAPHFRAMEWORK_AGENT_CONTROL_FILE: discoveryPath },
       })
       expect(JSON.parse(analyzed.stdout).nodes['fold:world']).toEqual({})
       expect((await (await call('/inject', {

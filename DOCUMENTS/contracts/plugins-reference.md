@@ -12,8 +12,8 @@ tags: [plugins, reference, topology, contracts]
 
 > **核心原则**：
 > 1. **业务迭代优先消费内核**：日常功能、UI 与模型接入放在插件中，避免向 Rust 加入业务语义。涉及调度、版本、执行或分析协议时，仍需对照内核源码与针对性测试核实边界。
-> 2. **全栈通过 SDK 交互**：后端主进程与插件使用 `@graphvideo/sdk` 的 node/plugin/effect 等公开子路径，前端仅通过 SDK Client 提供的快照与命令进行交互。
-> 3. **插件平权**：内置业务插件（如 `graphvideo.studio`）与第三方插件采用完全相同的 Manifest、装配接口与执行生命周期。
+> 2. **全栈通过 SDK 交互**：后端主进程与插件使用 `@graphframework/sdk` 的 node/plugin/effect 等公开子路径，前端仅通过 SDK Client 提供的快照与命令进行交互。
+> 3. **插件平权**：内置业务插件（如 `graphframework.studio`）与第三方插件采用完全相同的 Manifest、装配接口与执行生命周期。
 
 ---
 
@@ -24,15 +24,15 @@ tags: [plugins, reference, topology, contracts]
 │                   前端 UI (Renderer)                   │
 │   React 组件 / Workbench Elements / 自定义 Inspector   │
 └─────────────────────────┬──────────────────────────────┘
-                          │ 仅通过 @graphvideo/client 交互
+                          │ 仅通过 @graphframework/client 交互
                           │ (useAppState / useApplicationClient)
 ┌─────────────────────────▼──────────────────────────────┐
 │             插件系统层 (plugins)        │
-│   Manifest (graphvideo.plugin.json) + backend.ts       │
+│   Manifest (graphframework.plugin.json) + backend.ts       │
 │   - 声明 rendererRoots (公开给前端的安全入口)          │
 │   - 组装 Authoring / Persistence / Generation Nodes     │
 └─────────────────────────┬──────────────────────────────┘
-                          │ 通过 @graphvideo/sdk 定义 Node/Info
+                          │ 通过 @graphframework/sdk 定义 Node/Info
                           │ 挂载至 NativeRuleSpace
 ┌─────────────────────────▼──────────────────────────────┐
 │             底座内核 (零业务语义，统一生产调度)            │
@@ -53,11 +53,11 @@ tags: [plugins, reference, topology, contracts]
 
 本仓库插件位于 `app/plugins/<plugin-directory>/`；目录名不必等于 Manifest ID，外部目录由 application.json 的 path 指定：
 
-### 2.1 Manifest 规范 (`graphvideo.plugin.json`)
+### 2.1 Manifest 规范 (`graphframework.plugin.json`)
 ```json
 {
-  "id": "graphvideo.studio",
-  "name": "GraphVideo Studio",
+  "id": "graphframework.studio",
+  "name": "GraphFramework Studio",
   "version": "1.0.0",
   "apiVersion": 1,
   "contributes": {
@@ -71,7 +71,7 @@ tags: [plugins, reference, topology, contracts]
 ### 2.2 后端入口规范 (`backend.ts`)
 后端通过 `defineBackendPlugin` 导出，提供节点实例与前端白名单：
 ```ts
-import { defineBackendPlugin } from '@graphvideo/sdk/plugin'
+import { defineBackendPlugin } from '@graphframework/sdk/plugin'
 
 export default defineBackendPlugin({
   id: 'my-plugin',
@@ -88,9 +88,9 @@ export default defineBackendPlugin({
 
 ---
 
-## 3. 核心插件清单：`graphvideo.studio`
+## 3. 核心插件清单：`graphframework.studio`
 
-`graphvideo.studio` 是当前本地桌面端的核心创作套件，管理项目大纲、元数据、提示词以及云端 ComfyUI 生成流水线。
+`graphframework.studio` 是当前本地桌面端的核心创作套件，管理项目大纲、元数据、提示词以及云端 ComfyUI 生成流水线。
 
 ### 3.1 后端 Node 全景与职责
 
@@ -139,7 +139,7 @@ export default defineBackendPlugin({
 
 ### 3.3 前端 Elements 与工作区映射
 
-`graphvideo.studio` 前端界面划分为以下 6 个核心 Element，可在不同的工作区（Workspace）自由编排：
+`graphframework.studio` 前端界面划分为以下 6 个核心 Element，可在不同的工作区（Workspace）自由编排：
 
 | Element ID | 展示形态 | 核心功能 | 绑定的后端 Node 投影 |
 | :--- | :--- | :--- | :--- |
@@ -164,7 +164,7 @@ export default defineBackendPlugin({
 
 ## 5. 前端交互速查表（如何发送动作与读取状态）
 
-Studio 自己的 `frontend/client/sdk/index.ts` 转出绑定后的 useAppState/useApplicationClient；这些业务绑定不是通用 frontend 包中的 GraphVideo 专属 API。下表列出当前 GraphVideoApplicationClient 的实际命令和对应图入口；payload 以 `frontend/application/contract/` 与后端 rendererRoots 为准：
+Studio 自己的 `frontend/client/sdk/index.ts` 转出绑定后的 useAppState/useApplicationClient；这些业务绑定不是通用 frontend 包中的 GraphFramework 专属 API。下表列出当前 GraphFrameworkApplicationClient 的实际命令和对应图入口；payload 以 `frontend/application/contract/` 与后端 rendererRoots 为准：
 
 | 用户操作 | 前端调用的 SDK 命令 / Info | 目标 Node ID | 说明 |
 | :--- | :--- | :--- | :--- |

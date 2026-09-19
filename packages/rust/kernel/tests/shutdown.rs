@@ -1,4 +1,4 @@
-use graphvideo_kernel::{ChangeOutcome, DeliveryFeedback, DropReason, Kernel, KernelError};
+use graphframework_kernel::{ChangeOutcome, DeliveryFeedback, DropReason, Kernel, KernelError};
 
 #[test]
 fn shutdown_is_explicit_empty_only_and_terminal() {

@@ -8,10 +8,10 @@ export function isOutsideViewport(x: number, y: number, width: number, height: n
 }
 
 function copyStyles(targetDocument: Document) {
-  targetDocument.head.querySelectorAll('[data-graphvideo-shared-style]').forEach((node) => node.remove())
+  targetDocument.head.querySelectorAll('[data-graphframework-shared-style]').forEach((node) => node.remove())
   document.head.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => {
     const clone = node.cloneNode(true) as HTMLElement
-    clone.dataset.graphvideoSharedStyle = 'true'
+    clone.dataset.graphframeworkSharedStyle = 'true'
     if (clone instanceof HTMLLinkElement && node instanceof HTMLLinkElement) clone.href = node.href
     targetDocument.head.append(clone)
   })

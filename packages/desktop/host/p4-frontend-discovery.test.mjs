@@ -7,7 +7,7 @@ import { assertRunRendererRoot, readRunDiscovery, writeRunDiscovery } from '../.
 import { startRun, stopRun } from '../../tooling/run/src/lifecycle.mjs';
 import { repoRoot } from '../../tooling/run/src/session.mjs';
 
-const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
+const daemonExe = process.platform === 'win32' ? 'graphframework-kernel-daemon.exe' : 'graphframework-kernel-daemon';
 const temporaryRoots = [];
 afterEach(() => cleanupRunFixtures(temporaryRoots));
 
@@ -47,7 +47,7 @@ describe('P4 run frontend discovery and command binding', () => {
       runName: 'alice',
       kernel: { address: '127.0.0.1:52143', pid: 1234 },
     });
-    expect(readFileSync(path, 'utf8')).not.toContain('.graphvideo');
+    expect(readFileSync(path, 'utf8')).not.toContain('.graphframework');
   });
 
   it('rejects discovery without a kernel endpoint', () => {

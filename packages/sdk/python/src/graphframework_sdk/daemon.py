@@ -4,7 +4,7 @@ import asyncio
 import json
 from typing import Any
 
-from graphvideo_sdk.protocol import PROTOCOL_VERSION, ProtocolError
+from graphframework_sdk.protocol import PROTOCOL_VERSION, ProtocolError
 
 
 class KernelDaemonClient:

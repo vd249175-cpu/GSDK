@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 消费项目自诊断：只用发布入口 `@graphvideo/sdk/analysis` 对自身插件 Node
+ * 消费项目自诊断：只用发布入口 `@graphframework/sdk/analysis` 对自身插件 Node
  * 建因果索引并查询。只读实例描述，不创建生产 Runtime、不启动应用。
  * 查询语义与原仓库 `npm run trace` 的同名基础命令一致；health/reach 基于
  * 内置 `all-nodes` 总览，其余视图命令（centrality/community）需自备视图后扩展。
@@ -15,7 +15,7 @@ import {
   queryEntity,
   selectInducedSubgraph,
   validateCausalIndex,
-} from '@graphvideo/sdk/analysis'
+} from '@graphframework/sdk/analysis'
 import plugin from '../backend.mjs'
 import { frontendLinks, frontendServiceLinks } from '../analysis/links.mjs'
 

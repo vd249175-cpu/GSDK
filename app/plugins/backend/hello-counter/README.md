@@ -30,12 +30,12 @@ npm --prefix packages/desktop run diagnose -- reach example.counter
 
 | 复用项 | 公开来源 | Owner / 生命周期 |
 | --- | --- | --- |
-| Node 与 change Context | `@graphvideo/sdk/node` | 插件定义行为，宿主持有运行 State |
-| defineBackendPlugin 与 Manifest 校验 | `@graphvideo/sdk/plugin` | 插件工厂/身份与 rendererRoots |
-| NativeRuleSpace、mountDomainNode、replaceDomainNode | `@graphvideo/sdk/node` | 宿主规则空间，按 generation 生命周期 |
+| Node 与 change Context | `@graphframework/sdk/node` | 插件定义行为，宿主持有运行 State |
+| defineBackendPlugin 与 Manifest 校验 | `@graphframework/sdk/plugin` | 插件工厂/身份与 rendererRoots |
+| NativeRuleSpace、mountDomainNode、replaceDomainNode | `@graphframework/sdk/node` | 宿主规则空间，按 generation 生命周期 |
 | Rust 调度绑定 | 平台 `.node`，由 Rust 包构建与 stage | 生产 mailbox/single-flight/submission |
-| createTestRuntime / EffectHarness | `@graphvideo/sdk/testing` | 单次测试独立创建和销毁 |
-| 实例事实与显式离线查询 | `@graphvideo/sdk/analysis` | 只读派生证据，不执行 change/Effect |
+| createTestRuntime / EffectHarness | `@graphframework/sdk/testing` | 单次测试独立创建和销毁 |
+| 实例事实与显式离线查询 | `@graphframework/sdk/analysis` | 只读派生证据，不执行 change/Effect |
 
 ```bash
 npm --prefix packages/desktop test -- app/plugins/hello-counter/backend.test.mjs --silent

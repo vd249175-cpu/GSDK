@@ -1,5 +1,5 @@
 /** Lossless portable values for JSON daemon State/Info. No projection truncation. */
-const tag = '$graphvideoValue';
+const tag = '$graphframeworkValue';
 
 function encode(value: unknown, ancestors = new Set<object>()): unknown {
   if (value === undefined) return { [tag]: 'undefined' };

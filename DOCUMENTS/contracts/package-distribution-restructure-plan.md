@@ -14,7 +14,7 @@ tags: [workspace, distribution, packaging, boundaries]
 
 `app/application.json` 声明应用身份、默认主题、默认工作空间、启用插件及桌面入口；`app/plugins/` 保存本仓库业务插件。应用目录不包含 Electron 工程、renderer 工程或构建脚本。插件路径相对于 application.json 所在目录解析，也允许引用任意外部目录。
 
-`packages/desktop/` 提供通用 Electron 启动器、图宿主、插件目录清单、窗口 Adapter、renderer 入口及构建链。它按应用配置加载插件，不静态导入 Studio。Studio 的业务主进程接入、项目服务和资源属于 `app/plugins/graphvideo.studio/`。
+`packages/desktop/` 提供通用 Electron 启动器、图宿主、插件目录清单、窗口 Adapter、renderer 入口及构建链。它按应用配置加载插件，不静态导入 Studio。Studio 的业务主进程接入、项目服务和资源属于 `app/plugins/graphframework.studio/`。
 
 `packages/frontend/theme/` 提供达芬奇视觉主题和排版；`workbench/` 提供现有切分、停靠、尺寸调整、浮动页面和工作空间机制；`context/` 提供跨页面上下文；`client/` 提供通用客户端 hooks；`ui/` 提供可选公共组件。插件内部界面自由编写，并消费统一主题及工作台机制。
 
@@ -28,7 +28,7 @@ tags: [workspace, distribution, packaging, boundaries]
 
 平台生产源码不得导入业务插件。插件通过公开 SDK、frontend 和 desktop 接口接入平台；插件自己的业务代码、界面和资源收在同一个插件目录。
 
-各 npm 包独立管理清单、依赖与锁文件。桌面源码构建使用 esbuild/Vite 的明确源码入口；JS SDK 的 `graphvideo-source` 条件供支持 TypeScript 的 Node 宿主直接消费源码，默认出口仍是发布构建产物。Node_modules、dist、Cargo target 和测试缓存属于生成物。
+各 npm 包独立管理清单、依赖与锁文件。桌面源码构建使用 esbuild/Vite 的明确源码入口；JS SDK 的 `graphframework-source` 条件供支持 TypeScript 的 Node 宿主直接消费源码，默认出口仍是发布构建产物。Node_modules、dist、Cargo target 和测试缓存属于生成物。
 
 ## 验证入口
 
@@ -38,7 +38,7 @@ tags: [workspace, distribution, packaging, boundaries]
 
 `npm --prefix packages/desktop test -- <目标文件> --silent` 执行针对性测试。
 
-`npm --prefix packages/desktop run start` 构建并启动配置中的应用；外部应用可通过 GRAPHVIDEO_APPLICATION 指定 application.json 的绝对路径。
+`npm --prefix packages/desktop run start` 构建并启动配置中的应用；外部应用可通过 GRAPHFRAMEWORK_APPLICATION 指定 application.json 的绝对路径。
 
 ## 发布与协作
 

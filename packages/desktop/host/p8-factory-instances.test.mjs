@@ -9,7 +9,7 @@ import { loadRunNodes } from '../../tooling/run/src/assembly.mjs';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const helloCounterDir = join(repoRoot, 'app', 'plugins', 'backend', 'hello-counter');
 const helloCounterFileUrl = pathToFileURL(join(helloCounterDir, 'index.mjs')).href;
-const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
+const daemonExe = process.platform === 'win32' ? 'graphframework-kernel-daemon.exe' : 'graphframework-kernel-daemon';
 const temporaryRoots = [];
 afterEach(() => cleanupRunFixtures(temporaryRoots));
 
@@ -34,7 +34,7 @@ function baseDocument(overrides = {}) {
 
 function writeAgentFixturePlugin(directory, { realNodes }) {
   mkdirSync(directory, { recursive: true });
-  writeFileSync(join(directory, 'graphvideo.plugin.json'), JSON.stringify({
+  writeFileSync(join(directory, 'graphframework.plugin.json'), JSON.stringify({
     id: 'example.agent', name: 'Agent', version: '1.0.0', apiVersion: 2, kind: 'backend',
     contributes: { backend: 'backend.mjs', nodeFactories: [], graphFactories: ['createAgentGraph'] },
   }, null, 2));
@@ -71,7 +71,7 @@ describe('P8 factory instances: explicit IDs, bindings and namespace isolation',
     const root = mkdtempSync(join(tmpdir(), 'gv-p8-contract-'));
     temporaryRoots.push(root);
     const directory = join(root, 'plugin'); mkdirSync(directory);
-    writeFileSync(join(directory, 'graphvideo.plugin.json'), JSON.stringify({
+    writeFileSync(join(directory, 'graphframework.plugin.json'), JSON.stringify({
       id: 'example.contract', name: 'Contract', version: '1.0.0', apiVersion: 2, kind: 'backend',
       contributes: { backend: 'index.mjs', graphFactories: failure === 'undeclared' ? [] : ['createGraph'] },
     }));
@@ -102,7 +102,7 @@ export default { id: 'example.contract' };
     temporaryRoots.push(root);
     const pluginDir = join(root, 'custom-plugin');
     mkdirSync(pluginDir, { recursive: true });
-    writeFileSync(join(pluginDir, 'graphvideo.plugin.json'), JSON.stringify({
+    writeFileSync(join(pluginDir, 'graphframework.plugin.json'), JSON.stringify({
       id: 'example.custom', name: 'Custom', version: '1.0.0', apiVersion: 2, kind: 'backend',
       contributes: { backend: 'backend.mjs', nodeFactories: ['createCustomNode'], graphFactories: [] },
     }, null, 2));

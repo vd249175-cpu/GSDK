@@ -48,7 +48,7 @@
 
 1. 确认目标 Node ID、State Owner 和物理隔离边界。
 2. 沿 `Info → change → State → send/effect → Projection` 定位断点，查清因果推进在哪一步中断或异常。
-3. 验证单 Node 行为优先使用 `@graphvideo/sdk/testing` 的 `createTestRuntime`，通过 mock Adapter 和 `waitForQuiescence()` 验证确定性收敛。
+3. 验证单 Node 行为优先使用 `@graphframework/sdk/testing` 的 `createTestRuntime`，通过 mock Adapter 和 `waitForQuiescence()` 验证确定性收敛。
 4. 将修复固化为针对性单元测试，再执行全套静态与类型检查。
 
 ## 5. 修改后的验证与重构规范
@@ -63,7 +63,7 @@
 ## 6. 文档维护
 
 - 当前文档只描述已存在的源码，不写迁移史和未来假想架构。
-- 文档示例必须使用当前 `@graphvideo/*` 公开 API，严禁引用已废弃或不存在的文件/方法。
+- 文档示例必须使用当前 `@graphframework/*` 公开 API，严禁引用已废弃或不存在的文件/方法。
 - Markdown 文件遵循 OKF 0.2 知识包规范（必须包含合法的 `type` frontmatter）。
 
 ## 7. 多 Agent 与统一 run 的目标约定

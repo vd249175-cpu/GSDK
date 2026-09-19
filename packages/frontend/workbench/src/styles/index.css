@@ -1,4 +1,4 @@
-@import '@graphvideo/theme/base.css';
+@import '@graphframework/theme/base.css';
 
 @import './dock.css';
 @import './workspace-tabs.css';

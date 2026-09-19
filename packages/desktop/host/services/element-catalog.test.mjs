@@ -7,7 +7,7 @@ import { ElementCatalog } from './element-catalog.mjs'
 const temporaryDirectories = []
 
 async function temporaryDirectory() {
-  const directory = await mkdtemp(join(tmpdir(), 'graphvideo-elements-'))
+  const directory = await mkdtemp(join(tmpdir(), 'graphframework-elements-'))
   temporaryDirectories.push(directory)
   return directory
 }
@@ -31,7 +31,7 @@ async function writeWorkspace(directory, id) {
 
 async function writePlugin(directory, id, { elements = [], workspaces = [] } = {}) {
   await mkdir(directory, { recursive: true })
-  await writeFile(join(directory, 'graphvideo.plugin.json'), JSON.stringify({
+  await writeFile(join(directory, 'graphframework.plugin.json'), JSON.stringify({
     id, name: id, version: '1.0.0', apiVersion: 1,
     contributes: { elements, workspaces },
   }))

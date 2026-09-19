@@ -3,7 +3,7 @@
 //! Mirrors the TS reference semantics (admit/evict, enqueued|dropped,
 //! single-flight, exact settlement, cancel) with deterministic stubs.
 
-use graphvideo_kernel::{
+use graphframework_kernel::{
     BeginError, ChangeOutcome, DeliveryFeedback, DropReason, Kernel, KernelError, SubmissionState,
 };
 

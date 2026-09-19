@@ -1,4 +1,4 @@
-/* FloatingScrollbars 配套样式：随组件由 @graphvideo/workbench 交付。
+/* FloatingScrollbars 配套样式：随组件由 @graphframework/workbench 交付。
    全局滚动条隐藏（scrollbar-width / ::-webkit-scrollbar）属于应用根 reset，由消费应用自行提供。 */
 .floating-scrollbars {
   position: fixed;

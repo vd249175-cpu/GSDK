@@ -1,5 +1,5 @@
-import {NativeRuleSpace, mountDomainNode, replaceDomainNode} from '@graphvideo/sdk/node'
-import {assertRendererRoot} from '@graphvideo/sdk/plugin'
+import {NativeRuleSpace, mountDomainNode, replaceDomainNode} from '@graphframework/sdk/node'
+import {assertRendererRoot} from '@graphframework/sdk/plugin'
 
 /**
  * 原生微内核图宿主 (NativeGraphHost)：

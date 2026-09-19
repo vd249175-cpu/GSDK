@@ -84,13 +84,13 @@ npm --prefix packages/desktop run diagnose -- reach example.counter
 | submission 不完成 | pending delivery、运行中的 change、未结算 Effect、取消信号 |
 | 取消无效 | 是否取消正确 submission、Adapter 是否响应 signal；既有写入不会回滚 |
 | 热替换后出现旧数据 | 新实例初态、显式恢复 Info、旧 ctx/generation 是否仍被使用 |
-| `Invalid runtime capability` | 是否同时加载了两份 `@graphvideo/sdk/node` 运行模块 |
+| `Invalid runtime capability` | 是否同时加载了两份 `@graphframework/sdk/node` 运行模块 |
 | `unresolved-info-type` | 把完整 Info 的字面量 `type` 放回发送点，不用不透明构造器隐藏 |
 | topology 缺少静态路由 | 查看 snapshot 的 `unresolvedInfoTypes` / `unresolvedSendTargets`；不要用正则或名字猜边 |
 
 ## 6. 固化为最小测试
 
-单 Node 或局部链路优先使用 `@graphvideo/sdk/testing`：
+单 Node 或局部链路优先使用 `@graphframework/sdk/testing`：
 
 ```ts
 const runtime = createTestRuntime({ nodes: [new CounterNode()] })

@@ -55,7 +55,7 @@ GraphFramework 是一个面向桌面与后端系统的因果应用微内核运�
 ```bash
 npm --prefix packages/sdk/javascript ci
 npm --prefix packages/desktop ci
-cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node
+cargo build --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-node
 node packages/rust/scripts/stage-native.mjs
 node packages/rust/scripts/stage-backend-native.mjs
 npm --prefix packages/desktop run build

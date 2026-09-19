@@ -10,7 +10,7 @@ tags: [sdk, client, element, projection, workbench]
 
 ## 1. 当前边界
 
-`@graphvideo/client` 提供与业务类型无关的 React Context、快照订阅和 Workbench Element 绑定机制。业务事实由宿主提供的 `applicationSnapshots` 读取，写操作由宿主注入的 `applicationClient` 承担；选择、草稿和布局等临时事实属于 `clientState`。
+`@graphframework/client` 提供与业务类型无关的 React Context、快照订阅和 Workbench Element 绑定机制。业务事实由宿主提供的 `applicationSnapshots` 读取，写操作由宿主注入的 `applicationClient` 承担；选择、草稿和布局等临时事实属于 `clientState`。
 
 禁止直接修改业务投影、调用 `Node.change`，或在 renderer 构造 Kernel。应用客户端若把命令翻译为根 Info，目标与 Info 类型必须由后端插件通过 `rendererRoots` 显式公开，并在主进程用 `assertRendererRoot` 校验。
 
@@ -60,9 +60,9 @@ export const {
 
 ## 4. Element
 
-`defineWorkbenchElement` 是 `@graphvideo/workbench` 的 `defineElement` 转出。Element 可通过注册上下文贡献面板、命令、事件、服务和自身状态，并在生命周期结束时清理资源。
+`defineWorkbenchElement` 是 `@graphframework/workbench` 的 `defineElement` 转出。Element 可通过注册上下文贡献面板、命令、事件、服务和自身状态，并在生命周期结束时清理资源。
 
-具体目录结构、发现方式和加载顺序由消费应用决定。`@graphvideo/client` 不扫描插件目录，也不负责安装或卸载插件。
+具体目录结构、发现方式和加载顺序由消费应用决定。`@graphframework/client` 不扫描插件目录，也不负责安装或卸载插件。
 
 ## 5. 样式
 

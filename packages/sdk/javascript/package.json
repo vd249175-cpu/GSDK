@@ -1,5 +1,5 @@
 {
-  "name": "@graphvideo/sdk",
+  "name": "@graphframework/sdk",
   "version": "1.0.3",
   "description": "GraphFramework mirror SDK (JavaScript): protocol, node, effect, plugin, analysis, agent, testing",
   "license": "Apache-2.0",
@@ -13,7 +13,7 @@
     "directory": "packages/sdk/javascript"
   },
   "bin": {
-    "graphvideo-init": "./bin/graphvideo-init.mjs"
+    "graphframework-init": "./bin/graphframework-init.mjs"
   },
   "scripts": {
     "build:dist": "vite build --config vite.dist.config.ts",
@@ -29,37 +29,37 @@
   "exports": {
     "./protocol": {
       "types": "./src/protocol/index.ts",
-      "graphvideo-source": "./src/protocol/index.ts",
+      "graphframework-source": "./src/protocol/index.ts",
       "default": "./dist/protocol.js"
     },
     "./node": {
       "types": "./src/node/index.ts",
-      "graphvideo-source": "./src/node/index.ts",
+      "graphframework-source": "./src/node/index.ts",
       "default": "./dist/node.js"
     },
     "./effect": {
       "types": "./src/effect/index.ts",
-      "graphvideo-source": "./src/effect/index.ts",
+      "graphframework-source": "./src/effect/index.ts",
       "default": "./dist/effect.js"
     },
     "./plugin": {
       "types": "./src/plugin/index.ts",
-      "graphvideo-source": "./src/plugin/index.ts",
+      "graphframework-source": "./src/plugin/index.ts",
       "default": "./dist/plugin.js"
     },
     "./analysis": {
       "types": "./src/analysis/index.ts",
-      "graphvideo-source": "./src/analysis/index.ts",
+      "graphframework-source": "./src/analysis/index.ts",
       "default": "./dist/analysis.js"
     },
     "./agent": {
       "types": "./src/agent/index.ts",
-      "graphvideo-source": "./src/agent/index.ts",
+      "graphframework-source": "./src/agent/index.ts",
       "default": "./dist/agent.js"
     },
     "./testing": {
       "types": "./src/testing/index.ts",
-      "graphvideo-source": "./src/testing/index.ts",
+      "graphframework-source": "./src/testing/index.ts",
       "default": "./dist/testing.js"
     },
     "./package.json": "./package.json"

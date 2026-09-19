@@ -1,4 +1,4 @@
-import { Node, defineBackendPlugin } from '@graphvideo/sdk/plugin'
+import { Node, defineBackendPlugin } from '@graphframework/sdk/plugin'
 
 /**
  * demo-topology：订单履约小图。唯一入口 `demo.orders`，`demo.router`
@@ -7,21 +7,23 @@ import { Node, defineBackendPlugin } from '@graphvideo/sdk/plugin'
  * renderer 不可达（本插件不注册新的 renderer 通道）。
  */
 export class OrdersNode extends Node {
-  constructor() {
-    super('demo.orders', 'Orders', { placed: 0 })
+  constructor(id = 'demo.orders', targets = { router: 'demo.router' }) {
+    super(id, 'Orders', { placed: 0 })
+    this.targets = targets
   }
 
   change(info, ctx) {
     if (info.type === 'SubmitOrder') {
       ctx.patchState({ placed: ctx.read('placed') + 1 })
-      ctx.send({ type: 'OrderPlaced', orderId: info.orderId }, 'demo.router')
+      ctx.send({ type: 'OrderPlaced', orderId: info.orderId }, this.targets?.router ?? 'demo.router')
     }
   }
 }
 
 export class RouterNode extends Node {
-  constructor() {
-    super('demo.router', 'Router', { routed: 0, dropped: 0, screening: [] })
+  constructor(id = 'demo.router', targets = { billing: 'demo.billing', inventory: 'demo.inventory' }) {
+    super(id, 'Router', { routed: 0, dropped: 0, screening: [] })
+    this.targets = targets
   }
 
   change(info, ctx) {
@@ -38,42 +40,44 @@ export class RouterNode extends Node {
       for (const nodeId of ctx.read('screening')) {
         forward({ type: 'ScreenOrder', orderId: info.orderId }, nodeId)
       }
-      forward({ type: 'BillOrder', orderId: info.orderId }, 'demo.billing')
-      forward({ type: 'ReserveStock', orderId: info.orderId }, 'demo.inventory')
+      forward({ type: 'BillOrder', orderId: info.orderId }, this.targets?.billing ?? 'demo.billing')
+      forward({ type: 'ReserveStock', orderId: info.orderId }, this.targets?.inventory ?? 'demo.inventory')
       ctx.patchState({ routed: ctx.read('routed') + 1, dropped })
     }
   }
 }
 
 export class BillingNode extends Node {
-  constructor() {
-    super('demo.billing', 'Billing', { billed: [] })
+  constructor(id = 'demo.billing', targets = { ledger: 'demo.ledger' }) {
+    super(id, 'Billing', { billed: [] })
+    this.targets = targets
   }
 
   change(info, ctx) {
     if (info.type === 'BillOrder') {
       ctx.write('billed', [...ctx.read('billed'), info.orderId])
-      ctx.send({ type: 'ReceiptPosted', orderId: info.orderId }, 'demo.ledger')
+      ctx.send({ type: 'ReceiptPosted', orderId: info.orderId }, this.targets?.ledger ?? 'demo.ledger')
     }
   }
 }
 
 export class InventoryNode extends Node {
-  constructor() {
-    super('demo.inventory', 'Inventory', { reserved: [] })
+  constructor(id = 'demo.inventory', targets = { ledger: 'demo.ledger' }) {
+    super(id, 'Inventory', { reserved: [] })
+    this.targets = targets
   }
 
   change(info, ctx) {
     if (info.type === 'ReserveStock') {
       ctx.write('reserved', [...ctx.read('reserved'), info.orderId])
-      ctx.send({ type: 'StockReserved', orderId: info.orderId }, 'demo.ledger')
+      ctx.send({ type: 'StockReserved', orderId: info.orderId }, this.targets?.ledger ?? 'demo.ledger')
     }
   }
 }
 
 export class LedgerNode extends Node {
-  constructor() {
-    super('demo.ledger', 'Ledger', { receipts: [], reservations: [], verdicts: [] })
+  constructor(id = 'demo.ledger') {
+    super(id, 'Ledger', { receipts: [], reservations: [], verdicts: [] })
   }
 
   change(info, ctx) {
@@ -89,30 +93,26 @@ export class LedgerNode extends Node {
 
 /** 运行中才准入的筛查节点：构造与挂接都发生在启动之后。 */
 export class FraudNode extends Node {
-  constructor() {
-    super('demo.fraud', 'Fraud', { screened: [] })
+  constructor(id = 'demo.fraud', targets = { ledger: 'demo.ledger' }) {
+    super(id, 'Fraud', { screened: [] })
+    this.targets = targets
   }
 
   change(info, ctx) {
     if (info.type === 'ScreenOrder') {
       ctx.write('screened', [...ctx.read('screened'), info.orderId])
-      ctx.send({ type: 'FraudVerdict', orderId: info.orderId, verdict: 'clear' }, 'demo.ledger')
+      ctx.send({ type: 'FraudVerdict', orderId: info.orderId, verdict: 'clear' }, this.targets?.ledger ?? 'demo.ledger')
     }
   }
 }
 
 export function createDemoTopology(ctx) {
-  const idFor = (local) => (typeof ctx?.nodeIdFor === 'function' ? ctx.nodeIdFor(local) : local);
-  const orders = new OrdersNode();
-  const router = new RouterNode();
-  const billing = new BillingNode();
-  const inventory = new InventoryNode();
-  const ledger = new LedgerNode();
-  if (typeof ctx?.nodeIdFor === 'function') {
-    for (const [node, local] of [[orders, 'orders'], [router, 'router'], [billing, 'billing'], [inventory, 'inventory'], [ledger, 'ledger']]) {
-      Object.defineProperty(node, 'id', { value: idFor(local) });
-    }
-  }
+  const idFor = (local) => (typeof ctx?.nodeIdFor === 'function' ? ctx.nodeIdFor(local) : (ctx?.instanceId ? `${ctx.instanceId}/${local}` : `demo.${local}`));
+  const orders = new OrdersNode(idFor('orders'), { router: idFor('router') });
+  const router = new RouterNode(idFor('router'), { billing: idFor('billing'), inventory: idFor('inventory') });
+  const billing = new BillingNode(idFor('billing'), { ledger: idFor('ledger') });
+  const inventory = new InventoryNode(idFor('inventory'), { ledger: idFor('ledger') });
+  const ledger = new LedgerNode(idFor('ledger'));
   return {
     orders,
     router,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { WorldNode, assertRendererRoot } from '@graphvideo/sdk/plugin'
-import { createTestRuntime } from '@graphvideo/sdk/testing'
+import { WorldNode, assertRendererRoot } from '@graphframework/sdk/plugin'
+import { createTestRuntime } from '@graphframework/sdk/testing'
 import plugin from './backend.mjs'
 
 /** 测试夹具：WorldNode 构造注入可替换 Adapter 的演示，不进生产装配。 */

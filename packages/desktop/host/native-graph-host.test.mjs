@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Node, locateNativeBinding } from '@graphvideo/sdk/node'
+import { Node, locateNativeBinding } from '@graphframework/sdk/node'
 import { createEmptyNativeGraphHost } from './native-graph-host.mjs'
 
 class FixtureNode extends Node {

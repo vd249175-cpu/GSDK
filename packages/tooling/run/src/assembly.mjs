@@ -29,7 +29,7 @@ export async function loadRunNodes(parsed, dependencies = {}) {
   const modules = new Map();
   const backendPlugins = parsed.plugins.backend;
   for (const plugin of backendPlugins) {
-    const raw = JSON.parse(readFileSync(resolve(plugin.directory, 'graphvideo.plugin.json'), 'utf8'));
+    const raw = JSON.parse(readFileSync(resolve(plugin.directory, 'graphframework.plugin.json'), 'utf8'));
     if (raw.id !== plugin.id) {
       throw new Error(`Plugin identity mismatch: ${plugin.id} (manifest says ${raw.id})`);
     }
@@ -181,10 +181,12 @@ export function resolveEntry(pluginDirectory, entry) {
  * generated dir (never beside plugin sources). Plain .mjs entries import
  * directly. Build output is per-run, so parallel runs never share bundles.
  */
+const nativeImport = new Function('specifier', 'return import(specifier)');
+
 export async function importBackendEntry(pluginDirectory, entry, parsed) {
   const target = resolveEntry(pluginDirectory, entry);
   if (target.endsWith('.mjs') || target.endsWith('.js')) {
-    return import(pathToFileURL(target).href);
+    return nativeImport(pathToFileURL(target).href);
   }
   const { build } = await loadEsbuild();
   const { runBackendOutfile, defaultGeneratedLayout } = await import('./paths.mjs');
@@ -197,7 +199,7 @@ export async function importBackendEntry(pluginDirectory, entry, parsed) {
   const desktopDir = fileURLToPath(new URL('../../../desktop/', import.meta.url));
   const { resolve: resolvePath } = await import('node:path');
   const alias = Object.fromEntries(['protocol', 'node', 'effect', 'plugin', 'analysis', 'agent', 'testing'].map((name) => [
-    '@graphvideo/sdk/' + name, resolvePath(sdkSrc, name, 'index.ts'),
+    '@graphframework/sdk/' + name, resolvePath(sdkSrc, name, 'index.ts'),
   ]));
   alias.yaml = resolvePath(desktopDir, 'node_modules', 'yaml', 'browser', 'index.js');
   await build({
@@ -207,7 +209,7 @@ export async function importBackendEntry(pluginDirectory, entry, parsed) {
     platform: 'node',
     format: 'esm',
     alias,
-    external: ['*.node', 'typescript', 'electron', '@graphvideo/desktop/*'],
+    external: ['*.node', 'typescript', 'electron', '@graphframework/desktop/*'],
     logLevel: 'silent',
   });
   return import(pathToFileURL(outfile).href);

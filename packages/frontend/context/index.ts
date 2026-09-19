@@ -1,4 +1,4 @@
-import { defineWorkbenchContext, type WorkbenchContextToken } from '@graphvideo/workbench'
+import { defineWorkbenchContext, type WorkbenchContextToken } from '@graphframework/workbench'
 
 /**
  * 通用跨面板上下文 Tokens：选择、协作等工作台机制共享的临时交互态。

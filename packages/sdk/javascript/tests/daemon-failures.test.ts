@@ -8,7 +8,7 @@ import { runDaemonNodeWorker } from '../src/node/daemon-node';
 import { admitDaemonNodes } from '../src/node/daemon-node';
 
 const executable = fileURLToPath(new URL(
-  `../../../rust/target/debug/${process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon'}`,
+  `../../../rust/target/debug/${process.platform === 'win32' ? 'graphframework-kernel-daemon.exe' : 'graphframework-kernel-daemon'}`,
   import.meta.url,
 ));
 
@@ -19,7 +19,7 @@ afterEach(() => {
 
 async function startDaemon(token: string): Promise<{ control: KernelDaemonClient; address: string }> {
   const child = spawn(executable, [], {
-    env: { ...process.env, GRAPHVIDEO_DAEMON_TOKEN: token },
+    env: { ...process.env, GRAPHFRAMEWORK_DAEMON_TOKEN: token },
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });

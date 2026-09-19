@@ -6,8 +6,8 @@ export interface TypographyPreferences {
   size: InterfaceFontSize
 }
 
-const fontStorageKey = 'graphvideo-interface-font'
-const sizeStorageKey = 'graphvideo-interface-font-size'
+const fontStorageKey = 'graphframework-interface-font'
+const sizeStorageKey = 'graphframework-interface-font-size'
 const supportedFonts: InterfaceFont[] = ['default', 'system', 'mono']
 const supportedSizes: InterfaceFontSize[] = ['compact', 'standard', 'comfortable']
 

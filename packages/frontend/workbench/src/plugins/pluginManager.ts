@@ -1,4 +1,4 @@
-import type { StudioPluginManifest } from '@graphvideo/sdk/protocol'
+import type { StudioPluginManifest } from '@graphframework/sdk/protocol'
 import type { WorkbenchContextStore } from '../context/workbenchContextStore'
 import type { ElementLoader } from '../elements/elementLoader'
 

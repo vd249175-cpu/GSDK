@@ -3,17 +3,17 @@ import { readdir } from 'node:fs/promises'
 import { extname, resolve } from 'node:path'
 import { loadApplication, runtimeRoot } from '../application.mjs'
 
-const runBackendDir = typeof process.env.GRAPHVIDEO_RUN_BACKEND_DIR === 'string' && process.env.GRAPHVIDEO_RUN_BACKEND_DIR
-  ? process.env.GRAPHVIDEO_RUN_BACKEND_DIR
+const runBackendDir = typeof process.env.GRAPHFRAMEWORK_RUN_BACKEND_DIR === 'string' && process.env.GRAPHFRAMEWORK_RUN_BACKEND_DIR
+  ? process.env.GRAPHFRAMEWORK_RUN_BACKEND_DIR
   : null
 const application = loadApplication()
 const alias = Object.fromEntries(['protocol', 'node', 'effect', 'plugin', 'analysis', 'agent', 'testing'].map((name) => [
-  '@graphvideo/sdk/' + name, resolve(runtimeRoot, '../sdk/javascript/src', name, 'index.ts'),
+  '@graphframework/sdk/' + name, resolve(runtimeRoot, '../sdk/javascript/src', name, 'index.ts'),
 ]))
 alias.yaml = resolve(runtimeRoot, 'node_modules/yaml/browser/index.js')
 async function bundle(entry, outfile) {
   await build({ entryPoints: [entry], outfile, bundle: true, platform: 'node', format: 'esm',
-    alias, external: ['*.node', 'typescript', 'electron', '@graphvideo/desktop/*'], logLevel: 'warning' })
+    alias, external: ['*.node', 'typescript', 'electron', '@graphframework/desktop/*'], logLevel: 'warning' })
 }
 
 await bundle(resolve(runtimeRoot, 'host/native-graph-host.mjs'), resolve(runtimeRoot, 'host/native-graph-host.js'))

@@ -11,7 +11,7 @@
     "frontend": []
   },
   "kernel": {
-    "daemonPath": "../../packages/rust/target/debug/graphvideo-kernel-daemon",
+    "daemonPath": "../../packages/rust/target/debug/graphframework-kernel-daemon",
     "bind": "127.0.0.1:0",
     "startupTimeoutMs": 10000,
     "shutdownTimeoutMs": 10000

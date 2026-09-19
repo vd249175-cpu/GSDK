@@ -1,11 +1,11 @@
 [package]
-name = "graphvideo-kernel-daemon"
+name = "graphframework-kernel-daemon"
 version = "0.1.0"
 edition = "2021"
-description = "Business-agnostic persistent GraphVideo rule-space host"
+description = "Business-agnostic persistent GraphFramework rule-space host"
 license = "Apache-2.0"
 
 [dependencies]
-graphvideo-kernel = { path = "../kernel" }
-graphvideo-analysis = { path = "../analysis" }
+graphframework-kernel = { path = "../kernel" }
+graphframework-analysis = { path = "../analysis" }
 serde_json = "1.0"

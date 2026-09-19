@@ -18,17 +18,17 @@ tags: [design-system, theme, tokens, styling, workbench]
 
 ## 2. 当前样式入口
 
-`@graphvideo/theme` 提供达芬奇主题、排版和全局样式。`@graphvideo/workbench/styles/index.css` 聚合主题底座及布局样式。桌面入口依次加载工作台样式与统一主题，保持现有视觉层级和主题覆盖顺序：
+`@graphframework/theme` 提供达芬奇主题、排版和全局样式。`@graphframework/workbench/styles/index.css` 聚合主题底座及布局样式。桌面入口依次加载工作台样式与统一主题，保持现有视觉层级和主题覆盖顺序：
 
 ```text
-@graphvideo/workbench/styles/index.css
-  → @graphvideo/theme/base.css
+@graphframework/workbench/styles/index.css
+  → @graphframework/theme/base.css
       → theme/styles/base/{typography,theme,theme-light,theme-traditional}.css
   → workbench/src/styles/{dock,workspace-tabs,controls,panel-chrome,scrollbars}.css
-@graphvideo/theme
+@graphframework/theme
   → theme/styles/{typography,theme,theme-light,theme-traditional,globals}.css
 Studio 自有样式
-  → app/plugins/graphvideo.studio/frontend/styles/index.css
+  → app/plugins/graphframework.studio/frontend/styles/index.css
 ```
 
 `app/plugins/demo-topology/frontend/app.css` 只包含示例应用自身布局，并消费工作台 Token。主题通过根元素的 `data-theme="light|xueqing|shiliuqun"` 切换；无属性时使用 dark。

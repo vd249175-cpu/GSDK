@@ -5,7 +5,7 @@ interface ExampleService {
   read(): string
 }
 
-const Example = defineService<ExampleService>('graphvideo.example')
+const Example = defineService<ExampleService>('graphframework.example')
 
 describe('Service registry', () => {
   it('registers, replaces and removes one owner provider', () => {

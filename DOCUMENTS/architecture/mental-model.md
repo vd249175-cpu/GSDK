@@ -40,7 +40,7 @@ Rust kernel-daemon 进程（本 run 独占：调度、submission、权威 JSON S
 
 开发期与测试规约
   ├─ KernelRuntime：TypeScript 参考规约与测试 Oracle（只读规约，不再作为生产内核维护）
-  ├─ @graphvideo/sdk/analysis：JS 实例事实生成器、分析 DTO 与显式离线纯算法，不启动 Runtime
+  ├─ @graphframework/sdk/analysis：JS 实例事实生成器、分析 DTO 与显式离线纯算法，不启动 Runtime
   └─ tooling/run：assembly（精确切片）/ mount（admit→claim→poll）/ scenario（同运行断言）/ lifecycle（对称启停记录）
 
 `runs/studio` 通过 `backend.host` 构造注入每个图实例的物理端口，前端承担窗口、项目文件和数据库的实际访问。界面只读本图的 EncodedValue 投影，并通过已选工厂的公开根命令注入 Info；可信宿主观察入口另行校验。JSON 传输用 `daemonValueCodec` 无截断保留 Map、Set 等 State 值。正常 stop 读取活动快照，即使 live config 修改或删除也使用原始关闭 Info；先关闭前端命令入口并结算业务保存，再停止观察源、释放 worker/provider 租约、evict 和本地 dispose，由 Bash 关闭并等待 Rust、前端和后端退出。清理错误保留认证控制接口与锁，返回失败并允许下一次 stop 重试；成功后清除凭证和生成的环境文件。
@@ -183,7 +183,7 @@ renderer 图协议只有：
 
 ## 7. 实例驱动分析
 
-`@graphvideo/sdk/analysis` 对真实 JS Node 实例调用 `inspectNodeObjects`，把属性和方法证据转换为临时 TypeScript AST，再生成每 Node 的 `PortableAnalysisSnapshot`；静态关系只来自 AST 节点和实例数据，不得用正则、源码子串或括号计数猜测。其它语言 Node 通过 [跨语言 Node 与分析事实协议](../protocols/portable-node-protocol.md) 提供相同纯数据。事实生成器属于各语言外层；语言无关的权威计算入口属于 Rust `graphvideo-analysis`，daemon `analyze`、N-API 与 C ABI 共享同一实现。`NativeRuleSpace.analyze` 已迁至 N-API，不再执行 TS 查询、折叠或指标兼容算法，返回与 daemon 相同的 JSON DTO；JS 实例描述可通过显式 `inspectNodeObjects` 离线读取，不属于内核分析操作。`mountDomainNode` 在装配边界生成便携事实；Rust 内核只保存、校验这些外部事实，`readStaticTopology` 只聚合其中的 send 证据，不重新扫描方法源码。分析不执行 Node.change 或 Effect。
+`@graphframework/sdk/analysis` 对真实 JS Node 实例调用 `inspectNodeObjects`，把属性和方法证据转换为临时 TypeScript AST，再生成每 Node 的 `PortableAnalysisSnapshot`；静态关系只来自 AST 节点和实例数据，不得用正则、源码子串或括号计数猜测。其它语言 Node 通过 [跨语言 Node 与分析事实协议](../protocols/portable-node-protocol.md) 提供相同纯数据。事实生成器属于各语言外层；语言无关的权威计算入口属于 Rust `graphframework-analysis`，daemon `analyze`、N-API 与 C ABI 共享同一实现。`NativeRuleSpace.analyze` 已迁至 N-API，不再执行 TS 查询、折叠或指标兼容算法，返回与 daemon 相同的 JSON DTO；JS 实例描述可通过显式 `inspectNodeObjects` 离线读取，不属于内核分析操作。`mountDomainNode` 在装配边界生成便携事实；Rust 内核只保存、校验这些外部事实，`readStaticTopology` 只聚合其中的 send 证据，不重新扫描方法源码。分析不执行 Node.change 或 Effect。
 
 ```text
 entry  --inject--> info@Target
@@ -205,11 +205,11 @@ Node 的 contains/owns 是归属，不是路径捷径。分析工具接收普通
 - 物理世界只以 Observation 进图：`WorldNode` 经构造注入的 `EffectAdapter` 执行 I/O，返回的 Observation 经 Info 交回 State Owner（§4）。磁盘、网络、SQLite、窗口宿主不是图外的例外，只是尚未被框进来的 Node。
 - 框定即定边界：`selectInducedSubgraph` 把任意 Node 集合划进来，被切断的 send/read 就是它与世界的交换面；`analyzeViewHealth` 检查这个边界是否被凿穿。内外之分是视角，不是本体。
 - 折叠即世界切分：一组基础 Node 可以折叠为当前视角中的 Node，成员事实仍来自原始因果索引；折叠不改变因果，只改变粒度。
-- 契约在 SDK，存储在消费方：`FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog`、`AnalysisView` 定义在 `@graphvideo/sdk/analysis`；消费方自行决定命名视角的存储与装配。
+- 契约在 SDK，存储在消费方：`FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog`、`AnalysisView` 定义在 `@graphframework/sdk/analysis`；消费方自行决定命名视角的存储与装配。
 
 ## 8. 不可破坏的验收公理
 
-1. 同一图只有一个权威规则空间。每个命名 run 独占一个 Rust daemon 进程；Electron 不再内嵌第二份生产图（`GRAPHVIDEO_RUN_DAEMON_ADDRESS` 已设置时启动内嵌空间直接拒绝）。
+1. 同一图只有一个权威规则空间。每个命名 run 独占一个 Rust daemon 进程；Electron 不再内嵌第二份生产图（`GRAPHFRAMEWORK_RUN_DAEMON_ADDRESS` 已设置时启动内嵌空间直接拒绝）。
 2. 每个 State 字段只有一个 Owner。
 3. Node 间只通过实际 `ctx.send` 通信。
 4. 同一 Node 的 change 严格 single-flight；单个 change 可并发等待独立 Effect，该约束不限制外部任务同时在途。

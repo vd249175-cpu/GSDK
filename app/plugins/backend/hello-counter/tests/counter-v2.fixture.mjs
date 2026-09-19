@@ -1,4 +1,4 @@
-import { Node } from '@graphvideo/sdk/plugin'
+import { Node } from '@graphframework/sdk/plugin'
 
 /**
  * 热更演示的新版本代码制品：与 `plugins/hello-counter/backend.mjs` 同一

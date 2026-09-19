@@ -42,7 +42,7 @@ fn facts() -> (Value, Value) {
 
 fn analyze(op: Value) -> Value {
     let (facts, context) = facts();
-    graphvideo_analysis::analyze_json(&op, &facts, &context)
+    graphframework_analysis::analyze_json(&op, &facts, &context)
         .unwrap_or_else(|error| panic!("{op:?} failed: {error}"))
 }
 
@@ -160,7 +160,7 @@ fn contract_golden_frame_matches_the_inline_fixture() {
     let frame: Value =
         serde_json::from_str(&std::fs::read_to_string(path).expect("contract golden frame"))
             .expect("contract golden JSON");
-    let view = graphvideo_analysis::analyze_json(
+    let view = graphframework_analysis::analyze_json(
         &frame["request"],
         &frame["facts"],
         &frame["context"],

@@ -6,9 +6,9 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 export function agentControlDiscoveryPath() {
-  const override = process.env.GRAPHVIDEO_AGENT_CONTROL_FILE;
+  const override = process.env.GRAPHFRAMEWORK_AGENT_CONTROL_FILE;
   if (override) return override;
-  return join(homedir(), '.graphvideo', 'agent-control.json');
+  return join(homedir(), '.graphframework', 'agent-control.json');
 }
 
 async function readJsonBody(request) {

@@ -47,7 +47,7 @@ export type NativeAnalyzeJson = (requestJson: string, factsJson: string) => stri
 /**
  * NativeRuleSpace analysis adapter. JavaScript only extracts portable facts
  * from live JS instances; every query, fold and metric is computed by the
- * shared Rust `graphvideo-analysis` crate through N-API.
+ * shared Rust `graphframework-analysis` crate through N-API.
  */
 export class NativeAnalysisEngine {
   private revision = 0;

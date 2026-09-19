@@ -8,7 +8,7 @@ tags: [protocol, rust, daemon, lease, poll-commit]
 
 # 常驻 Rust 图宿主协议
 
-`graphvideo-kernel-daemon` 是业务无关的独立进程。它直接复用 `packages/rust/kernel`，持有 Node 注册表、mailbox、submission、权威 JSON State、State 版本和便携分析事实。它不包含 Studio、Electron、项目、媒体或任何业务 Info 名称，也不执行业务 `change`。
+`graphframework-kernel-daemon` 是业务无关的独立进程。它直接复用 `packages/rust/kernel`，持有 Node 注册表、mailbox、submission、权威 JSON State、State 版本和便携分析事实。它不包含 Studio、Electron、项目、媒体或任何业务 Info 名称，也不执行业务 `change`。
 
 当前阶段提供可测试的常驻宿主和语言无关执行边界；Studio 生产装配仍运行在 Electron 内的 `NativeRuleSpace`，尚未切换到 daemon。
 
@@ -17,11 +17,11 @@ tags: [protocol, rust, daemon, lease, poll-commit]
 daemon 只监听 loopback TCP。启动者必须通过环境变量提供至少 16 字节的随机凭证：
 
 ```powershell
-$env:GRAPHVIDEO_DAEMON_TOKEN = '<random-secret-at-least-16-bytes>'
-cargo run --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-daemon
+$env:GRAPHFRAMEWORK_DAEMON_TOKEN = '<random-secret-at-least-16-bytes>'
+cargo run --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-daemon
 ```
 
-`GRAPHVIDEO_DAEMON_BIND` 默认为 `127.0.0.1:0`。daemon 在 stdout 输出唯一一行 ready DTO，此后日志只写 stderr：
+`GRAPHFRAMEWORK_DAEMON_BIND` 默认为 `127.0.0.1:0`。daemon 在 stdout 输出唯一一行 ready DTO，此后日志只写 stderr：
 
 ```json
 {"version":1,"address":"127.0.0.1:52143","pid":1234}
@@ -30,7 +30,7 @@ cargo run --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-daemon
 JS 宿主可使用：
 
 ```ts
-import { connectKernelDaemon } from '@graphvideo/sdk/agent'
+import { connectKernelDaemon } from '@graphframework/sdk/agent'
 
 const client = await connectKernelDaemon({ address, token })
 ```

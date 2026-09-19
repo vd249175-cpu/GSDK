@@ -33,7 +33,7 @@ for (const file of [...files(path.join(root, 'packages')), ...files(path.join(ro
           if (!/\.js$/.test(target) || !fs.existsSync(target.slice(0, -3) + '.ts')) findings.push(`${rel}: missing ${spec}`)
         }
       }
-      if (spec === '@graphvideo/tokens' || spec === '@graphvideo/client-sdk' || spec === '@graphvideo/domain') findings.push(`${rel}: retired alias ${spec}`)
+      if (spec === '@graphframework/tokens' || spec === '@graphframework/client-sdk' || spec === '@graphframework/domain') findings.push(`${rel}: retired alias ${spec}`)
     }
     ts.forEachChild(node, check)
   }

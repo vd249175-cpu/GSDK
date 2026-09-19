@@ -1,4 +1,4 @@
-# graphvideo-sdk (Python mirror)
+# graphframework-sdk (Python mirror)
 
 Same capability faces as `packages/sdk/javascript`:
 

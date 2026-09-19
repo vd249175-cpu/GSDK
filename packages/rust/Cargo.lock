@@ -118,7 +118,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "graphvideo-analysis"
+name = "graphframework-analysis"
 version = "0.1.0"
 dependencies = [
  "serde",
@@ -126,33 +126,33 @@ dependencies = [
 ]
 
 [[package]]
-name = "graphvideo-kernel"
+name = "graphframework-kernel"
 version = "0.1.0"
 
 [[package]]
-name = "graphvideo-kernel-daemon"
+name = "graphframework-kernel-daemon"
 version = "0.1.0"
 dependencies = [
- "graphvideo-analysis",
- "graphvideo-kernel",
+ "graphframework-analysis",
+ "graphframework-kernel",
  "serde_json",
 ]
 
 [[package]]
-name = "graphvideo-kernel-ffi"
+name = "graphframework-kernel-ffi"
 version = "0.1.0"
 dependencies = [
- "graphvideo-analysis",
- "graphvideo-kernel",
+ "graphframework-analysis",
+ "graphframework-kernel",
  "serde_json",
 ]
 
 [[package]]
-name = "graphvideo-kernel-node"
+name = "graphframework-kernel-node"
 version = "0.1.0"
 dependencies = [
- "graphvideo-analysis",
- "graphvideo-kernel",
+ "graphframework-analysis",
+ "graphframework-kernel",
  "napi",
  "napi-derive",
  "serde_json",

@@ -145,7 +145,7 @@ describe('Element runtime instance manager', () => {
   })
 
   it('resolves the current Service provider at each Runtime capability call', async () => {
-    const Example = defineService<{ read(): string }>('graphvideo.runtime-example')
+    const Example = defineService<{ read(): string }>('graphframework.runtime-example')
     const services = new ServiceRegistry()
     services.replaceOwner('provider', [{
       id: Example.id, token: Example, value: { read: () => 'first' },

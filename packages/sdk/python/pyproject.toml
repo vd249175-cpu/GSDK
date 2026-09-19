@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "graphvideo-sdk"
+name = "graphframework-sdk"
 version = "1.0.3"
 description = "GraphFramework mirror SDK (Python): protocol, node, effect, plugin, analysis, agent, testing"
 readme = "README.md"

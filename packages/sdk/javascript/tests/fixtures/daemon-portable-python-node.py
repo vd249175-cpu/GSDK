@@ -4,8 +4,8 @@ import os
 import socket
 
 
-address = os.environ["GRAPHVIDEO_DAEMON_ADDRESS"]
-token = os.environ["GRAPHVIDEO_DAEMON_TOKEN"]
+address = os.environ["GRAPHFRAMEWORK_DAEMON_ADDRESS"]
+token = os.environ["GRAPHFRAMEWORK_DAEMON_TOKEN"]
 host, port_text = address.rsplit(":", 1)
 connection = socket.create_connection((host.strip("[]"), int(port_text)), timeout=5)
 reader = connection.makefile("r", encoding="utf-8", newline="\n")

@@ -1,10 +1,10 @@
 import './styles.css'
 
-export { AudioPlayer } from '@graphvideo/workbench'
-export { FloatingScrollbars } from '@graphvideo/workbench'
-export { InlineSelect } from '@graphvideo/workbench'
-export { LargeTextEditorDialog } from '@graphvideo/workbench'
-export type { LargeTextEditorDialogProps } from '@graphvideo/workbench'
+export { AudioPlayer } from '@graphframework/workbench'
+export { FloatingScrollbars } from '@graphframework/workbench'
+export { InlineSelect } from '@graphframework/workbench'
+export { LargeTextEditorDialog } from '@graphframework/workbench'
+export type { LargeTextEditorDialogProps } from '@graphframework/workbench'
 
 export { PanelHeader } from './PanelHeader'
 export type { PanelHeaderProps } from './PanelHeader'

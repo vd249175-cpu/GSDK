@@ -42,7 +42,7 @@ describe('Workspace default layout preferences', () => {
   })
 
   it('ignores invalid persisted layouts', () => {
-    localStorage.setItem('graphvideo-workspace-default-layouts-v1', JSON.stringify({
+    localStorage.setItem('graphframework-workspace-default-layouts-v1', JSON.stringify({
       editing: { focusedAreaId: 'missing', layout: { kind: 'area', id: 'editor' } },
     }))
     expect(loadWorkspaceDefault('editing')).toBeNull()

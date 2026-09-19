@@ -10,7 +10,7 @@
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
-import { runtimeRoot } from '@graphvideo/desktop/application'
+import { runtimeRoot } from '@graphframework/desktop/application'
 
 const require = createRequire(join(runtimeRoot, 'package.json'))
 const electronPath = require('electron')

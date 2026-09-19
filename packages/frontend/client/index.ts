@@ -11,17 +11,17 @@ export {
   defineElement as defineWorkbenchElement,
   type ElementModule as WorkbenchElementModule,
   type ElementRegistrationContext as WorkbenchElementRegistrationContext,
-} from '@graphvideo/workbench';
+} from '@graphframework/workbench';
 
-export { defineWorkbenchContext } from '@graphvideo/workbench';
+export { defineWorkbenchContext } from '@graphframework/workbench';
 export type {
   WorkbenchContextBinding, WorkbenchContextHandle, WorkbenchContextScope,
   WorkbenchContextToken,
-} from '@graphvideo/workbench';
+} from '@graphframework/workbench';
 export type {
   ElementEventEmitter, ElementEventRegistration, ElementHostApi,
   ElementRuntimeHandle, ElementRuntimeValue, ElementServiceAccessor,
   ElementServiceRegistration, ElementStateBinding, ElementStateDefinition,
   ElementStateHandle, ElementStateScope, ExtensionDefinition, ExtensionProps,
   PanelDefinition, PanelProps,
-} from '@graphvideo/workbench';
+} from '@graphframework/workbench';

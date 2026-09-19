@@ -40,7 +40,7 @@ JavaScript 可用 N-API 或 daemon，Python SDK 当前使用 daemon；Python cty
 
 ```text
 <plugin-id>/
-  graphvideo.plugin.json
+  graphframework.plugin.json
   PACKAGE.md
   backend.<语言扩展名>
   analysis/folds.recommended.json
@@ -60,8 +60,8 @@ JavaScript 可用 N-API 或 daemon，Python SDK 当前使用 daemon；Python cty
 
 | 制品 | 格式与边界 |
 | --- | --- |
-| JavaScript SDK | `@graphvideo/sdk` npm tgz，七个子路径；发布消费需包含 dist 与适用的原生绑定 |
-| Python SDK | `graphvideo-sdk` wheel/sdist，七个模块 |
+| JavaScript SDK | `@graphframework/sdk` npm tgz，七个子路径；发布消费需包含 dist 与适用的原生绑定 |
+| Python SDK | `graphframework-sdk` wheel/sdist，七个模块 |
 | frontend / desktop | 按宿主生态交付源码包或构建制品，不属于 Python 镜像 |
 | contract | 协议清单、黄金帧与发布兼容信息 |
 | Rust daemon | 对应平台的可执行文件及启动/连接说明 |
@@ -72,7 +72,7 @@ JavaScript 可用 N-API 或 daemon，Python SDK 当前使用 daemon；Python cty
 
 发布清单记录 SDK、daemon、C ABI、N-API 与桌面宿主兼容版本，插件声明实际需要的最低版本。当前 desktop/frontend 使用源码和本仓库 file 依赖；没有 Electron 安装包制作或插件 ZIP 安装工具。正式分发必须单独验证这些边界，不能把本地 build 成功当作发布完成。
 
-JS SDK 的默认运行出口是 dist，`graphvideo-source` 条件供能够加载 TypeScript 的源码宿主使用。仓库内 Vite/esbuild 明确绑定 SDK 源码；独立制品不得隐含依赖 GVSDK 的绝对路径或本仓库 source alias。Node_modules、Cargo target、缓存、密钥和用户数据不随插件交付。
+JS SDK 的默认运行出口是 dist，`graphframework-source` 条件供能够加载 TypeScript 的源码宿主使用。仓库内 Vite/esbuild 明确绑定 SDK 源码；独立制品不得隐含依赖 GVSDK 的绝对路径或本仓库 source alias。Node_modules、Cargo target、缓存、密钥和用户数据不随插件交付。
 
 SDK 和 Rust 微内核都不负责 Git 拉取、编译器定位、虚拟环境创建、依赖安装、构建、文件监听或进程守护。接收者的外层工具可以提供这些能力。generation 替换继续刻意丢弃旧 backlog、重置 State、使旧租约失效；不增加自动回滚、State 继承/迁移或跨代消息保留。
 

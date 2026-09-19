@@ -1,4 +1,4 @@
-use graphvideo_kernel_daemon::{Session, Space};
+use graphframework_kernel_daemon::{Session, Space};
 use serde_json::{json, Value};
 
 fn call(space: &mut Space, session: &mut Session, op: &str, args: Value) -> Value {

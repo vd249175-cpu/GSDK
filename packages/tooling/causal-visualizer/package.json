@@ -1,5 +1,5 @@
 {
-  "name": "@graphvideo/causal-visualizer",
+  "name": "@graphframework/causal-visualizer",
   "version": "1.0.0",
   "private": true,
   "description": "GSDK 独立 3D 因果数据流全息观测工具（图无关内核可视化展开）",

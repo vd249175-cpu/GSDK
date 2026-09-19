@@ -14,11 +14,11 @@ if (!platformTag) throw new Error(`Unsupported native target: ${process.platform
 const source = resolve(
   root,
   'kernel-node',
-  `graphvideo-kernel-node.${platformTag}.node`,
+  `graphframework-kernel-node.${platformTag}.node`,
 )
 if (!existsSync(source)) throw new Error(`Staged native binding missing: ${source}`)
 const nativeDir = resolve(root, '../sdk/javascript/dist/native')
 mkdirSync(nativeDir, { recursive: true })
-const destination = resolve(nativeDir, `graphvideo-kernel-node.${platformTag}.node`)
+const destination = resolve(nativeDir, `graphframework-kernel-node.${platformTag}.node`)
 copyFileSync(source, destination)
 console.log(`backend runtime native binding staged at ${destination}`)

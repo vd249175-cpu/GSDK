@@ -44,7 +44,7 @@ SDK 类型检查不依赖 frontend；客户端泛型断言位于 `packages/front
 | NativeRuleSpace、进程 Node 或 Agent 接口 | SDK tests 中对应 native/process/agent 测试 + 类型检查 |
 | daemon / Python 镜像 | Rust daemon 测试、Python 对应测试与共同黄金帧 |
 | 前端组件、主题、Context 或 Element 生命周期 | 桌面配置中对应 frontend/Element 测试与 renderer 类型检查 |
-| Rust 分析算法 | `graphvideo-analysis` 对应 Cargo 测试与跨入口 DTO 用例 |
+| Rust 分析算法 | `graphframework-analysis` 对应 Cargo 测试与跨入口 DTO 用例 |
 | JS 事实提取与显式离线分析 | SDK tests 中对应分析测试 |
 | Electron 或源码构建边界 | renderer 边界、类型、main/renderer build、Electron smoke；需要整体应用回归时运行 desktop verify |
 
@@ -66,7 +66,7 @@ SDK 类型检查不依赖 frontend；客户端泛型断言位于 `packages/front
 python -m pip install -e packages/sdk/python
 python -m pip install pytest pytest-asyncio
 python -m pytest packages/sdk/python/tests/test_mirror.py
-cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-daemon
+cargo build --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-daemon
 python -m pytest packages/sdk/python/tests/test_daemon.py
 ```
 
@@ -76,10 +76,10 @@ daemon 测试寻找 `packages/rust/target/debug/` 的本机二进制；不存在
 
 ## 性能基准与平台边界
 
-`packages/rust/scripts/benchmark-native.mjs` 测量 Rust/N-API 原始循环及替换延迟，绑定默认来自 Rust 包内 kernel-node；可用 GRAPHVIDEO_NATIVE_NODE 指定已构建绑定。
+`packages/rust/scripts/benchmark-native.mjs` 测量 Rust/N-API 原始循环及替换延迟，绑定默认来自 Rust 包内 kernel-node；可用 GRAPHFRAMEWORK_NATIVE_NODE 指定已构建绑定。
 
 ```bash
-cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node --release
+cargo build --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-node --release
 node packages/rust/scripts/stage-native.mjs --release
 node --expose-gc packages/rust/scripts/benchmark-native.mjs --iterations 20000 --rounds 5
 ```

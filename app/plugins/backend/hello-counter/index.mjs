@@ -1,4 +1,4 @@
-import { Node, defineBackendPlugin, defineNodeFactory } from '@graphvideo/sdk/plugin'
+import { Node, defineBackendPlugin, defineNodeFactory } from '@graphframework/sdk/plugin'
 
 export class CounterNode extends Node {
   constructor(id = 'example.counter') {

@@ -9,9 +9,9 @@ import { connectKernelDaemon } from '../src/agent/daemon-client';
 import { runDaemonNodeWorker } from '../src/node/daemon-node';
 import { runDaemonEffectProvider } from '../src/effect/daemon-effect';
 
-const executable = existsSync(resolve('target', 'debug', process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon'))
-  ? resolve('target', 'debug', process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon')
-  : fileURLToPath(new URL(`../../../rust/target/debug/${process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon'}`, import.meta.url));
+const executable = existsSync(resolve('target', 'debug', process.platform === 'win32' ? 'graphframework-kernel-daemon.exe' : 'graphframework-kernel-daemon'))
+  ? resolve('target', 'debug', process.platform === 'win32' ? 'graphframework-kernel-daemon.exe' : 'graphframework-kernel-daemon')
+  : fileURLToPath(new URL(`../../../rust/target/debug/${process.platform === 'win32' ? 'graphframework-kernel-daemon.exe' : 'graphframework-kernel-daemon'}`, import.meta.url));
 const portablePythonNode = fileURLToPath(new URL('./fixtures/daemon-portable-python-node.py', import.meta.url));
 const pythonAvailable = spawnSync('python', ['--version'], { windowsHide: true }).status === 0;
 const children: ChildProcessWithoutNullStreams[] = [];
@@ -29,7 +29,7 @@ afterEach(async () => {
 async function startDaemon(): Promise<{ child: ChildProcessWithoutNullStreams; address: string; token: string }> {
   const token = 'fixture-secret-0001';
   const child = spawn(executable, [], {
-    env: { ...process.env, GRAPHVIDEO_DAEMON_TOKEN: token },
+    env: { ...process.env, GRAPHFRAMEWORK_DAEMON_TOKEN: token },
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });
@@ -48,7 +48,7 @@ describe.skipIf(!existsSync(executable))('Rust daemon with external workers', ()
   it.skipIf(!pythonAvailable)('executes a standard-library Python Node copied to an arbitrary directory', async () => {
     const daemon = await startDaemon();
     const control = await connectKernelDaemon(daemon);
-    const checkout = mkdtempSync(join(tmpdir(), 'graphvideo-portable-node-'));
+    const checkout = mkdtempSync(join(tmpdir(), 'graphframework-portable-node-'));
     temporaryDirectories.push(checkout);
     const entry = join(checkout, 'worker.py');
     copyFileSync(portablePythonNode, entry);
@@ -58,8 +58,8 @@ describe.skipIf(!existsSync(executable))('Rust daemon with external workers', ()
         cwd: checkout,
         env: {
           ...process.env,
-          GRAPHVIDEO_DAEMON_ADDRESS: daemon.address,
-          GRAPHVIDEO_DAEMON_TOKEN: daemon.token,
+          GRAPHFRAMEWORK_DAEMON_ADDRESS: daemon.address,
+          GRAPHFRAMEWORK_DAEMON_TOKEN: daemon.token,
         },
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,

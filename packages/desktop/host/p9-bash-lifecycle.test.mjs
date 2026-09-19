@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { statusRun } from '../../tooling/run/src/lifecycle.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
+const daemonExe = process.platform === 'win32' ? 'graphframework-kernel-daemon.exe' : 'graphframework-kernel-daemon';
 const temporaryRoots = [];
 afterEach(() => cleanupRunFixtures(temporaryRoots));
 
@@ -34,7 +34,7 @@ function writeRun(root, name, overrides = {}) {
 
 function sh(op, configPath) {
   let out;
-  const bash = process.env.GRAPHVIDEO_BASH ?? (process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash');
+  const bash = process.env.GRAPHFRAMEWORK_BASH ?? (process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash');
   try { out = execFileSync(bash, ['./run.sh', op, configPath], {
     cwd: repoRoot, timeout: 90_000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
   }); } catch (error) {
@@ -87,7 +87,7 @@ describe('P9 bash symmetric lifecycle', () => {
     const failure = join(root, 'fail-dispose');
     mkdirSync(plugin);
     if (failDispose) writeFileSync(failure, 'fail');
-    writeFileSync(join(plugin, 'graphvideo.plugin.json'), JSON.stringify({ id: 'fixture.cleanup', name: 'Fixture', version: '1.0.0', apiVersion: 2, kind: 'backend', contributes: { backend: 'index.mjs', nodeFactories: ['createResource'] } }));
+    writeFileSync(join(plugin, 'graphframework.plugin.json'), JSON.stringify({ id: 'fixture.cleanup', name: 'Fixture', version: '1.0.0', apiVersion: 2, kind: 'backend', contributes: { backend: 'index.mjs', nodeFactories: ['createResource'] } }));
     writeFileSync(join(plugin, 'index.mjs'), `
 import { existsSync, writeFileSync } from 'node:fs';
 export function createResource(ctx) {

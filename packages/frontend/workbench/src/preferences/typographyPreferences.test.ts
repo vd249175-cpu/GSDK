@@ -12,7 +12,7 @@ describe('Typography preferences', () => {
     const storage = { setItem: vi.fn() }
     applyTypographyPreferences({ font: 'mono', size: 'comfortable' }, root, storage)
     expect(root.dataset).toMatchObject({ fontFamily: 'mono', fontSize: 'comfortable' })
-    expect(storage.setItem).toHaveBeenCalledWith('graphvideo-interface-font', 'mono')
-    expect(storage.setItem).toHaveBeenCalledWith('graphvideo-interface-font-size', 'comfortable')
+    expect(storage.setItem).toHaveBeenCalledWith('graphframework-interface-font', 'mono')
+    expect(storage.setItem).toHaveBeenCalledWith('graphframework-interface-font-size', 'comfortable')
   })
 })

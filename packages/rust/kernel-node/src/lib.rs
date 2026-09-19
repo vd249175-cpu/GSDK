@@ -8,7 +8,7 @@
 
 use std::sync::Mutex;
 
-use graphvideo_kernel::{ActiveChange, ChangeOutcome, DeliveryFeedback, DropReason, Kernel};
+use graphframework_kernel::{ActiveChange, ChangeOutcome, DeliveryFeedback, DropReason, Kernel};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
@@ -45,7 +45,7 @@ fn drop_reason_name(reason: &DropReason) -> &'static str {
     }
 }
 
-fn kernel_error_to_js(error: graphvideo_kernel::KernelError) -> napi::Error {
+fn kernel_error_to_js(error: graphframework_kernel::KernelError) -> napi::Error {
     napi::Error::new(Status::GenericFailure, format!("{error}"))
 }
 
@@ -354,12 +354,12 @@ impl RuleSpace {
         Ok(kernel
             .submission_state(&submission)
             .map(|state| match state {
-                graphvideo_kernel::SubmissionState::Open { pending } => {
+                graphframework_kernel::SubmissionState::Open { pending } => {
                     format!("open:{pending}")
                 }
-                graphvideo_kernel::SubmissionState::Completed => "completed".to_owned(),
-                graphvideo_kernel::SubmissionState::Cancelled => "cancelled".to_owned(),
-                graphvideo_kernel::SubmissionState::Failed(message) => format!("failed:{message}"),
+                graphframework_kernel::SubmissionState::Completed => "completed".to_owned(),
+                graphframework_kernel::SubmissionState::Cancelled => "cancelled".to_owned(),
+                graphframework_kernel::SubmissionState::Failed(message) => format!("failed:{message}"),
             }))
     }
 
@@ -441,7 +441,7 @@ fn lock_error(_: std::sync::PoisonError<std::sync::MutexGuard<'_, Kernel>>) -> n
 /// `frontendServiceLinks` context arrays (a bare snapshot array is also
 /// accepted and runs with empty context). Returns key-sorted result JSON.
 /// No algorithms live here: this is a thin string wrapper over the shared
-/// `graphvideo-analysis` crate call.
+/// `graphframework-analysis` crate call.
 #[napi]
 pub fn analyze_json(request_json: String, facts_json: String) -> Result<String> {
     let request: serde_json::Value = serde_json::from_str(&request_json).map_err(|error| {
@@ -451,7 +451,7 @@ pub fn analyze_json(request_json: String, facts_json: String) -> Result<String> 
         napi::Error::new(Status::InvalidArg, format!("invalid facts JSON: {error}"))
     })?;
     let (facts, context) = split_facts_context(&facts_value);
-    graphvideo_analysis::analyze_json(&request, &facts, &context)
+    graphframework_analysis::analyze_json(&request, &facts, &context)
         .map(|value| value.to_string())
         .map_err(|error| napi::Error::new(Status::GenericFailure, error))
 }

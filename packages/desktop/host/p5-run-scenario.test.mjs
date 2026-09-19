@@ -13,7 +13,7 @@ import { resolveRunRoot } from '../../tooling/run/src/paths.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const helloCounterDir = join(repoRoot, 'app', 'plugins', 'backend', 'hello-counter');
-const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
+const daemonExe = process.platform === 'win32' ? 'graphframework-kernel-daemon.exe' : 'graphframework-kernel-daemon';
 const temporaryRoots = [];
 afterEach(() => cleanupRunFixtures(temporaryRoots));
 

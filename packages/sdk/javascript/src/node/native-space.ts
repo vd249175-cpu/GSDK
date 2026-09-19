@@ -280,8 +280,8 @@ class StaleNativeChangeError extends Error {
 
 /** Absolute path of the built native module, if present. */
 export function locateNativeBinding(): string | null {
-  if (process.env.GRAPHVIDEO_NATIVE_NODE && existsSync(process.env.GRAPHVIDEO_NATIVE_NODE)) {
-    return process.env.GRAPHVIDEO_NATIVE_NODE;
+  if (process.env.GRAPHFRAMEWORK_NATIVE_NODE && existsSync(process.env.GRAPHFRAMEWORK_NATIVE_NODE)) {
+    return process.env.GRAPHFRAMEWORK_NATIVE_NODE;
   }
   const here = dirname(fileURLToPath(import.meta.url));
   const platformTag = process.platform === 'win32'
@@ -292,14 +292,14 @@ export function locateNativeBinding(): string | null {
         ? `darwin-${process.arch}`
         : null;
   if (!platformTag) return null;
-  const fileName = `graphvideo-kernel-node.${platformTag}.node`;
+  const fileName = `graphframework-kernel-node.${platformTag}.node`;
   const candidates = [
     resolve(here, 'native', fileName),
     resolve(here, '..', 'kernel-node', fileName),
     resolve(here, '..', '..', 'packages', 'rust', 'kernel-node', fileName),
     resolve(here, '..', '..', '..', 'packages', 'rust', 'kernel-node', fileName),
     resolve(here, '..', '..', '..', '..', 'packages', 'rust', 'kernel-node', fileName),
-    // App standalone tree: app/node_modules/@graphvideo/sdk/dist -> repo root packages/rust/kernel-node.
+    // App standalone tree: app/node_modules/@graphframework/sdk/dist -> repo root packages/rust/kernel-node.
     resolve(here, '..', '..', '..', '..', '..', 'packages', 'rust', 'kernel-node', fileName),
   ];
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
@@ -309,7 +309,7 @@ function loadBinding(): NativeBinding {
   const path = locateNativeBinding();
   if (!path) {
     throw new Error(
-      'Native rule space not built: run cargo build -p graphvideo-kernel-node and copy the cdylib to packages/rust/kernel-node/',
+      'Native rule space not built: run cargo build -p graphframework-kernel-node and copy the cdylib to packages/rust/kernel-node/',
     );
   }
   const require = createRequire(import.meta.url);

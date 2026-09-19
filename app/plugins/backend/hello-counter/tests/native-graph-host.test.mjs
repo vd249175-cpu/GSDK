@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {locateNativeBinding} from '@graphvideo/sdk/node'
+import {locateNativeBinding} from '@graphframework/sdk/node'
 import plugin from '../backend.mjs'
 import { CounterNodeV2 } from './counter-v2.fixture.mjs'
 import { createCounterHost as createNativeGraphHost } from './counter-host.mjs'

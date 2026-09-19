@@ -20,11 +20,17 @@ export function loadRunConfig(config) {
 }
 export function resolveDaemonBinary(parsed) {
   const supplied = parsed.kernel.daemonPath;
-  const binary = supplied ?? join(repoRoot, 'packages/rust/target/debug/graphvideo-kernel-daemon');
-  for (const candidate of [binary, ...(process.platform === 'win32' ? [`${binary}.exe`] : [])]) {
+  const defaults = [
+    join(repoRoot, 'packages/rust/target/debug/graphframework-kernel-daemon'),
+    join(repoRoot, 'packages/rust/target/debug/graphvideo-kernel-daemon'),
+  ];
+  const candidates = supplied
+    ? [supplied, ...(process.platform === 'win32' ? [`${supplied}.exe`] : [])]
+    : defaults.flatMap((base) => [base, ...(process.platform === 'win32' ? [`${base}.exe`] : [])]);
+  for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;
   }
-  throw new Error(`kernel daemon binary not found: ${binary}`);
+  throw new Error(`kernel daemon binary not found: ${supplied ?? defaults[0]}`);
 }
 export function updateSession(config, patch = {}, stage) {
   const snapshot = readSnapshot(config);
@@ -62,7 +68,21 @@ export function prepareRun(config, runId = randomUUID()) {
     rmSync(join(runtime, 'close-result.json'), { force: true });
     const snapshot = { version: 2, runId, runName: parsed.runName, configPath: parsed.configPath, startedAt: new Date().toISOString(), state: 'starting', parsed, graph: parsed.graph, lifecycle: parsed.lifecycle, resources: parsed.resources, kernel: null, stages: ['validate', 'lock'] };
     writeSnapshotRecord(runtime, snapshot);
-    const variables = { RUN_CONFIG: parsed.configPath, RUN_ID: runId, RUNTIME_DIR: runtime, KERNEL_BINARY: binary, GRAPHVIDEO_DAEMON_TOKEN: token, GRAPHVIDEO_DAEMON_BIND: parsed.kernel.bind };
+    const variables = {
+      RUN_CONFIG: parsed.configPath,
+      RUN_ID: runId,
+      RUNTIME_DIR: runtime,
+      KERNEL_BINARY: binary,
+      GRAPHFRAMEWORK_DAEMON_TOKEN: token,
+      GRAPHVIDEO_DAEMON_TOKEN: token,
+      GRAPHFRAMEWORK_DAEMON_BIND: parsed.kernel.bind,
+      GRAPHVIDEO_DAEMON_BIND: parsed.kernel.bind,
+      NODE_PATH: [
+        join(repoRoot, 'node_modules'),
+        join(repoRoot, 'packages/desktop/node_modules'),
+        process.env.NODE_PATH,
+      ].filter(Boolean).join(process.platform === 'win32' ? ';' : ':'),
+    };
     writeFileSync(join(runtime, 'environment.sh'), Object.entries(variables).map(([key, value]) => `export ${key}=${shellQuote(value)}`).join('\n') + '\n', { mode: 0o600 });
     return snapshot;
   } catch (error) { rmSync(lock, { force: true }); throw error; }
@@ -156,7 +176,7 @@ export async function stopRun(config) {
 
 /** Test/composition callers use the exact same root Bash entry. */
 export async function startRun(config) {
-  const bash = process.env.GRAPHVIDEO_BASH ?? (process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash');
+  const bash = process.env.GRAPHFRAMEWORK_BASH ?? (process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash');
   const result = await promisify(execFile)(bash, [join(repoRoot, 'run.sh'), 'start', resolve(config)], { cwd: repoRoot, windowsHide: true, timeout: 150_000 });
   const snapshot = JSON.parse(result.stdout);
   const parsed = readSnapshot(config).parsed;

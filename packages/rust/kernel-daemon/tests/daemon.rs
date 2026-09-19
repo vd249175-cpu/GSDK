@@ -14,8 +14,8 @@ struct Daemon {
 
 impl Daemon {
     fn start() -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_graphvideo-kernel-daemon"))
-            .env("GRAPHVIDEO_DAEMON_TOKEN", "fixture-secret-0001")
+        let mut child = Command::new(env!("CARGO_BIN_EXE_graphframework-kernel-daemon"))
+            .env("GRAPHFRAMEWORK_DAEMON_TOKEN", "fixture-secret-0001")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()

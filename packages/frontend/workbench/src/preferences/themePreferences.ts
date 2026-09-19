@@ -6,8 +6,8 @@ export const themeNames: readonly ThemeName[] = ['dark', 'light', 'xueqing', 'sh
 
 export const defaultTheme: ThemeName = 'dark'
 
-const themeStorageKey = 'graphvideo-theme'
-const themeChangedEvent = 'graphvideo-theme-change'
+const themeStorageKey = 'graphframework-theme'
+const themeChangedEvent = 'graphframework-theme-change'
 
 const defaultStorage = {
   getItem: (key: string) => (typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function' ? localStorage.getItem(key) : null),

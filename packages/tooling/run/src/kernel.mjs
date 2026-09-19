@@ -17,7 +17,13 @@ export async function spawnEmptyKernel(binary, {
   if (typeof binary !== 'string' || !binary) throw new Error('kernel binary is required');
   if (token.length < 16) throw new Error('kernel token must have at least 16 bytes');
   const child = spawn(binary, [], {
-    env: { ...process.env, GRAPHVIDEO_DAEMON_TOKEN: token, GRAPHVIDEO_DAEMON_BIND: bind },
+    env: {
+      ...process.env,
+      GRAPHFRAMEWORK_DAEMON_TOKEN: token,
+      GRAPHVIDEO_DAEMON_TOKEN: token,
+      GRAPHFRAMEWORK_DAEMON_BIND: bind,
+      GRAPHVIDEO_DAEMON_BIND: bind,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
     signal,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from graphvideo_sdk.node import DaemonNodeChangeContext
+from graphframework_sdk.node import DaemonNodeChangeContext
 
 
 class FakeDaemonClient:

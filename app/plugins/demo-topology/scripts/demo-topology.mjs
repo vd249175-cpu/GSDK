@@ -6,7 +6,7 @@
  * 任意断言失败即抛错退出；只读投影，不启动 Electron / renderer。
  */
 import assert from 'node:assert/strict'
-import {NativeRuleSpace, mountDomainNode} from '@graphvideo/sdk/node'
+import {NativeRuleSpace, mountDomainNode} from '@graphframework/sdk/node'
 import { FraudNode, InventoryNode, createDemoTopology } from '../backend.mjs'
 
 const step = (title) => console.log(`\n## ${title}`)

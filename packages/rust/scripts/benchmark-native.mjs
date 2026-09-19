@@ -13,8 +13,8 @@ const platformTag = process.platform === 'win32'
       ? `darwin-${process.arch}`
       : null
 if (!platformTag) throw new Error(`Unsupported native target: ${process.platform}-${process.arch}`)
-const bindingPath = process.env.GRAPHVIDEO_NATIVE_NODE
-  ?? resolve(root, 'kernel-node', `graphvideo-kernel-node.${platformTag}.node`)
+const bindingPath = process.env.GRAPHFRAMEWORK_NATIVE_NODE
+  ?? resolve(root, 'kernel-node', `graphframework-kernel-node.${platformTag}.node`)
 if (!existsSync(bindingPath)) throw new Error(`Native binding missing: ${bindingPath}`)
 
 const require = createRequire(import.meta.url)

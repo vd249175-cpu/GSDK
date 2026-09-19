@@ -166,14 +166,14 @@ export const Workspace = memo(function Workspace({
     }
     const area = findArea(workspace.layout, areaId)
     if (!area) return
-    const title = panels.get(area.activePanelId)?.title ?? 'GraphVideo Panel'
+    const title = panels.get(area.activePanelId)?.title ?? 'GraphFramework Panel'
     const popup = window.open(
       'about:blank',
-      `graphvideo-floating-${workspaceId}-${areaId}`,
+      `graphframework-floating-${workspaceId}-${areaId}`,
       'popup=yes,width=760,height=560,resizable=yes',
     )
     if (!popup) return
-    const floating = { window: popup, ...prepareFloatingWindow(popup, `GraphVideo · ${title}`) }
+    const floating = { window: popup, ...prepareFloatingWindow(popup, `GraphFramework · ${title}`) }
     popup.addEventListener('beforeunload', () => closeFloating(areaId, false), { once: true })
     const next = new Map(floatingAreasRef.current).set(areaId, floating)
     floatingAreasRef.current = next

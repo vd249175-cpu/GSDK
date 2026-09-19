@@ -1,8 +1,8 @@
 {
-  "name": "@graphvideo/desktop",
+  "name": "@graphframework/desktop",
   "version": "1.0.0",
   "private": true,
-  "description": "Reusable GraphVideo desktop host, renderer and source build toolchain. Applications are plugin assemblies.",
+  "description": "Reusable GraphFramework desktop host, renderer and source build toolchain. Applications are plugin assemblies.",
   "type": "module",
   "main": "host/main.mjs",
   "scripts": {
@@ -10,7 +10,7 @@
     "build:main": "node build/build-main.mjs",
     "build:renderer": "vite build --config build/vite.config.ts",
     "start": "node host/main.mjs",
-    "demo:topology": "node --conditions=graphvideo-source --import tsx ../../app/plugins/demo-topology/scripts/demo-topology.mjs",
+    "demo:topology": "node --conditions=graphframework-source --import tsx ../../app/plugins/demo-topology/scripts/demo-topology.mjs",
     "demo:op": "node ../../app/plugins/demo-topology/scripts/demo-op.mjs",
     "check:renderer-boundary": "node scripts/check-renderer-boundary.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.renderer.json && tsc --noEmit -p tsconfig.main.json",
@@ -20,17 +20,17 @@
     "verify": "npm run check:renderer-boundary && npm run typecheck && npm run test -- --silent && npm run diagnose -- validate && npm run verify:native-load && npm run build"
   },
   "dependencies": {
-    "@graphvideo/client": "file:../frontend/client",
-    "@graphvideo/sdk": "file:../sdk/javascript",
-    "@graphvideo/ui": "file:../frontend/ui",
-    "@graphvideo/workbench": "file:../frontend/workbench",
+    "@graphframework/client": "file:../frontend/client",
+    "@graphframework/sdk": "file:../sdk/javascript",
+    "@graphframework/ui": "file:../frontend/ui",
+    "@graphframework/workbench": "file:../frontend/workbench",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "lucide-react": "^1.44.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "yaml": "^2.9.1",
-    "@graphvideo/context": "file:../frontend/context",
-    "@graphvideo/theme": "file:../frontend/theme"
+    "@graphframework/context": "file:../frontend/context",
+    "@graphframework/theme": "file:../frontend/theme"
   },
   "devDependencies": {
     "jsdom": "^26.1.0",

@@ -88,11 +88,11 @@ export async function unmountRunSlice({ control, workerStop, running, admitted, 
 }
 
 async function importSdkNode() {
-  // Tooling has no @graphvideo/sdk dependency of its own; load the shared
+  // Tooling has no @graphframework/sdk dependency of its own; load the shared
   // source build through the nearest vendored copy. The dist bundle tracks
   // packages/sdk/javascript/src and exposes the daemon bridge.
   const candidates = [
-    '@graphvideo/sdk/node',
+    '@graphframework/sdk/node',
     '../../../sdk/javascript/dist/node.js',
   ];
   let lastError = null;
@@ -107,12 +107,12 @@ async function importSdkNode() {
     }
   }
   void require;
-  throw lastError ?? new Error('Cannot load @graphvideo/sdk/node');
+  throw lastError ?? new Error('Cannot load @graphframework/sdk/node');
 }
 
 export async function connectRunDaemon({ address, token }) {
   try {
-    const direct = await import('@graphvideo/sdk/agent');
+    const direct = await import('@graphframework/sdk/agent');
     return direct.connectKernelDaemon({ address, token });
   } catch {
     const distAgent = new URL('../../../sdk/javascript/dist/agent.js', import.meta.url).href;

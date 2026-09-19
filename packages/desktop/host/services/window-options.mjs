@@ -32,7 +32,7 @@ export function createWorkbenchWindowOptions({
       autoHideMenuBar: true,
     }),
     backgroundColor: nativeWindowBackground,
-    title: typeof config.title === 'string' ? config.title : 'GraphVideo Studio',
+    title: typeof config.title === 'string' ? config.title : 'GraphFramework',
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,

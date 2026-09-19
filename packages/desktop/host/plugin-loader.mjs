@@ -1,6 +1,8 @@
 import { pathToFileURL } from 'node:url'
 import { resolve } from 'node:path'
 
+const nativeImport = new Function('specifier', 'return import(specifier)');
+
 /** Enabled plugins use one loader; the host has no built-in product identity. */
 export async function loadBackendPlugins(application, { backendOutfile } = {}) {
   const plugins = []
@@ -16,7 +18,7 @@ export async function loadBackendPlugins(application, { backendOutfile } = {}) {
     const entry = typeof backendOutfile === 'function'
       ? backendOutfile(plugin)
       : /\.(?:ts|mjs)$/.test(backend) ? 'backend.js' : backend
-    const module = await import(pathToFileURL(resolve(plugin.directory, entry)).href)
+    const module = await nativeImport(pathToFileURL(resolve(plugin.directory, entry)).href)
     if (module.default?.id !== plugin.id || typeof module.default?.createNodes !== 'function') {
       throw new Error('Invalid backend plugin: ' + plugin.id)
     }

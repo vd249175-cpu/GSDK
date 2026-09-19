@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { loadRunConfig, startRun, statusRun, stopRun } from '../../tooling/run/src/lifecycle.mjs';
 import { repoRoot } from '../../tooling/run/src/session.mjs';
 
-const daemonExe = process.platform === 'win32' ? 'graphvideo-kernel-daemon.exe' : 'graphvideo-kernel-daemon';
+const daemonExe = process.platform === 'win32' ? 'graphframework-kernel-daemon.exe' : 'graphframework-kernel-daemon';
 
 const temporaryRoots = [];
 afterEach(() => cleanupRunFixtures(temporaryRoots));

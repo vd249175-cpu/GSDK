@@ -14,7 +14,7 @@ export function createElectronWindowAdapter({ openWindow, getWindow }) {
   })
 
   return {
-    id: 'graphvideo/electron-window-v1',
+    id: 'graphframework/electron-window-v1',
     async execute(request, context) {
       if (context?.signal?.aborted) throw context.signal.reason ?? new Error('Window action canceled')
       context?.recordTransport?.({ portId: 'electron/browser-window', operation: request.type })

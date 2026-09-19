@@ -1,6 +1,6 @@
 use std::ffi::{CStr, CString};
 
-use graphvideo_kernel_ffi::*;
+use graphframework_kernel_ffi::*;
 
 fn c(value: &str) -> CString {
     CString::new(value).unwrap()

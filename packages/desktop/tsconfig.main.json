@@ -9,22 +9,22 @@
     "allowJs": true,
     "baseUrl": ".",
     "paths": {
-      "@graphvideo/sdk/protocol": [
+      "@graphframework/sdk/protocol": [
         "../sdk/javascript/src/protocol/index.ts"
       ],
-      "@graphvideo/workbench": [
+      "@graphframework/workbench": [
         "../frontend/workbench/src/index.ts"
       ],
-      "@graphvideo/workbench/*": [
+      "@graphframework/workbench/*": [
         "../frontend/workbench/src/*"
       ],
-      "@graphvideo/ui": [
+      "@graphframework/ui": [
         "../frontend/ui/index.ts"
       ],
-      "@graphvideo/context": [
+      "@graphframework/context": [
         "../frontend/context/index.ts"
       ],
-      "@graphvideo/client": [
+      "@graphframework/client": [
         "../frontend/client/index.ts"
       ],
       "react": [
@@ -42,28 +42,28 @@
       "yaml": [
         "node_modules/yaml/dist/index.d.ts"
       ],
-      "@graphvideo/sdk/node": [
+      "@graphframework/sdk/node": [
         "../sdk/javascript/src/node/index.ts"
       ],
-      "@graphvideo/sdk/effect": [
+      "@graphframework/sdk/effect": [
         "../sdk/javascript/src/effect/index.ts"
       ],
-      "@graphvideo/sdk/plugin": [
+      "@graphframework/sdk/plugin": [
         "../sdk/javascript/src/plugin/index.ts"
       ],
-      "@graphvideo/sdk/analysis": [
+      "@graphframework/sdk/analysis": [
         "../sdk/javascript/src/analysis/index.ts"
       ],
-      "@graphvideo/sdk/agent": [
+      "@graphframework/sdk/agent": [
         "../sdk/javascript/src/agent/index.ts"
       ],
-      "@graphvideo/sdk/testing": [
+      "@graphframework/sdk/testing": [
         "../sdk/javascript/src/testing/index.ts"
       ],
-      "@graphvideo/desktop/graph-host": [
+      "@graphframework/desktop/graph-host": [
         "host/native-graph-host.mjs"
       ],
-      "@graphvideo/desktop/*": [
+      "@graphframework/desktop/*": [
         "host/*"
       ]
     }

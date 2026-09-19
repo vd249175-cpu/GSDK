@@ -1,7 +1,7 @@
 {
-  "name": "@graphvideo/workbench",
+  "name": "@graphframework/workbench",
   "version": "1.0.0",
-  "description": "GraphVideo frontend workbench: dock, elements, plugins, registry, UI primitives. No business semantics.",
+  "description": "GraphFramework frontend workbench: dock, elements, plugins, registry, UI primitives. No business semantics.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -13,8 +13,8 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@graphvideo/theme": "file:../theme",
-    "@graphvideo/sdk": "file:../../sdk/javascript",
+    "@graphframework/theme": "file:../theme",
+    "@graphframework/sdk": "file:../../sdk/javascript",
     "lucide-react": "^1.44.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

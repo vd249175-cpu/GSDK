@@ -7,21 +7,21 @@ const application = loadApplication()
 export default defineConfig({
   root: resolve(runtimeRoot, '../..'),
   cacheDir: resolve(runtimeRoot, 'node_modules/.vite'),
-  server: { fs: { allow: [resolve(runtimeRoot, '../..'), tmpdir()] } },
+  server: { fs: { strict: false, allow: [resolve(runtimeRoot, '../..'), tmpdir()] } },
   resolve: {
     alias: [
       ...['protocol', 'node', 'effect', 'plugin', 'analysis', 'agent', 'testing'].map((name) => ({
-        find: '@graphvideo/sdk/' + name, replacement: resolve(runtimeRoot, '../sdk/javascript/src', name, 'index.ts'),
+        find: '@graphframework/sdk/' + name, replacement: resolve(runtimeRoot, '../sdk/javascript/src', name, 'index.ts'),
       })),
       ...['workbench', 'ui', 'context', 'client'].map((name) => ({
-        find: new RegExp(`^@graphvideo/${name}($|/.*$)`),
+        find: new RegExp(`^@graphframework/${name}($|/.*$)`),
         replacement: `${resolve(runtimeRoot, '../frontend', name, name === 'workbench' ? 'src' : '')}$1`,
       })),
       ...Object.entries({
         'graph-host': 'host/native-graph-host.mjs', 'element-catalog': 'host/services/element-catalog.mjs',
         'agent-control': 'host/services/agent-control.mjs', 'application': 'application.mjs',
         'electron-window': 'host/effects/electron-window-adapter.mjs', 'window-options': 'host/services/window-options.mjs',
-      }).map(([name, entry]) => ({ find: '@graphvideo/desktop/' + name, replacement: resolve(runtimeRoot, entry) })),
+      }).map(([name, entry]) => ({ find: '@graphframework/desktop/' + name, replacement: resolve(runtimeRoot, entry) })),
       { find: /^yaml$/, replacement: resolve(runtimeRoot, 'node_modules/yaml/dist/index.js') },
       { find: /^react$/, replacement: resolve(runtimeRoot, 'node_modules/react/index.js') },
       { find: /^react-dom$/, replacement: resolve(runtimeRoot, 'node_modules/react-dom/index.js') },
@@ -31,11 +31,11 @@ export default defineConfig({
     ],
   },
   plugins: [{
-    name: 'graphvideo-test-elements',
-    resolveId(id) { if (['virtual:graphvideo-elements', 'virtual:graphvideo-config'].includes(id)) return '\0' + id },
+    name: 'graphframework-test-elements',
+    resolveId(id) { if (['virtual:graphframework-elements', 'virtual:graphframework-config'].includes(id)) return '\0' + id },
     load(id) {
-      if (id === '\0virtual:graphvideo-config') return `export const applicationDefinition = ${JSON.stringify(application.definition)};`
-      if (id !== '\0virtual:graphvideo-elements') return
+      if (id === '\0virtual:graphframework-config') return `export const applicationDefinition = ${JSON.stringify(application.definition)};`
+      if (id !== '\0virtual:graphframework-elements') return
       const entries = application.plugins.flatMap((plugin) => (plugin.manifest.contributes?.elements ?? []).map((elementId: string) => (
         `${JSON.stringify(plugin.id + '/' + elementId)}: () => import(${JSON.stringify(resolve(plugin.directory, 'elements', elementId, 'element.ts').replaceAll('\\', '/'))})`
       )))

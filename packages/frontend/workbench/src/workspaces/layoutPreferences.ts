@@ -1,8 +1,8 @@
 import type { DockNode, WorkspaceRuntimeState } from '../dock/workspaceTypes'
 import { listAreas } from '../dock/layout'
 
-const storageKey = 'graphvideo-workspace-default-layouts-v1'
-const activeWorkspaceStorageKey = 'graphvideo-active-workspace-v1'
+const storageKey = 'graphframework-workspace-default-layouts-v1'
+const activeWorkspaceStorageKey = 'graphframework-active-workspace-v1'
 
 interface StoredWorkspaceLayout {
   layout: DockNode

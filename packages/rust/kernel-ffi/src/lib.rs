@@ -6,7 +6,7 @@ use std::ffi::{c_char, CStr, CString};
 use std::ptr;
 use std::sync::Mutex;
 
-use graphvideo_kernel::{
+use graphframework_kernel::{
     ActiveChange, ChangeOutcome, DeliveryFeedback, DropReason, Kernel, SubmissionState,
 };
 
@@ -436,7 +436,7 @@ pub extern "C" fn gv_analyze(
         return ptr::null_mut();
     };
     let (facts, context) = split_facts_context(&facts_value);
-    match graphvideo_analysis::analyze_json(&request, &facts, &context) {
+    match graphframework_analysis::analyze_json(&request, &facts, &context) {
         Ok(value) => output(value.to_string()),
         Err(_) => ptr::null_mut(),
     }

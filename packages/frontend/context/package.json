@@ -1,7 +1,7 @@
 {
-  "name": "@graphvideo/context",
+  "name": "@graphframework/context",
   "version": "1.0.0",
-  "description": "GraphVideo shared cross-panel workbench context tokens. No business semantics.",
+  "description": "GraphFramework shared cross-panel workbench context tokens. No business semantics.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -12,7 +12,7 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@graphvideo/workbench": "file:../workbench"
+    "@graphframework/workbench": "file:../workbench"
   },
   "peerDependencies": {
     "react": "^19.0.0",

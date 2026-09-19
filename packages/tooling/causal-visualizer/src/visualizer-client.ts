@@ -32,7 +32,7 @@ export class VisualizerClient {
   private connListeners = new Set<ConnectionListener>()
   private unsubscribeIpc?: () => void
   private eventSource?: EventSource
-  private isElectron = typeof window !== 'undefined' && Boolean((window as any).graphvideoDesktop?.graphKernel)
+  private isElectron = typeof window !== 'undefined' && Boolean((window as any).graphframeworkDesktop?.graphKernel)
   private isConnected = false
   private reconnectTimer?: ReturnType<typeof setTimeout>
 
@@ -65,7 +65,7 @@ export class VisualizerClient {
 
   private connect(): void {
     if (this.isElectron) {
-      const kernel = (window as any).graphvideoDesktop.graphKernel
+      const kernel = (window as any).graphframeworkDesktop.graphKernel
       this.unsubscribeIpc = kernel.subscribe('causal:telemetry', (event: CausalTelemetryEvent) => {
         this.emit(event)
       })
@@ -136,7 +136,7 @@ export class VisualizerClient {
    */
   public async fetchLiveTopology(): Promise<TopologySnapshot> {
     if (this.isElectron) {
-      const res = await (window as any).graphvideoDesktop.graphKernel.request('graph.topology.read')
+      const res = await (window as any).graphframeworkDesktop.graphKernel.request('graph.topology.read')
       return res || { revision: 0, nodes: [] }
     }
 

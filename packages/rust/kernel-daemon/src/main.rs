@@ -8,7 +8,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use graphvideo_kernel_daemon::{Session, Space};
+use graphframework_kernel_daemon::{Session, Space};
 use serde_json::{json, Value};
 
 const MAX_FRAME_BYTES: usize = 1024 * 1024;
@@ -90,7 +90,7 @@ fn handle_analyze(
     if let Some(hit) = job.cached {
         return json!({"id":job.id,"ok":true,"result":hit});
     }
-    match graphvideo_analysis::analyze_json(&job.request, &job.facts, &job.context) {
+    match graphframework_analysis::analyze_json(&job.request, &job.facts, &job.context) {
         Ok(result) if result.to_string().len() <= MAX_ANALYSIS_RESPONSE_BYTES => {
             // Stored under the snapshot's revision key: if the space moved on
             // during compute, this entry simply never matches a future lookup
@@ -198,11 +198,13 @@ fn serve_client(stream: TcpStream, shared: SharedSpace, token: Arc<String>, sess
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("GRAPHVIDEO_DAEMON_TOKEN")?;
+    let token = std::env::var("GRAPHFRAMEWORK_DAEMON_TOKEN")
+        .or_else(|_| std::env::var("GRAPHVIDEO_DAEMON_TOKEN"))?;
     if token.len() < 16 {
-        return Err("GRAPHVIDEO_DAEMON_TOKEN must have at least 16 bytes".into());
+        return Err("daemon token must have at least 16 bytes".into());
     }
-    let bind: SocketAddr = std::env::var("GRAPHVIDEO_DAEMON_BIND")
+    let bind: SocketAddr = std::env::var("GRAPHFRAMEWORK_DAEMON_BIND")
+        .or_else(|_| std::env::var("GRAPHVIDEO_DAEMON_BIND"))
         .unwrap_or_else(|_| "127.0.0.1:0".to_owned())
         .parse()?;
     if !bind.ip().is_loopback() {

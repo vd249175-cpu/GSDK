@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFile, readdir } from 'node:fs/promises'
 import { relative, resolve, sep } from 'node:path'
-import { parseStudioPluginManifest } from '@graphvideo/sdk/plugin'
+import { parseStudioPluginManifest } from '@graphframework/sdk/plugin'
 
 async function directoriesAt(directory) {
   try {
@@ -105,7 +105,7 @@ export class ElementCatalog {
         let manifest
         try {
           manifest = parseStudioPluginManifest(
-            await readFile(pathInside(pluginDirectory, 'graphvideo.plugin.json'), 'utf8'),
+            await readFile(pathInside(pluginDirectory, 'graphframework.plugin.json'), 'utf8'),
           )
         } catch (error) {
           if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') continue

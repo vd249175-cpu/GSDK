@@ -9,8 +9,8 @@ if (!route) {
   process.exitCode = 2
 } else {
   try {
-    const discoveryPath = process.env.GRAPHVIDEO_AGENT_CONTROL_FILE
-      ?? join(homedir(), '.graphvideo', 'agent-control.json')
+    const discoveryPath = process.env.GRAPHFRAMEWORK_AGENT_CONTROL_FILE
+      ?? join(homedir(), '.graphframework', 'agent-control.json')
     const discovery = JSON.parse(await readFile(discoveryPath, 'utf8'))
     const input = process.argv[3] ? JSON.parse(await readFile(process.argv[3], 'utf8')) : {}
     const response = await fetch(`http://127.0.0.1:${discovery.port}${route}`, {

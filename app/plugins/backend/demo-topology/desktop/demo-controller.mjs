@@ -1,4 +1,4 @@
-import { mountDomainNode } from '@graphvideo/sdk/node'
+import { mountDomainNode } from '@graphframework/sdk/node'
 import { FraudNode, InventoryNode, createDemoTopology } from '../index.mjs'
 
 /**

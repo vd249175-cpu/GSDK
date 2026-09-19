@@ -39,8 +39,8 @@ function testLoader() {
   return { loader, panels, extensions, commands, states, events, services, runtimes }
 }
 
-const ExampleService = defineService<{ value(): string }>('graphvideo.example')
-const ChainedService = defineService<{ value(): string }>('graphvideo.chained-example')
+const ExampleService = defineService<{ value(): string }>('graphframework.example')
+const ChainedService = defineService<{ value(): string }>('graphframework.chained-example')
 const ExampleChanged = defineEvent<{ value: string }>('example/changed')
 
 describe('Element loader', () => {

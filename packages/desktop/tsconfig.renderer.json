@@ -14,22 +14,22 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@graphvideo/sdk/protocol": [
+      "@graphframework/sdk/protocol": [
         "../sdk/javascript/src/protocol/index.ts"
       ],
-      "@graphvideo/workbench": [
+      "@graphframework/workbench": [
         "../frontend/workbench/src/index.ts"
       ],
-      "@graphvideo/workbench/*": [
+      "@graphframework/workbench/*": [
         "../frontend/workbench/src/*"
       ],
-      "@graphvideo/ui": [
+      "@graphframework/ui": [
         "../frontend/ui/index.ts"
       ],
-      "@graphvideo/context": [
+      "@graphframework/context": [
         "../frontend/context/index.ts"
       ],
-      "@graphvideo/client": [
+      "@graphframework/client": [
         "../frontend/client/index.ts"
       ],
       "react": [
@@ -42,7 +42,7 @@
         "node_modules/@types/react-dom/*"
       ],
       "react-dom": ["node_modules/@types/react-dom/index.d.ts"],
-      "@graphvideo/sdk/node": ["../sdk/javascript/src/node/index.ts"],
+      "@graphframework/sdk/node": ["../sdk/javascript/src/node/index.ts"],
       "lucide-react": [
         "node_modules/lucide-react/dist/lucide-react.d.ts"
       ],

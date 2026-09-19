@@ -1,9 +1,9 @@
 import { useMemo, useSyncExternalStore } from 'react';
-import type { ElementRuntimeHandle } from '@graphvideo/workbench';
+import type { ElementRuntimeHandle } from '@graphframework/workbench';
 import type {
   WorkbenchContextBinding,
   WorkbenchContextToken,
-} from '@graphvideo/workbench';
+} from '@graphframework/workbench';
 
 export interface SnapshotSource<State> {
   read(): State;

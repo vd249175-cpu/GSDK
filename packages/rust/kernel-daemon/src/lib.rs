@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
-use graphvideo_kernel::{
+use graphframework_kernel::{
     ActiveChange, BeginError, ChangeOutcome, DeliveryFeedback, Kernel, SubmissionState,
 };
 use serde_json::{json, Map, Value};
@@ -113,7 +113,7 @@ pub struct Space {
 }
 
 /// Owned, immutable analysis input cloned under the scheduling lock so the
-/// caller can run `graphvideo-analysis` after releasing it.
+/// caller can run `graphframework-analysis` after releasing it.
 pub struct PendingAnalysis {
     /// Echoed protocol request id for the response envelope.
     pub id: Value,
@@ -238,7 +238,7 @@ impl Space {
         if snapshot.get("nodeId").and_then(Value::as_str) != Some(node_id) {
             return Err("analysisFacts.nodeId must match the admitted Node".into());
         }
-        graphvideo_analysis::validate_snapshot(&snapshot)
+        graphframework_analysis::validate_snapshot(&snapshot)
             .map_err(|error| format!("invalid analysisFacts: {error}"))?;
         Ok(text)
     }
@@ -268,7 +268,7 @@ impl Space {
     }
 
     /// Clone an immutable analysis snapshot under the scheduling lock. The
-    /// caller runs `graphvideo-analysis` after releasing the lock so
+    /// caller runs `graphframework-analysis` after releasing the lock so
     /// centrality/community computation never blocks the mailbox.
     pub fn prepare_analyze(
         &mut self,
@@ -1147,7 +1147,7 @@ impl Space {
             "frontendLinks": self.frontend_links.clone(),
             "frontendServiceLinks": self.frontend_service_links.clone(),
         });
-        let result = graphvideo_analysis::analyze_json(inner, &facts, &context)?;
+        let result = graphframework_analysis::analyze_json(inner, &facts, &context)?;
         self.store_analysis(revision, inner, result.clone());
         Ok(result)
     }

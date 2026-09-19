@@ -16,7 +16,7 @@ describe('application assembly', () => {
     try {
       mkdirSync(join(root, 'application')); mkdirSync(join(root, 'external-plugin'))
       writeFileSync(join(root, 'external-plugin/package.json'), JSON.stringify({ type: 'module' }))
-      writeFileSync(join(root, 'external-plugin/graphvideo.plugin.json'), JSON.stringify({ id: 'test.plugin', apiVersion: 1, contributes: { backend: 'backend.mjs' } }))
+      writeFileSync(join(root, 'external-plugin/graphframework.plugin.json'), JSON.stringify({ id: 'test.plugin', apiVersion: 1, contributes: { backend: 'backend.mjs' } }))
       writeFileSync(join(root, 'external-plugin/backend.js'), "export default { id: 'test.plugin', createNodes: () => [] }")
       const config = { plugins: [{ id: 'test.plugin', path: '../external-plugin' }], desktop: {
         host: { pluginId: 'test.plugin', entry: 'desktop/main.mjs' }, renderer: { pluginId: 'test.plugin', entry: 'frontend/main.tsx' },

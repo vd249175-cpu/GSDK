@@ -4,7 +4,7 @@ import { describeDaemonNode } from '../src/node/daemon-node';
 
 it('preserves non-JSON State across JSON transport without truncation or tag collisions', () => {
   const state = { tasks: new Map([['one', { nested: new Set([1, 2]), bytes: new Uint8Array([1, 255]) }]]),
-    literal: { $graphvideoValue: 'map', entries: 'business data' }, omitted: undefined, date: new Date(0) };
+    literal: { $graphframeworkValue: 'map', entries: 'business data' }, omitted: undefined, date: new Date(0) };
   expect(daemonValueCodec.decode(JSON.parse(JSON.stringify(daemonValueCodec.encode(state))))).toEqual(state);
 });
 it('reuses a real Map-owning change against portable daemon State', async () => {

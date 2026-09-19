@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import ts from 'typescript'
 import { loadApplication, runtimeRoot } from '../application.mjs'
 
-const forbidden = ['@graphvideo/sdk/node', '@graphvideo/sdk/testing', '@graphvideo/sdk/analysis', '@graphvideo/sdk/plugin', '@graphvideo/sdk/effect']
+const forbidden = ['@graphframework/sdk/node', '@graphframework/sdk/testing', '@graphframework/sdk/analysis', '@graphframework/sdk/plugin', '@graphframework/sdk/effect']
 function collect(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     if (['node_modules', 'dist', 'backend'].includes(entry.name)) return []

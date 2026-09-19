@@ -1,12 +1,12 @@
 [package]
-name = "graphvideo-analysis"
+name = "graphframework-analysis"
 version = "0.1.0"
 edition = "2021"
 description = "Authoritative portable causal analysis: index, folds, paths and structural metrics"
 license = "Apache-2.0"
 
 [lib]
-name = "graphvideo_analysis"
+name = "graphframework_analysis"
 path = "src/lib.rs"
 
 [dependencies]

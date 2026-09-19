@@ -1,4 +1,4 @@
-import { Node, defineBackendPlugin } from '@graphvideo/sdk/plugin'
+import { Node, defineBackendPlugin } from '@graphframework/sdk/plugin'
 
 /**
  * demo-topology：订单履约小图。唯一入口 `demo.orders`，`demo.router`

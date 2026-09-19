@@ -10,7 +10,7 @@ tags: [causal-analysis, query-model, folding, graph-topology]
 
 ## 1. 能证明什么
 
-`@graphvideo/sdk/analysis` 可从调用方已经构造的 JS Node 实例提取每 Node 的 `PortableAnalysisSnapshot`；其它语言生成相同纯数据。跨语言权威计算在 Rust `graphvideo-analysis` crate：daemon `analyze`、N-API `analyzeJson`、C ABI `gv_analyze` 共享同一实现，`KernelDaemonClient.analyze` 与 `NativeRuleSpace.analyze` 只组装或转发 DTO。JS 实例描述不属于统一内核查询；需要时显式调用 `inspectNodeObjects`。生产入口不扫描插件目录、不创建 Runtime、不执行 getter/change，也不介入调度。没有实例或便携事实的原始 handler 会作为 `opaque-handler` Node 保留，其当前 State 字段可见，但不会凭空推断 send。
+`@graphframework/sdk/analysis` 可从调用方已经构造的 JS Node 实例提取每 Node 的 `PortableAnalysisSnapshot`；其它语言生成相同纯数据。跨语言权威计算在 Rust `graphframework-analysis` crate：daemon `analyze`、N-API `analyzeJson`、C ABI `gv_analyze` 共享同一实现，`KernelDaemonClient.analyze` 与 `NativeRuleSpace.analyze` 只组装或转发 DTO。JS 实例描述不属于统一内核查询；需要时显式调用 `inspectNodeObjects`。生产入口不扫描插件目录、不创建 Runtime、不执行 getter/change，也不介入调度。没有实例或便携事实的原始 handler 会作为 `opaque-handler` Node 保留，其当前 State 字段可见，但不会凭空推断 send。
 
 基础实体与关系为：
 
@@ -29,7 +29,7 @@ Node 的成员归属不构成路径边。静态索引说明源码和显式边界
 ## 2. 建立与校验索引
 
 ```ts
-import { buildCausalIndex, validateCausalIndex } from '@graphvideo/sdk/analysis'
+import { buildCausalIndex, validateCausalIndex } from '@graphframework/sdk/analysis'
 
 const index = buildCausalIndex({
   nodeObjects: plugin.createNodes({ pluginId: plugin.id, dependencies }),
@@ -112,6 +112,6 @@ SDK 提供 `FoldDefinitionFile`、`ExpansionViewFile`、`AnalysisCatalog` 和 `A
 
 ## 6. 当前应用入口
 
-`app/plugins/hello-counter/scripts/diagnose.mjs` 是 counter 示例的显式离线入口，由桌面 `diagnose` 脚本通过 `graphvideo-source` 条件消费 SDK 源码中的纯函数，不查询当前运行中的 Studio 图。生产 `NativeRuleSpace.analyze(request)` 从当前装配按需生成或读取便携事实，并通过 N-API 调用 Rust，支持 `index/facts/validate/entity/expand/path/select/view/health/reach/centrality/communities/granularCommunities/compareCommunities`；结果和 daemon 一样是 JSON DTO。增删替换 Node 会清除事实与结果缓存；State 字段集合进入缓存键，普通 State 值变化不会重算。daemon 的 `analysisRevision` 在增删替换、上下文变化或新增 State 字段时递增。`view` 及 Node 级指标可动态传 `foldDepth` 与可选 `folds`；未传 `folds` 时使用以全部当前 Node 为叶子的单层 `world` 根组。daemon `agentInspect` 另提供 Projection、pending Info、drops、租约、pending Effects、submission 与事件游标；桌面 `NativeGraphHost.agentInspect` 提供 Projection、解码 State、pending Info、drops 与事件页，未提供 daemon worker/provider 租约字段。应用 Agent 控制通道的 `/analyze` 及 `node packages/desktop/scripts/agent-control.mjs analyze request.json` 返回相同 DTO。`app/plugins/hello-counter/analysis/config.json` 是离线消费方配置，不会被自动解析。
+`app/plugins/hello-counter/scripts/diagnose.mjs` 是 counter 示例的显式离线入口，由桌面 `diagnose` 脚本通过 `graphframework-source` 条件消费 SDK 源码中的纯函数，不查询当前运行中的 Studio 图。生产 `NativeRuleSpace.analyze(request)` 从当前装配按需生成或读取便携事实，并通过 N-API 调用 Rust，支持 `index/facts/validate/entity/expand/path/select/view/health/reach/centrality/communities/granularCommunities/compareCommunities`；结果和 daemon 一样是 JSON DTO。增删替换 Node 会清除事实与结果缓存；State 字段集合进入缓存键，普通 State 值变化不会重算。daemon 的 `analysisRevision` 在增删替换、上下文变化或新增 State 字段时递增。`view` 及 Node 级指标可动态传 `foldDepth` 与可选 `folds`；未传 `folds` 时使用以全部当前 Node 为叶子的单层 `world` 根组。daemon `agentInspect` 另提供 Projection、pending Info、drops、租约、pending Effects、submission 与事件游标；桌面 `NativeGraphHost.agentInspect` 提供 Projection、解码 State、pending Info、drops 与事件页，未提供 daemon worker/provider 租约字段。应用 Agent 控制通道的 `/analyze` 及 `node packages/desktop/scripts/agent-control.mjs analyze request.json` 返回相同 DTO。`app/plugins/hello-counter/analysis/config.json` 是离线消费方配置，不会被自动解析。
 
 完整使用方式见 [Node 实例因果调试指南](debug-guide.md)。

@@ -1,4 +1,4 @@
-import { createNativeGraphHost } from '@graphvideo/desktop/graph-host'
+import { createNativeGraphHost } from '@graphframework/desktop/graph-host'
 export function createCounterHost(options) {
   const host = createNativeGraphHost(options)
   return Object.assign(host, {

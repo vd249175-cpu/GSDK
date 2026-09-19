@@ -10,10 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from graphvideo_sdk import agent, analysis
-from graphvideo_sdk.daemon import KernelDaemonClient
+from graphframework_sdk import agent, analysis
+from graphframework_sdk.daemon import KernelDaemonClient
 REPO = Path(__file__).resolve().parents[4]
-_EXE = "graphvideo-kernel-daemon.exe" if __import__("os").name == "nt" else "graphvideo-kernel-daemon"
+_EXE = "graphframework-kernel-daemon.exe" if __import__("os").name == "nt" else "graphframework-kernel-daemon"
 DAEMON = REPO / "packages" / "rust" / "target" / "debug" / _EXE
 CONTRACT = REPO / "packages" / "contract" / "golden-frames"
 TOKEN = "fixture-secret-0001"
@@ -24,7 +24,7 @@ def daemon_proc():
     if not DAEMON.exists():
         pytest.skip("daemon binary not staged")
     import os
-    env = {**os.environ, "GRAPHVIDEO_DAEMON_TOKEN": TOKEN}
+    env = {**os.environ, "GRAPHFRAMEWORK_DAEMON_TOKEN": TOKEN}
     proc = subprocess.Popen([str(DAEMON)], env=env, stdout=subprocess.PIPE, text=True)
     assert proc.stdout is not None
     ready = json.loads(proc.stdout.readline())
@@ -78,7 +78,7 @@ async def test_python_and_js_share_analysis_routes(daemon_proc: str) -> None:
 
 @pytest.mark.asyncio
 async def test_python_worker_collaborates_with_control(daemon_proc: str) -> None:
-    from graphvideo_sdk.node import run_daemon_node_worker
+    from graphframework_sdk.node import run_daemon_node_worker
 
     control = await KernelDaemonClient.connect(daemon_proc, TOKEN)
     worker = await KernelDaemonClient.connect(daemon_proc, TOKEN)

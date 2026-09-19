@@ -18,12 +18,12 @@ tags: [sdk, node, world-node, native-rule-space, effect-adapter]
 
 `interveneState` 在规则空间开始关闭后拒绝新请求；同一节点的编辑、替换和异步推出互斥，推出期间的 State 干预直接返回 busy，避免编辑等待与节点清理交叉。
 
-Kernel `Node` 是执行和 State 所有权基类，不依赖分析继承，也不提供图标、分类、描述、副标题或展示摘要契约。开发期通过 `@graphvideo/sdk/analysis` 的 `inspectNodeObjects(nodes)` 读取现有实例的属性与业务方法 DTO；实例读取不执行 getter 或 change。展示内容由消费它的 UI/文档维护，不写入 Kernel Node。
+Kernel `Node` 是执行和 State 所有权基类，不依赖分析继承，也不提供图标、分类、描述、副标题或展示摘要契约。开发期通过 `@graphframework/sdk/analysis` 的 `inspectNodeObjects(nodes)` 读取现有实例的属性与业务方法 DTO；实例读取不执行 getter 或 change。展示内容由消费它的 UI/文档维护，不写入 Kernel Node。
 
 ## 1. 纯领域 Node
 
 ```ts
-import { Node, type DomainChangeContext, type Info } from '@graphvideo/sdk/node'
+import { Node, type DomainChangeContext, type Info } from '@graphframework/sdk/node'
 
 interface CounterState {
   count: number
@@ -66,7 +66,7 @@ ctx.send({
 ctx.send(makeCounterChangedInfo(count), 'node-consumer')
 ```
 
-这条约束不限制 payload 的复杂度，只要求因果协议判别字段在发送点可证明。`@graphvideo/sdk/analysis` 的 `validateCausalIndex` 遇到无法证明的发送会报告 `unresolved-info-type`（本地应用内经 `npm --prefix packages/desktop run diagnose -- validate` 触发），且不会把函数名或 `UnknownInfo` 加入分析图。
+这条约束不限制 payload 的复杂度，只要求因果协议判别字段在发送点可证明。`@graphframework/sdk/analysis` 的 `validateCausalIndex` 遇到无法证明的发送会报告 `unresolved-info-type`（本地应用内经 `npm --prefix packages/desktop run diagnose -- validate` 触发），且不会把函数名或 `UnknownInfo` 加入分析图。
 
 ## 2. WorldNode 与 EffectAdapter：观察与执行分离
 
@@ -83,7 +83,7 @@ import {
   type EffectAdapter,
   type Info,
   type WorldChangeContext,
-} from '@graphvideo/sdk/node'
+} from '@graphframework/sdk/node'
 
 interface WriteRequest { path: string; value: string }
 interface WriteObserved { path: string; bytes: number }
@@ -121,7 +121,7 @@ import {
   type EffectAdapter,
   type Info,
   type WorldChangeContext,
-} from '@graphvideo/sdk/node'
+} from '@graphframework/sdk/node'
 
 interface PollRequest { taskId: string }
 interface TaskProgress { taskId: string; progress: number; done: boolean }
@@ -178,11 +178,11 @@ ctx.patchState({ completed: observations.length })
 
 ## 3. 图装配与宿主（NativeRuleSpace 为生产标准）
 
-具体 Node 由插件的 `createNodes` 创建，生产主进程宿主统一使用 `@graphvideo/sdk/node` 的 `NativeRuleSpace`（基于 Rust 原生微内核）：
+具体 Node 由插件的 `createNodes` 创建，生产主进程宿主统一使用 `@graphframework/sdk/node` 的 `NativeRuleSpace`（基于 Rust 原生微内核）：
 
 ```ts
-import { NativeRuleSpace, mountDomainNode, replaceDomainNode } from '@graphvideo/sdk/node'
-import { createPluginNodes } from '@graphvideo/sdk/plugin'
+import { NativeRuleSpace, mountDomainNode, replaceDomainNode } from '@graphframework/sdk/node'
+import { createPluginNodes } from '@graphframework/sdk/plugin'
 
 const nodes = createPluginNodes(plugins, dependencies)
 const space = new NativeRuleSpace({ errorTargetNodeId: 'supervisor-node' })
@@ -256,7 +256,7 @@ npm --prefix packages/desktop run diagnose -- validate
 
 ## 7. 原生规则空间宿主（Rust 调度 + 多语言 Node）
 
-`@graphvideo/sdk/node` 的 `NativeRuleSpace` 把调度事实（实体登记、mailbox、
+`@graphframework/sdk/node` 的 `NativeRuleSpace` 把调度事实（实体登记、mailbox、
 单飞、submission 结算、丢弃台账）交 Rust `packages/rust/kernel` 持有，业务 State 由宿主保管，
 change 代码可在 JS 或进程协议 Node 中执行。Rust 与宿主不各存一份权威业务 State。JS 插件 `Node` 经 `mountDomainNode`/`describeDomainNode` 桥接挂载，
 `change` 签名零改动：`read/write/patchState/send` 直通（投递反馈结构与
@@ -273,7 +273,7 @@ backlog（按 `Evicted` 结算）、代次 +1、干净槽启动；遇 Busy 有�
 状态副本，不能绕过 change 修改权威 State。原生构建与包内暂存使用：
 
 ```bash
-cargo build --manifest-path packages/rust/Cargo.toml -p graphvideo-kernel-node
+cargo build --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-node
 node packages/rust/scripts/stage-native.mjs
 node packages/rust/scripts/stage-backend-native.mjs
 ```
