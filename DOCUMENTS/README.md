@@ -15,7 +15,7 @@ GraphFramework 是一个面向桌面与后端系统的因果应用微内核运�
 ### 1. 核心架构与心智模型 ([architecture/](architecture/))
 - [当前心智模型](architecture/mental-model.md)：运行本体、权限边界、原生微内核调度与不可破坏公理。
 - [SDK 心智模型](architecture/sdk-mental-model.md)：包职责、依赖方向和代码归属。
-- [Studio 应用生命周期](architecture/application-lifecycle.md)：状态机流转与 generation 破坏性断代机制。
+- [命名 run 生命周期](architecture/application-lifecycle.md)：run.sh 启停阶段、关闭语义与 generation 破坏性断代机制。
 - [开发准入约束](architecture/development-constraints.md)：新增 Kernel、Node、字段与物理能力前的归属检查。
 
 ### 2. 底层与跨语言协议 ([protocols/](protocols/))
@@ -35,7 +35,7 @@ GraphFramework 是一个面向桌面与后端系统的因果应用微内核运�
 - [SDK 与插件分发验收契约](contracts/distribution-contract.md)：七能力面镜像、独立制品、版本兼容与性能要求。
 - [当前目录与分发边界](contracts/package-distribution-restructure-plan.md)：应用装配、插件归属、镜像 SDK 与桌面构建。
 - [多 Agent 独立开发与运行协作指南](contracts/multi-agent-run-guide.md)：已确认的命名 run、目录所有权与 Bash 启停并行隔离规范。
-- [统一 run 实施计划](contracts/unified-run-plan.md)：完整 Studio、图片段和场景测试迁入统一配置驱动运行机制。
+- [统一 run 实施计划](contracts/unified-run-plan.md)：默认应用、图片段和场景测试迁入统一配置驱动运行机制。
 
 ### 5. 排障、分析与 Agent 技能 ([diagnostics/](diagnostics/))
 - [Node 实例因果调试](diagnostics/debug-guide.md)：从精确实体定位因果断点。

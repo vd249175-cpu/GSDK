@@ -1,14 +1,14 @@
 ---
 type: Plan
 title: 统一 run 实施计划
-description: 将完整 Studio、图片段和场景测试迁入同一配置驱动运行机制的阶段与验收计划。
+description: 将默认应用、图片段和场景测试迁入同一配置驱动运行机制的阶段与验收计划。
 status: stable
 tags: [run, migration, supervisor, implementation-plan]
 ---
 
 # 统一 run 实施计划
 
-`run.sh start/stop/status` 与 v2 配置支持实际后端、Electron 前端和完整 Studio。Bash 直接承担进程启动、阶段排序与等待退出；活动快照控制关闭，清理失败保留资源以供重试。P9/P10 已验证后台运行、场景自动关闭、两个真实桌面 run 并行及项目编辑后 SQLite 落盘。信号、启动中取消、真实保存失败重试和旧目录清理尚未全部验收。目录约定见[多 Agent 协作指南](multi-agent-run-guide.md)，源码现状见[心智模型](../architecture/mental-model.md)。
+`run.sh start/stop/status` 与 v2 配置支持实际后端与 Electron 前端，`runs/demo` 装配订单履约演示图。Bash 直接承担进程启动、阶段排序与等待退出；活动快照控制关闭，清理失败保留资源以供重试。已验证对称启停、场景自动关闭与清理失败重试（`host/p1/p3/p4/p5/p8/p9`）。信号、启动中取消与旧插件目录收敛尚未全部验收。目录约定见[多 Agent 协作指南](multi-agent-run-guide.md)，源码现状见[心智模型](../architecture/mental-model.md)。
 
 ## 1. 交付目标
 
@@ -16,7 +16,7 @@ tags: [run, migration, supervisor, implementation-plan]
 
 每个 run 有独立配置、前端、后端宿主、Rust 规则空间、可写产物和物理资源。配置可装配单节点、插件片段、完整插件、跨插件组合或全部程序。插件是源码归属和发布边界，不是运行单位。
 
-正常运行和场景测试共用配置解析、构建、装配、初始化、启动及关闭；场景只增加输入、断言和结束条件。整个 Studio 必须通过同一 run 正常运行，最终移除旧应用启动链路。只包装 npm start、只支持 Agent 测试或只替换文档入口均不算完成。
+正常运行和场景测试共用配置解析、构建、装配、初始化、启动及关闭；场景只增加输入、断言和结束条件。默认应用（`runs/demo`）必须通过同一 run 正常运行，最终移除旧应用启动链路（`packages/desktop/host/main.mjs` 已拒绝直接 `npm start`）。只包装 npm start、只支持 Agent 测试或只替换文档入口均不算完成。
 
 采用现有 Rust daemon 承载独立内核进程，复用唯一 Rust 调度 crate。生产不新增 TS 调度器，同一 run 不同时维护 N-API 图和 daemon 图的两份权威 State。根目录不新增 npm workspace，各包保留独立依赖管理。
 
@@ -77,14 +77,14 @@ bash ./run.sh stop runs/alice/run.config.json
 | P3 | Bash 对称启停 | P1、P2 | 另终端 stop、重启及故障控制 |
 | P4 | 独立前端、后端和投影 | P3 | 两个有前端 run 并行运行 |
 | P5 | 同一 run 的场景测试 | P3，UI 场景依赖 P4 | 交互和自动测试共用生命周期 |
-| P6 | 完整 Studio 切换 | P4、P5 | 整程序新入口和旧路径移除 |
-| P7 | 多 Agent 演练和文档收敛 | P6 | 整程序与两个 Agent run 并行验收 |
+| P6 | 默认应用切换与旧入口移除 | P4、P5 | 演示应用新入口和旧路径移除 |
+| P7 | 多 Agent 演练和文档收敛 | P6 | 演示应用与两个 Agent run 并行验收 |
 
 M1：P1–P3 完成，任意最小片段可启动、停止、重启。M2：P4–P5 完成，独立前后端与场景共用运行。M3：P6–P7 完成，整程序替换与多 Agent 协作交付。只有 M3 达成才标记计划完成。
 
 ## 5. P0：确定最小契约和迁移差异
 
-**修改范围：**先形成配置、公开实例工厂、后端控制、前端绑定、场景及清理确认契约，检查现有 Node/Effect worker、NativeRuleSpace 和 Studio 生命周期源码。
+**修改范围：**先形成配置、公开实例工厂、后端控制、前端绑定、场景及清理确认契约，检查现有 Node/Effect worker、NativeRuleSpace 与 run 生命周期宿主源码（`packages/tooling/run/src/host.mjs`、`mount.mjs`）。
 
 **任务：**
 
@@ -115,7 +115,7 @@ M1：P1–P3 完成，任意最小片段可启动、停止、重启。M2：P4–
 
 ## 7. P2：真实 Node、Effect 和生命周期桥接
 
-**修改范围：**JS SDK 的 node/daemon-node.ts、native-node.ts、effect/daemon-effect.ts、agent/daemon-client.ts 和生命周期桥接；必要的 Rust daemon、共同协议和 Python 镜像；Studio 公开实例工厂。
+**修改范围：**JS SDK 的 node/daemon-node.ts、native-node.ts、effect/daemon-effect.ts、agent/daemon-client.ts 和生命周期桥接；必要的 Rust daemon、共同协议和 Python 镜像；demo/counter 公开实例工厂。
 
 **任务：**
 
@@ -182,26 +182,20 @@ M1：P1–P3 完成，任意最小片段可启动、停止、重启。M2：P4–
 
 **出口：**M2 达成；两个 Agent 能用各自配置开发、运行和测试，无第二套测试启动路径。
 
-## 11. P6：整个 Studio 切换与旧入口移除
-
-**修改范围：**Studio desktop/main.mjs、services/application-lifecycle.mjs、项目/生成服务、窗口执行/观察、backend 工厂及前端绑定；desktop package.json、host/main.mjs 和 application 参数；正式完整程序的命名 run。
-
+## 11. P6：默认应用切换与旧入口移除
+**修改范围：**demo 前端宿主（`app/plugins/frontend/demo-topology/desktop/main.mjs`）、后端工厂（`app/plugins/backend/demo-topology/index.mjs`）及前端界面；desktop package.json、`host/main.mjs` 和 application 参数；`runs/demo/run.config.json`。
 **任务：**
-
-1. 完整 run 配置显式列出全图、前后端、Adapter、项目参数和初始化/启停输入，使用 P1–P5 已验证机制。
-2. 从 Electron main 移除内核创建和隐式插件装配。后端执行真实 Studio Node 与服务，Electron 保留前端宿主及必需窗口 provider。
-3. 生命周期协调器的同步 NativeRuleSpace 操作、pump 和订阅迁为明确 daemon 接入；保留业务 Info、requestId、阶段和迟到回执防护。通用工具不导入 Studio。
-4. 验证项目打开、编辑、生成、观察、保存和投影；完整退出保存成功后才关闭窗口、推出节点、关闭内核及宿主。
-5. 验证标题不变的 prompt/content/history 及保留记录完整事务保存，磁盘失败回滚。拆进程不增加重复 State、跨 generation 重放或自动恢复。
-6. 完整 run 验收通过后，在明确切换提交中移除旧 npm start/prestart 和直接 Electron 自启动装配，更新用户启动说明及实际产物 smoke。底层安装、构建和单测可保留，但不自启动整程序。
-
-**先写验证：**实际 Studio 项目全量落盘、生成停止/在途结算、保存/窗口失败、启动中退出、重复退出和迟到回执。优先受控适配场景，不用黑盒开发服务器肉眼观察代替验证。
-
-**出口：**整个程序只用新 Bash run 正常运行，可另终端 stop；没有 Electron 内嵌第二份生产图或保留旧启动权威；完整程序与 Agent run 并行。
+1. demo run 配置显式列出订单履约图、前后端、项目参数和初始化/启停输入（`SubmitOrder → topology/orders`），使用 P1–P5 已验证机制。
+2. Electron 只做前端宿主：读 run `context.json`，经 run 控制面读写投影/注入根 Info，不持有第二份权威 State。后端执行真实 demo Node，Electron 不装配内核。
+3. 旧 `npm start` 自启动装配已由 `host/main.mjs` 守卫拒绝；剩余工作是清理遗留插件目录（`app/plugins/demo-topology`、`app/plugins/hello-counter` 的 apiVersion 1 形态）与旧构建入口，不再新增自启动链路。
+4. 验证订单下单、扇出、回执汇总与投影；完整退出先结算业务、再推出节点、关闭内核及宿主。
+5. 拆进程不增加重复 State、跨 generation 重放或自动恢复；`replace` 保持刻意断代语义。
+**先写验证：**demo 下单全链路、运行中挂接筛查节点（`AttachScreening` + `demo.fraud` admit）、保存/窗口失败、启动中退出、重复退出和迟到回执。优先受控适配场景，不用黑盒开发服务器肉眼观察代替验证。
+**出口：**默认应用只用新 Bash run 正常运行，可另终端 stop；没有 Electron 内嵌第二份生产图或保留旧启动权威；演示应用与 Agent run 并行。
 
 ## 12. P7：三 run 演练和文档收敛
 
-同时运行正式整程序、开发新插件的任意命名 run、跨插件片段/测试的另一个 run。分别操作、停止、重启并集成公开契约或源码变更，核对每个 run 的资源、投影、日志和清理。
+同时运行默认演示应用（`runs/demo`，含 Electron 前端）、开发新插件的任意命名 run、跨插件片段/测试的另一个 run。分别操作、停止、重启并集成公开契约或源码变更，核对每个 run 的资源、投影、日志和清理。
 
 同步 mental-model、SDK 心智模型、目录边界、测试指南、desktop README、应用生命周期及 AGENTS。参考文档只写已交付事实，协作指南补实际执行步骤，未完成项保持标记。
 
@@ -216,7 +210,7 @@ M1：P1–P3 完成，任意最小片段可启动、停止、重启。M2：P4–
 | 协调和 run 工具 | run.sh、tooling/run、配置契约、集成文档 | P0 确定；负责共享工作树提交 |
 | SDK/daemon 桥接 | JS Node/Effect/Agent、Rust daemon、共同契约和镜像 | 使用同一已确定契约 |
 | 前端/构建接入 | desktop build/renderer、发现与隔离资源 | P1 输出和 P3 控制契约确定 |
-| Studio 切换与场景 | Studio 生命周期、服务和完整 run | P2 兼容性及 P4 传输通过 |
+| 演示应用切换与场景 | demo 前端宿主/后端工厂与 `runs/demo` | P2 兼容性及 P4 传输通过 |
 
 此表用于后续任务分配，不要求本轮启动多个 Agent。共享文件不得多任务同时修改；Agent 用各自命名 run 验证，协调者按依赖集成。目录隔离不隔离同一 Git 索引，共享工作树集成串行进行。
 
@@ -224,17 +218,16 @@ M1：P1–P3 完成，任意最小片段可启动、停止、重启。M2：P4–
 
 ## 14. 最终验收清单
 
-- [x] 任意命名 run 自有配置，start/stop/status 显式指定配置。（P1/P3：`p1-run-isolation`、`p3-run-lifecycle`）
-- [x] 范围独立于插件，未选实例不构造，切口明确可断言。（P2/P5/P6：`daemon-fragment`、`p5-run-scenario`、`p6-studio-run` 全图零未选）
-- [x] 初始化与启动分开，业务初始事实与物理参数分开。（P5/P6/P7：init→start 经同一结算屏障，EffectAdapter 由宿主构造注入）
-- [x] 内核、拓扑、Info 操作独立，Bash 对称编排。（P9：Bash 持有实际子进程，单阶段工具执行 admit、初始化、启停 Info、evict 和 Rust shutdown。）
-- [ ] 整程序与两个 Agent run 的实际前端、后端、权威图及资源同时隔离。P7 验证三个真实后端 daemon；P10 验证两个实际 Electron/后端/daemon run，并在其中一个保存关闭后确认另一个仍 Ready。三个带 UI 的 run 尚未同时验收。
-- [ ] 另终端 stop、Ctrl+C、启动中停止、重复控制及重启通过。——部分：另终端 stop、重复停止、已停止、运行中改配置、双 run 独立状态已覆盖（P3）；Ctrl+C/TERM 同一编排、`force-stop`、启动中停止与重启未交付。
-- [ ] 保存失败和超时不冒充成功，原始错误与清理错误保留。P9 覆盖 dispose 失败保留活动资源、删除故障后重试；生命周期单测覆盖保存失败进入 ShutdownFailed。实际桌面保存故障仍待端到端验收。
-- [x] handler、Effect、租约和本地 dispose 有明确结算确认。（P2/P5/P6：commit 结算、provider completeEffect、claim/release 租约、`unmountRunSlice` evict+dispose）
-- [x] 场景与正常运行共用真实装配、Rust 调度及完整关闭。（P5/P9/P10：均调用根 Bash，场景结束后自动关闭，失败退出码保留。）
-- [ ] Studio 完整运行与旧代码收敛。P10 已验证真实界面启动、项目读取、Markdown 编辑和关闭后 SQLite 内容；旧 npm/Electron 启动入口已禁止。重复插件源码与旧构建入口仍需清理，真实保存失败重试仍待端到端验收。
-- [x] 关闭使用原始活动快照与认证身份。（P3/P9：配置被改写或删除仍使用原始关闭 Info；认证控制请求校验 runId 和私有 token，不按元数据 PID 杀进程。）
-- [x] 当前入口和协作指南同步，生成物与凭证未提交。`runs/studio/run.config.json` 与后端装配已提交；run 产物位于被忽略的 `.generated/`。
-
-未完成项：Ctrl+C/TERM 和启动中取消验收、重启与并发启动边界、实际桌面保存故障重试、三个带 UI 的 run 同时验收、重复插件与旧构建入口收敛。force-stop 尚无公开入口，正常关闭不默认强杀。
+- [x] 任意命名 run 自有配置，start/stop/status 显式指定配置。（`host/p1-run-isolation.test.mjs`、`host/p3-run-lifecycle.test.mjs`）
+- [x] 范围独立于插件，未选实例不构造，切口明确可断言。（`packages/sdk/javascript/tests/daemon-fragment.test.ts`、`host/p5-run-scenario.test.mjs`、`host/p8-factory-instances.test.mjs`：未选工厂不调用）
+- [x] 初始化与启动分开，业务初始事实与物理参数分开。（`packages/tooling/run/src/host.mjs` 的 `initialize`/`start` 经 `injectLifecycleInfos` 同一结算屏障，EffectAdapter 由宿主构造注入）
+- [x] 内核、拓扑、Info 操作独立，Bash 对称编排。（`supervisor.sh` 持有实际子进程，单阶段工具执行 assemble/admit、初始化、启停 Info、evict 和 Rust shutdown；`host/p9-bash-lifecycle.test.mjs` 覆盖。）
+- [ ] 演示应用与两个 Agent run 的实际前端、后端、权威图及资源同时隔离。已验证单 run 演示图与 counter 模板独立运行；两个带 UI 的 run 并行、三个 run 同时验收尚未覆盖。
+- [ ] 另终端 stop、Ctrl+C、启动中停止、重复控制及重启通过。——部分：另终端 stop、重复停止、已停止、运行中改配置、双 run 独立状态已覆盖（`host/p3-run-lifecycle.test.mjs`）；Ctrl+C/TERM 同一编排、`force-stop`、启动中停止与重启未交付。
+- [ ] 保存失败和超时不冒充成功，原始错误与清理错误保留。`host/p9-bash-lifecycle.test.mjs` 覆盖 dispose 失败保留活动资源、删除故障后重试；`stop-business`/`evict` 失败标记 `stop-failed` 并保留锁与凭证。实际桌面保存故障仍待端到端验收。
+- [x] handler、Effect、租约和本地 dispose 有明确结算确认。（daemon `poll + commit` 结算、provider `completeEffect`、claim/release 租约、`unmountRunSlice` evict+dispose）
+- [x] 场景与正常运行共用真实装配、Rust 调度及完整关闭。（`host/p5-run-scenario.test.mjs` 经根 Bash，场景结束后自动关闭，失败退出码保留。）
+- [ ] 演示应用完整运行与旧代码收敛。旧 `npm start` 自启动已由 `host/main.mjs` 守卫禁止；遗留 apiVersion 1 插件目录（`app/plugins/demo-topology`、`app/plugins/hello-counter`）与旧构建入口仍需清理，真实保存失败重试仍待端到端验收。
+- [x] 关闭使用原始活动快照与认证身份。（配置被改写或删除仍使用原始关闭 Info；认证控制请求校验 runId 和私有 token，不按元数据 PID 杀进程；`finalizeRun` 核对 lock 的 `runId`。）
+- [x] 当前入口和协作指南同步，生成物与凭证未提交。`runs/demo/run.config.json` 与后端装配已提交；run 产物位于被忽略的 `.generated/`。
+未完成项：Ctrl+C/TERM 和启动中取消验收、重启与并发启动边界、实际桌面保存故障重试、两个带 UI 的 run 并行验收、遗留 apiVersion 1 插件目录与旧构建入口收敛。force-stop 尚无公开入口，正常关闭不默认强杀。

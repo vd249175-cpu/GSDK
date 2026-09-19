@@ -6,5 +6,5 @@
 
 * [GraphFramework 当前心智模型](mental-model.md) - 系统的运行本体、单写者状态权限边界、原生 Rust 调度器契约与架构红线。
 * [SDK 心智模型与包边界](sdk-mental-model.md) - SDK 各包职责、依赖拓扑方向与插件作者的核心契约边界。
-* [Studio 应用生命周期](application-lifecycle.md) - Studio 应用的状态机流转、窗口与后台宿主生命周期，以及 generation 破坏性断代机制。
+* [命名 run 生命周期](application-lifecycle.md) - run.sh 启停阶段、活动快照、关闭语义与 generation 破坏性断代机制。
 * [开发准入约束与架构红线](development-constraints.md) - 新增 Kernel、Node、字段与物理能力前的架构归属检查与红线清单。
