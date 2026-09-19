@@ -72,3 +72,26 @@
 - 为每个 Agent 分配任意且不重复的稳定名称及 `runs/<name>/`，独立配置前端、后端、权威图运行时和物理资源；运行范围可为任意片段、完整插件或全部程序，不以插件为运行单位。
 - 目标入口由 Bash 显式读取本 run 配置，完整提供启动和关闭。整个 Studio 必须迁入同一 run 机制，不能只增加测试入口或用 Bash 包装旧 Electron 自启动方式宣称完成。
 - 同一工作树中的共享源码和 Git 索引必须明确所有权；目录隔离不能代替文件协调和串行集成提交。
+
+## 8. 唯一合法启动方式与运行红线
+
+1. **唯一合法启动命令**：
+   所有桌面应用、后端片段、微内核切片或场景测试，**唯一合法的运行入口**是根目录的 `run.sh`：
+   ```bash
+   bash ./run.sh start runs/<name>/run.config.json
+   bash ./run.sh status runs/<name>/run.config.json
+   bash ./run.sh stop runs/<name>/run.config.json
+   ```
+2. **严禁任何绕过统一 run 的旁路启动**：
+   - 严禁通过 `npm start`、`npx electron`、写死 `new BrowserWindow` 的临时脚本等任何旁路手段直接拉起窗口或程序。
+   - `packages/desktop/host/main.mjs` 中的 `throw new Error('Launch a configured run from the repository root: bash ./run.sh start runs/<name>/run.config.json');` 是强制架构守卫，严禁修改、绕过或伪造启动入口。
+3. **正确启动的因果推进全链路（由 `supervisor.sh` 统一编排）**：
+   - **Step 1 配置校验与锁获取**：原子占用目标 run 的 `run.lock`，生成本运行独占的环境凭据。
+   - **Step 2 独占 Rust 微内核拉起**：启动本 run 独占的 `kernel-daemon` 进程（持有权威 State 与调度），等待 RPC 探针就绪。
+   - **Step 3 后端 Node 宿主就绪**：启动后端 Node 进程，声明并准入图实例（Node），认领物理 EffectAdapter。
+   - **Step 4 前端构建（`buildRunFrontends`）**：若包含 `frontend.instances`，通过 Vite 构建 React/达芬奇样式产物至 `.generated/frontend/<id>/dist/`，通过 esbuild 打包前端宿主至 `.generated/frontend/<id>/host.mjs`。
+   - **Step 5 桌面宿主拉起**：由 Bash supervisor 调用平台 Electron 二进制执行前端 `host.mjs`，注入 `context.json`。
+   - **Step 6 受控通讯与达芬奇界面渲染**：Electron 前端通过 `connectFrontendHost` 注册控制接口，建立与 Rust daemon 的只读投影缓存订阅与受限根 Info 注入，窗口加载并渲染达芬奇 UI。
+   - **Step 7 界面布局与业务就绪**：supervisor 验证前端 `health` 与 `ready`（确认工作区面板具有可见几何布局），完成初始化与启动 Info 结算，正式进入运行态。
+   - **Step 8 对称平稳停机**：任何退出均须通过 `run.sh stop` 触发（前端入站门禁关闭 → 业务在途与数据保存 → 停止物理观察源 → 推出节点与释放租约 → 关闭内核 → 关闭 Electron 与后端进程）。
+
