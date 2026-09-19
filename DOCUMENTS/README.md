@@ -33,7 +33,6 @@ GraphFramework 是一个面向桌面与后端系统的因果应用微内核运�
 - [插件全景与契约索引](contracts/plugins-reference.md)：业务插件规范、Node/Info/Element 清单与内核稳定消费规约。
 - [插件发布与协作契约](contracts/plugin-collaboration-contract.md)：正式插件所有权、禁止污染、独立插件扩展与发布规则。
 - [SDK 与插件分发验收契约](contracts/distribution-contract.md)：七能力面镜像、独立制品、版本兼容与性能要求。
-- [当前目录与分发边界](contracts/package-distribution-restructure-plan.md)：应用装配、插件归属、镜像 SDK 与桌面构建。
 - [多 Agent 独立开发与运行协作指南](contracts/multi-agent-run-guide.md)：已确认的命名 run、目录所有权与 Bash 启停并行隔离规范。
 - [统一 run 实施计划](contracts/unified-run-plan.md)：默认应用、图片段和场景测试迁入统一配置驱动运行机制。
 
@@ -64,7 +63,7 @@ npm --prefix packages/desktop run build
 启动命令：`bash ./run.sh start runs/<name>/run.config.json`（`packages/desktop/host/main.mjs` 拒绝直接 `npm start` 拉起；唯一合法入口见仓库 `AGENTS.md` §8）。
 
 ## 常用验证
-
+命令正本只在 [测试分层](guides/testing.md) §验证命令 维护：
 ```bash
 npm --prefix packages/sdk/javascript run typecheck
 npm --prefix packages/desktop run typecheck

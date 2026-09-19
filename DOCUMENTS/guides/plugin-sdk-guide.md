@@ -81,12 +81,8 @@ renderer 只能调用 preload 暴露的固定命令，不能提交任意 Node ID
 运行中替换后端 Node 使用 `replaceDomainNode`。替换会等待旧实体到达单飞间隙，丢弃旧 backlog，以新实例的初始 State 启动；不会自动迁移 State。插件或 Node 的 `dispose` 在替换、移除和宿主关闭时由规则空间等待清理。
 
 ## 验收
-
-后端 Node 优先使用 `@graphframework/sdk/testing` 的 `createTestRuntime` 做确定性测试；原生桥接、热替换和 Electron 加载使用本仓库现有测试与验收命令：
-
+后端 Node 优先使用 `@graphframework/sdk/testing` 的 `createTestRuntime` 做确定性测试；原生桥接、热替换和 Electron 加载使用本仓库现有测试与验收命令。命令正本见 [测试分层](testing.md) §验证命令；插件级入口示例：
 ```bash
 npm --prefix packages/desktop test -- app/plugins/backend/hello-counter/backend.test.mjs --silent
 npm --prefix packages/desktop test -- app/plugins/backend/hello-counter/tests/native-graph-host.test.mjs --silent
-node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
-npm --prefix packages/desktop run verify
 ```

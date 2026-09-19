@@ -22,16 +22,22 @@ tags: [testing, vitest, cargo-test, verification, tdd]
 
 桌面测试排除 node_modules、构建产物与真实外部服务测试。使用真实 Node 和生产调度或 SDK 测试运行时，只替换构造注入的 Adapter；断言 State、Info、Effect、Projection 和 submission 结算。
 
+## 验证命令（唯一正本）
+本文是验证命令的唯一正本；其他文档只给指针，不复述命令块（复述是上次 `diagnose` 改名连带 8 个文件的原因）。
 ```bash
 npm --prefix packages/sdk/javascript run typecheck
 npm --prefix packages/desktop run typecheck
 npm --prefix packages/desktop run check:renderer-boundary
+npm --prefix packages/desktop test -- <目标> --silent
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
+node app/plugins/backend/hello-counter/scripts/diagnose.mjs <node|change|info|state|expand|path|select|frontend|health|reach> [args]
 npm --prefix packages/desktop run build
 npm --prefix packages/desktop run verify:native-load
-node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
 git diff --check
 ```
-
+- SDK 本地环：`npm --prefix packages/sdk/javascript test -- <目标> --silent` 跑 JS SDK 单测；动原生绑定另加 `cargo build --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-node && node packages/rust/scripts/stage-native.mjs` 与 `node packages/rust/scripts/stage-backend-native.mjs`。
+- 桌面全回归：`npm --prefix packages/desktop run verify`（= 边界 + 类型 + 测试 + counter 校验 + native-load + 构建）。
+- 诊断命令只校验 hello-counter 示例（仓库根目录直接 `node` 运行，无桌面转发脚本）；改其它插件时用该插件实际装配的 Node/事实校验，或查询运行中宿主的 Agent `analyze { op: 'validate' }`。
 SDK 类型检查不依赖 frontend；客户端泛型断言位于 `packages/frontend/client/typecheck.ts`，由桌面 renderer 类型检查包含。Electron smoke 加载实际桌面宿主构建产物和 Rust .node，验证调度、Projection 与清理。诊断命令使用 JS SDK 源码条件，不启动桌面应用。
 
 ## 按变更选择最小验证
@@ -48,7 +54,7 @@ SDK 类型检查不依赖 frontend；客户端泛型断言位于 `packages/front
 | JS 事实提取与显式离线分析 | SDK tests 中对应分析测试 |
 | Electron 或源码构建边界 | renderer 边界、类型、main/renderer build、Electron smoke；需要整体应用回归时运行 desktop verify |
 
-`node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate` 只校验 hello-counter 示例。修改其它插件时，必须用该插件实际装配的 Node/事实校验，或查询运行中宿主的 Agent `analyze { op: 'validate' }`；counter 校验通过不能代表其它插件正确。
+`diagnose.mjs validate` 只校验 hello-counter 示例（命令见上文 §验证命令）。修改其它插件时，必须用该插件实际装配的 Node/事实校验，或查询运行中宿主的 Agent `analyze { op: 'validate' }`；counter 校验通过不能代表其它插件正确。
 
 ## Node 与 Effect 测试原则
 

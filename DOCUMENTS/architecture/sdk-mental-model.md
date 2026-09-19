@@ -38,7 +38,7 @@ tags: [sdk, package-boundary, plugin-author, architecture]
 
 `@graphframework/sdk/agent` 提供 `connectKernelDaemon` 连接本 run 独占的 Rust 图宿主；`@graphframework/sdk/node` 的 `admitDaemonNodes` + `runDaemonNodeWorker`（先 admit 全部实例再 claim 再 poll）装配真实 Node 切片；`@graphframework/sdk/effect` 的 `runDaemonEffectProvider` 认领 Adapter 并执行物理 Effect。`packages/tooling/run` 在此之上提供 assembly（精确到实例，未选不构造）、mount（init/start 经同一结算屏障）、scenario（同运行输入/断言/报告）与 lifecycle（对称启停记录）。其他语言实现相同 DTO 协议即可；daemon 不依赖 JS 业务代码，也不解释 adapter 的业务含义。镜像语义与完整交付验收见 [SDK 与插件分发验收契约](../contracts/distribution-contract.md)。
 
-各包独立安装构建（`packages/desktop`、`packages/sdk/javascript`、`packages/frontend/*` 持各自 `package.json`；根目录无 npm 清单和 node_modules）。`app` 只保存 application.json 与插件。桌面源码构建显式消费 SDK 源码；支持 TypeScript 的 Node 宿主可通过 `graphframework-source` 条件使用源码出口，默认出口使用 dist 发布产物。Rust/N-API 使用 `cargo build --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-node && node packages/rust/scripts/stage-native.mjs` 构建。
+各包独立安装构建（`packages/desktop`、`packages/sdk/javascript`、`packages/frontend/*` 持各自 `package.json`；根目录无 npm 清单和 node_modules）。`app` 只保存 application.json 与插件（`app/plugins/`；应用目录不含 Electron 工程、renderer 工程或构建脚本；插件路径相对 application.json 解析，也允许外部目录）。桌面源码构建使用 esbuild/Vite 的明确源码入口，显式消费 SDK 源码；支持 TypeScript 的 Node 宿主可通过 `graphframework-source` 条件使用源码出口，默认出口使用 dist 发布产物。Rust/N-API 使用 `cargo build --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-node && node packages/rust/scripts/stage-native.mjs` 构建。`packages/tooling/` 保存因果可视化与 run 编排、AST/LanguageService 重构工具。平台生产源码不得导入业务插件；插件自己的业务代码、界面和资源收在同一个插件目录。Node_modules、dist、Cargo target 和测试缓存属于生成物。
 
 当前默认应用的前端宿主（`app/plugins/frontend/demo-topology/desktop/main.mjs`）不持有权威 State：它经 run 控制面读取 daemon 投影（`getDemoSnapshot` 解码后渲染），写操作只经 `inject-renderer` 走 `rendererRoots` 校验（`SubmitOrder → <graph>/orders`）。窗口关闭（`shell:close → request-stop`）请求 run 停止，走完整关闭路径，不直接杀内核。无前端的 run（如 counter 模板）不启动 Electron。
 
@@ -118,18 +118,11 @@ UI 写入口 → 命令适配 → 根 Info（插件 frontend/application）
 拿不准时回答归属三问：唯一 Owner 是谁、生命周期何时结束、跨 change 的事实放哪——说不清就不写。
 
 ## 5. 本地验证环
-
-```bash
-npm --prefix packages/sdk/javascript run typecheck   # SDK 类型
-npm --prefix packages/sdk/javascript test -- <目标> --silent
-cargo build --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-node && node packages/rust/scripts/stage-native.mjs  # 动原生绑定后跑（cargo 构建 + 摆放 .node）
-node packages/rust/scripts/stage-backend-native.mjs     # 复制到 SDK dist/native，供构建产物消费
-npm --prefix packages/desktop run verify                # 检查已有原生绑定并构建应用
-node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate   # 校验 counter 示例静态因果索引（直接 node 运行）
-node app/plugins/backend/hello-counter/scripts/diagnose.mjs node <nodeId>  # 单实体切片，先看局部不看全图
-npm --prefix packages/desktop run build    # 动生产装配/Electron 后跑
-```
-
+命令正本只在 [测试分层](../guides/testing.md) §验证命令 维护，这里只给按场景的选用关系，不复述命令块：
+- SDK 类型与单测 → 指南 §验证命令的 SDK 本地环；
+- 改 Node/Info/State/投影/联动 → 桌面类型检查 + 对应插件测试 + counter 离线 `diagnose.mjs validate`；
+- 动原生绑定 → 指南 §验证命令的 cargo + stage 两行；
+- 动生产装配/Electron → 桌面构建与 `verify`（全回归）。
 `packages/sdk/javascript/tests/determinism-source.test.ts` 检查 SDK Node 底座的依赖和分析/展示边界，不是全部业务插件的 I/O 扫描器。业务纯领域 Node 的零 I/O 要由插件源码检查及对应测试共同保证。
 
 ## 6. 调试入口

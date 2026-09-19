@@ -18,85 +18,40 @@ tags: [plugins, reference, topology, contracts]
 ---
 
 ## 1. 架构边界与 SDK 分工
-
 ```text
 ┌────────────────────────────────────────────────────────┐
 │                   前端 UI (Renderer)                   │
-│   React 组件 / Workbench Elements / 自定义 Inspector   │
+│   固定通道 / Workbench Elements（按插件实际形态）        │
 └─────────────────────────┬──────────────────────────────┘
-                          │ 仅通过 @graphframework/client 交互
-                          │ (useAppState / useApplicationClient)
+                          │ 读投影快照，经授权入口注入根 Info
 ┌─────────────────────────▼──────────────────────────────┐
 │             插件系统层 (plugins)        │
-│   Manifest (graphframework.plugin.json) + backend.ts       │
-│   - 声明 rendererRoots (公开给前端的安全入口)          │
-│   - 组装 Authoring / Persistence / Generation Nodes     │
+│   Manifest (graphframework.plugin.json) + index.mjs    │
+│   - 声明 rendererRoots（公开给前端的安全入口）          │
+│   - Node 工厂：nodeFactories / graphFactories          │
 └─────────────────────────┬──────────────────────────────┘
                           │ 通过 @graphframework/sdk 定义 Node/Info
-                          │ 挂载至 NativeRuleSpace
+                          │ 挂载至 Rust daemon（命名 run）/ NativeRuleSpace
 ┌─────────────────────────▼──────────────────────────────┐
-│             底座内核 (零业务语义，统一生产调度)            │
-│   Rust 生产微内核 (packages/rust/kernel) + packages/sdk/javascript/src/node 规约       │
+│             底座内核（零业务语义，统一生产调度）           │
+│   Rust 生产微内核 (packages/rust/kernel)，JS 经         │
+│   packages/sdk/javascript/src/node 桥接                 │
 └────────────────────────────────────────────────────────┘
 ```
-
 - **前端视角**：
-  - 读事实：只通过快照 `useAppState(selector)` 读取已解码的投影 DTO；
-  - 触发动作：只通过 `client.injectRootInfo(targetNodeId, info)` 向受信任的 `rendererRoots` 注入意图。
+  - 读事实：只读已解码的投影 DTO，不伪造第二份业务状态；
+  - 触发动作：只走授权入口注入根 Info（demo 经 `desktop/preload.cjs` 固定通道 + run `inject-renderer` 校验；用 client hooks 的应用经 `useAppState` / `useApplicationClient`）。
 - **后端视角**：
   - 纯领域 Node：零 I/O、零网络、零 Electron API，仅通过 `change(info, ctx)` 推进内部状态或 `ctx.send(nextInfo, targetId)`；
   - 副作用 WorldNode：严格区分**执行类 (`ExecutionWorldNode`)** 与**观察类 (`ObservationWorldNode`)**，物理动作由构造注入的 `EffectAdapter` 执行。
 
 ---
 
-## 2. 插件标准契约 (Plugin Contract)
-
-本仓库插件位于 `app/plugins/<plugin-directory>/`；目录名不必等于 Manifest ID，外部目录由 application.json 的 path 指定：
-
-### 2.1 Manifest 规范 (`graphframework.plugin.json`)
-插件分后端与前端两种 `apiVersion: 2` 形态，`kind` 与 `contributes` 必须一致（当前实例均见 `app/plugins/<backend|frontend>/demo-topology/`）：
-```json
-{
-  "id": "demo.topology",
-  "name": "Topology Demo",
-  "version": "1.0.0",
-  "apiVersion": 2,
-  "kind": "backend",
-  "contributes": {
-    "backend": "index.mjs",
-    "nodeFactories": [],
-    "graphFactories": ["createDemoTopologyGraph"]
-  }
-}
-{
-  "id": "demo.topology",
-  "name": "Topology Demo",
-  "version": "1.0.0",
-  "apiVersion": 2,
-  "kind": "frontend",
-  "contributes": {
-    "host": "desktop/main.mjs",
-    "frontend": "index.tsx",
-    "elements": [],
-    "workspaces": []
-  }
-}
-```
-
-### 2.2 后端入口规范（`index.mjs`）
-后端通过 `defineBackendPlugin` 导出，提供节点实例与前端白名单；命名 run 只调用配置命中的工厂（`nodeFactories/graphFactories`），不调用全量 `createNodes`（当前实例见 `app/plugins/backend/demo-topology/index.mjs` 与 `app/plugins/backend/hello-counter/index.mjs`）：
-```ts
-import { defineBackendPlugin } from '@graphframework/sdk/plugin'
-export default defineBackendPlugin({
-  id: 'demo.topology',
-  createNodes: (ctx) => Object.values(createDemoTopology(ctx)),
-  rendererRoots: [{
-    targetNodeId: 'demo.orders',
-    infoType: 'SubmitOrder',
-    validate: (info) => info?.type === 'SubmitOrder' && typeof info?.orderId === 'string',
-  }],
-})
-```
+## 2. 插件标准契约（索引）
+规范正文只在 [Plugin SDK 开发指南](../guides/plugin-sdk-guide.md) 维护，本节只给指针，不复述字段与示例（复述是上次 Manifest 过期的根因）：
+- Manifest 形态与校验（含 apiVersion 1 遗留 / v2 `kind` 说明）→ 指南 §Manifest；当前实例见 `app/plugins/backend/demo-topology/graphframework.plugin.json` 与 `app/plugins/frontend/demo-topology/graphframework.plugin.json`。
+- 后端入口与 `rendererRoots` 信任边界 → 指南 §后端公开命令与信任边界；当前实例见 `app/plugins/backend/demo-topology/index.mjs`。
+- 热替换断代语义 → [Kernel 指南](../guides/kernel-sdk-guide.md) §3；命名 run 装配规则（只调用配置命中的 `nodeFactories/graphFactories`，未选不构造）→ [多 Agent 协作指南](multi-agent-run-guide.md) §6。
 
 ## 3. 当前插件清单：`demo.topology`
 `demo.topology` 是当前默认应用（`app/application.json`，`graphframework-demo`）装配的订单履约演示图：`demo.orders` 为唯一入口，`demo.router` 负责扇出，`demo.ledger` 汇总回执。后端实现见 `app/plugins/backend/demo-topology/index.mjs`，前端宿主与界面见 `app/plugins/frontend/demo-topology/`。

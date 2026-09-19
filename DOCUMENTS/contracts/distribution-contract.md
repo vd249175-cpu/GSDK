@@ -8,7 +8,7 @@ tags: [distribution, packaging, acceptance, compatibility]
 
 # SDK 与插件分发验收契约
 
-本文件规定正式交付必须满足的要求，与[当前目录与分发边界](package-distribution-restructure-plan.md)的实现说明分开。目录归位不等于制品已经通过独立发布验收。这里的制品清单不表示仓库存在自动打包、安装或发布流水线。
+本文件规定正式交付必须满足的要求。目录职责以 [SDK 心智模型](../architecture/sdk-mental-model.md) §1 为准（包边界、应用装配、源码构建组织）；目录归位不等于制品已经通过独立发布验收。这里的制品清单不表示仓库存在自动打包、安装或发布流水线。
 
 ## 1. 共同契约与镜像边界
 

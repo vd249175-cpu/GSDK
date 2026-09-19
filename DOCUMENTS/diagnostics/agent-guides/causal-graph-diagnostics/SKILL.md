@@ -75,12 +75,11 @@ The diagnose commands inspect only the hello-counter example. The last command q
 Read `references/flat-causal-query.md` when implementing or changing selection, expansion, pathfinding, or frontend-link validation.
 
 ## Validation
-
 ```bash
 npm --prefix packages/desktop test -- <target-test> --silent
 npm --prefix packages/desktop run typecheck
 npm --prefix packages/sdk/javascript run typecheck
-node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
 ```
+Static-index validation is one item; the full command list lives in `DOCUMENTS/guides/testing.md` §验证命令.
 
 Do not start the desktop app or use browser/computer automation for physical UI validation; leave that to the user.

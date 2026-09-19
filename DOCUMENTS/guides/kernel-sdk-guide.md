@@ -245,14 +245,7 @@ const projection = space.readProjection()
 const unsubscribe = space.subscribeProjection((next) => {})
 ```
 
-测试应使用固定 Clock/ID/Adapter fixture，直接挂载最小节点集。不得从 renderer 创建 Runtime，也不得用临时 `node -e` 验证。
-
-```bash
-npm --prefix packages/sdk/javascript test -- <target-test> --silent
-npm --prefix packages/sdk/javascript run typecheck
-npm --prefix packages/desktop run typecheck
-node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
-```
+测试应使用固定 Clock/ID/Adapter fixture，直接挂载最小节点集。不得从 renderer 创建 Runtime，也不得用临时 `node -e` 验证。命令正本见 [测试分层](testing.md) §验证命令。
 
 ## 7. 原生规则空间宿主（Rust 调度 + 多语言 Node）
 

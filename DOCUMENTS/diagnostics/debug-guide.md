@@ -105,5 +105,5 @@ await runtime.dispose()
 npm --prefix packages/desktop test -- <target-test> --silent
 npm --prefix packages/desktop run typecheck
 npm --prefix packages/sdk/javascript run typecheck
-node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate
 ```
+静态索引校验只是其中一项，完整命令清单见 [测试分层](../guides/testing.md)（离线 diagnose 命令表见上文 §3）。

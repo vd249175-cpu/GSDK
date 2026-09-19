@@ -61,13 +61,12 @@ Kernel 不包含业务 Info/Node ID、Registry、声明边、Wrapper、广播、
 
 ## 6. 变更同步
 
-| 变更 | 同步内容 | 最低验证 |
+| 变更 | 同步内容 | 最低验证（命令正本见 [测试分层](../guides/testing.md) §验证命令） |
 | :--- | :--- | :--- |
 | Kernel API/调度 | mental-model、Kernel 指南、针对性测试 | 对应 Cargo 测试 + SDK 原生桥 Vitest + 类型检查 |
-| Node/Info/State | 插件装配、因果文档、针对性测试 | `node app/plugins/backend/hello-counter/scripts/diagnose.mjs validate`（counter 示例离线校验） |
+| Node/Info/State | 插件装配、因果文档、针对性测试 | 对应插件测试 + counter 离线 `diagnose.mjs validate` |
 | Projection/rendererRoots | 解码、消费者、前端联动表 | 应用测试 + 诊断 |
 | EffectAdapter | Factory 注入、WorldNode、Observation 测试 | 针对性测试 + `tsc` |
 | Workbench/主题 | 设计系统、样式与 UI 测试 | 桌面配置中对应前端测试 |
 | Electron/runtime 构建 | 构建文档与应用验收 | `npm --prefix packages/desktop run verify` |
-
 文档只描述当前已经存在的能力；不要用兼容层、旧别名或假想计划掩盖所有权问题。
