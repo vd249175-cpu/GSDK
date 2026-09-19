@@ -49,7 +49,7 @@ GraphFramework 是一个面向桌面与后端系统的因果应用微内核运�
 
 ## 首次源码接入
 
-在仓库根目录执行，使用本机 Rust 工具链；本流程不自动安装编译器：
+完整的新成员环境探测、工具安装、飞书 CLI/Skills 与 `user-default` 授权流程以仓库 `AGENTS.md` §9 为准。源码依赖在仓库根目录执行，使用本机 Rust 工具链：
 
 ```bash
 npm --prefix packages/sdk/javascript ci

@@ -100,4 +100,79 @@
    - **Windows 一键脚本**：`runs/<name>/start.cmd` 与 `runs/<name>/stop.cmd`（以及可选的 `status.cmd`），方便 Windows 环境下直接双击或在命令行运行；
    - **纯委托原则**：这些便捷脚本在实现上必须严格透传委托根目录唯一的规范入口（例如 `bash "$REPO_ROOT/run.sh" start "$CONFIG" "$@"`），绝对禁止在便捷脚本内编写旁路拉起逻辑或绕过 supervisor 编排。
 
+## 9. 新成员开发环境与飞书初始化
+
+当用户明确要求初始化新员工电脑，或首次进入一个尚未准备好的工作区时，Agent 应主动完成下列检查和安装协助。先检查、后安装；已有兼容工具不得无故升级或覆盖。任何账号授权均由员工本人在浏览器确认，禁止把应用密钥、access token 或个人凭证写入仓库、`AGENTS.md`、run 配置或群聊；device code 只用于当次 split-flow 授权，不持久化或跨流程复用。
+
+### 9.1 基础环境探测
+
+先在仓库根目录检查：
+
+```bash
+git --version
+bash --version
+node --version
+npm --version
+cargo --version
+rustc --version
+```
+
+- Windows 必须提供可执行根目录 `run.sh` 的 Git Bash；如果 Git 已安装但 `bash` 不在 `PATH`，先定位 Git for Windows 的实际 `bin` 目录并追加到当前用户 `PATH`，再重新检查，不得写死另一位员工的路径。不得用 PowerShell、WSL 或临时 Node 脚本绕过统一 run。
+- 缺少 Git Bash、Node.js/npm 或 Rust 工具链时，Agent 应说明用途并协助安装官方稳定发行版；安装完成后重新执行版本检查。
+- 不在根目录假设存在统一 npm workspace。依赖按实际包目录安装。
+
+### 9.2 仓库依赖与首次构建
+
+新工作区使用锁文件安装依赖并构建当前平台原生绑定：
+
+```bash
+npm --prefix packages/sdk/javascript ci
+npm --prefix packages/desktop ci
+cargo build --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-node
+node packages/rust/scripts/stage-native.mjs
+node packages/rust/scripts/stage-backend-native.mjs
+npm --prefix packages/desktop run build
+```
+
+已有工作区只有在 lockfile 已确认且不会覆盖他人未保存环境时才重跑 `npm ci`。其它工具包依赖按实际任务安装，不做无意义的全仓安装。初始化后至少执行：
+
+```bash
+npm --prefix packages/desktop run typecheck
+npm --prefix packages/sdk/javascript run typecheck
+node packages/tooling/run/src/cli.mjs validate runs/demo/run.config.json
+```
+
+环境验收不等于启动应用；除非用户明确要求运行，禁止为了验证安装而旁路拉起 Electron 或桌面窗口。
+
+### 9.3 飞书 CLI、Skills 与用户身份
+
+飞书承担知识库、工作流正文和能力 ZIP 分享。若 `lark-cli` 或项目内飞书 Skills 尚未安装，在仓库根目录执行官方安装流程：
+
+```bash
+npm install -g @larksuite/cli
+npx -y skills add https://open.feishu.cn --skill -y
+```
+
+Windows 若仍找不到 `lark-cli`，先用 `npm prefix --global` 取得实际全局目录，只把该目录追加到当前用户 `PATH`，不得写死另一位员工的用户目录。随后验证 `lark-cli --version`。
+
+认证与权限操作必须遵守安装后的 `lark-shared` Skill。团队目标身份为 `user-default`，因为成员需要以本人身份维护知识库、访问云盘并在群聊分享文件；绑定前仍须向员工说明 user 身份可以代表其访问这些资源并取得明确确认。优先绑定团队已配置的应用；Hermes 环境可使用：
+
+```bash
+lark-cli config bind --source hermes --identity user-default
+```
+
+如果机器没有团队应用凭证，不得编造或把密钥写入仓库；由管理员提供安全配置，或在员工明确同意创建独立应用后运行 `lark-cli config init --new`。若 CLI 因当前处于 Agent 环境而拒绝创建，只有在员工再次确认确实需要独立应用时才追加 `--force-init`。用户授权只申请当前协作需要的范围：
+
+```bash
+lark-cli auth login --domain wiki --domain docs --domain drive --domain im --no-wait --json
+```
+
+Agent 必须把命令返回的原始授权 URL 与 `lark-cli auth qrcode` 生成的二维码一起交给员工；员工确认完成后，由 Agent 使用本次 device code 完成登录，不让员工手工执行后续轮询。最终使用 `lark-cli auth status --json --verify` 验证 `identity: user`、`verified: true` 和有效 user token。
+
+飞书 Skills、个人 `AGENTS.md` 页面索引与认证状态属于成员上下文层，不得进入基础软件更新包或工作流能力 ZIP，也不得在普通代码提交中顺手全量暂存。工作流正文仍只维护在飞书知识库中，不复制为 Workflow Skill。
+
+### 9.4 初始化完成条件
+
+新成员环境只有在以下条件全部满足后才算完成：基础命令可用；依赖安装和原生绑定构建成功；两套 TypeScript 类型检查通过；demo run 配置校验通过；飞书 user 身份可用；员工已获得自己的稳定 `runs/<name>/`；其个人 `AGENTS.md` 已按职责加入被授权的飞书知识库页面索引，但未复制工作流正文或任何凭证。
+
 
