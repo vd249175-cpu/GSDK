@@ -618,22 +618,30 @@ export class NativeRuleSpace {
     const activeNodes = Array.from(this.nodes.entries())
       .filter(([id]) => admitted.has(id));
 
-    const routes: StaticTopologyRoute[] = [];
-    const seen = new Set<string>();
-    for (const [, n] of activeNodes) {
-      if (n.nodeInstance) {
-        const nodeRoutes = inferNodeStaticRoutes(n.nodeInstance);
-        for (const r of nodeRoutes) {
-          if (admitted.has(r.from) && admitted.has(r.to)) {
-            const key = `${r.from}->${r.to}:${r.infoType}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              routes.push(r);
-            }
-          }
-        }
+    const routeCounts = new Map<string, StaticTopologyRoute>();
+    for (const { entity, factsJson } of this.binding.analysisFacts()) {
+      if (!admitted.has(entity)) continue;
+      const facts = JSON.parse(factsJson) as PortableAnalysisSnapshot;
+      const entities = new Map(facts.entities.map((item) => [item.address, item]));
+      for (const edge of facts.edges) {
+        if (edge.type !== 'send') continue;
+        const targetInfo = entities.get(edge.to);
+        if (targetInfo?.kind !== 'info' || typeof targetInfo.nodeId !== 'string') continue;
+        if (!admitted.has(targetInfo.nodeId)) continue;
+        const key = `${entity}\0${targetInfo.nodeId}\0${targetInfo.id}`;
+        const existing = routeCounts.get(key);
+        routeCounts.set(key, existing
+          ? { ...existing, routeCount: existing.routeCount + 1 }
+          : {
+              id: `route-${entity}-${targetInfo.nodeId}-${targetInfo.id}`,
+              from: entity,
+              to: targetInfo.nodeId,
+              infoType: targetInfo.id,
+              routeCount: 1,
+            });
       }
     }
+    const routes = [...routeCounts.values()].sort((left, right) => left.id.localeCompare(right.id));
 
     const topology: StaticTopology = {
       revision: this.topologyRevision,
@@ -1182,110 +1190,3 @@ export class NativeRuleSpace {
     });
   }
 }
-
-/**
- * 纯图无关的静态算符因果推导器：
- * 在 Node 挂载到底座时，直接推导其 change 方法体内所有的内核 ctx.send 潜在出边。
- * 业务开发者 0 声明负担、0 配置文件、无需额外 AST 编译器，直接推导出潜在管网。
- */
-export function inferNodeStaticRoutes(node: unknown): StaticTopologyRoute[] {
-  if (!node || typeof node !== 'object') return [];
-  const fromNodeId = (node as { id?: unknown }).id;
-  if (!fromNodeId || typeof fromNodeId !== 'string') return [];
-
-  const changeFn = (node as { change?: unknown }).change;
-  if (typeof changeFn !== 'function') return [];
-  const fnSource = Function.prototype.toString.call(changeFn);
-
-  const routes: StaticTopologyRoute[] = [];
-  const seen = new Set<string>();
-
-  let idx = 0;
-  while ((idx = fnSource.indexOf('ctx.send(', idx)) !== -1) {
-    const startArgs = idx + 'ctx.send('.length;
-    let depth = 1;
-    let endArgs = startArgs;
-    while (endArgs < fnSource.length && depth > 0) {
-      const ch = fnSource[endArgs];
-      if (ch === '(' || ch === '{' || ch === '[') depth++;
-      else if (ch === ')' || ch === '}' || ch === ']') depth--;
-      endArgs++;
-    }
-    const fullCallArgs = fnSource.slice(startArgs, endArgs - 1);
-    idx = endArgs;
-
-    // 分割 info 表达式与 target 表达式（由最外层逗号分隔）
-    let argDepth = 0;
-    let splitComma = -1;
-    for (let i = fullCallArgs.length - 1; i >= 0; i--) {
-      const ch = fullCallArgs[i];
-      if (ch === ')' || ch === '}' || ch === ']') argDepth++;
-      else if (ch === '(' || ch === '{' || ch === '[') argDepth--;
-      else if (ch === ',' && argDepth === 0) {
-        splitComma = i;
-        break;
-      }
-    }
-    if (splitComma === -1) continue;
-
-    const infoPart = fullCallArgs.slice(0, splitComma).trim();
-    const targetPart = fullCallArgs.slice(splitComma + 1).trim();
-
-    // 1. 推导 targetNodeId：支持字面量 ('node-sqlite') 与多层实例属性 (this.targets.host, this.taskTargetId)
-    let targetNodeId: string | null = null;
-    const litMatch = targetPart.match(/^['"`]([^'"`]+)['"`]$/);
-    if (litMatch) {
-      targetNodeId = litMatch[1];
-    } else {
-      const propMatch = targetPart.match(/^this\.([a-zA-Z0-9_$]+(?:\.[a-zA-Z0-9_$]+)*)$/);
-      if (propMatch) {
-        const parts = propMatch[1].split('.');
-        let current: unknown = node;
-        for (const p of parts) {
-          if (current && typeof current === 'object' && p in current) {
-            current = (current as Record<string, unknown>)[p];
-          } else {
-            current = null;
-            break;
-          }
-        }
-        if (typeof current === 'string') targetNodeId = current;
-      }
-    }
-
-    // 2. 推导 infoType：支持字面量 type: '...' 与局部变量声明推导
-    let infoType = 'Info';
-    const typeMatch = infoPart.match(/type:\s*['"`]([^'"`]+)['"`]/);
-    if (typeMatch) {
-      infoType = typeMatch[1];
-    } else {
-      const varNameMatch = infoPart.match(/^([a-zA-Z0-9_$]+)$/);
-      if (varNameMatch) {
-        const varName = varNameMatch[1];
-        const varDeclMatch = fnSource.slice(0, startArgs).match(
-          new RegExp(`(?:const|let|var)\\s+${varName}\\b[\\s\\S]*?type:\\s*['"\`]([^'"\`]+)['"\`]`),
-        );
-        if (varDeclMatch) {
-          infoType = varDeclMatch[1];
-        }
-      }
-    }
-
-    if (targetNodeId) {
-      const key = `${fromNodeId}->${targetNodeId}:${infoType}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        routes.push({
-          id: `route-${fromNodeId}-${targetNodeId}-${infoType}`,
-          from: fromNodeId,
-          to: targetNodeId,
-          infoType,
-          routeCount: 1,
-        });
-      }
-    }
-  }
-
-  return routes;
-}
-

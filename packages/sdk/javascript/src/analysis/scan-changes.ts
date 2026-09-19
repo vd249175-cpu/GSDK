@@ -64,6 +64,130 @@ export function scanNodeChanges(nodeInfo: InstanceNodeInfo): ScannedChangeBranch
     }
     return null;
   }
+
+  function unwrapExpression(expression: ts.Expression): ts.Expression {
+    let current = expression;
+    while (
+      ts.isParenthesizedExpression(current)
+      || ts.isAsExpression(current)
+      || ts.isTypeAssertionExpression(current)
+      || ts.isNonNullExpression(current)
+      || ts.isSatisfiesExpression(current)
+    ) {
+      current = current.expression;
+    }
+    return current;
+  }
+
+  function stringLiteralValue(expression: ts.Expression): string | null {
+    const current = unwrapExpression(expression);
+    return ts.isStringLiteral(current) || ts.isNoSubstitutionTemplateLiteral(current)
+      ? current.text
+      : null;
+  }
+
+  function isInfoTypeExpression(expression: ts.Expression): boolean {
+    const current = unwrapExpression(expression);
+    if (ts.isPropertyAccessExpression(current)) {
+      return ts.isIdentifier(current.expression)
+        && current.expression.text === 'info'
+        && current.name.text === 'type';
+    }
+    return ts.isElementAccessExpression(current)
+      && ts.isIdentifier(current.expression)
+      && current.expression.text === 'info'
+      && current.argumentExpression !== undefined
+      && stringLiteralValue(current.argumentExpression) === 'type';
+  }
+
+  function exactTypeComparison(
+    expression: ts.Expression,
+  ): { operator: 'equal' | 'not-equal'; infoType: string } | null {
+    const current = unwrapExpression(expression);
+    if (!ts.isBinaryExpression(current)) return null;
+    const operator = current.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken
+      ? 'equal'
+      : current.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken
+        ? 'not-equal'
+        : null;
+    if (!operator) return null;
+    if (isInfoTypeExpression(current.left)) {
+      const infoType = stringLiteralValue(current.right);
+      return infoType === null ? null : { operator, infoType };
+    }
+    if (isInfoTypeExpression(current.right)) {
+      const infoType = stringLiteralValue(current.left);
+      return infoType === null ? null : { operator, infoType };
+    }
+    return null;
+  }
+
+  function intersectTypes(left: Set<string>, right: Set<string>): Set<string> {
+    return new Set([...left].filter((value) => right.has(value)));
+  }
+
+  function typesUnderConjunction(
+    left: Set<string> | null,
+    right: Set<string> | null,
+  ): Set<string> | null {
+    if (left === null) return right;
+    if (right === null) return left;
+    return intersectTypes(left, right);
+  }
+
+  function typesUnderAlternative(
+    left: Set<string> | null,
+    right: Set<string> | null,
+  ): Set<string> | null {
+    if (left === null || right === null) return null;
+    return new Set([...left, ...right]);
+  }
+
+  function typesWhenTrue(expression: ts.Expression): Set<string> | null {
+    const current = unwrapExpression(expression);
+    const comparison = exactTypeComparison(current);
+    if (comparison) {
+      return comparison.operator === 'equal' ? new Set([comparison.infoType]) : null;
+    }
+    if (ts.isPrefixUnaryExpression(current)
+      && current.operator === ts.SyntaxKind.ExclamationToken) {
+      return typesWhenFalse(current.operand);
+    }
+    if (!ts.isBinaryExpression(current)) return null;
+    if (current.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+      return typesUnderConjunction(typesWhenTrue(current.left), typesWhenTrue(current.right));
+    }
+    if (current.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+      return typesUnderAlternative(typesWhenTrue(current.left), typesWhenTrue(current.right));
+    }
+    return null;
+  }
+
+  function typesWhenFalse(expression: ts.Expression): Set<string> | null {
+    const current = unwrapExpression(expression);
+    const comparison = exactTypeComparison(current);
+    if (comparison) {
+      return comparison.operator === 'not-equal' ? new Set([comparison.infoType]) : null;
+    }
+    if (ts.isPrefixUnaryExpression(current)
+      && current.operator === ts.SyntaxKind.ExclamationToken) {
+      return typesWhenTrue(current.operand);
+    }
+    if (!ts.isBinaryExpression(current)) return null;
+    if (current.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+      return typesUnderConjunction(typesWhenFalse(current.left), typesWhenFalse(current.right));
+    }
+    if (current.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+      return typesUnderAlternative(typesWhenFalse(current.left), typesWhenFalse(current.right));
+    }
+    return null;
+  }
+
+  function statementAlwaysExits(statement: ts.Statement): boolean {
+    if (ts.isReturnStatement(statement) || ts.isThrowStatement(statement)) return true;
+    if (!ts.isBlock(statement) || statement.statements.length === 0) return false;
+    return statementAlwaysExits(statement.statements[statement.statements.length - 1]);
+  }
   for (const member of classDeclaration.members) {
     if (ts.isPropertyDeclaration(member) && member.initializer) {
       recordBoundStrings(member.name.getText(sourceFile), member.initializer);
@@ -133,20 +257,6 @@ export function scanNodeChanges(nodeInfo: InstanceNodeInfo): ScannedChangeBranch
     // Collect local bindings (e.g. const targetIds = ['node-gen-model'], for (const t of ['a', 'b']))
     const localStrings = new Map<string, string[]>();
     const localInfoTypes = new Map<string, string[]>();
-
-    function unwrapExpression(expression: ts.Expression): ts.Expression {
-      let current = expression;
-      while (
-        ts.isParenthesizedExpression(current)
-        || ts.isAsExpression(current)
-        || ts.isTypeAssertionExpression(current)
-        || ts.isNonNullExpression(current)
-        || ts.isSatisfiesExpression(current)
-      ) {
-        current = current.expression;
-      }
-      return current;
-    }
 
     function resolveInfoTypes(expression: ts.Expression): string[] {
       const current = unwrapExpression(expression);
@@ -390,77 +500,67 @@ export function scanNodeChanges(nodeInfo: InstanceNodeInfo): ScannedChangeBranch
       const methodName = member.name.getText(sourceFile);
       if (methodName === 'change' && member.body) {
         const changeBody = member.body;
-        let foundBranches = false;
+        const knownInfoTypes = new Set<string>();
 
-        // Check if there is an early return guard like `if (!ctx || info.type !== 'XYZ') return;`
-        for (const stmt of changeBody.statements) {
-          if (ts.isIfStatement(stmt)) {
-            const condText = stmt.expression.getText(sourceFile);
-            const notEqualMatch = condText.match(/info\.type\s*!==\s*['"]([^'"]+)['"]/);
-            if (notEqualMatch) {
-              foundBranches = true;
-              const infoType = notEqualMatch[1];
-              branches.push(
-                extractBranchDetails(member.body, infoType, getLocation(member)),
-              );
-              break;
-            }
-
-            const equalMatch = condText.match(/info\.type\s*===\s*['"]([^'"]+)['"]/);
-            if (equalMatch) {
-              foundBranches = true;
-              const infoType = equalMatch[1];
-              branches.push(
-                extractBranchDetails(stmt.thenStatement, infoType, getLocation(stmt)),
-              );
-            }
-          } else if (ts.isSwitchStatement(stmt)) {
-            const exprText = stmt.expression.getText(sourceFile);
-            if (exprText.includes('info.type')) {
-              foundBranches = true;
-              for (const clause of stmt.caseBlock.clauses) {
-                if (ts.isCaseClause(clause) && ts.isStringLiteral(clause.expression)) {
-                  const infoType = clause.expression.text;
-                  branches.push(
-                    extractBranchDetails(clause, infoType, getLocation(clause)),
-                  );
-                }
-              }
-            }
-          }
+        function rootTail(node: ts.Node): ts.Statement[] {
+          const rootStatementIndex = changeBody.statements.findIndex((statement) => (
+            statement.pos <= node.pos && statement.end >= node.end
+          ));
+          return rootStatementIndex >= 0
+            ? [...changeBody.statements.slice(rootStatementIndex + 1)]
+            : [];
         }
 
-        // Also inspect nested/else-if branches. Large state owners commonly use one
-        // if/else-if dispatch chain, so only scanning the first top-level condition
-        // would silently omit valid Info consumers.
-        const knownInfoTypes = new Set(branches.map((branch) => branch.infoType));
-        function collectNestedInfoBranches(node: ts.Node) {
+        function addTypedBranch(
+          infoType: string,
+          body: ts.Node | ts.Node[],
+          location: SourceLocation,
+        ): void {
+          if (knownInfoTypes.has(infoType)) return;
+          knownInfoTypes.add(infoType);
+          branches.push(extractBranchDetails(body, infoType, location));
+        }
+
+        function collectTypedBranches(node: ts.Node): void {
           if (ts.isIfStatement(node)) {
-            const condition = node.expression.getText(sourceFile);
-            const matches = condition.matchAll(/info\.type\s*===\s*['"]([^'"]+)['"]/g);
-            for (const match of matches) {
-              const infoType = match[1];
-              if (!knownInfoTypes.has(infoType)) {
-                knownInfoTypes.add(infoType);
-                const rootStatementIndex = changeBody.statements.findIndex((statement) => (
-                  statement.pos <= node.pos && statement.end >= node.end
-                ));
-                const commonTail = rootStatementIndex >= 0
-                  ? changeBody.statements.slice(rootStatementIndex + 1)
-                  : [];
-                branches.push(extractBranchDetails(
-                  [node.thenStatement, ...commonTail],
+            const tail = rootTail(node);
+            for (const infoType of typesWhenTrue(node.expression) ?? []) {
+              addTypedBranch(
+                infoType,
+                statementAlwaysExits(node.thenStatement)
+                  ? node.thenStatement
+                  : [node.thenStatement, ...tail],
+                getLocation(node),
+              );
+            }
+            const falseTypes = typesWhenFalse(node.expression);
+            if (node.elseStatement) {
+              for (const infoType of falseTypes ?? []) {
+                addTypedBranch(
                   infoType,
-                  getLocation(node),
-                ));
+                  statementAlwaysExits(node.elseStatement)
+                    ? node.elseStatement
+                    : [node.elseStatement, ...tail],
+                  getLocation(node.elseStatement),
+                );
+              }
+            } else if (statementAlwaysExits(node.thenStatement)) {
+              for (const infoType of falseTypes ?? []) {
+                addTypedBranch(infoType, tail, getLocation(node));
               }
             }
+          } else if (ts.isSwitchStatement(node) && isInfoTypeExpression(node.expression)) {
+            for (const clause of node.caseBlock.clauses) {
+              if (!ts.isCaseClause(clause)) continue;
+              const infoType = stringLiteralValue(clause.expression);
+              if (infoType !== null) addTypedBranch(infoType, clause, getLocation(clause));
+            }
           }
-          ts.forEachChild(node, collectNestedInfoBranches);
+          ts.forEachChild(node, collectTypedBranches);
         }
-        collectNestedInfoBranches(changeBody);
+        collectTypedBranches(changeBody);
 
-        if (!foundBranches) {
+        if (knownInfoTypes.size === 0) {
           // General change method handling all Info types
           branches.push(
             extractBranchDetails(member.body, '*', getLocation(member)),

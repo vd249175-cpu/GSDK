@@ -1,4 +1,6 @@
 import type { DomainChangeContext, Info, WorldChangeContext } from '../protocol/types';
+import { extractPortableAnalysisSnapshots } from '../analysis/portable-facts';
+import type { PortableAnalysisSnapshot } from '../analysis/model';
 import type { Node } from './node';
 import { NativeRuleSpace } from './native-space';
 import type { NativeHandler, NativeInfo } from './native-space';
@@ -9,6 +11,15 @@ export interface DescribedDomainNode<S extends Record<string, unknown>> {
   handler: NativeHandler<S>;
   isWorldNode: boolean;
   dispose: () => Promise<void>;
+}
+
+function describeAnalysisFacts(node: Node<any>): PortableAnalysisSnapshot {
+  const explicit = (node as Node<any> & { readonly analysisFacts?: PortableAnalysisSnapshot })
+    .analysisFacts;
+  if (explicit) return explicit;
+  const [snapshot] = extractPortableAnalysisSnapshots([node]);
+  if (!snapshot) throw new Error(`Unable to describe analysis facts for Node ${node.id}`);
+  return snapshot;
 }
 
 /**
@@ -60,6 +71,7 @@ export function mountDomainNode<S extends Record<string, unknown>>(
     isWorldNode: described.isWorldNode,
     dispose: described.dispose,
     nodeInstance: node,
+    analysisFacts: describeAnalysisFacts(node),
   });
   try {
     node.onMount();
@@ -84,7 +96,12 @@ export async function replaceDomainNode<S extends Record<string, unknown>>(
       described.initialState,
       described.handler,
       options,
-      { isWorldNode: described.isWorldNode, dispose: described.dispose, nodeInstance: node },
+      {
+        isWorldNode: described.isWorldNode,
+        dispose: described.dispose,
+        nodeInstance: node,
+        analysisFacts: describeAnalysisFacts(node),
+      },
     );
   } catch (error) {
     await node.dispose();

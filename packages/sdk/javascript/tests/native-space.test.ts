@@ -403,6 +403,8 @@ describe.skipIf(!binary)('Native rule space (JS entities on Rust scheduling)', (
         super('alpha-node', 'Alpha', { count: 0 });
       }
       protected override change(info: any, ctx: any) {
+        const diagnosticExample = "ctx.send({ type: 'FakeInfo' }, 'gamma-node')";
+        void diagnosticExample;
         if (info.type === 'Ping') {
           ctx.send({ type: 'PongInfo', value: 1 }, this.targetId);
         }
@@ -441,6 +443,11 @@ describe.skipIf(!binary)('Native rule space (JS entities on Rust scheduling)', (
       expect.arrayContaining([
         expect.objectContaining({ from: 'alpha-node', to: 'beta-node', infoType: 'PongInfo' }),
         expect.objectContaining({ from: 'beta-node', to: 'gamma-node', infoType: 'AckInfo' }),
+      ]),
+    );
+    expect(topo1.routes).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 'alpha-node', to: 'gamma-node', infoType: 'FakeInfo' }),
       ]),
     );
 
