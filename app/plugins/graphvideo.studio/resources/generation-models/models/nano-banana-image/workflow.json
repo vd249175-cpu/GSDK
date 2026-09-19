@@ -1,4 +1,0 @@
-{
-  "4": { "class_type": "SaveImage", "inputs": { "filename_prefix": "image/Nano_Banana2", "images": ["3", 0] } },
-  "3": { "class_type": "GeminiNanoBanana2V2", "inputs": { "prompt": "", "model": "Nano Banana 2 (Gemini 3.1 Flash Image)", "model.aspect_ratio": "16:9", "model.resolution": "1K", "model.thinking_level": "MINIMAL", "seed": 42, "response_modalities": "IMAGE", "system_prompt": "You are an expert image-generation engine. Render high quality visual output.", "temperature": 1, "top_p": 0.95 } }
-}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-const styleSources = import.meta.glob('../../../../app/plugins/graphvideo.studio/frontend/styles/*.css', {
+const styleSources = import.meta.glob('../../../../app/plugins/**/frontend/**/*.css', {
   eager: true,
   import: 'default',
   query: '?raw',

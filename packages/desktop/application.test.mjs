@@ -8,8 +8,8 @@ import { loadBackendPlugins } from './host/plugin-loader.mjs'
 describe('application assembly', () => {
   it('loads the repository application with plugin-owned host and renderer', () => {
     const app = loadApplication()
-    expect(app.hostEntry).toBe(resolve(app.directory, 'plugins/frontend/graphvideo.studio/desktop/main.mjs'))
-    expect(app.rendererEntry).toBe(resolve(app.directory, 'plugins/frontend/graphvideo.studio/frontend/main.tsx'))
+    expect(app.hostEntry).toBe(resolve(app.directory, 'plugins/backend/demo-topology/desktop/demo-controller.mjs'))
+    expect(app.rendererEntry).toBe(resolve(app.directory, 'plugins/frontend/demo-topology/frontend/app.tsx'))
   })
   it('resolves and loads a plugin outside the application directory and rejects entry escape', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gv-assembly-'))

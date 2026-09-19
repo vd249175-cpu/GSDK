@@ -97,13 +97,32 @@ export default { id: 'example.contract' };
     expect(() => loadRunConfig(configPath)).toThrow('duplicate graph instance');
   });
 
-  it('injects a standalone Studio Node ID and explicit targets', async () => {
+  it('injects a standalone Node ID and explicit targets', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gv-p8-node-'));
     temporaryRoots.push(root);
+    const pluginDir = join(root, 'custom-plugin');
+    mkdirSync(pluginDir, { recursive: true });
+    writeFileSync(join(pluginDir, 'graphvideo.plugin.json'), JSON.stringify({
+      id: 'example.custom', name: 'Custom', version: '1.0.0', apiVersion: 2, kind: 'backend',
+      contributes: { backend: 'backend.mjs', nodeFactories: ['createCustomNode'], graphFactories: [] },
+    }, null, 2));
+    writeFileSync(join(pluginDir, 'backend.mjs'), `
+      export function createCustomNode(ctx) {
+        return {
+          id: ctx.instanceId,
+          targets: ctx.bindings ?? {},
+          dispose: async () => {},
+        };
+      }
+      export default {
+        id: 'example.custom',
+        createCustomNode,
+      };
+    `);
     const { loadRunConfig } = await import('../../tooling/run/src/lifecycle.mjs');
     const configPath = writeRun(root, 'slice', baseDocument({
-      plugins: { backend: [{ id: 'graphvideo.studio', path: join(repoRoot, 'app/plugins/backend/graphvideo.studio') }], frontend: [] },
-      graph: { instances: [{ kind: 'node', id: 'custom-document', factory: { plugin: 'graphvideo.studio', name: 'createMarkdownSourceNode' }, bindings: { parser: 'collector', registry: 'persistence/registry' } }] },
+      plugins: { backend: [{ id: 'example.custom', path: pluginDir }], frontend: [] },
+      graph: { instances: [{ kind: 'node', id: 'custom-document', factory: { plugin: 'example.custom', name: 'createCustomNode' }, bindings: { parser: 'collector', registry: 'persistence/registry' } }] },
     }));
     const { nodes } = await loadRunNodes(loadRunConfig(configPath));
     expect(nodes).toHaveLength(1);

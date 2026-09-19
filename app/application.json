@@ -1,15 +1,15 @@
 {
-  "id": "graphvideo-studio",
-  "name": "GraphVideo Studio",
+  "id": "graphframework-demo",
+  "name": "GraphFramework Demo",
   "version": "1.0.0",
   "defaultTheme": "dark",
-  "defaultWorkspace": "editing",
+  "defaultWorkspace": "default",
   "plugins": [
-    { "id": "graphvideo.studio", "path": "plugins/backend/graphvideo.studio" },
-    { "id": "graphvideo.studio", "path": "plugins/frontend/graphvideo.studio" }
+    { "id": "demo.topology", "path": "plugins/backend/demo-topology" },
+    { "id": "demo.topology", "path": "plugins/frontend/demo-topology" }
   ],
   "desktop": {
-    "host": { "pluginId": "graphvideo.studio", "entry": "desktop/main.mjs" },
-    "renderer": { "pluginId": "graphvideo.studio", "entry": "frontend/main.tsx" }
+    "host": { "pluginId": "demo.topology", "entry": "desktop/demo-controller.mjs" },
+    "renderer": { "pluginId": "demo.topology", "entry": "frontend/app.tsx" }
   }
 }

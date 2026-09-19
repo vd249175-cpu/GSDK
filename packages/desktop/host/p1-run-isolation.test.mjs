@@ -46,7 +46,7 @@ describe('P1 run configuration and isolation', () => {
     expect(parsed.baseDirectory).toBe(runRoot);
     expect(parsed.resources.generatedDirectory).toBe(join(runRoot, '.generated'));
     const layout = defaultGeneratedLayout(runRoot);
-    const outfile = runBackendOutfile(layout, 'graphvideo.studio', 'backend.ts');
+    const outfile = runBackendOutfile(layout, 'demo.topology', 'backend.ts');
     expect(outfile.startsWith(layout.backend)).toBe(true);
     expect(outfile).not.toContain(resolve('app/plugins'));
     const spaced = join(root, 'spaced name', 'run.config.json');
@@ -67,14 +67,9 @@ describe('P1 run configuration and isolation', () => {
     const duplicated = writeConfig(root, 'dup', {
       graph: { instances: [{ kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }, { kind: 'node', id: 'example.counter', factory: { plugin: 'example.hello-counter', name: 'createCounterNode' } }] },
     });
-    const parsedDup = parseRunConfig(duplicated.document, {
+    expect(() => parseRunConfig(duplicated.document, {
       configPath: duplicated.configPath, baseDirectory: duplicated.runRoot,
-    });
-    // Same-ID requests declare a shared mount: config keeps both declarations,
-    // the run assembly mounts example.counter once instead of throwing.
-    expect(parsedDup.graph.instances.map((instance) => instance.nodeId)).toEqual([
-      'example.counter', 'example.counter',
-    ]);
+    })).toThrow('duplicate graph instance');
     const missing = writeConfig(root, 'missing', {
       lifecycle: { startInfos: [{ targetNodeId: 'example.counter', info: { kind: 'IncrementInfo' } }] },
     });
