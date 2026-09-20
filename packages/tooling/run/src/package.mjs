@@ -172,7 +172,7 @@ export function sha256OfFile(path) {
 export function readCapabilityManifestFile(directory) {
   const path = join(directory, CAPABILITY_MANIFEST_FILE);
   if (!existsSync(path)) throw new Error(`Capability manifest not found: ${path}`);
-  return readCapabilityManifest(JSON.parse(readFileSync(path, 'utf8')), path);
+  return readCapabilityManifest(JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, '')), path);
 }
 
 export function readCapabilityManifest(value, label = 'capability manifest') {
@@ -371,7 +371,7 @@ function checkPackagedPlugin(stagingDir, plugin, warnings) {
   const directory = assertInsideStaging(stagingDir, plugin.path, 'plugin path');
   const manifestPath = join(directory, 'graphframework.plugin.json');
   if (!existsSync(manifestPath)) throw new Error(`Packaged plugin is missing its manifest: ${plugin.path}`);
-  const raw = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const raw = JSON.parse(readFileSync(manifestPath, 'utf8').replace(/^\uFEFF/, ''));
   if (raw.id !== plugin.id) throw new Error(`Plugin identity mismatch: ${plugin.id} (manifest says ${raw.id})`);
   if (raw.apiVersion !== 2) throw new Error(`Plugin ${plugin.id} apiVersion must be 2 for capability sharing`);
   const kind = plugin.kind ?? 'backend';
@@ -519,7 +519,7 @@ export async function installCapability(zipPath, { dir = null, runConfigPath = n
   let candidateModules = null;
   if (runDir) {
     const configPath = join(runDir, 'run.config.json');
-    const document = JSON.parse(readFileSync(configPath, 'utf8'));
+    const document = JSON.parse(readFileSync(configPath, 'utf8').replace(/^\uFEFF/, ''));
     const staging = mkdtempSync(join(tmpdir(), 'gv-cap-probe-'));
     const bufferProbe = readFileSync(resolve(zipPath));
     const entriesProbe = parseZipEntries(bufferProbe);
@@ -571,7 +571,7 @@ export async function installCapability(zipPath, { dir = null, runConfigPath = n
   }
   if (runDir && candidateModules) {
     const configPath = join(runDir, 'run.config.json');
-    const document = JSON.parse(readFileSync(configPath, 'utf8'));
+    const document = JSON.parse(readFileSync(configPath, 'utf8').replace(/^\uFEFF/, ''));
     document.assembly = { ...(document.assembly ?? {}), modules: candidateModules };
     writeFileSync(configPath, `${JSON.stringify(document, null, 2)}\n`);
     assemblyModule = relative(runDir, join(target, CAPABILITY_ASSEMBLY_FILE)).split(sep).join('/');
@@ -603,8 +603,8 @@ async function checkInstalledCapabilityDrift({ capabilitiesDir, capabilityId, st
       drifted.push(`plugin ${pluginId} is missing locally`);
       continue;
     }
-    const zipManifest = JSON.parse(readFileSync(join(staging, zipPlugin.path, 'graphframework.plugin.json'), 'utf8'));
-    const installedManifest = JSON.parse(readFileSync(join(installedDir, installed.path, 'graphframework.plugin.json'), 'utf8'));
+    const zipManifest = JSON.parse(readFileSync(join(staging, zipPlugin.path, 'graphframework.plugin.json'), 'utf8').replace(/^\uFEFF/, ''));
+    const installedManifest = JSON.parse(readFileSync(join(installedDir, installed.path, 'graphframework.plugin.json'), 'utf8').replace(/^\uFEFF/, ''));
     if (JSON.stringify(zipManifest) !== JSON.stringify(installedManifest)) {
       drifted.push(`plugin ${pluginId} manifest drifted locally`);
     }
