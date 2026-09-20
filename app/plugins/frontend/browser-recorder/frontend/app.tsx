@@ -60,7 +60,7 @@ export function App() {
       setStatus(state.status ?? 'idle')
       setSessionId(state.sessionId ?? null)
       setHandle(state.handle ?? null)
-      if (state.lastActions) setLastActions(state.lastActions)
+      setLastActions(state.lastActions ?? null)
       setEventCount(state.eventCount ?? 0)
       setLastEvent(state.lastEvent ?? null)
       setLastError(state.lastError ?? null)
@@ -71,13 +71,15 @@ export function App() {
 
   useEffect(() => {
     refresh()
-    const timer = setInterval(refresh, 800)
+    const timer = setInterval(refresh, 400)
     return () => clearInterval(timer)
   }, [refresh])
 
   const handleStart = async () => {
     if (!window.recorder || busy) return
     setBusy(true)
+    setLastActions(null)
+    setEventCount(0)
     try {
       const sId = `session-${Date.now().toString(36)}`
       await window.recorder.start(sId)
@@ -265,7 +267,7 @@ export function App() {
                     <span>
                       正在录制中… 请在已打开的专用浏览器中执行点击、输入或跳转动作。
                       <br />
-                      点击顶栏 <strong>“停止录制”</strong> 后，这里将实时输出生成的 Playwright 原生代码。
+                      Playwright 原生动作代码将在此处实时流式显示。
                     </span>
                   ) : (
                     <span>

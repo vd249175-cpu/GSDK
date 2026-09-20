@@ -54,7 +54,7 @@ export class RecordingSessionNode extends Node {
         return
       }
       const sessionId = typeof info.sessionId === 'string' && info.sessionId.length > 0 ? info.sessionId : this.id
-      ctx.patchState({ status: 'recording', sessionId, handle: null, lastError: null })
+      ctx.patchState({ status: 'recording', sessionId, handle: null, lastActions: null, lastError: null, eventCount: 0, lastEvent: null })
       ctx.send({ type: 'StartCaptureInfo', sessionId }, this.executionId)
     } else if (info.type === 'StopRecordingInfo') {
       if (ctx.read('status') !== 'recording') {
@@ -66,7 +66,14 @@ export class RecordingSessionNode extends Node {
     } else if (info.type === 'RecordingStatusInfo') {
       ctx.patchState({ status: info.status, handle: info.handle ?? ctx.read('handle'), lastActions: info.actions ?? ctx.read('lastActions') ?? null, lastError: null })
     } else if (info.type === 'RecordingEventInfo') {
-      ctx.patchState({ eventCount: ctx.read('eventCount') + 1, lastEvent: info.event ?? null })
+      const current = ctx.read('lastActions') || ''
+      const code = info.event?.code || (info.event?.kind === 'action' ? info.event.code : null)
+      const nextActions = code ? (current ? `${current}\n${code}` : code) : current
+      ctx.patchState({
+        eventCount: ctx.read('eventCount') + 1,
+        lastEvent: info.event ?? null,
+        lastActions: nextActions || null,
+      })
     }
   }
 }
@@ -76,27 +83,50 @@ export class BrowserCaptureNode extends ExecutionWorldNode {
     id = 'example.browser-recorder/execution',
     sessionId = 'example.browser-recorder/session',
     adapter = missingAdapter(CONTROL_ADAPTER_ID),
+    observationId = null,
   ) {
     super(id, 'BrowserCapture', { lastOp: null, lastHandle: null, lastError: null })
     this.sessionId = sessionId
     this.captureControl = adapter
+    this.observationId = observationId
   }
 
   async change(info, ctx) {
     if (info.type === 'StartCaptureInfo') {
-      const observation = await ctx.effectAdapter(this.captureControl, { op: 'start', sessionId: info.sessionId })
-      ctx.patchState({ lastOp: 'start', lastHandle: observation?.handle ?? null, lastError: null })
-      ctx.send(
-        { type: 'RecordingStatusInfo', status: 'recording', sessionId: info.sessionId, handle: observation?.handle ?? null },
-        this.sessionId,
-      )
+      try {
+        const observation = await ctx.effectAdapter(this.captureControl, { op: 'start', sessionId: info.sessionId })
+        ctx.patchState({ lastOp: 'start', lastHandle: observation?.handle ?? null, lastError: null })
+        ctx.send(
+          { type: 'RecordingStatusInfo', status: 'recording', sessionId: info.sessionId, handle: observation?.handle ?? null },
+          this.sessionId,
+        )
+        if (this.observationId) {
+          ctx.send({ type: 'PollRecordingEventsInfo', sessionId: info.sessionId }, this.observationId)
+        }
+      } catch (err) {
+        const message = err?.message ?? String(err)
+        ctx.patchState({ lastOp: 'start', lastError: message })
+        ctx.send(
+          { type: 'RecordingStatusInfo', status: 'idle', sessionId: info.sessionId, error: message },
+          this.sessionId,
+        )
+      }
     } else if (info.type === 'StopCaptureInfo') {
-      const observation = await ctx.effectAdapter(this.captureControl, { op: 'stop', sessionId: info.sessionId })
-      ctx.patchState({ lastOp: 'stop', lastError: null })
-      ctx.send(
-        { type: 'RecordingStatusInfo', status: 'idle', sessionId: info.sessionId, handle: ctx.read('lastHandle'), actions: observation?.actions ?? null },
-        this.sessionId,
-      )
+      try {
+        const observation = await ctx.effectAdapter(this.captureControl, { op: 'stop', sessionId: info.sessionId })
+        ctx.patchState({ lastOp: 'stop', lastError: null })
+        ctx.send(
+          { type: 'RecordingStatusInfo', status: 'idle', sessionId: info.sessionId, handle: ctx.read('lastHandle'), actions: observation?.actions ?? null },
+          this.sessionId,
+        )
+      } catch (err) {
+        const message = err?.message ?? String(err)
+        ctx.patchState({ lastOp: 'stop', lastError: message })
+        ctx.send(
+          { type: 'RecordingStatusInfo', status: 'idle', sessionId: info.sessionId, error: message },
+          this.sessionId,
+        )
+      }
     }
   }
 }
@@ -114,16 +144,23 @@ export class BrowserObserverNode extends ObservationWorldNode {
 
   async change(info, ctx) {
     if (info.type === 'PollRecordingEventsInfo') {
-      const observation = await ctx.effectAdapter(this.captureEvents, {
-        op: 'poll',
-        sessionId: info.sessionId,
-        cursor: info.cursor ?? null,
-      })
-      const events = Array.isArray(observation?.events) ? observation.events : []
-      for (const event of events) {
-        ctx.send({ type: 'RecordingEventInfo', sessionId: info.sessionId, event }, this.sessionId)
+      try {
+        const observation = await ctx.effectAdapter(this.captureEvents, {
+          op: 'poll',
+          sessionId: info.sessionId,
+          cursor: info.cursor ?? null,
+        })
+        const events = Array.isArray(observation?.events) ? observation.events : []
+        for (const event of events) {
+          ctx.send({ type: 'RecordingEventInfo', sessionId: info.sessionId, event }, this.sessionId)
+        }
+        ctx.patchState({ lastCount: ctx.read('lastCount') + events.length, lastError: null })
+        if (observation?.shouldContinue) {
+          ctx.send({ type: 'PollRecordingEventsInfo', sessionId: info.sessionId, cursor: observation?.cursor ?? null }, this.id)
+        }
+      } catch (err) {
+        ctx.patchState({ lastError: err?.message ?? String(err) })
       }
-      ctx.patchState({ lastCount: ctx.read('lastCount') + events.length, lastError: null })
     }
   }
 }
@@ -140,6 +177,7 @@ export function createBrowserRecorder(ctx) {
     idFor('execution'),
     idFor('session'),
     dependencies.captureControl ?? missingAdapter(CONTROL_ADAPTER_ID),
+    idFor('observation'),
   )
   const observation = new BrowserObserverNode(
     idFor('observation'),
@@ -190,6 +228,8 @@ export function createBrowserCaptureEventsAdapter({ runCli, session = 'rec' } = 
     },
   }
 }
+
+export { createCdpRecorder } from './cdp-recorder.mjs'
 
 const isStartRecordingInfo = (info) => info?.type === 'StartRecordingInfo'
   && (info.sessionId === undefined || typeof info.sessionId === 'string')

@@ -15,7 +15,7 @@
   "backend": {
     "host": "host.mjs",
     "dependencies": {
-      "cliSession": "rec"
+      "cdpUrl": "http://127.0.0.1:9343"
     }
   },
   "frontend": {
