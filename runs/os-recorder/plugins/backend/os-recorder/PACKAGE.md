@@ -1,0 +1,49 @@
+---
+type: package
+title: OS Recorder
+description: 基于 Microsoft UFO 用户演示格式的 Windows 全桌面操作录制插件
+package_id: example.os-recorder
+package_version: 1.0.0
+maintainer: example-team
+update_policy: publisher-replace-only
+downstream_modification: forbidden
+---
+
+# OS Recorder
+
+本插件维护跨应用桌面录制会话的权威 State。物理层采用 Microsoft UFO 官方用户
+演示工作流所支持的 Windows Steps Recorder，输出 ZIP/MHT；产物可以继续交给
+`packages/ufo/record_processor` 处理。
+
+## 公开契约
+
+- renderer 只可向 `<instance>/session` 发送：
+  - `StartRecordingInfo { sessionId? }`
+  - `StopRecordingInfo {}`
+- Projection 包含：`status`、`sessionId`、`eventCount`、`events`、
+  `applications`、`artifactPath`、`startedAt`、`completedAt` 与 `lastError`。
+- 物理结果均经内部 Info 回到 Owner；renderer 不可直接调用 execution 或
+  observation 节点。
+
+## 物理边界
+
+- `RecordingCaptureNode` 是 ExecutionWorldNode，只负责启动/停止 PSR。
+- `RecordingObserverNode` 是 ObservationWorldNode，只读取并解析已完成的录制产物。
+- `RecordingSessionNode` 是纯领域 Owner，不访问进程、文件或 Windows API。
+- Adapter 位于 `runs/os-recorder/bridge/`，UFO 上游源码固定在 `packages/ufo/`。
+
+## 验证
+
+```bash
+node packages/desktop/node_modules/vitest/vitest.mjs run --root . --config runs/os-recorder/vitest.config.mjs --silent
+node packages/desktop/node_modules/typescript/bin/tsc --noEmit -p runs/os-recorder/tsconfig.json
+node packages/tooling/run/src/cli.mjs validate runs/os-recorder/run.config.json
+```
+
+正式运行只使用根目录统一入口：
+
+```bash
+bash ./run.sh start runs/os-recorder/run.config.json
+bash ./run.sh status runs/os-recorder/run.config.json
+bash ./run.sh stop runs/os-recorder/run.config.json
+```

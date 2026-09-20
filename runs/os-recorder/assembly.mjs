@@ -3,13 +3,21 @@ export default {
   contribute(run) {
     run.backendPlugin({
       id: 'example.os-recorder',
-      path: '../../app/plugins/backend/os-recorder',
+      path: './plugins/backend/os-recorder',
+    });
+    run.frontendPlugin({
+      id: 'example.os-recorder',
+      path: './plugins/frontend/os-recorder',
     });
     run.graph({
       id: 'recorder',
       plugin: 'example.os-recorder',
       factory: 'createOsRecorderGraph',
     });
-    run.requireNode('recorder/session');
+    run.frontend({
+      id: 'recorder-ui',
+      plugin: 'example.os-recorder',
+      graph: 'recorder',
+    });
   },
 };
