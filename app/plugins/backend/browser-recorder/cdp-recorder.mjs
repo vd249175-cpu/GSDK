@@ -214,26 +214,6 @@ export function createCdpRecorder({ cdpUrl = 'http://127.0.0.1:9343' } = {}) {
   }
 
   const poll = async (sessionId, cursor) => {
-    if (actionQueue.length > 0) {
-      const events = actionQueue.splice(0)
-      return { events, shouldContinue: isRecording, cursor: String(Date.now()) }
-    }
-    if (!isRecording) {
-      return { events: [], shouldContinue: false, cursor }
-    }
-
-    await new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        const idx = pendingWaiters.indexOf(resolve)
-        if (idx !== -1) pendingWaiters.splice(idx, 1)
-        resolve()
-      }, 500)
-      pendingWaiters.push(() => {
-        clearTimeout(timer)
-        resolve()
-      })
-    })
-
     const events = actionQueue.splice(0)
     return { events, shouldContinue: isRecording, cursor: String(Date.now()) }
   }

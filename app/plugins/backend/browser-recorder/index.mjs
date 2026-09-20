@@ -100,9 +100,6 @@ export class BrowserCaptureNode extends ExecutionWorldNode {
           { type: 'RecordingStatusInfo', status: 'recording', sessionId: info.sessionId, handle: observation?.handle ?? null },
           this.sessionId,
         )
-        if (this.observationId) {
-          ctx.send({ type: 'PollRecordingEventsInfo', sessionId: info.sessionId }, this.observationId)
-        }
       } catch (err) {
         const message = err?.message ?? String(err)
         ctx.patchState({ lastOp: 'start', lastError: message })
@@ -155,9 +152,6 @@ export class BrowserObserverNode extends ObservationWorldNode {
           ctx.send({ type: 'RecordingEventInfo', sessionId: info.sessionId, event }, this.sessionId)
         }
         ctx.patchState({ lastCount: ctx.read('lastCount') + events.length, lastError: null })
-        if (observation?.shouldContinue) {
-          ctx.send({ type: 'PollRecordingEventsInfo', sessionId: info.sessionId, cursor: observation?.cursor ?? null }, this.id)
-        }
       } catch (err) {
         ctx.patchState({ lastError: err?.message ?? String(err) })
       }

@@ -21,4 +21,12 @@ describe('cdp-recorder', () => {
     await expect(recorder.captureEvents.execute({ op: 'invalid' }))
       .rejects.toThrow('未知 capture-events 请求')
   })
+
+  it('真实连接 9343 探活与启停', async () => {
+    const recorder = createCdpRecorder({ cdpUrl: 'http://127.0.0.1:9343' })
+    const res = await recorder.captureControl.execute({ op: 'start', sessionId: 'test-real' })
+    expect(res).toMatchObject({ handle: expect.stringContaining('cdp:9343') })
+    const stopRes = await recorder.captureControl.execute({ op: 'stop', sessionId: 'test-real' })
+    expect(stopRes).toMatchObject({ stopped: true })
+  }, 10000)
 })

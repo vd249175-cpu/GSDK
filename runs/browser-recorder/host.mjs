@@ -16,6 +16,13 @@ export async function createRunHost({ parsed } = {}) {
       captureControl,
       captureEvents,
     },
+    hostRoots: [
+      {
+        frontendId: 'recorder-ui',
+        targetNodeId: 'recorder/observation',
+        infoType: 'PollRecordingEventsInfo',
+      },
+    ],
   }
 }
 

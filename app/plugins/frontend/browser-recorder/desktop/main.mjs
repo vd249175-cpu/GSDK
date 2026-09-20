@@ -18,12 +18,33 @@ app.on('window-all-closed', () => console.log('[BrowserRecorder Host] window-all
 let mainWindow = null;
 let stopped = false;
 
+let isPolling = false;
+
 async function getSessionSnapshot() {
   try {
-    const raw = await callRunControl(runtime, 'projection');
     const graphPrefix = `${context.instance.graph ?? 'recorder'}/`;
-    const nodeEntry = raw.nodes?.[`${graphPrefix}session`] ?? raw.nodes?.['example.browser-recorder/session'];
-    const decodedState = defaultValueCodec.decode(nodeEntry?.state) ?? {};
+    let raw = await callRunControl(runtime, 'projection');
+    let nodeEntry = raw.nodes?.[`${graphPrefix}session`] ?? raw.nodes?.['example.browser-recorder/session'];
+    let decodedState = defaultValueCodec.decode(nodeEntry?.state) ?? {};
+
+    if (decodedState.status === 'recording' && !isPolling) {
+      isPolling = true;
+      try {
+        await callRunControl(runtime, 'inject-host', {
+          frontendId: context.instance.id ?? 'recorder-ui',
+          targetNodeId: `${graphPrefix}observation`,
+          info: { type: 'PollRecordingEventsInfo', sessionId: decodedState.sessionId },
+        });
+        raw = await callRunControl(runtime, 'projection');
+        nodeEntry = raw.nodes?.[`${graphPrefix}session`] ?? raw.nodes?.['example.browser-recorder/session'];
+        decodedState = defaultValueCodec.decode(nodeEntry?.state) ?? {};
+      } catch {
+        // ignore poll errors
+      } finally {
+        isPolling = false;
+      }
+    }
+
     return {
       status: decodedState.status ?? 'idle',
       sessionId: decodedState.sessionId ?? null,
