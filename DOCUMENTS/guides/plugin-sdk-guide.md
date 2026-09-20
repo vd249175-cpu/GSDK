@@ -8,6 +8,8 @@ tags: [sdk, plugin, manifest, hot-reload, lifecycle]
 
 # Plugin SDK 当前边界
 
+本文是插件装载、权限、Agent 控制面和运行时替换的高级参考。普通业务插件不需要先理解这些实现细节；请先按[业务开发入门](application-development.md)完成 Node、测试与 run 装配，遇到 Manifest、宿主信任或替换问题时再回到本文。
+
 ## 目录与入口
 
 ```text
@@ -102,6 +104,6 @@ renderer 只能调用 preload 暴露的固定命令，不能提交任意 Node ID
 ## 验收
 后端 Node 优先使用 `@graphframework/sdk/testing` 的 `createTestRuntime` 做确定性测试；原生桥接、热替换和 Electron 加载使用本仓库现有测试与验收命令。命令正本见 [测试分层](testing.md) §验证命令；插件级入口示例：
 ```bash
-npm --prefix packages/desktop test -- app/plugins/backend/hello-counter/backend.test.mjs --silent
+npm --prefix packages/desktop test -- app/plugins/hello-counter/backend.test.mjs --silent
 npm --prefix packages/desktop test -- app/plugins/backend/hello-counter/tests/native-graph-host.test.mjs --silent
 ```

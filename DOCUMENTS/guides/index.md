@@ -1,11 +1,20 @@
-# 开发者与 SDK 指南 (Guides)
+# 开发指南 (Guides)
 
-本目录为面向业务插件开发者、客户端前端工程师与系统维护者的开发与测试手册。
+本目录按使用顺序组织。业务开发者从任务入口开始，不需要先读 Kernel、daemon 或 SDK 包边界。
 
-## 概念清单
+## 开始开发
 
-* [Kernel 与 Node SDK 开发指南](kernel-sdk-guide.md) - Node、ExecutionWorldNode/ObservationWorldNode、submission 与 NativeRuleSpace 原生规则空间规约。
-* [Plugin SDK 开发指南与装配边界](plugin-sdk-guide.md) - 插件 Manifest 规范、装载器、生命周期、rendererRoots 与运行时热替换边界。
-* [Client 与 Element SDK 开发指南](client-sdk-guide.md) - 前端投影快照解码、客户端 reactive hooks 与 Workbench Element 扩展组件规范。
-* [Workbench 设计系统与样式规约](design-system.md) - 工作台设计原则、主题变量、语义 Token 与排版规范。
-* [测试分层与验证规范](testing.md) - 针对性测试分层原则、Vitest/Rust/Python 测试套件与本地验证命令指引。
+* [业务开发入门](application-development.md) - 从需求到 Node、插件、测试、run 装配与启动的完整主路径。
+* [测试分层与验证规范](testing.md) - 如何选择最小测试与项目中的验证命令正本。
+
+## 按需增加能力
+
+* [Client 与 Element SDK 开发指南](client-sdk-guide.md) - 需要桌面界面时使用的投影订阅、命令客户端与 Workbench Element。
+* [Workbench 设计系统与样式规约](design-system.md) - 需要新增或修改界面时使用的主题、语义 Token 与排版规范。
+
+## 平台与高级边界
+
+以下内容不是业务开发的前置阅读：
+
+* [Plugin SDK 开发指南与装配边界](plugin-sdk-guide.md) - Manifest 校验、宿主信任边界、Agent 控制面和运行时替换。
+* [Kernel 与 Node SDK 开发指南](kernel-sdk-guide.md) - 调度、submission、原生规则空间与底层 Node 运行契约。

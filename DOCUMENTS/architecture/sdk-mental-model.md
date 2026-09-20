@@ -1,14 +1,16 @@
 ---
 type: Architecture Specification
-title: SDK 心智模型与包边界
-description: SDK 各包职责、依赖拓扑方向与插件作者的核心契约边界。
+title: 平台 SDK 心智模型与包边界
+description: 面向平台和高级插件维护者的 SDK 包职责、依赖方向与契约边界。
 status: stable
 tags: [sdk, package-boundary, plugin-author, architecture]
 ---
 
-# SDK 心智模型：给插件开发者
+# 平台 SDK 心智模型与包边界
 
-本文只描述已存在的包与命令。`kernel` 执行语义见 `mental-model.md`；插件装卸见 `plugin-sdk-guide.md`。
+本文是平台与高级插件开发参考，不是普通业务开发的前置阅读。第一次新增业务功能请从[业务开发入门](../guides/application-development.md)开始；只有需要判断包边界、维护宿主或扩展跨语言能力时再阅读本文。
+
+本文只描述已存在的包与命令。内核执行语义见[当前心智模型](mental-model.md)；插件装卸见 [Plugin SDK](../guides/plugin-sdk-guide.md)。
 
 ## 1. 包与依赖方向
 
