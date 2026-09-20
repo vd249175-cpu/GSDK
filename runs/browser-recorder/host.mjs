@@ -21,7 +21,10 @@ const runCli = async (args) => {
     const { stdout } = await execFileAsync('playwright-cli', args, { timeout: 120000 })
     return stdout
   } catch (error) {
-    throw new Error(`playwright-cli ${args.join(' ')} 失败：${error.message ?? error}`, { cause: error })
+    const hint = error.message?.includes('ECONNREFUSED') || error.message?.includes('Target page, context or browser has been closed')
+      ? ' (提示：专用浏览器可能未启动或会话断开，请先运行 .agents/skills/browser-setup/scripts/browser.ps1 -Action Start 探活 9343 端口)'
+      : ''
+    throw new Error(`playwright-cli ${args.join(' ')} 失败：${error.message ?? error}${hint}`, { cause: error })
   }
 }
 

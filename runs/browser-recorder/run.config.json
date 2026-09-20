@@ -14,7 +14,9 @@
   },
   "backend": {
     "host": "host.mjs",
-    "dependencies": {}
+    "dependencies": {
+      "cliSession": "rec"
+    }
   },
   "frontend": {
     "instances": []
