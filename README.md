@@ -1,32 +1,36 @@
 # GraphFramework SDK
 
-GraphFramework 用于构建由业务事实和显式事件驱动的桌面与后端应用。业务开发者不需要先理解 Rust 内核或 SDK 内部实现。
+GraphFramework 是一个面向桌面与后端系统的因果应用框架，用于构建由业务事实和显式因果事件驱动的高可靠应用。业务开发者无需先理解 Rust 内核或底层调度实现。
 
-## 开始开发
+---
 
-1. 阅读[业务开发入门](DOCUMENTS/guides/application-development.md)，用最小示例完成 Node、插件和测试。
-2. 从 `app/plugins/backend/hello-counter/` 复制后台插件起点。
-3. 从 `runs/alice/` 复制自己的独立 run，并修改名称与装配。
-4. 先运行针对性测试和配置校验，再通过根目录 `run.sh` 启动。
+## 快速运行
+
+应用运行采用统一规范入口 `run.sh`：
 
 ```bash
+# 校验 run 配置
 node packages/tooling/run/src/cli.mjs validate runs/<name>/run.config.json
+
+# 启动运行
 bash ./run.sh start runs/<name>/run.config.json
+
+# 查看状态
 bash ./run.sh status runs/<name>/run.config.json
+
+# 平稳停止
 bash ./run.sh stop runs/<name>/run.config.json
 ```
 
-Windows 用户也可以运行 `runs/<name>/start.cmd`、`status.cmd` 和 `stop.cmd`。不要用 `npm start` 或直接启动 Electron 绕过统一 run。
+> [!NOTE]
+> Windows 用户亦可直接执行 `runs/<name>/start.cmd`、`status.cmd` 与 `stop.cmd`。严禁通过 `npm start` 或直接拉起 Electron 绕过统一 run。
 
-## 按任务找文档
+---
 
-| 任务 | 文档 |
-| --- | --- |
-| 新增业务功能或插件 | [业务开发入门](DOCUMENTS/guides/application-development.md) |
-| 测试与提交前验证 | [测试分层](DOCUMENTS/guides/testing.md) |
-| 新增桌面界面 | [Client 与 Element SDK](DOCUMENTS/guides/client-sdk-guide.md) |
-| 排查业务因果链 | [Node 实例因果调试](DOCUMENTS/diagnostics/debug-guide.md) |
-| 首次准备开发环境 | [文档导航：首次源码接入](DOCUMENTS/README.md#首次源码接入) |
-| 维护内核、宿主或跨语言协议 | [平台架构](DOCUMENTS/architecture/) |
+## 文档中心与开发规范
 
-完整知识库入口见 [DOCUMENTS/README.md](DOCUMENTS/README.md)。仓库协作、架构红线与唯一启动方式见 [AGENTS.md](AGENTS.md)。
+- **文档中心（三层结构）**：完整的目标入口、架构心智与权威参考详见 **[文档中心 (DOCUMENTS/README.md)](DOCUMENTS/README.md)**。
+  - 新成员接入：[第一次准备开发环境](DOCUMENTS/goals/first-setup.md)
+  - 业务开发：[开发第一个业务功能](DOCUMENTS/goals/build-feature.md)
+  - 启动与生命周期：[创建和运行独立 run](DOCUMENTS/goals/run-application.md)
+- **开发守则与安全红线**：架构红线、唯一合法启动方式与团队安全规范详见 **[AGENTS.md](AGENTS.md)**。

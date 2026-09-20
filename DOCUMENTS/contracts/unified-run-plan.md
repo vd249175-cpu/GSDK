@@ -1,14 +1,22 @@
 ---
 type: Plan
 title: 统一 run 实施计划
-description: 将默认应用、图片段和场景测试迁入同一配置驱动运行机制的阶段与验收计划。
-status: stable
-tags: [run, migration, supervisor, implementation-plan]
+description: 将默认应用、图片段和场景测试迁入同一配置驱动运行机制的阶段与验收计划（历史演进方案）。
+status: historical
+tags: [run, migration, supervisor, implementation-plan, historical]
 ---
 
 # 统一 run 实施计划
 
-`run.sh start/stop/status` 与 v2 配置支持实际后端与 Electron 前端，`runs/demo` 装配订单履约演示图。Bash 直接承担进程启动、阶段排序与等待退出；活动快照控制关闭，清理失败保留资源以供重试。已验证对称启停、场景自动关闭与清理失败重试（`host/p1/p3/p4/p5/p8/p9`）。信号、启动中取消与旧插件目录收敛尚未全部验收。目录约定见[多 Agent 协作指南](multi-agent-run-guide.md)，源码现状见[心智模型](../architecture/mental-model.md)。
+> [!NOTE]
+> **历史演进计划归档**：
+> 本文档记录统一 run 机制从早期多入口演进至配置驱动运行的阶段性实施方案与历史里程碑（P0–P7）。
+> 当前已成立的最新事实与日常开发规范请参阅：
+> - 任务目标指南：[创建和运行独立 run](../goals/run-application.md)
+> - 权威生命周期：[命名 run 生命周期](../architecture/application-lifecycle.md)
+> - 多 Agent 隔离契约：[多 Agent 独立开发与运行协作指南](multi-agent-run-guide.md)
+>
+> 本计划不再作为日常开发的默认入口。
 
 ## 1. 交付目标
 

@@ -12,7 +12,7 @@ tags: [testing, vitest, cargo-test, verification, tdd]
 
 | 范围 | 位置 | 入口 |
 | --- | --- | --- |
-| 命名 run（配置/装配/场景/启停） | `packages/tooling/run/src` + `packages/desktop/host/p*-run-*.test.mjs` | `npm --prefix packages/desktop test -- host/p1-run-isolation.test.mjs host/p3-run-lifecycle.test.mjs host/p4-frontend-discovery.test.mjs host/p5-run-scenario.test.mjs host/p8-factory-instances.test.mjs host/p9-bash-lifecycle.test.mjs --silent` |
+| 命名 run（配置/装配/场景/启停） | `packages/tooling/run/src` + `packages/desktop/host/p*-run-*.test.mjs` | `npm --prefix packages/desktop test -- host/p1-run-isolation.test.mjs host/p3-run-lifecycle.test.mjs host/p4-frontend-discovery.test.mjs host/p5-run-scenario.test.mjs host/p8-factory-instances.test.mjs host/p9-bash-lifecycle.test.mjs host/p10-capability-share.test.mjs --silent` |
 | JavaScript SDK | `packages/sdk/javascript/tests` | `npm --prefix packages/sdk/javascript test -- <目标> --silent` |
 | 桌面宿主 | `packages/desktop/host`、`application.test.mjs` | `npm --prefix packages/desktop test -- <目标> --silent` |
 | 插件 | `app/plugins/*` | 桌面测试配置加载相应插件测试；新拆分插件将测试放在插件的 `tests/` 中 |

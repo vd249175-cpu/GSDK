@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync, renameSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 
 /**
  * Writes the parsed active-run snapshot: identity, loopback endpoint, config
@@ -14,6 +14,7 @@ export function writeSnapshotRecord(runtimeDirectory, snapshot) {
 }
 
 export function writeJsonRecord(path, value) {
+  mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.next`;
   writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`);
   // Windows readers/antivirus may briefly deny replacement; never truncate

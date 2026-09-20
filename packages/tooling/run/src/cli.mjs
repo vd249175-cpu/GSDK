@@ -1,17 +1,44 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { installCapability, packCapability, verifyCapability } from './package.mjs';
 import { runBackend } from './host.mjs';
 import { buildRunFrontends, frontendOperation } from './frontend.mjs';
 import { resolveRunAssembly } from './assembly.mjs';
 import { callRunControl } from './control.mjs';
 import { prepareRun, kernelReady, kernelShutdown, awaitHost, awaitStart, readSnapshot, runtimeFor, updateSession, finalizeRun, statusRun, stopRun, startResult, sleep, loadRunConfig, resolveDaemonBinary } from './session.mjs';
+function parseKeyOptions(args) {
+  const options = {};
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === '--expect-sha256' && typeof args[index + 1] === 'string') {
+      options.expectSha256 = args[index + 1];
+      index += 1;
+    }
+  }
+  return options;
+}
 
-const [op, argument, extra] = process.argv.slice(2);
+function parseInstallOptions(args) {
+  const options = {};
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--dir' && typeof args[index + 1] === 'string') { options.dir = args[index + 1]; index += 1; }
+    else if (arg === '--run' && typeof args[index + 1] === 'string') { options.runConfigPath = args[index + 1]; index += 1; }
+    else if (arg === '--update') options.update = true;
+    else if (arg === '--expect-sha256' && typeof args[index + 1] === 'string') { options.expectSha256 = args[index + 1]; index += 1; }
+  }
+  return options;
+}
+
+
+const [op, argument, extra, ...rest] = process.argv.slice(2);
 const config = argument ? resolve(argument) : null;
 try {
   let result;
-  if (op === 'id') result = randomUUID();
+  if (op === 'pack') result = await packCapability(argument, extra ?? rest[0]);
+  else if (op === 'verify') result = await verifyCapability(argument, parseKeyOptions([extra, ...rest].filter((value) => value !== undefined)));
+  else if (op === 'install') result = await installCapability(argument, parseInstallOptions([extra, ...rest].filter((value) => value !== undefined)));
+  else if (op === 'id') result = randomUUID();
   else if (op === 'validate') { resolveDaemonBinary(await resolveRunAssembly(loadRunConfig(config))); result = { valid: true }; }
   else if (op === 'prepare') result = await prepareRun(config, extra);
   else if (op === 'kernel-ready') result = await kernelReady(config);

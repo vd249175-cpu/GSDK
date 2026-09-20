@@ -1,0 +1,1 @@
+{"groups":{"example.os-recorder":{"children":["domain","execution","observation"]},"domain":{"children":["example.os-recorder/session"]},"execution":{"children":["example.os-recorder/execution"]},"observation":{"children":["example.os-recorder/observation"]}},"root":"example.os-recorder","version":1}

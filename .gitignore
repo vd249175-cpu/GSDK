@@ -43,3 +43,13 @@ app/plugins/graphvideo.studio/resources/sample-media/
 runs/*/.generated/
 runs/*/run.lock.json
 
+.agents
+
+# Playwright MCP run output (screenshots, page snapshots)
+.playwright-mcp/
+
+# Playwright CLI run output
+.playwright-cli/
+
+.omp/
+skills-lock.json

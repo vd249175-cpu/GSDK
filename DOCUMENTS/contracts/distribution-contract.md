@@ -32,7 +32,7 @@ JavaScript 可用 N-API 或 daemon，Python SDK 当前使用 daemon；Python cty
 
 ## 2. 应用与独立插件
 
-应用以 `application.json` 显式选择插件及路径。本仓库插件在 `app/plugins/`，外部插件可以位于其它目录。平台生产源码不得导入业务插件实现；插件不得相对导入另一个插件的内部源码。
+应用以 `application.json` 或 run `assembly.mjs` 显式选择插件及路径。本仓库核心插件在 `app/plugins/`，非核心插件在各自 run 下的 `plugins/`（如 `runs/<name>/plugins/` 或 `runs/main/plugins/`）。**非核心插件绝对不进入 `app/`**。平台生产源码不得导入业务插件实现；插件不得相对导入另一个插件的内部源码。
 
 正式插件仍是普通插件，只由指定发布者整体更新。接收方为工作流补充的自动化能力与团队定制 Node 放在自己的普通插件中，通过公开目标 Node 与定向 Info 协作；工作流正文自身是飞书知识库文档，不是插件。完整规则见[插件发布与协作契约](plugin-collaboration-contract.md)。
 
@@ -62,15 +62,22 @@ JavaScript 可用 N-API 或 daemon，Python SDK 当前使用 daemon；Python cty
 
 | 分享对象 | 分发载体 | 权威内容 | 不携带内容 |
 | --- | --- | --- | --- |
-| 通用知识与工作流 | 飞书知识库 | 可共同维护的知识正文、工作流步骤、适用条件及所需能力版本 | Node/前端源码、二进制、凭证 |
-| 组合能力包 | 指定飞书群聊中的版本化 ZIP 附件 | `assembly.mjs`、该 assembly 实际提供的后端插件与前端插件 | 工作流正文、核心 Node、SDK、内核、桌面宿主、`AGENTS.md`、Skills |
-| 基础软件更新 | 团队批量更新通道 | SDK、内核、桌面宿主、核心组件及统一插件版本 | 个人上下文和工作流选择 |
+| **通用知识与工作流** | 飞书知识库 | 可共同维护的知识正文、工作流步骤、适用条件及所需能力版本 | Node/前端源码、二进制、凭证 |
+| **工作流场景分享** | 单个独立 Run (`runs/<name>/`) 或群聊能力包 ZIP | `run.config.json`、`assembly.mjs`、该工作流专用的非核心插件集合（保持在 run 下）、针对性测试用例 | 核心 Node、SDK、内核、桌面宿主、`AGENTS.md`、Skills、个人凭证 |
+| **基础软件更新** | 团队批量更新通道 | `packages/` + `DOCUMENTS/` + `app/` 的全面更新（其中 `app/plugins/` **仅包含核心插件**） | 个人上下文、工作流选择、非核心插件 |
 
-基础软件批量更新必须由仓库中的统一打包脚本生成，不能由发布者临时手选文件。脚本负责生成带版本号的基础软件压缩包、文件清单和 SHA-256，并排除 `AGENTS.md`、`.agents/skills`、飞书知识库与工作流正文、账号凭证、用户数据、缓存及 `.generated`。基础软件包只负责整体软件更新，不改变成员选择了哪些工作流。当前仓库尚未交付该基础软件打包脚本，这是分发工具的明确待补项。
+> [!IMPORTANT]
+> **非核心插件不进入 `app/` 铁律**：
+> - `app/` 仅承载核心配置与正式交付的**核心插件（Core Plugins）**；
+> - **所有非核心插件（业务流程、自动化策略、工作流专用节点）绝对不进入 `app/`**，只保存在对应 run 目录下的 `runs/<name>/plugins/` 中；
+> - **先跑通测试再并入 main**：工作流分享以单个完整 run 为沙箱，接收方必须在独立 run 中先跑通针对性测试与场景验证；验证通过后，工作流可通过 `runs/main/assembly.mjs` 以及 `runs/main/plugins/` 并入主 run，但**非核心插件依然绝不进入核心 `app/`**。
+
+基础软件批量更新必须由仓库中的统一打包脚本生成，不能由发布者临时手选文件。脚本负责生成带版本号的基础软件压缩包（包含 `packages/`、`DOCUMENTS/` 与 `app/` 核心部分）、文件清单和 SHA-256，并排除 `AGENTS.md`、`.agents/skills`、飞书知识库与工作流正文、账号凭证、用户数据、缓存及 `.generated`。基础软件包只负责整体软件更新，不改变成员选择了哪些工作流。
 
 飞书知识库是通用知识和工作流正文的唯一协作来源。`AGENTS.md` 保存开发守则、新成员环境初始化要求，以及“什么任务去读哪个知识库页面”的稳定索引，但不复制工作流正文，不携带账号凭证，也不随能力 ZIP 分发；工作流不再包装成 Workflow Skill。不同成员可以按职责持有不同的页面索引，因此不要求所有人的 `AGENTS.md`、工具 Skills 或模型上下文完全相同。
 
-一份工作流页面至少说明：稳定名称与维护者、适用任务、前置知识页面、所需能力包及最低版本、向哪些专用 WorldNode 发送什么 Info、等待或监听哪些 Observation/完成事实，以及失败与人工确认边界。工作流不定义新的注入协议、消息总线或运行时；Agent 读取页面后，仍只使用已装配的专用 WorldNode 和现有 Info 契约完成发送与等待。
+一份工作流页面至少说明：稳定名称与维护者、适用任务、前置知识页面、所需能力版本、向哪些专用 WorldNode 发送什么 Info、等待或监听哪些 Observation/完成事实，以及失败与人工确认边界。工作流不定义新的注入协议、消息总线或运行时；Agent 读取页面后，仍只使用已装配的专用 WorldNode 和现有 Info 契约完成发送与等待。
+
 
 ### 3.1 群聊能力包
 
@@ -103,11 +110,11 @@ JavaScript 可用 N-API 或 daemon，Python SDK 当前使用 daemon；Python cty
 
 ### 3.3 发布与接收顺序
 
-发布顺序固定为：先更新飞书知识库中的知识或工作流页面并标注所需能力版本；再验证 assembly 能在完整主 run 中装配；随后压缩能力目录、计算 SHA-256，并在指定群聊发送附件及上述元数据。
+发布顺序固定为：先更新飞书知识库中的知识或工作流页面并标注所需能力版本；再验证 assembly 能在完整主 run 中装配；随后用 `bash ./run.sh pack <capability-dir> [out.zip]` 压缩能力目录并计算 SHA-256（输出 `<capability-id>-<version>.zip` 与同名 `.sha256`），在指定群聊发送附件及上述元数据。命令实现见 `packages/tooling/run/src/package.mjs`（`packCapability`）与 `packages/tooling/run/src/cli.mjs`（`pack`），覆盖用例见 `packages/desktop/host/p10-capability-share.test.mjs`。
 
-接收顺序固定为：从 `AGENTS.md` 定位知识库页面并确认需要的能力版本；从指定群聊取得对应 ZIP；校验发布者、版本与摘要；判断是首次安装还是同一工作流更新；首次安装才新增 assembly 选择，更新则整体替换原能力目录；运行配置校验；若没有冲突则进入统一主 run。工作流页面的更新不自动修改代码，能力包更新也不自动改写成员的 `AGENTS.md`。
+接收顺序固定为：从 `AGENTS.md` 定位知识库页面并确认需要的能力版本；从指定群聊取得对应 ZIP；用 `bash ./run.sh verify <capability.zip> [--expect-sha256 <hex>]` 校验发布者、文件名、版本与摘要；判断是首次安装还是同一工作流更新；用 `bash ./run.sh install <capability.zip> [--run <run.config.json>] [--update]` 安装——首次安装才新增一条 assembly 选择，更新则整体替换原能力目录；`install --run` 在写入前用 ZIP 内容做冲突预演，冲突时报告双方定义且不修改 run 配置与已装目录，本地已装能力被改过时先报本地编辑；安装后运行配置校验；若没有冲突则进入统一主 run。工作流页面的更新不自动修改代码，能力包更新也不自动改写成员的 `AGENTS.md`。命令实现与覆盖用例同上（`verifyCapability`/`installCapability`）。
 
-当前仓库已经支持执行 assembly contribution 和重复声明去重，但尚未提供基础软件打包、能力包自动压缩、摘要生成、群聊上传、下载、安装或原位更新脚本；在这些工具落地前，上述步骤由成员或 Agent 显式完成，不能宣称已经自动发布或自动更新。
+基础软件打包（SDK tgz/wheel、Rust daemon/C ABI/N-API、桌面 Electron 分发制品）仍走团队批量更新通道，当前仓库尚未交付统一基础软件打包脚本；能力包的群聊上传/下载仍由成员显式完成，不宣称自动发布。
 
 ## 4. 独立制品与兼容信息
 
