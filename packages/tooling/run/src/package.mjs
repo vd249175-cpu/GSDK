@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { inflateRawSync } from 'node:zlib';
 import { pathToFileURL } from 'node:url';
 
@@ -621,4 +621,167 @@ async function checkInstalledCapabilityDrift({ capabilitiesDir, capabilityId, st
   if (drifted.length > 0) {
     throw new Error(`Installed capability ${capabilityId} has local edits; resolve them before reinstalling:\n- ${drifted.join('\n- ')}`);
   }
+}
+
+/**
+ * Packs the base software: packages/ (with precompiled kernel daemon), DOCUMENTS/, app/ (core plugins only), run.sh, README.md.
+ * Strictly excludes: runs/*, non-core plugins (such as browser-recorder/os-recorder), AGENTS.md, .agents, .omp, node_modules, .generated, etc.
+ */
+export async function packBaseSoftware(repoRoot, outPath) {
+  const root = resolve(repoRoot);
+  const corePluginBasenames = new Set(['demo-topology', 'hello-counter']);
+  const collected = [];
+
+  const walk = (current, relPrefix = '') => {
+    for (const entry of readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const absolute = join(current, entry.name);
+      const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+      // Strictly skip package directories, virtualenvs, caches, and build targets
+      if (
+        entry.name === 'node_modules' ||
+        entry.name === 'target' ||
+        entry.name === '.git' ||
+        entry.name === '.generated' ||
+        entry.name === '.agents' ||
+        entry.name === '.omp' ||
+        entry.name === '.venv' ||
+        entry.name === 'venv' ||
+        entry.name === '__pycache__' ||
+        entry.name.endsWith('.egg-info') ||
+        entry.name.endsWith('.dist-info')
+      ) continue;
+
+      // Strictly skip installable package files and compiled artifacts
+      const ext = extname(entry.name).toLowerCase();
+      if (
+        ext === '.tgz' ||
+        ext === '.whl' ||
+        ext === '.egg' ||
+        ext === '.crate' ||
+        ext === '.pyc' ||
+        ext === '.pyo' ||
+        ext === '.pyd' ||
+        ext === '.rlib' ||
+        ext === '.rmeta' ||
+        ext === '.pdb'
+      ) continue;
+
+      // Filter app/plugins: only include core plugins!
+      if (rel.startsWith('app/plugins/backend/') || rel.startsWith('app/plugins/frontend/')) {
+        const parts = rel.split('/');
+        const pluginName = parts[3];
+        if (pluginName && !corePluginBasenames.has(pluginName)) {
+          continue; // skip non-core plugins!
+        }
+      }
+
+      if (entry.isDirectory()) {
+        walk(absolute, rel);
+      } else if (entry.isFile()) {
+        collected.push({ name: rel, absolute });
+      }
+    }
+  };
+
+  // 1. packages/
+  walk(join(root, 'packages'), 'packages');
+  // 2. DOCUMENTS/
+  walk(join(root, 'DOCUMENTS'), 'DOCUMENTS');
+  // 3. app/
+  walk(join(root, 'app'), 'app');
+  // 4. Root files
+  for (const rootFile of ['run.sh', 'README.md']) {
+    const abs = join(root, rootFile);
+    if (existsSync(abs)) collected.push({ name: rootFile, absolute: abs });
+  }
+
+  const entries = collected.map((file) => ({ name: file.name, data: readFileSync(file.absolute) }));
+  const buffer = createZip(entries);
+  let zipPath = outPath ? resolve(outPath) : join(process.cwd(), 'graphframework-base-1.0.0.zip');
+  if (existsSync(zipPath) && statSync(zipPath, { throwIfNoEntry: false })?.isDirectory()) {
+    zipPath = join(zipPath, 'graphframework-base-1.0.0.zip');
+  }
+  mkdirSync(dirname(zipPath), { recursive: true });
+  writeFileSync(zipPath, buffer);
+  const sha256 = createHash('sha256').update(buffer).digest('hex');
+  writeFileSync(`${zipPath}.sha256`, `${sha256}  ${basename(zipPath)}\n`);
+  return {
+    zip: zipPath, sha256, files: entries.length, size: buffer.length,
+  };
+}
+
+/**
+ * Extracts a base software zip into target directory.
+ */
+export async function installBaseSoftware(zipPath, targetDir) {
+  const target = resolve(targetDir);
+  const buffer = readFileSync(resolve(zipPath));
+  const entries = parseZipEntries(buffer);
+  for (const entry of entries) {
+    if (entry.name.endsWith('/')) continue;
+    const dest = join(target, entry.name);
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, extractZipEntry(buffer, entry));
+  }
+  return { installed: target, files: entries.length };
+}
+
+/**
+ * Packs a run: run.config.json, assembly.mjs, scripts, plugins/ and tests/ under that run.
+ */
+export async function packRun(runDir, outPath) {
+  const root = resolve(runDir);
+  const configPath = join(root, 'run.config.json');
+  if (!existsSync(configPath)) throw new Error(`Run config not found: ${configPath}`);
+  const doc = JSON.parse(readFileSync(configPath, 'utf8').replace(/^\uFEFF/, ''));
+  const runName = doc.name || basename(root);
+
+  const collected = [];
+  const walk = (current, relPrefix = '') => {
+    for (const entry of readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const absolute = join(current, entry.name);
+      const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+      if (SKIPPED_BASENAMES.has(entry.name) || entry.name === '.generated' || entry.name === 'run.lock.json' || entry.name === 'node_modules') continue;
+      if (entry.isDirectory()) walk(absolute, rel);
+      else if (entry.isFile()) collected.push({ name: rel, absolute });
+    }
+  };
+  walk(root);
+
+  const entries = collected.map((file) => ({ name: `${runName}/${file.name}`, data: readFileSync(file.absolute) }));
+  const buffer = createZip(entries);
+  let zipPath = outPath ? resolve(outPath) : join(process.cwd(), `run-${runName}.zip`);
+  if (existsSync(zipPath) && statSync(zipPath, { throwIfNoEntry: false })?.isDirectory()) {
+    zipPath = join(zipPath, `run-${runName}.zip`);
+  }
+  mkdirSync(dirname(zipPath), { recursive: true });
+  writeFileSync(zipPath, buffer);
+  const sha256 = createHash('sha256').update(buffer).digest('hex');
+  writeFileSync(`${zipPath}.sha256`, `${sha256}  ${basename(zipPath)}\n`);
+  return {
+    zip: zipPath, sha256, runName, files: entries.length, size: buffer.length,
+  };
+}
+
+/**
+ * Installs a run zip into targetBaseDir/runs/<runName>.
+ */
+export async function installRun(zipPath, targetBaseDir) {
+  const base = resolve(targetBaseDir);
+  const buffer = readFileSync(resolve(zipPath));
+  const entries = parseZipEntries(buffer);
+  const tops = new Set(entries.map((entry) => entry.name.split('/')[0]));
+  if (tops.size !== 1) throw new Error(`Run zip must have 1 top directory, got: ${[...tops].join(', ')}`);
+  const runName = [...tops][0];
+  const targetRunDir = join(base, 'runs', runName);
+  mkdirSync(targetRunDir, { recursive: true });
+
+  for (const entry of entries) {
+    if (entry.name.endsWith('/')) continue;
+    const rel = entry.name.slice(runName.length + 1);
+    const dest = join(targetRunDir, rel);
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, extractZipEntry(buffer, entry));
+  }
+  return { installed: targetRunDir, runName, files: entries.length };
 }

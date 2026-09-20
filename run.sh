@@ -7,7 +7,7 @@ config_dir="$(cd "$(dirname "$2")" && pwd)"
 config="$config_dir/$(basename "$2")"
 cli="$repo_root/packages/tooling/run/src/cli.mjs"
 case "$op" in
-  pack|verify|install) exec node "$cli" "$op" "$2" "${3:-}" "${4:-}" "${5:-}" "${6:-}" ;;
+  pack|verify|install|pack-base|install-base|pack-run|install-run) exec node "$cli" "$op" "$2" "${3:-}" "${4:-}" "${5:-}" "${6:-}" ;;
   stop|status|analyze|inspect) exec node "$cli" "$op" "$config" "${3:-}" ;;
   start)
     node "$cli" validate "$config" >/dev/null

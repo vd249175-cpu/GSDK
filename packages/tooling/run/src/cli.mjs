@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { installCapability, packCapability, verifyCapability } from './package.mjs';
+import { installCapability, packCapability, verifyCapability, packBaseSoftware, installBaseSoftware, packRun, installRun } from './package.mjs';
 import { runBackend } from './host.mjs';
 import { buildRunFrontends, frontendOperation } from './frontend.mjs';
 import { resolveRunAssembly } from './assembly.mjs';
@@ -38,6 +38,10 @@ try {
   if (op === 'pack') result = await packCapability(argument, extra ?? rest[0]);
   else if (op === 'verify') result = await verifyCapability(argument, parseKeyOptions([extra, ...rest].filter((value) => value !== undefined)));
   else if (op === 'install') result = await installCapability(argument, parseInstallOptions([extra, ...rest].filter((value) => value !== undefined)));
+  else if (op === 'pack-base') result = await packBaseSoftware(argument ?? process.cwd(), extra ?? rest[0]);
+  else if (op === 'install-base') result = await installBaseSoftware(argument, extra ?? rest[0]);
+  else if (op === 'pack-run') result = await packRun(argument, extra ?? rest[0]);
+  else if (op === 'install-run') result = await installRun(argument, extra ?? rest[0]);
   else if (op === 'id') result = randomUUID();
   else if (op === 'validate') { resolveDaemonBinary(await resolveRunAssembly(loadRunConfig(config))); result = { valid: true }; }
   else if (op === 'prepare') result = await prepareRun(config, extra);
