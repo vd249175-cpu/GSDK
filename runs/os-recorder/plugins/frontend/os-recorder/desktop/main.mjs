@@ -154,6 +154,7 @@ async function startHost() {
     title: 'GraphFramework · 全电脑操作录制',
     webPreferences: {
       preload: join(context.pluginDirectory, 'desktop', 'preload.cjs'),
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
     },
