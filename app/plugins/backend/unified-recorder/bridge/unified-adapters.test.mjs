@@ -227,7 +227,7 @@ describe('unified-adapters', () => {
   it('适配器控制面可正常与 playwright-cli 交互', async () => {
     const seen = []
     const adapters = createUnifiedAdapters({
-      runCli: fakeCli(['', '- heading "Title"', "await page.goto('https://example.com');"], seen),
+      runCli: fakeCli(['', '', '- heading "Title"', "await page.goto('https://example.com');", ''], seen),
       cliSession: 'test-rec',
     })
 

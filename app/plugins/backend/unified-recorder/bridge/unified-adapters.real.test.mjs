@@ -69,7 +69,7 @@ describe('unified-adapters real devices', () => {
     expect(await adapters.desktopEvents.execute({ op: 'poll', sessionId: 'real-desk' }))
       .toEqual({ events: [] })
     expect(await adapters.desktopControl.execute({ op: 'stop', sessionId: 'real-desk' }))
-      .toEqual({ stopped: true })
+      .toMatchObject({ stopped: true })
     const observed = await adapters.desktopObservation.execute({ op: 'observe', sessionId: 'real-desk' })
     expect(observed.events).toEqual([])
     expect(typeof observed.completedAt).toBe('string')

@@ -35,6 +35,7 @@ import { fileURLToPath } from 'node:url'
 
 const execFileAsync = promisify(execFile)
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
+const repositoryRoot = fileURLToPath(new URL('../../../../../', import.meta.url))
 
 let cachedCliCommand = null
 
@@ -731,10 +732,12 @@ export function createUnifiedAdapters({
         }
 
         recording.liveEvents = [...recording.liveEvents, ...finalLiveEvents]
+        const allLiveEvents = [...recording.liveEvents]
         activeDesktop.delete(request.sessionId)
 
         return {
           stopped: true,
+          liveEvents: allLiveEvents,
           ...(recording.artifactPath ? { artifactPath: recording.artifactPath } : {}),
         }
       }
@@ -781,13 +784,38 @@ export function createUnifiedAdapters({
     cdpUrl,
     execute: async (request) => {
       if (request?.op === 'start') {
+        try {
+          await runCli(['attach', `--cdp=${cdpUrl}`, `--session=${cliSession}`])
+        } catch (attachErr) {
+          try {
+            const browserScript = join(repositoryRoot, '.agents', 'skills', 'browser-setup', 'scripts', 'browser.ps1')
+            await execFileAsync('powershell.exe', [
+              '-NoProfile',
+              '-ExecutionPolicy',
+              'Bypass',
+              '-File',
+              browserScript,
+              '-Action',
+              'Start',
+            ], { timeout: 30000 })
+            await runCli(['attach', `--cdp=${cdpUrl}`, `--session=${cliSession}`])
+          } catch {
+            throw new Error(`浏览器会话连接失败 (${cdpUrl})。请先点击顶部“打开专用浏览器”确保 9343 已就绪: ${attachErr.message}`)
+          }
+        }
         await runCli([`-s=${cliSession}`, 'recording-start'])
         return { handle: `playwright-cli:${cliSession}:${request.sessionId}` }
       }
       if (request?.op === 'stop') {
-        const output = await runCli([`-s=${cliSession}`, 'recording-stop'])
-        const actions = String(output ?? '')
-        return { stopped: true, actions }
+        try {
+          const output = await runCli([`-s=${cliSession}`, 'recording-stop'])
+          await runCli([`-s=${cliSession}`, 'detach']).catch(() => {})
+          const actions = String(output ?? '')
+          return { stopped: true, actions }
+        } catch (err) {
+          await runCli([`-s=${cliSession}`, 'detach']).catch(() => {})
+          return { stopped: true, actions: '', error: err?.message ?? String(err) }
+        }
       }
       throw new Error(`Unknown unified browser-control request: ${JSON.stringify(request?.op)}`)
     },

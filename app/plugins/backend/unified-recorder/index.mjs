@@ -225,6 +225,9 @@ export class UnifiedSessionNode extends Node {
       const browserActions = info.browserActions ?? ctx.read('browserActions')
       const sessionDir = info.sessionDir ?? ctx.read('sessionDir')
       const artifactPath = info.artifactPath ?? ctx.read('artifactPath')
+      const liveEvents = (Array.isArray(info.liveEvents) && info.liveEvents.length > 0)
+        ? info.liveEvents
+        : (ctx.read('events') ?? [])
       ctx.patchState({
         status: 'processing',
         browserActions,
@@ -240,7 +243,7 @@ export class UnifiedSessionNode extends Node {
           sessionDir,
           artifactPath,
           browserActions,
-          liveEvents: info.liveEvents ?? ctx.read('events'),
+          liveEvents,
           startedAt: ctx.read('startedAt'),
           completedAt: info.completedAt ?? new Date().toISOString(),
         },
@@ -249,12 +252,15 @@ export class UnifiedSessionNode extends Node {
     } else if (info.type === 'RecordingObservedInfo') {
       const incomingEvents = Array.isArray(info.events) ? info.events : []
       const hasBrowser = incomingEvents.some((e) => e.source === 'browser')
-      const mergedEvents = hasBrowser
+      let mergedEvents = hasBrowser
         ? incomingEvents
         : renumberEvents([
             ...ctx.read('events').filter((e) => e.source === 'browser'),
             ...incomingEvents.map((e, pos) => normalizeDesktopEvent(e, pos + 1)),
           ])
+      if (mergedEvents.length === 0 && ctx.read('events').length > 0) {
+        mergedEvents = ctx.read('events')
+      }
       const existingApps = ctx.read('applications') ?? []
       const incomingApps = Array.isArray(info.applications) ? info.applications : []
       const eventApps = mergedEvents.map((e) => e.application).filter(Boolean)
