@@ -1,23 +1,18 @@
 @echo off
 setlocal
 chcp 65001 >nul
-pushd "%~dp0"
-set "RUN_DIR=%CD%"
-cd ..\..
-set "REPO_ROOT=%CD%"
-popd
 
-set "BASH_CMD="
-where bash >nul 2>&1
-if %ERRORLEVEL% equ 0 (
-  set "BASH_CMD=bash"
-) else if exist "C:\Program Files\Git\bin\bash.exe" (
-  set "BASH_CMD=C:\Program Files\Git\bin\bash.exe"
-) else (
-  echo [ERROR] 未找到 Git bash。 >&2
-  pause
-  exit /b 1
-)
+for %%I in ("%~dp0.") do set "RUN_DIR=%%~fI"
+for %%I in ("%RUN_DIR%\..\..") do set "REPO_ROOT=%%~fI"
+
+set "GIT_EXE="
+for /f "delims=" %%I in ('where git 2^>nul') do if not defined GIT_EXE set "GIT_EXE=%%~fI"
+if not defined GIT_EXE goto :missing_git_bash
+
+for %%I in ("%GIT_EXE%") do set "GIT_CMD_DIR=%%~dpI"
+for %%I in ("%GIT_CMD_DIR%..") do set "GIT_ROOT=%%~fI"
+set "BASH_CMD=%GIT_ROOT%\bin\bash.exe"
+if not exist "%BASH_CMD%" goto :missing_git_bash
 
 echo 正在停止 GraphFramework os-recorder 运行...
 "%BASH_CMD%" "%REPO_ROOT%\run.sh" stop "%RUN_DIR%\run.config.json" %*
@@ -26,8 +21,14 @@ if errorlevel 1 goto :on_stop_error
 echo os-recorder 运行已停止，资源已释放。
 exit /b 0
 
-:on_stop_error
-echo.
-echo [ERROR] 停机失败，退出码: %ERRORLEVEL%
+:missing_git_bash
+echo [ERROR] 未找到 Git Bash。请安装 Git for Windows 并确保 git.exe 可通过 PATH 访问。 >&2
 pause
-exit /b %ERRORLEVEL%
+exit /b 1
+
+:on_stop_error
+set "EXIT_CODE=%ERRORLEVEL%"
+echo.
+echo [ERROR] 停机失败，退出码: %EXIT_CODE%
+pause
+exit /b %EXIT_CODE%
