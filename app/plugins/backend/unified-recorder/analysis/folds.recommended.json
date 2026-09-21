@@ -1,0 +1,1 @@
+{"groups":{"example.unified-recorder":{"children":["domain","execution","observation"]},"domain":{"children":["example.unified-recorder/session"]},"execution":{"children":["example.unified-recorder/execution"]},"observation":{"children":["example.unified-recorder/observation"]}},"root":"example.unified-recorder","version":1}

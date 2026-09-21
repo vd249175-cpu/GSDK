@@ -1,9 +1,7 @@
 {
   "version": 2,
-  "name": "main",
-  "assembly": {
-    "modules": ["assembly.mjs"]
-  },
+  "name": "unified-recorder",
+  "assembly": { "modules": ["assembly.mjs"] },
   "plugins": {
     "backend": [],
     "frontend": []
@@ -18,10 +16,8 @@
     "host": "host.mjs",
     "dependencies": {
       "cdpUrl": "http://127.0.0.1:9343",
-      "ufoDirectory": "../../packages/ufo",
       "pythonExecutable": "python.exe",
-      "ufoPythonExecutable": "../../packages/ufo/.venv/Scripts/python.exe",
-      "recordingBackend": "windows-steps-recorder"
+      "cliSession": "rec"
     }
   },
   "frontend": {
@@ -35,12 +31,7 @@
     "startInfos": [],
     "stopInfos": [],
     "ready": null,
-    "timeouts": {
-      "initMs": 30000,
-      "startMs": 30000,
-      "stopMs": 30000,
-      "settleMs": 30000
-    }
+    "timeouts": { "initMs": 30000, "startMs": 30000, "stopMs": 30000, "settleMs": 30000 }
   },
   "scenarios": null,
   "resources": {

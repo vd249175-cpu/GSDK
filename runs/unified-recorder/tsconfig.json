@@ -1,0 +1,15 @@
+{
+  "extends": "../../packages/desktop/tsconfig.renderer.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "typeRoots": ["../../packages/desktop/node_modules/@types"]
+  },
+  "include": [
+    "plugins/frontend/unified-recorder/**/*.ts",
+    "plugins/frontend/unified-recorder/**/*.tsx"
+  ],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
+}

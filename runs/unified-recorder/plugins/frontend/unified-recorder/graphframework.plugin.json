@@ -1,0 +1,13 @@
+{
+  "id": "example.unified-recorder",
+  "name": "Unified Recorder",
+  "version": "0.1.0",
+  "apiVersion": 2,
+  "kind": "frontend",
+  "contributes": {
+    "host": "desktop/main.mjs",
+    "frontend": "index.tsx",
+    "elements": [],
+    "workspaces": []
+  }
+}
