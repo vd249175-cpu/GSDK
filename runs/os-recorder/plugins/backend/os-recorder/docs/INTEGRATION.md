@@ -79,10 +79,15 @@ pickle、JS 闭包或其他语言私有对象。静态因果分析事实同样�
 `DOCUMENTS/protocols/kernel-daemon-protocol.md`，接入步骤见
 `DOCUMENTS/goals/add-language-runtime.md`。
 
-因此后续若用 Python 编写 Windows UI Automation Node，不需要先包装成 JS
-业务 Node；只需遵守同一 daemon worker/provider、Info、State Owner 与
-Execution/Observation 物理分离契约。当前 `windows-input-observer.py` 只是物理
-Observation helper，还不是一个独立 Python Node worker。
+本 run 已经证明“Node 用什么语言写”与“物理侧用什么语言实现”是两回事：
+`recorder` 与 `computer` 的 Node（`index.mjs`）只是当前宿主用 JS 实现的
+协议角色（`Info → change → State patch + send`）；而物理侧已经有两个
+Python 实现——`windows-input-observer.py`（只读输入 Hook，经 NDJSON 输出
+Observation）与 `bridge/ufo-computer-worker.py`（常驻进程，复用 UFO 的 UIA
+能力执行窗口/控件动作并返回可移植 JSON）。两者都只活在 EffectAdapter 背后，
+不进 Graph State、不碰 daemon worker 协议。若将来把 Node 本体也换成
+Python/Rust/Go，则走 `graphframework-kernel-daemon` 的 UTF-8 JSON Lines
+协议（claim → poll → change → commit），State/Info 仍只用便携 DTO。
 
 ## 运行约束与排障准则
 
