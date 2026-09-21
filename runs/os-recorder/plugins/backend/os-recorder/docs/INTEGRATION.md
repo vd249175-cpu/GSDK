@@ -20,6 +20,10 @@ tags: [ufo, windows, recorder, world-node]
   它不会保存用户输入的明文内容；需要表达输入内容时应使用 PSR 注释。
 - Microsoft 已将 PSR 标记为弃用。本实现与 UFO 当前官方演示格式保持一致，且会
   在每次开始录制前检查 `psr.exe`；未来上游更换录制格式时只需替换 run Adapter。
+- Adapter 默认直接启动 `psr.exe`；若当前 Windows 对直接 `CreateProcess` 返回
+  `EACCES`，则通过系统 `rundll32.exe` 的 ShellExecute 入口启动或停止 PSR。
+  `rundll32.exe` 与解包使用的 `tar.exe` 均固定从 `%WINDIR%\\System32` 解析，
+  不受 Git Bash `PATH` 中同名程序影响。
 
 ## 因果链路
 

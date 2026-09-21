@@ -1,10 +1,14 @@
 import { copyFile, mkdtemp, rm } from 'node:fs/promises'
+import { EventEmitter } from 'node:events'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   createWindowsStepRecorder,
   readPsrArchive,
+  startPsrProcess,
+  stopPsrProcess,
+  windowsSystemExecutable,
 } from './windows-step-recorder.mjs'
 
 const temporaryDirectories = []
@@ -14,6 +18,77 @@ afterEach(async () => {
 })
 
 describe('Windows Steps Recorder bridge for Microsoft UFO', () => {
+  it('pins Windows tools to System32 instead of the Git Bash PATH', () => {
+    expect(windowsSystemExecutable('tar.exe', { WINDIR: 'D:\\Windows' }))
+      .toBe('D:\\Windows\\System32\\tar.exe')
+  })
+
+  it('starts PSR without Windows detached mode', async () => {
+    const child = new EventEmitter()
+    child.unref = () => {}
+    let spawnOptions
+    const started = startPsrProcess({
+      executable: 'C:\\Windows\\System32\\psr.exe',
+      artifactPath: 'C:\\recordings\\session.zip',
+    }, {
+      spawnProcess: (_executable, _args, options) => {
+        spawnOptions = options
+        queueMicrotask(() => child.emit('spawn'))
+        return child
+      },
+    })
+
+    await started
+    expect(spawnOptions).toEqual({ stdio: 'ignore', windowsHide: true })
+    expect(spawnOptions).not.toHaveProperty('detached')
+  })
+
+  it('falls back to Windows ShellExecute when direct PSR start is denied', async () => {
+    const child = new EventEmitter()
+    child.unref = () => {}
+    const shellCalls = []
+    const started = startPsrProcess({
+      executable: 'C:\\Windows\\System32\\psr.exe',
+      artifactPath: 'C:\\recordings\\session.zip',
+    }, {
+      spawnProcess: () => {
+        queueMicrotask(() => child.emit('error', Object.assign(new Error('denied'), { code: 'EACCES' })))
+        return child
+      },
+      execProcess: async (...args) => shellCalls.push(args),
+      environment: { WINDIR: 'C:\\Windows' },
+    })
+
+    await started
+    expect(shellCalls).toHaveLength(1)
+    expect(shellCalls[0][0]).toBe('C:\\Windows\\System32\\rundll32.exe')
+    expect(shellCalls[0][1]).toEqual([
+      'shell32.dll,ShellExec_RunDLL',
+      'C:\\Windows\\System32\\psr.exe',
+      '/start', '/output', 'C:\\recordings\\session.zip',
+      '/sc', '1', '/gui', '0', '/arcxml', '1', '/maxsc', '100',
+    ])
+  })
+
+  it('falls back to Windows ShellExecute when direct PSR stop is denied', async () => {
+    const calls = []
+    await stopPsrProcess({ executable: 'C:\\Windows\\System32\\psr.exe' }, {
+      execProcess: async (...args) => {
+        calls.push(args)
+        if (calls.length === 1) throw Object.assign(new Error('denied'), { code: 'EACCES' })
+      },
+      environment: { WINDIR: 'C:\\Windows' },
+    })
+
+    expect(calls).toHaveLength(2)
+    expect(calls[1][0]).toBe('C:\\Windows\\System32\\rundll32.exe')
+    expect(calls[1][1]).toEqual([
+      'shell32.dll,ShellExec_RunDLL',
+      'C:\\Windows\\System32\\psr.exe',
+      '/stop',
+    ])
+  })
+
   it('parses the upstream UFO sample demonstration archive', async () => {
     const sample = resolve('packages/ufo/record_processor/example/sample_record.zip')
     const parsed = await readPsrArchive(sample)

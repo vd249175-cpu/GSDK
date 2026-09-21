@@ -88,8 +88,17 @@ const findFirstMht = async (directory) => {
   return null
 }
 
+export const windowsSystemExecutable = (name, environment = process.env) => join(
+  environment.WINDIR ?? 'C:\\Windows',
+  'System32',
+  name,
+)
+
 /** Read a PSR ZIP using the same MHT shape consumed by UFO's record_processor. */
-export async function readPsrArchive(artifactPath, { tarExecutable = 'tar.exe' } = {}) {
+export async function readPsrArchive(
+  artifactPath,
+  { tarExecutable = windowsSystemExecutable('tar.exe') } = {},
+) {
   const extractionDirectory = await mkdtemp(join(tmpdir(), 'gvsdk-ufo-recording-'))
   try {
     await execFileAsync(tarExecutable, ['-xf', artifactPath, '-C', extractionDirectory], {
@@ -118,16 +127,17 @@ const waitForArtifact = async (artifactPath, timeoutMs = 15_000) => {
   throw new Error(`Windows Steps Recorder did not create ${artifactPath}`)
 }
 
-const defaultStartProcess = ({ executable, artifactPath }) => new Promise((resolveStart, rejectStart) => {
-  const child = spawn(executable, [
-    '/start',
-    '/output', artifactPath,
-    '/sc', '1',
-    '/gui', '0',
-    '/arcxml', '1',
-    '/maxsc', '100',
-  ], {
-    detached: true,
+const psrStartArguments = (artifactPath) => [
+  '/start',
+  '/output', artifactPath,
+  '/sc', '1',
+  '/gui', '0',
+  '/arcxml', '1',
+  '/maxsc', '100',
+]
+
+const spawnAndForget = (executable, arguments_, spawnProcess) => new Promise((resolveStart, rejectStart) => {
+  const child = spawnProcess(executable, arguments_, {
     stdio: 'ignore',
     windowsHide: true,
   })
@@ -138,8 +148,48 @@ const defaultStartProcess = ({ executable, artifactPath }) => new Promise((resol
   })
 })
 
-const defaultStopProcess = async ({ executable }) => {
-  await execFileAsync(executable, ['/stop'], { windowsHide: true, timeout: 30_000 })
+const shellExecuteExecutable = (environment) => windowsSystemExecutable('rundll32.exe', environment)
+
+const launchThroughShellExecute = async (
+  executable,
+  arguments_,
+  { execProcess, environment },
+) => {
+  await execProcess(
+    shellExecuteExecutable(environment),
+    ['shell32.dll,ShellExec_RunDLL', executable, ...arguments_],
+    { windowsHide: true, timeout: 30_000 },
+  )
+}
+
+// Current Windows builds can allow PSR through ShellExecute while rejecting a
+// direct CreateProcess call. Keep the direct path and fall back only on EACCES.
+const isAccessDenied = (error) => error?.code === 'EACCES'
+
+export const startPsrProcess = async ({ executable, artifactPath }, {
+  spawnProcess = spawn,
+  execProcess = execFileAsync,
+  environment = process.env,
+} = {}) => {
+  const arguments_ = psrStartArguments(artifactPath)
+  try {
+    await spawnAndForget(executable, arguments_, spawnProcess)
+  } catch (error) {
+    if (!isAccessDenied(error)) throw error
+    await launchThroughShellExecute(executable, arguments_, { execProcess, environment })
+  }
+}
+
+export const stopPsrProcess = async ({ executable }, {
+  execProcess = execFileAsync,
+  environment = process.env,
+} = {}) => {
+  try {
+    await execProcess(executable, ['/stop'], { windowsHide: true, timeout: 30_000 })
+  } catch (error) {
+    if (!isAccessDenied(error)) throw error
+    await launchThroughShellExecute(executable, ['/stop'], { execProcess, environment })
+  }
 }
 
 const safeSessionName = (sessionId) => {
@@ -169,8 +219,8 @@ export function createWindowsStepRecorder({
   ufoDirectory,
   executable = join(process.env.WINDIR ?? 'C:\\Windows', 'System32', 'psr.exe'),
   platform = process.platform,
-  startProcess = defaultStartProcess,
-  stopProcess = defaultStopProcess,
+  startProcess = startPsrProcess,
+  stopProcess = stopPsrProcess,
   observeArchive = readPsrArchive,
   awaitArtifact = waitForArtifact,
   clock = () => new Date().toISOString(),
