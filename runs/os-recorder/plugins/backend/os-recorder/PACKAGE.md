@@ -24,6 +24,9 @@ downstream_modification: forbidden
   `applications`、`artifactPath`、`startedAt`、`completedAt` 与 `lastError`。
 - 物理结果均经内部 Info 回到 Owner；renderer 不可直接调用 execution 或
   observation 节点。
+- 录制期间由宿主授权的 `PollRecordingEventsInfo` 驱动 ObservationWorldNode，
+  每批增量步骤经 `RecordingEventInfo` 流式回到 Owner；该 Info 不属于 renderer
+  公开契约。
 
 ## 物理边界
 

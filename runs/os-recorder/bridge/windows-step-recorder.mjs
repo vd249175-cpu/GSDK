@@ -1,4 +1,5 @@
 import { spawn, execFile } from 'node:child_process'
+import { createInterface } from 'node:readline'
 import { promisify } from 'node:util'
 import {
   access,
@@ -14,6 +15,8 @@ import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { tmpdir } from 'node:os'
 
 const execFileAsync = promisify(execFile)
+
+const delay = (milliseconds) => new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds))
 
 const decodeXml = (value = '') => value
   .replace(/&#x([0-9a-f]+);/gi, (_match, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
@@ -127,6 +130,139 @@ const waitForArtifact = async (artifactPath, timeoutMs = 15_000) => {
   throw new Error(`Windows Steps Recorder did not create ${artifactPath}`)
 }
 
+const liveEventFrom = (input, index) => {
+  const application = typeof input.application === 'string' ? input.application : null
+  const windowTitle = typeof input.windowTitle === 'string' ? input.windowTitle : null
+  const time = new Date(Number(input.timestamp) || Date.now()).toLocaleTimeString()
+  if (input.kind === 'mouse') {
+    const button = input.button === 'right' ? 'Right' : input.button === 'middle' ? 'Middle' : 'Left'
+    return {
+      index,
+      time,
+      application,
+      applicationDescription: null,
+      action: `Mouse ${button} Click`,
+      description: `Clicked at (${input.x ?? '?'}, ${input.y ?? '?'})${windowTitle ? ` in ${windowTitle}` : ''}`,
+      screenshotFile: null,
+    }
+  }
+  if (input.kind === 'scroll') {
+    return {
+      index,
+      time,
+      application,
+      applicationDescription: null,
+      action: 'Mouse Scroll',
+      description: `Scrolled ${input.axis ?? 'vertical'}${windowTitle ? ` in ${windowTitle}` : ''}`,
+      screenshotFile: null,
+    }
+  }
+  return {
+    index,
+    time,
+    application,
+    applicationDescription: null,
+    action: 'Keyboard Input',
+    description: `Keyboard activity${windowTitle ? ` in ${windowTitle}` : ''}; key contents are not recorded`,
+    screenshotFile: null,
+  }
+}
+
+export function createWindowsInputEventSource({
+  observerScript,
+  pythonExecutable = 'python.exe',
+  spawnProcess = spawn,
+  readyTimeoutMs = 10_000,
+} = {}) {
+  if (!observerScript) throw new Error('observerScript is required')
+  let child = null
+  let lines = null
+  let queued = []
+  let nextIndex = 1
+  let stderr = ''
+
+  const stop = async () => {
+    if (!child) return
+    const stoppingChild = child
+    child = null
+    const closed = new Promise((resolveClose) => stoppingChild.once('close', resolveClose))
+    stoppingChild.stdin?.end()
+    const result = await Promise.race([closed.then(() => 'closed'), delay(2_000).then(() => 'timeout')])
+    if (result === 'timeout') {
+      stoppingChild.kill()
+      await Promise.race([closed, delay(1_000)])
+    }
+    lines?.close()
+    lines = null
+  }
+
+  return {
+    start: async () => {
+      if (child) throw new Error('Windows input observer is already running')
+      queued = []
+      nextIndex = 1
+      stderr = ''
+      child = spawnProcess(pythonExecutable, ['-u', observerScript], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      const startingChild = child
+      lines = createInterface({ input: startingChild.stdout })
+      const ready = new Promise((resolveReady, rejectReady) => {
+        const timeout = setTimeout(() => rejectReady(new Error('Windows input observer did not become ready')), readyTimeoutMs)
+        const fail = (error) => {
+          clearTimeout(timeout)
+          rejectReady(error)
+        }
+        startingChild.once('error', fail)
+        startingChild.once('exit', (code) => {
+          if (child === startingChild) fail(new Error(`Windows input observer exited (${code}): ${stderr.trim()}`))
+        })
+        lines.once('line', (line) => {
+          clearTimeout(timeout)
+          try {
+            const message = JSON.parse(line)
+            if (message.type !== 'ready') throw new Error(message.message ?? 'Windows input observer failed to initialize')
+            resolveReady()
+          } catch (error) {
+            rejectReady(error)
+          }
+        })
+      })
+      startingChild.stderr.on('data', (chunk) => { stderr = `${stderr}${chunk}`.slice(-4_000) })
+      lines.on('line', (line) => {
+        try {
+          const message = JSON.parse(line)
+          if (message.type === 'input') queued.push(message)
+        } catch {
+          // A malformed observer line is ignored; later valid input remains usable.
+        }
+      })
+      try {
+        await ready
+      } catch (error) {
+        await stop()
+        throw error
+      }
+    },
+    poll: async () => {
+      const batch = queued
+      queued = []
+      const events = []
+      for (const input of batch) {
+        const previous = events.at(-1)
+        if (input.kind === 'keyboard' && previous?.action === 'Keyboard Input' && previous.application === input.application) {
+          previous.time = new Date(Number(input.timestamp) || Date.now()).toLocaleTimeString()
+          continue
+        }
+        events.push(liveEventFrom(input, nextIndex++))
+      }
+      return { events }
+    },
+    stop,
+  }
+}
+
 const psrStartArguments = (artifactPath) => [
   '/start',
   '/output', artifactPath,
@@ -222,6 +358,7 @@ export function createWindowsStepRecorder({
   startProcess = startPsrProcess,
   stopProcess = stopPsrProcess,
   observeArchive = readPsrArchive,
+  liveEventSource = null,
   awaitArtifact = waitForArtifact,
   clock = () => new Date().toISOString(),
 } = {}) {
@@ -247,7 +384,13 @@ export function createWindowsStepRecorder({
         const startedAt = clock()
         const stamp = startedAt.replace(/[:.]/g, '-')
         const artifactPath = join(root, `${safeSessionName(request.sessionId)}-${stamp}.zip`)
-        await startProcess({ executable, artifactPath })
+        await liveEventSource?.start(request.sessionId)
+        try {
+          await startProcess({ executable, artifactPath })
+        } catch (error) {
+          await liveEventSource?.stop()
+          throw error
+        }
         const handle = `psr:${request.sessionId}`
         active.set(request.sessionId, { artifactPath, handle, startedAt })
         return { handle, artifactPath, startedAt }
@@ -256,9 +399,13 @@ export function createWindowsStepRecorder({
       if (request?.op === 'stop') {
         const recording = active.get(request.sessionId)
         if (!recording) throw new Error(`No active Steps Recorder session: ${request.sessionId}`)
-        await stopProcess({ executable, artifactPath: recording.artifactPath })
-        await awaitArtifact(recording.artifactPath)
-        active.delete(request.sessionId)
+        try {
+          await stopProcess({ executable, artifactPath: recording.artifactPath })
+          await awaitArtifact(recording.artifactPath)
+        } finally {
+          await liveEventSource?.stop()
+          active.delete(request.sessionId)
+        }
         return { stopped: true, artifactPath: recording.artifactPath }
       }
 
@@ -281,16 +428,26 @@ export function createWindowsStepRecorder({
     },
   }
 
+  const captureEvents = {
+    id: 'ufo/desktop-capture-events',
+    execute: async (request) => {
+      if (request?.op !== 'poll') throw new Error(`Unknown live event operation: ${request?.op}`)
+      if (!liveEventSource) return { events: [] }
+      return liveEventSource.poll(request.sessionId)
+    },
+  }
+
   const stopActive = async () => {
     for (const [sessionId, recording] of active) {
       try {
         await stopProcess({ executable, artifactPath: recording.artifactPath })
         await awaitArtifact(recording.artifactPath)
       } finally {
+        await liveEventSource?.stop()
         active.delete(sessionId)
       }
     }
   }
 
-  return { captureControl, captureObservation, stopActive }
+  return { captureControl, captureObservation, captureEvents, stopActive }
 }

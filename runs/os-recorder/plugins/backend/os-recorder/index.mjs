@@ -16,6 +16,7 @@ import {
 
 const CONTROL_ADAPTER_ID = 'ufo/psr-capture-control'
 const OBSERVATION_ADAPTER_ID = 'ufo/psr-capture-observation'
+const EVENTS_ADAPTER_ID = 'ufo/desktop-capture-events'
 
 const missingAdapter = (id) => ({
   id,
@@ -112,6 +113,20 @@ export class RecordingSessionNode extends Node {
         lastEvent: events.at(-1) ?? null,
         lastError: null,
       })
+    } else if (info.type === 'RecordingEventInfo') {
+      const event = info.event ?? null
+      if (!event) return
+      const events = [...ctx.read('events'), event]
+      const applications = event.application && !ctx.read('applications').includes(event.application)
+        ? [...ctx.read('applications'), event.application]
+        : ctx.read('applications')
+      ctx.patchState({
+        eventCount: events.length,
+        events,
+        applications,
+        lastEvent: event,
+        lastError: null,
+      })
     } else if (info.type === 'RecordingFailedInfo') {
       ctx.patchState({ status: 'error', lastError: info.message ?? 'recording failed' })
     }
@@ -184,13 +199,33 @@ export class RecordingObserverNode extends ObservationWorldNode {
     id = 'example.os-recorder/observation',
     sessionId = 'example.os-recorder/session',
     adapter = missingAdapter(OBSERVATION_ADAPTER_ID),
+    eventsAdapter = missingAdapter(EVENTS_ADAPTER_ID),
   ) {
     super(id, 'RecordingObserver', { lastCount: 0, lastArtifactPath: null, lastError: null })
     this.sessionId = sessionId
     this.captureObservation = adapter
+    this.captureEvents = eventsAdapter
   }
 
   async change(info, ctx) {
+    if (info.type === 'PollRecordingEventsInfo') {
+      try {
+        const observation = await ctx.effectAdapter(this.captureEvents, {
+          op: 'poll',
+          sessionId: info.sessionId,
+        })
+        const events = Array.isArray(observation?.events) ? observation.events : []
+        for (const event of events) {
+          ctx.send({ type: 'RecordingEventInfo', sessionId: info.sessionId, event }, this.sessionId)
+        }
+        if (events.length > 0 || ctx.read('lastError')) {
+          ctx.patchState({ lastCount: ctx.read('lastCount') + events.length, lastError: null })
+        }
+      } catch (error) {
+        ctx.patchState({ lastError: errorMessage(error) })
+      }
+      return
+    }
     if (info.type !== 'ObserveRecordingInfo') return
     try {
       const observation = await ctx.effectAdapter(this.captureObservation, {
@@ -239,6 +274,7 @@ export function createOsRecorder(ctx) {
     idFor('observation'),
     idFor('session'),
     dependencies.captureObservation ?? missingAdapter(OBSERVATION_ADAPTER_ID),
+    dependencies.captureEvents ?? missingAdapter(EVENTS_ADAPTER_ID),
   )
   return { session, execution, observation }
 }

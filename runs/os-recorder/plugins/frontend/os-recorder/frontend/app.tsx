@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Activity,
   AppWindow,
@@ -88,6 +88,7 @@ export function App() {
   const [state, setState] = useState<RecorderState>(emptyState)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const timelineEndRef = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(async () => {
     if (!window.recorder) return
@@ -103,6 +104,10 @@ export function App() {
     const timer = setInterval(refresh, 500)
     return () => clearInterval(timer)
   }, [refresh])
+
+  useEffect(() => {
+    timelineEndRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [state.eventCount])
 
   const start = async () => {
     if (!window.recorder || busy) return
@@ -195,7 +200,7 @@ export function App() {
             <span className="metric-value" title={state.sessionId ?? '-'}>{state.sessionId ?? '-'}</span>
           </div>
           <div className="metric-card">
-            <span className="metric-label">已解析动作</span>
+            <span className="metric-label">实时记录动作</span>
             <span className="metric-value is-accent">{state.eventCount}</span>
           </div>
           <div className="metric-card">
@@ -233,7 +238,7 @@ export function App() {
                 <Radio className={`empty-icon${isRecording ? ' is-live' : ''}`} />
                 <div className="empty-text">
                   {isRecording ? (
-                    <span>正在捕获整个 Windows 桌面的跨应用操作。完成后点击“停止并生成记录”，UFO 兼容轨迹会显示在这里。</span>
+                    <span>正在捕获整个 Windows 桌面的跨应用操作；每一步会实时显示在这里，停止后再以 UFO 权威轨迹结算。</span>
                   ) : state.status === 'processing' ? (
                     <span>正在解析 Windows Steps Recorder 产物…</span>
                   ) : (
@@ -242,6 +247,7 @@ export function App() {
                 </div>
               </div>
             )}
+            <div ref={timelineEndRef} />
           </div>
         </section>
       </main>

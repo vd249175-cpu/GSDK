@@ -24,6 +24,10 @@ tags: [ufo, windows, recorder, world-node]
   `EACCES`，则通过系统 `rundll32.exe` 的 ShellExecute 入口启动或停止 PSR。
   `rundll32.exe` 与解包使用的 `tar.exe` 均固定从 `%WINDIR%\\System32` 解析，
   不受 Git Bash `PATH` 中同名程序影响。
+- 录制期间，`windows-input-observer.py` 使用 Windows 低级输入 Hook 输出 NDJSON
+  Observation。它记录鼠标点击、滚轮、键盘活动类别、前台应用和窗口标题，但不
+  记录键值或输入文本。前端宿主每 500ms 注入一次获授权的
+  `PollRecordingEventsInfo`，观察节点再用 `RecordingEventInfo` 逐步更新 Owner。
 
 ## 因果链路
 
@@ -35,6 +39,13 @@ renderer
   -> recorder/execution (ExecutionWorldNode)
   -> ufo/psr-capture-control EffectAdapter
   -> Windows psr.exe
+
+recorder/session
+  -> host PollRecordingEventsInfo
+  -> recorder/observation (ObservationWorldNode)
+  -> ufo/desktop-capture-events EffectAdapter
+  -> RecordingEventInfo (streaming)
+  -> recorder/session
 
 recorder/session
   -> ObserveRecordingInfo

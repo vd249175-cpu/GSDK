@@ -16,6 +16,7 @@
     "host": "host.mjs",
     "dependencies": {
       "ufoDirectory": "../../packages/ufo",
+      "pythonExecutable": "python.exe",
       "recordingBackend": "windows-steps-recorder"
     }
   },

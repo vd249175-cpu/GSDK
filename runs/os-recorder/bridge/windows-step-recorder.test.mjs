@@ -107,6 +107,7 @@ describe('Windows Steps Recorder bridge for Microsoft UFO', () => {
     temporaryDirectories.push(output)
     const sample = resolve('packages/ufo/record_processor/example/sample_record.zip')
     const calls = []
+    const liveEvent = { index: 1, action: 'Mouse Left Click', application: 'NOTEPAD.EXE' }
     const bridge = createWindowsStepRecorder({
       recordingsDirectory: output,
       ufoDirectory: resolve('packages/ufo'),
@@ -118,11 +119,22 @@ describe('Windows Steps Recorder bridge for Microsoft UFO', () => {
         calls.push({ op: 'stop', artifactPath })
         await copyFile(sample, artifactPath)
       },
+      liveEventSource: {
+        start: async (sessionId) => calls.push({ op: 'live-start', sessionId }),
+        poll: async (sessionId) => {
+          calls.push({ op: 'live-poll', sessionId })
+          return { events: [liveEvent] }
+        },
+        stop: async () => calls.push({ op: 'live-stop' }),
+      },
     })
 
     const started = await bridge.captureControl.execute({ op: 'start', sessionId: 'desktop demo' })
     expect(started.handle).toBe('psr:desktop demo')
     expect(started.artifactPath).toContain('desktop-demo-2026-09-20T08-00-00-000Z.zip')
+
+    const live = await bridge.captureEvents.execute({ op: 'poll', sessionId: 'desktop demo' })
+    expect(live.events).toEqual([liveEvent])
 
     const stopped = await bridge.captureControl.execute({ op: 'stop', sessionId: 'desktop demo' })
     const observed = await bridge.captureObservation.execute({
@@ -130,7 +142,7 @@ describe('Windows Steps Recorder bridge for Microsoft UFO', () => {
       sessionId: 'desktop demo',
       artifactPath: stopped.artifactPath,
     })
-    expect(calls.map((call) => call.op)).toEqual(['start', 'stop'])
+    expect(calls.map((call) => call.op)).toEqual(['live-start', 'start', 'live-poll', 'stop', 'live-stop'])
     expect(observed.events).toHaveLength(7)
     expect(observed.applications).toContain('MSEDGEWEBVIEW2.EXE')
   })

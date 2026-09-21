@@ -27,7 +27,12 @@ const observationAdapter = (events = []) => ({
   }),
 })
 
-const assemble = ({ events = [], control } = {}) => {
+const eventsAdapter = (batches = []) => ({
+  id: 'ufo/desktop-capture-events',
+  execute: async () => batches.shift() ?? { events: [] },
+})
+
+const assemble = ({ events = [], liveBatches = [], control } = {}) => {
   const calls = []
   const nodes = createOsRecorder({
     instanceId: 'example.os-recorder',
@@ -35,6 +40,7 @@ const assemble = ({ events = [], control } = {}) => {
     dependencies: {
       captureControl: control ?? controlAdapter(calls),
       captureObservation: observationAdapter(events),
+      captureEvents: eventsAdapter(liveBatches),
     },
   })
   return { calls, nodes: Object.values(nodes) }
@@ -92,6 +98,37 @@ describe('os-recorder causal flow', () => {
     runtime.dispose()
   })
 
+  it('streams observed desktop steps into owner projection while recording', async () => {
+    const liveEvent = {
+      index: 1,
+      time: '11:00:00 am',
+      application: 'NOTEPAD.EXE',
+      action: 'Mouse Left Click',
+      description: 'Clicked at (120, 80) in Notes',
+      screenshotFile: null,
+    }
+    const { nodes } = assemble({ liveBatches: [{ events: [liveEvent] }] })
+    const runtime = createTestRuntime({ nodes })
+
+    runtime.inject({ targetNodeId: 'example.os-recorder/session', info: { type: 'StartRecordingInfo', sessionId: 's-live' } })
+    await runtime.waitForQuiescence()
+    runtime.inject({
+      targetNodeId: 'example.os-recorder/observation',
+      info: { type: 'PollRecordingEventsInfo', sessionId: 's-live' },
+    })
+    await runtime.waitForQuiescence()
+
+    expect(runtime.getState('example.os-recorder/session')).toMatchObject({
+      status: 'recording',
+      eventCount: 1,
+      events: [liveEvent],
+      applications: ['NOTEPAD.EXE'],
+      lastEvent: liveEvent,
+    })
+    expect(runtime.getState('example.os-recorder/observation')).toMatchObject({ lastCount: 1 })
+    runtime.dispose()
+  })
+
   it('renderer roots expose only start and stop user intent', () => {
     expect(() => assertRendererRoot([plugin], {
       targetNodeId: 'example.os-recorder/session', info: { type: 'StartRecordingInfo', sessionId: 's-1' },
@@ -104,6 +141,9 @@ describe('os-recorder causal flow', () => {
     })).toThrow()
     expect(() => assertRendererRoot([plugin], {
       targetNodeId: 'example.os-recorder/observation', info: { type: 'ObserveRecordingInfo', artifactPath: 'x' },
+    })).toThrow()
+    expect(() => assertRendererRoot([plugin], {
+      targetNodeId: 'example.os-recorder/observation', info: { type: 'PollRecordingEventsInfo', sessionId: 's-1' },
     })).toThrow()
   })
 })

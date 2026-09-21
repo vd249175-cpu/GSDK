@@ -13,13 +13,31 @@ process.on('unhandledRejection', (error) => console.error('[OS Recorder Host]', 
 
 let mainWindow = null
 let stopped = false
+let isPolling = false
 
 async function getSessionSnapshot() {
   try {
     const graphPrefix = `${context.instance.graph ?? 'recorder'}/`
-    const projection = await callRunControl(runtime, 'projection')
-    const nodeEntry = projection.nodes?.[`${graphPrefix}session`] ?? projection.nodes?.['example.os-recorder/session']
-    const state = defaultValueCodec.decode(nodeEntry?.state) ?? {}
+    let projection = await callRunControl(runtime, 'projection')
+    let nodeEntry = projection.nodes?.[`${graphPrefix}session`] ?? projection.nodes?.['example.os-recorder/session']
+    let state = defaultValueCodec.decode(nodeEntry?.state) ?? {}
+    if (state.status === 'recording' && !isPolling) {
+      isPolling = true
+      try {
+        await callRunControl(runtime, 'inject-host', {
+          frontendId: context.instance.id ?? 'recorder-ui',
+          targetNodeId: `${graphPrefix}observation`,
+          info: { type: 'PollRecordingEventsInfo', sessionId: state.sessionId },
+        })
+        projection = await callRunControl(runtime, 'projection')
+        nodeEntry = projection.nodes?.[`${graphPrefix}session`] ?? projection.nodes?.['example.os-recorder/session']
+        state = defaultValueCodec.decode(nodeEntry?.state) ?? {}
+      } catch {
+        // A later refresh retries the observation poll without changing owner state.
+      } finally {
+        isPolling = false
+      }
+    }
     return {
       status: state.status ?? 'idle',
       sessionId: state.sessionId ?? null,
