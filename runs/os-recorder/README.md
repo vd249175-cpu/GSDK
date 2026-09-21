@@ -16,16 +16,19 @@ PSR 产物中的权威 UFO 轨迹结算。
 
 ## 当前能力边界
 
-本 run 已提供电脑操作的**观察与录制能力**，但尚未提供通用的**主动电脑控制
-能力**。ExecutionWorldNode 当前只负责启动/停止 PSR 与观察 helper，不会代表
-Agent 执行鼠标点击、键盘输入、窗口切换或应用操作，也没有把这些动作注册成
-Codex 可调用的 MCP/tool。
-
-要完成主动控制接入，还需要增加独立的 Windows ExecutionWorldNode 与
-EffectAdapter（可复用 UFO 的 UI Automation 能力），定义受控动作 Info、执行后
-Observation、目标窗口约束与敏感操作确认边界，并通过 MCP/tool 面向 Agent 暴露。
-这些 Node 可以直接用 Python、Rust 或其他语言实现；GraphFramework 的 daemon
-worker/provider 协议是语言无关的，JS 不是必经层。
+本 run 有两条因果链：`recorder` 图负责全桌面录制与回放展示；
+`computer` 图（`example.ufo-computer-control`）提供主动电脑控制能力。
+Agent 入口是本地技能脚本
+`.agents/skills/ufo-computer-control/scripts/ufo-computer.mjs`
+（仓库 `.gitignore` 忽略 `.agents`，脚本只存在于本机工作区，不随提交分发）。
+它按 `skill → InspectComputerInfo/ControlComputerInfo → computer/session →
+computer/execution（动作）→ computer/observation（读回）→
+ComputerObservedInfo` 路由注入 Info，动作结果以后观测为准。
+底层是常驻 Python worker（`bridge/ufo-computer-worker.py`），复用 UFO 的
+UIA 能力做窗口发现、截图、点击、输入、滚动、拖拽与窗口管理；
+JS 层只提供 EffectAdapter，不直接操作系统 UI。
+使用约束：先 focus 再动作，每次动作后取新观测（control ID 只在当步有效）；
+`close` 需显式 `--yes` 二次确认；不可逆的发送/购买/删除/发布动作先展示目标再确认。
 
 ## 启动
 

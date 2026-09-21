@@ -17,6 +17,7 @@
     "dependencies": {
       "ufoDirectory": "../../packages/ufo",
       "pythonExecutable": "python.exe",
+      "ufoPythonExecutable": "../../packages/ufo/.venv/Scripts/python.exe",
       "recordingBackend": "windows-steps-recorder"
     }
   },
