@@ -104,6 +104,25 @@ describe('unified-adapters', () => {
     expect(events[2].text).toBe('test_admin')
   })
 
+  it('正确从 playwright-cli 返回的 Markdown 中提取真实代码段与操作', () => {
+    const cliOutput = `### Result
+Recording stopped. Recorded actions:
+
+\`\`\`js
+await page.goto('https://example.com/');
+await page.getByRole('button', { name: 'Login' }).click();
+\`\`\`
+### Page
+- Page URL: https://example.com/
+- Page Title: Example Domain`
+
+    const events = parsePlaywrightScript(cliOutput)
+    expect(events).toHaveLength(2)
+    expect(events[0].action).toBe('goto')
+    expect(events[0].code).toBe("await page.goto('https://example.com/');")
+    expect(events[1].action).toBe('click')
+  })
+
   it('合并桌面动作与浏览器动作：桌面截图赋给浏览器对应动作，桌面外部动作保留', () => {
     const desktopEvents = [
       {

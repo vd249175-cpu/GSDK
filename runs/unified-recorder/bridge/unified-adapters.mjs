@@ -436,7 +436,15 @@ export const browserActionOf = (code, kind) => {
 /** 解析 Playwright 脚本行 */
 export function parsePlaywrightScript(script) {
   if (!script || typeof script !== 'string') return []
-  const lines = script.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('//'))
+  let contentToParse = script
+  const codeBlockMatch = script.match(/```(?:js|javascript)?\s*([\s\S]*?)```/)
+  if (codeBlockMatch) {
+    contentToParse = codeBlockMatch[1]
+  }
+  const lines = contentToParse
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('//') && !l.startsWith('#') && !l.startsWith('`') && !l.startsWith('-'))
   return lines.map((line, position) => {
     const action = browserActionOf(line, 'action')
     const text = plaintextOf(line)

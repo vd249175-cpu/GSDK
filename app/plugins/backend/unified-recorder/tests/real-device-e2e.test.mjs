@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createTestRuntime } from '@graphframework/sdk/testing'
@@ -167,6 +168,22 @@ describe('真机单元测试 (Real Device Tests)', () => {
 
       // 7. 验收原生导出文件路径
       expect(finalState.nativeExports.browser).toBeDefined()
+
+      // 8. 验收磁盘文件真实落盘与内容完整性
+      const sessionDir = finalState.sessionDir
+      expect(sessionDir).toBeTruthy()
+      const transcriptDisk = await readFile(join(sessionDir, 'agent-transcript.md'), 'utf8')
+      expect(transcriptDisk).toContain('# Unified Recording Transcript')
+
+      const jsonDisk = JSON.parse(await readFile(join(sessionDir, 'unified-events.json'), 'utf8'))
+      expect(jsonDisk.sessionId).toBe(sessionId)
+      expect(jsonDisk.events.length).toBeGreaterThanOrEqual(1)
+
+      const replayDisk = await readFile(join(sessionDir, 'replay.js'), 'utf8')
+      expect(replayDisk.length).toBeGreaterThan(0)
+
+      const browserDisk = await readFile(join(sessionDir, 'native', 'browser-playwright.js'), 'utf8')
+      expect(browserDisk).toContain('example.com')
     } finally {
       runtime.dispose()
       await runCli([`-s=${SESSION}`, 'detach']).catch(() => {})
