@@ -160,13 +160,19 @@ export function ControlsPanel(_props: PanelProps) {
 
           <button
             type="button"
-            className="action-btn is-secondary"
+            className={`action-btn is-hero ${state.browserAlive ? 'is-accent' : 'is-secondary'}`}
             disabled={browserBusy}
             onClick={() => void handleLaunchBrowser()}
             title="以 9343 端口与 Profile 1 独立目录启动或连接专用 Chrome"
           >
             <Globe size={13} />
-            <span>{browserBusy ? '正在拉起浏览器…' : '打开专用浏览器 (9343)'}</span>
+            <span>
+              {browserBusy
+                ? '正在启动/连接浏览器…'
+                : state.browserAlive
+                  ? '● 专用浏览器已就绪 (9343 点击置顶)'
+                  : '○ 打开专用浏览器 (9343)'}
+            </span>
           </button>
         </div>
       </div>

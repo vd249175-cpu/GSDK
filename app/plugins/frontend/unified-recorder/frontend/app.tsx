@@ -66,6 +66,7 @@ export type RecorderState = {
   startedAt: string | null
   completedAt: string | null
   lastError: string | null
+  browserAlive: boolean
   revision: number
 }
 
@@ -75,7 +76,7 @@ export interface UnifiedRecorderBridge {
   stop: () => Promise<RecorderState>
   openArtifact: () => Promise<{ ok: boolean; error?: string }>
   openPath: (targetPath: string) => Promise<{ ok: boolean; error?: string }>
-  launchBrowser: () => Promise<{ ok: boolean; output?: string; error?: string }>
+  launchBrowser: () => Promise<{ ok: boolean; alive?: boolean; output?: string; error?: string }>
   copyToClipboard: (text: string) => Promise<{ ok: boolean }>
 }
 
@@ -110,6 +111,7 @@ const emptyState: RecorderState = {
   startedAt: null,
   completedAt: null,
   lastError: null,
+  browserAlive: false,
   revision: 0,
 }
 
@@ -235,9 +237,22 @@ export function App() {
     if (!bridge || browserBusy) return
     setBrowserBusy(true)
     try {
-      await bridge.launchBrowser()
-    } catch {
-      // 捕获异常
+      const res = await bridge.launchBrowser()
+      if (!res?.ok) {
+        setState((prev) => ({
+          ...prev,
+          lastError: `打开专用浏览器失败: ${res?.error ?? '未响应'}`,
+        }))
+      } else {
+        setState((prev) => ({
+          ...prev,
+          browserAlive: true,
+          lastError: null,
+        }))
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      setState((prev) => ({ ...prev, lastError: `打开专用浏览器异常: ${message}` }))
     } finally {
       setBrowserBusy(false)
     }
@@ -375,13 +390,13 @@ export function App() {
 
               <button
                 type="button"
-                className="action-btn"
+                className={`action-btn ${state.browserAlive ? 'is-accent' : ''}`}
                 disabled={browserBusy}
                 onClick={() => void handleLaunchBrowser()}
-                title="打开独立 Profile 1 且暴露 9343 CDP 的专用 Chrome"
+                title={state.browserAlive ? '专用浏览器 (9343) 已连通，点击唤醒置顶' : '打开独立 Profile 1 且暴露 9343 CDP 的专用 Chrome'}
               >
                 <Globe size={11} />
-                <span>专用浏览器</span>
+                <span>{browserBusy ? '连接中…' : state.browserAlive ? '专用浏览器 (已就绪)' : '打开专用浏览器 (9343)'}</span>
               </button>
 
               {state.artifactPath && (

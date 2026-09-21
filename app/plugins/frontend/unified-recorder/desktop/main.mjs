@@ -44,6 +44,12 @@ async function getSessionSnapshot() {
         isPolling = false
       }
     }
+    let browserAlive = false
+    try {
+      const bRes = await fetch('http://127.0.0.1:9343/json/version', { signal: AbortSignal.timeout(800) })
+      browserAlive = bRes.ok
+    } catch {}
+
     return {
       status: state.status ?? 'idle',
       sessionId: state.sessionId ?? null,
@@ -62,6 +68,7 @@ async function getSessionSnapshot() {
       startedAt: state.startedAt ?? null,
       completedAt: state.completedAt ?? null,
       lastError: state.lastError ?? null,
+      browserAlive,
       revision: projection.revision ?? 0,
     }
   } catch (error) {
@@ -151,17 +158,52 @@ async function startHost() {
   })
   ipcMain.handle('recorder:launch-browser', async () => {
     try {
-      const scriptPath = resolve(repositoryRoot, '.agents', 'skills', 'browser-setup', 'scripts', 'browser.ps1')
-      const { stdout } = await execFileAsync('powershell.exe', [
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        scriptPath,
-        '-Action',
-        'Start',
-      ], { timeout: 30000 })
-      return { ok: true, output: stdout }
+      const isAlive = async () => {
+        try {
+          const res = await fetch('http://127.0.0.1:9343/json/version', { signal: AbortSignal.timeout(1200) })
+          return res.ok
+        } catch {
+          return false
+        }
+      }
+
+      let alive = await isAlive()
+      if (!alive) {
+        const scriptPath = resolve(repositoryRoot, '.agents', 'skills', 'browser-setup', 'scripts', 'browser.ps1')
+        await execFileAsync('powershell.exe', [
+          '-NoProfile',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          scriptPath,
+          '-Action',
+          'Start',
+        ], { timeout: 30000 })
+
+        for (let i = 0; i < 20; i++) {
+          await new Promise((r) => setTimeout(r, 400))
+          if (await isAlive()) {
+            alive = true
+            break
+          }
+        }
+      }
+
+      if (alive) {
+        try {
+          const listRes = await fetch('http://127.0.0.1:9343/json/list', { signal: AbortSignal.timeout(1500) })
+          const pages = await listRes.json()
+          const pageTargets = Array.isArray(pages) ? pages.filter((p) => p.type === 'page') : []
+          if (pageTargets.length === 0) {
+            await fetch('http://127.0.0.1:9343/json/new?about:blank', { method: 'PUT', signal: AbortSignal.timeout(1500) })
+          } else {
+            await fetch(`http://127.0.0.1:9343/json/activate/${pageTargets[0].id}`, { signal: AbortSignal.timeout(1500) })
+          }
+        } catch {}
+        return { ok: true, alive: true }
+      }
+
+      return { ok: false, error: '专用浏览器已执行拉起，但 9343 端口未就绪。' }
     } catch (err) {
       return { ok: false, error: err?.message ?? String(err) }
     }
