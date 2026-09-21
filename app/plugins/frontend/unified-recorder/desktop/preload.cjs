@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('recorder', {
   openPath: (targetPath) => ipcRenderer.invoke('recorder:open-path', targetPath),
   launchBrowser: () => ipcRenderer.invoke('recorder:launch-browser'),
   copyToClipboard: (text) => ipcRenderer.invoke('recorder:copy-to-clipboard', text),
+  readImage: (targetPath) => ipcRenderer.invoke('recorder:read-image', targetPath),
 })
 
 contextBridge.exposeInMainWorld('shell', {

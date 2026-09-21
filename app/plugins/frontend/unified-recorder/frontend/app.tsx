@@ -78,6 +78,7 @@ export interface UnifiedRecorderBridge {
   openPath: (targetPath: string) => Promise<{ ok: boolean; error?: string }>
   launchBrowser: () => Promise<{ ok: boolean; alive?: boolean; output?: string; error?: string }>
   copyToClipboard: (text: string) => Promise<{ ok: boolean }>
+  readImage?: (targetPath: string) => Promise<{ ok: boolean; dataUrl?: string; error?: string }>
 }
 
 const getBridge = (): UnifiedRecorderBridge | undefined =>

@@ -315,8 +315,8 @@ export async function parsePsrMhtAndExtractScreenshots(content, screenshotsDir) 
   await mkdir(screenshotsDir, { recursive: true })
 
   // 1. 抽取 MIME 截图
-  const boundaryMatch = content.match(/boundary="?([^"\r\n]+)"?/i)
-  const boundary = boundaryMatch ? boundaryMatch[1] : null
+  const boundaryMatch = content.match(/boundary=(?:"([^"\r\n]+)"|([^;\r\n\s]+))/i)
+  const boundary = boundaryMatch ? (boundaryMatch[1] ?? boundaryMatch[2])?.trim() : null
   const extractedScreenshots = new Map()
 
   if (boundary) {
@@ -330,12 +330,14 @@ export async function parsePsrMhtAndExtractScreenshots(content, screenshotsDir) 
         // 查找空行后的正文
         const headerEnd = part.search(/\r?\n\r?\n/)
         if (headerEnd !== -1) {
-          const base64Data = part.slice(headerEnd).replace(/\r?\n/g, '').trim()
+          const base64Data = part.slice(headerEnd).replace(/\r?\n/g, '').replace(/--+$/, '').trim()
           if (base64Data.length > 0) {
             const buffer = Buffer.from(base64Data, 'base64')
             const targetPath = join(screenshotsDir, filename)
             await writeFile(targetPath, buffer)
-            extractedScreenshots.set(filename, relative(dirname(screenshotsDir), targetPath).replace(/\\/g, '/'))
+            const relativePath = relative(dirname(screenshotsDir), targetPath).replace(/\\/g, '/')
+            extractedScreenshots.set(filename, relativePath)
+            extractedScreenshots.set(filename.toLowerCase(), relativePath)
           }
         }
       }
@@ -351,7 +353,9 @@ export async function parsePsrMhtAndExtractScreenshots(content, screenshotsDir) 
     const attributes = attributesOf(match[1])
     const index = Number.parseInt(attributes.ActionNumber ?? `${events.length + 1}`, 10)
     const rawScreenshotFile = textOf(match[2], 'ScreenshotFileName')
-    const screenshotRelative = rawScreenshotFile ? (extractedScreenshots.get(rawScreenshotFile) ?? `screenshots/${rawScreenshotFile}`) : null
+    const screenshotRelative = rawScreenshotFile
+      ? (extractedScreenshots.get(rawScreenshotFile) ?? extractedScreenshots.get(rawScreenshotFile.toLowerCase()) ?? `screenshots/${rawScreenshotFile}`)
+      : null
     events.push({
       index: Number.isFinite(index) ? index : events.length + 1,
       time: attributes.Time ?? null,
@@ -658,7 +662,7 @@ export function createUnifiedAdapters({
   recordingsDirectory = resolve('.generated/data/recordings'),
   observerScript = join(dirname(fileURLToPath(import.meta.url)), 'windows-input-observer.py'),
   psrExecutable = join(process.env.WINDIR ?? 'C:\\Windows', 'System32', 'psr.exe'),
-  enablePsr = false,
+  enablePsr = process.platform === 'win32',
 } = {}) {
   if (typeof runCli !== 'function') throw new Error('createUnifiedAdapters 需要 runCli(args) 函数')
 
@@ -722,7 +726,7 @@ export function createUnifiedAdapters({
         if (recording.artifactPath) {
           try {
             await stopPsrProcess({ executable: psrExecutable })
-            await waitForArtifact(recording.artifactPath, 3000)
+            await waitForArtifact(recording.artifactPath, 15000)
           } catch (err) {
             console.warn('[Unified Recorder] PSR stop/wait artifact warning:', err.message)
           }
@@ -746,6 +750,7 @@ export function createUnifiedAdapters({
         return {
           stopped: true,
           liveEvents: allLiveEvents,
+          sessionDir: recording.sessionDir,
           ...(recording.artifactPath ? { artifactPath: recording.artifactPath } : {}),
         }
       }

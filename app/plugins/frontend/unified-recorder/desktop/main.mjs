@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, clipboard, ipcMain, shell } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { extname, join, resolve } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
@@ -212,6 +213,21 @@ async function startHost() {
     if (typeof text !== 'string') return { ok: false }
     clipboard.writeText(text)
     return { ok: true }
+  })
+  ipcMain.handle('recorder:read-image', async (_event, targetPath) => {
+    try {
+      if (typeof targetPath !== 'string' || !targetPath) return { ok: false, error: 'Invalid path' }
+      const resolved = resolve(targetPath)
+      const ext = extname(resolved).toLowerCase()
+      if (!['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif'].includes(ext)) {
+        return { ok: false, error: 'Unsupported image extension' }
+      }
+      const data = await readFile(resolved)
+      const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg'
+      return { ok: true, dataUrl: `data:${mime};base64,${data.toString('base64')}` }
+    } catch (err) {
+      return { ok: false, error: err?.message ?? String(err) }
+    }
   })
 
   ipcMain.on('shell:minimize', () => mainWindow?.minimize())

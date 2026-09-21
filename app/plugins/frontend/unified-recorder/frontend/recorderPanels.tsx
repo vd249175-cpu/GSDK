@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import {
   Activity,
   Bot,
@@ -17,6 +17,7 @@ import {
   Sliders,
   Square,
   Terminal,
+  X,
 } from 'lucide-react'
 import type { PanelDefinition, PanelProps } from '@graphframework/workbench'
 import { IndustrialChip, EmptyState } from '@graphframework/ui'
@@ -391,8 +392,92 @@ export function AgentTranscriptPanel(_props: PanelProps) {
 /* ==========================================================================
    4. 截图与证据面板 (recorder.screenshots)
    ========================================================================== */
+function ScreenshotCard({
+  event,
+  sessionDir,
+  onOpenPath,
+  onZoom,
+}: {
+  event: UnifiedEvent
+  sessionDir: string | null
+  onOpenPath: (path: string) => void
+  onZoom: (dataUrl: string, title: string) => void
+}) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let canceled = false
+    const load = async () => {
+      if (!event.screenshotFile) return
+      const fullPath = sessionDir
+        ? `${sessionDir.replace(/[/\\]+$/, '')}/${event.screenshotFile.replace(/^[/\\]+/, '')}`
+        : event.screenshotFile
+      const bridge = (window as unknown as { recorder?: { readImage?: (p: string) => Promise<{ ok: boolean; dataUrl?: string }> } }).recorder
+      if (!bridge?.readImage) return
+      setLoading(true)
+      try {
+        const res = await bridge.readImage(fullPath)
+        if (!canceled && res.ok && res.dataUrl) {
+          setDataUrl(res.dataUrl)
+        }
+      } catch {}
+      if (!canceled) setLoading(false)
+    }
+    void load()
+    return () => { canceled = true }
+  }, [event.screenshotFile, sessionDir])
+
+  const fullPath = sessionDir && event.screenshotFile
+    ? `${sessionDir.replace(/[/\\]+$/, '')}/${event.screenshotFile.replace(/^[/\\]+/, '')}`
+    : (event.screenshotFile ?? '')
+
+  return (
+    <div className="screenshot-card">
+      <div className="screenshot-header is-mono">
+        <span>Step {String(event.index).padStart(2, '0')}</span>
+        <span>{event.application ?? event.source}</span>
+      </div>
+      <div
+        className="screenshot-preview-container"
+        onClick={() => dataUrl && onZoom(dataUrl, `Step ${String(event.index).padStart(2, '0')} · ${event.action ?? ''}`)}
+      >
+        {dataUrl ? (
+          <img src={dataUrl} alt={event.description ?? 'screenshot'} className="screenshot-img" />
+        ) : (
+          <div className="screenshot-preview-placeholder">
+            <ImageIcon size={24} />
+            <span className="file-name is-mono">{loading ? '加载中…' : event.screenshotFile}</span>
+          </div>
+        )}
+        {dataUrl && (
+          <div className="screenshot-hover-overlay">
+            <span className="overlay-zoom-text">点击放大</span>
+          </div>
+        )}
+      </div>
+      <div className="screenshot-footer">
+        <div className="screenshot-desc" title={event.description ?? ''}>{event.description}</div>
+        <button
+          type="button"
+          className="action-btn is-micro"
+          title="在资源管理器中定位"
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenPath(fullPath)
+          }}
+        >
+          <FolderOpen size={10} />
+          <span>定位</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function ScreenshotsPanel(_props: PanelProps) {
   const { state, handleOpenPath } = useRecorder()
+  const [zoomImage, setZoomImage] = useState<{ url: string; title: string } | null>(null)
 
   const screenshotEvents = state.events.filter((e) => Boolean(e.screenshotFile))
 
@@ -425,21 +510,33 @@ export function ScreenshotsPanel(_props: PanelProps) {
         ) : (
           <div className="screenshots-grid">
             {screenshotEvents.map((e) => (
-              <div key={e.index} className="screenshot-card">
-                <div className="screenshot-header is-mono">
-                  <span>Step {String(e.index).padStart(2, '0')}</span>
-                  <span>{e.application ?? e.source}</span>
-                </div>
-                <div className="screenshot-preview-placeholder">
-                  <ImageIcon size={28} />
-                  <span className="file-name is-mono">{e.screenshotFile}</span>
-                </div>
-                <div className="screenshot-desc">{e.description}</div>
-              </div>
+              <ScreenshotCard
+                key={e.index}
+                event={e}
+                sessionDir={state.sessionDir}
+                onOpenPath={(targetPath) => void handleOpenPath(targetPath)}
+                onZoom={(url, title) => setZoomImage({ url, title })}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {zoomImage && (
+        <div className="screenshot-modal-backdrop" onClick={() => setZoomImage(null)}>
+          <div className="screenshot-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="screenshot-modal-header">
+              <span className="is-mono">{zoomImage.title}</span>
+              <button type="button" className="action-btn is-micro" onClick={() => setZoomImage(null)}>
+                <X size={12} />
+              </button>
+            </div>
+            <div className="screenshot-modal-body">
+              <img src={zoomImage.url} alt="zoom preview" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -69,6 +69,7 @@ export async function createRunHost({ runtimeDirectory, parsed } = {}) {
     pythonExecutable: parsed?.backend?.dependencies?.pythonExecutable ?? 'python.exe',
     recordingsDirectory,
     observerScript: join(repositoryRoot, 'app', 'plugins', 'backend', 'os-recorder', 'bridge', 'windows-input-observer.py'),
+    enablePsr: process.platform === 'win32',
   })
 
   return {

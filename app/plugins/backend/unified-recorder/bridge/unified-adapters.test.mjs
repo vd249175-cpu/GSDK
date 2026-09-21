@@ -1,11 +1,12 @@
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   createUnifiedAdapters,
   parsePlaywrightScript,
   parsePsrMhtAndExtractScreenshots,
+  readPsrArchiveAndExtract,
   mergeAndCleanEvents,
   buildAgentTranscript,
   buildReplayScript,
@@ -83,6 +84,32 @@ describe('unified-adapters', () => {
       const shot1 = await stat(join(screenshotsDir, 'screenshot0001.jpeg'))
       expect(shot1.isFile()).toBe(true)
       expect(shot1.size).toBeGreaterThan(0)
+    } finally {
+      await rm(tempDir, { recursive: true, force: true }).catch(() => {})
+    }
+  })
+
+  it('从 Microsoft UFO 演示样本 ZIP (sample_record.zip) 提取全部 JPEG 截图真实落盘并关联事件', async () => {
+    const sampleZip = resolve('packages/ufo/record_processor/example/sample_record.zip')
+    const tempDir = await mkdtemp(join(tmpdir(), 'unified-test-ufo-zip-'))
+    try {
+      const screenshotsDir = join(tempDir, 'screenshots')
+      const result = await readPsrArchiveAndExtract(sampleZip, screenshotsDir)
+
+      expect(result.events).toHaveLength(7)
+      expect(result.applications).toContain('MSEDGEWEBVIEW2.EXE')
+      expect(result.screenshots.length).toBeGreaterThanOrEqual(5)
+
+      // 验证每个包含截图的事件其 screenshotFile 路径有效
+      for (const event of result.events) {
+        if (event.screenshotFile) {
+          expect(event.screenshotFile).toMatch(/^screenshots\/screenshot\d+\.jpeg$/i)
+          const fileOnDisk = join(tempDir, event.screenshotFile)
+          const info = await stat(fileOnDisk)
+          expect(info.isFile()).toBe(true)
+          expect(info.size).toBeGreaterThan(0)
+        }
+      }
     } finally {
       await rm(tempDir, { recursive: true, force: true }).catch(() => {})
     }
