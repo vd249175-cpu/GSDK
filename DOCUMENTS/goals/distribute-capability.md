@@ -8,7 +8,7 @@ tags: [capability, packaging, distribution, install, conflict-resolution]
 
 # 打包、安装或更新能力
 
-GraphFramework 采用能力包（Capability Package）机制在团队成员与 Agent 之间安全分享可复用的业务能力。能力包是独立、无运行时依赖、确定性压缩的 ZIP 档案，支持飞书知识库与群聊分享。
+GraphFramework 采用能力包（Capability Package）机制在团队成员与 Agent 之间安全分享可复用的业务能力。能力包是独立、无运行时依赖、确定性压缩的 ZIP 档案，通过自建服务端协作分发。
 
 ---
 
@@ -36,7 +36,7 @@ bash ./run.sh install <capability.zip> [--dir <dir>] [--run <run.config.json>] [
 | 分发层级 | 分发内容与载体 | 包含范围 | 边界与隔离规则 |
 | :--- | :--- | :--- | :--- |
 | **基础软件更新包** | 全面更新（批量通道） | `packages/` + `DOCUMENTS/` + `app/`（含 `app/plugins/` 核心插件） | 仅更新核心底座与核心插件；排除个人上下文、工作流与非核心插件 |
-| **工作流场景分享** | 单个独立 Run (`runs/<name>/`) + 飞书文本说明 + 针对性测试 | `run.config.json`、`assembly.mjs`、专用的非核心插件集合（位于 run 下）、单测用例 | **非核心插件不进入 `app/`**，先在独立 run 中跑通测试再并入 `runs/main/plugins/` |
+| **工作流场景分享** | 单个独立 Run (`runs/<name>/`) + 协作说明 + 针对性测试 | `run.config.json`、`assembly.mjs`、专用的非核心插件集合（位于 run 下）、单测用例 | **非核心插件不进入 `app/`**，先在独立 run 中跑通测试再并入 `runs/main/plugins/` |
 | **能力包 ZIP** | `<capability-id>-<version>.zip` + SHA-256 | 清单文件、专属 `assembly.mjs`、插件源码目录 | 安装到目标 run 下，不污染核心 `app/` |
 
 > [!IMPORTANT]
@@ -73,11 +73,11 @@ bash ./run.sh install <capability.zip> [--dir <dir>] [--run <run.config.json>] [
    bash ./run.sh pack capabilities/my-feature
    ```
    工具将生成 `<capability-id>-<version>.zip` 及同名 `.sha256` 校验文件。打包采用固定 DOS 时间戳与 Stored ZIP 模式，相同内容打包的 SHA-256 绝对一致。
-3. **协作群发布规范**：在群内分享时，必须同步附带：
+3. **协作通道发布规范**：在协作通道分享时，必须同步附带：
    - 能力包 ID 与版本号；
    - 用途与变更摘要；
    - 最低兼容的 GraphFramework 框架版本；
-   - 对应的飞书工作流链接；
+   - 对应的工作流说明链接；
    - 官方生成的 SHA-256 哈希值。
 
 ---
@@ -117,5 +117,5 @@ bash ./run.sh install <capability.zip> [--dir <dir>] [--run <run.config.json>] [
 
 ## 下一步
 
-- 查阅完整分发契约与性能指标：[SDK、插件与飞书协作分发契约](../contracts/distribution-contract.md)
+- 查阅完整分发契约与性能指标：[SDK、插件与协作分发契约](../contracts/distribution-contract.md)
 - 查阅插件协作与所有权边界：[插件发布与协作契约](../contracts/plugin-collaboration-contract.md)

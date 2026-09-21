@@ -42,7 +42,7 @@ recording-automation Node
 
 每个 State 字段仍只有一个 Owner。接入方只能向被发布插件公开的目标 Node 发送公开 Info，并按其 payload 契约处理结果。内部 Info、内部 Node、State schema 和 Adapter 不因代码可见而成为公开 API。需要新的协作入口时，由原插件发布者在新版本中明确增加。
 
-工作流正文是飞书知识库中的任务说明，不是一种插件。如果完成该工作流需要新增 Node、前端或运行逻辑，这些能力仍然作为普通插件与 run assembly contribution 交付；工作流只引用所需能力版本以及应向哪些专用 WorldNode 发送、等待什么。不得为此在内核中增加另一套工作流本体、注入路径或通信机制。
+工作流说明是团队协作中的任务说明文档，不是一种插件。如果完成该工作流需要新增 Node、前端或运行逻辑，这些能力仍然作为普通插件与 run assembly contribution 交付；工作流只引用所需能力版本以及应向哪些专用 WorldNode 发送、等待什么。不得为此在内核中增加另一套工作流本体、注入路径或通信机制。
 
 ## 4. 发布包的 OKF 说明
 

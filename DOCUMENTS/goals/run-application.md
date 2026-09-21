@@ -121,6 +121,7 @@ Windows 环境下可直接在命令行或双击运行：
 
 > [!NOTE]
 > 便捷脚本必须保持**纯委托原则**（Pure Delegation），其内部仅透传调用根目录 `run.sh`，严禁编写旁路启动逻辑。
+> Windows `.cmd` 必须为 CRLF 换行（仓库 `.gitattributes` 已对 `runs/*/*.cmd` 强制 `eol=crlf`）；LF 会导致 `cmd.exe` 把中文与引号参数切碎，报 `config.json"` / `优雅停机` 等错位。复制模板后若编辑器改了换行，用 `git diff --check` / `file` 自查。
 
 ---
 

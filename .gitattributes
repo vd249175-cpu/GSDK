@@ -1,1 +1,1 @@
-runs/os-recorder/*.cmd text eol=crlf
+runs/*/*.cmd text eol=crlf

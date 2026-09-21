@@ -124,23 +124,3 @@
 | **能力打包与分发** | [打包、安装或更新能力](DOCUMENTS/goals/distribute-capability.md) | [分发契约](DOCUMENTS/contracts/distribution-contract.md) |
 | **微内核能力演进** | [开发或开放内核能力](DOCUMENTS/goals/evolve-kernel.md) | [开发准入约束](DOCUMENTS/architecture/development-constraints.md) |
 | **多语言运行时接入** | [接入其他编程语言](DOCUMENTS/goals/add-language-runtime.md) | [常驻宿主协议](DOCUMENTS/protocols/kernel-daemon-protocol.md) |
-
----
-
-## 7. 飞书工作流接入与索引 (Feishu Workflow Navigation)
-
-团队工作流采用**飞书双通道分发**：
-- **知识库通道**：工作流步骤、适用条件、前置知识、向哪些 WorldNode 发送什么 Info、等待什么 Observation 权威保存在飞书知识库正文中；
-- **群聊通道**：工作流依赖的代码能力通过群聊以版本化能力包 ZIP（`<capability-id>-<version>.zip`）分发；
-- **`AGENTS.md` 索引原则**：每个 Agent 根据自身分工，在本节维护自己负责的飞书工作流页面索引。**严禁将工作流正文复制进 `AGENTS.md`，严禁将工作流包装成本地 Workflow Skill，严禁携带凭证**。
-
-### 当前 Agent 挂载的飞书工作流索引清单
-
-| 业务场景 / 协作任务 | 所需能力包及最低版本 | 飞书知识库工作流页面索引 | 维护者 |
-| :--- | :--- | :--- | :--- |
-| *[示例] 浏览器自动化录制* | `core.browser-recorder >= 1.0.0` | `https://feishu.cn/wiki/xxxxxx` | @team-qa |
-| *[示例] 订单履约链路流转* | `demo.topology >= 1.0.0` | `https://feishu.cn/wiki/yyyyyy` | @team-biz |
-| *（按当前 Agent 职责动态在此追加知识库映射）* | ... | ... | ... |
-
-> [!TIP]
-> Agent 在处理特定业务任务时，先查阅本表定位对应的飞书知识库工作流，读取正文中的因果步骤（发送点、观测点、人工确认边界），再通过已装配的 WorldNode 与对应 Info 推进因果流转。

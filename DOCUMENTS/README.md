@@ -63,8 +63,9 @@ GraphFramework 是一个面向桌面与后端系统的因果应用框架。本�
 ### 3. 协作与分发契约
 - [插件全景与契约索引](contracts/plugins-reference.md)：业务插件规范、Node/Info/Element 清单与内核稳定消费规约。
 - [插件发布与协作契约](contracts/plugin-collaboration-contract.md)：正式插件所有权、禁止污染、独立插件扩展与发布规则。
-- [SDK、插件与飞书协作分发契约](contracts/distribution-contract.md)：飞书双通道分享、七能力面镜像、独立制品、版本兼容与性能要求。
+- [SDK、插件与协作分发契约](contracts/distribution-contract.md)：自建服务端协作分享、七能力面镜像、独立制品、版本兼容与性能要求。
 - [多 Agent 独立开发与运行协作指南](contracts/multi-agent-run-guide.md)：已确认的命名 run、目录所有权与 Bash 启停并行隔离规范。
+- [知识库共享根目录协作契约](contracts/knowledge-root-sharing.md)：`/root/knowledgeroot` 唯一落地位置、内容边界与人机共同维护规则。
 
 ### 4. 排障、分析与 Agent 技能
 - [Node 实例因果调试](diagnostics/debug-guide.md)：从精确实体定位因果断点。

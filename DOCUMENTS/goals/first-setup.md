@@ -12,14 +12,13 @@ tags: [setup, onboarding, environment, build, first-run]
 
 ## 目标与完成标准
 
-在新电脑上成功运行自己的最小 run 并通过环境验收。完整完成标准包含以下 6 项：
+在新电脑上成功运行自己的最小 run 并通过环境验收。完整完成标准包含以下 5 项：
 
 1. **基础工具齐全**：Git Bash（Windows）、Node.js、npm、Rust 工具链可用；
 2. **仓库依赖就绪**：`packages/sdk/javascript` 与 `packages/desktop` 依赖安装完成，原生绑定编译且分发成功；
 3. **类型检查通过**：两套 TypeScript 类型检查零错误；
 4. **配置校验通过**：主 run 配置 `runs/main/run.config.json` 校验通过；
 5. **独立 run 运行正常**：成功创建 `runs/<name>/`，并通过 `run.sh`（或 Windows `.cmd`）正常启动、查看状态并关闭；
-6. **飞书身份可用**：已完成 `lark-cli` 安装与 `user-default` 授权（若需协同知识库与云盘）。
 
 ---
 
@@ -110,6 +109,7 @@ GraphFramework 采用命名 run 机制实现多开发者完全隔离。每位开
 
 > [!NOTE]
 > 便捷脚本必须遵循纯委托原则，严格透传根目录唯一的 `run.sh`（例如 `bash "$REPO_ROOT/run.sh" start "$CONFIG" "$@"`），严禁在脚本中编写旁路拉起逻辑。
+> Windows `.cmd` 必须为 CRLF 换行（`.gitattributes` 已强制）；LF 会导致中文与引号参数错位，报 `config.json"` / `优雅停机` 等错。
 
 ---
 
@@ -139,46 +139,6 @@ Windows 环境下可直接双击或在命令行运行该目录下的便捷脚本
 - `runs/<your-name>/start.cmd`
 - `runs/<your-name>/status.cmd`
 - `runs/<your-name>/stop.cmd`
-
----
-
-## 步骤 6：飞书 CLI 与用户身份初始化（协作推荐）
-
-飞书承担团队知识库、工作流正文与能力 ZIP 分享通道。若需与团队成员协同，按以下流程初始化飞书工具链：
-
-### 1. 安装飞书 CLI 与基础技能
-
-```bash
-npm install -g @larksuite/cli
-npx -y skills add https://open.feishu.cn --skill -y
-```
-
-Windows 若找不到 `lark-cli`，先用 `npm prefix --global` 取得全局目录，并将其追加到当前用户 `PATH`，然后验证 `lark-cli --version`。
-
-### 2. 绑定与授权
-
-团队目标身份为 `user-default`，以本人身份维护知识库和访问云盘：
-
-```bash
-# 绑定团队应用凭证（Hermes 环境示例）
-lark-cli config bind --source hermes --identity user-default
-
-# 发起用户登录授权
-lark-cli auth login --domain wiki --domain docs --domain drive --domain im --no-wait --json
-```
-
-在浏览器中确认授权后，执行验证：
-
-```bash
-lark-cli auth status --json --verify
-```
-
-确认输出中包含 `identity: user` 且 `verified: true`。
-
-> [!CAUTION]
-> 严禁把应用密钥、access token、个人凭证写入仓库文件、`AGENTS.md` 或提交记录中；device code 仅用于当次 split-flow 授权，不持久化。
-
----
 
 ## 下一步
 

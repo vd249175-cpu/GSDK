@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-09-21
+* **Update**: `DOCUMENTS/contracts/knowledge-root-sharing.md` 补首次启动三步（install.sh/install.ps1 安装分流、技能上游链接与 vendor 位置、AK 配置模板与 config list 验收、daemon/list 探活），真实 AK 只落 `~/.workbench/config.json` 不进文档。
+
 ## 2026-09-20
 * **Architecture Restructure**: 实施文档体系“目标入口 → 决策模型 → 权威参考”三层结构重构：
   - 新建 `DOCUMENTS/goals/` 知识子包，包含 10 个端到端目标页（`first-setup.md`、`build-feature.md`、`integrate-external-world.md`、`build-ui.md`、`run-application.md`、`verify-change.md`、`debug-causal-flow.md`、`distribute-capability.md`、`evolve-kernel.md`、`add-language-runtime.md`）；

@@ -1,0 +1,12 @@
+{
+  "id": "example.os-recorder",
+  "name": "OS Recorder",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "kind": "backend",
+  "contributes": {
+    "backend": "index.mjs",
+    "nodeFactories": [],
+    "graphFactories": ["createOsRecorderGraph"]
+  }
+}

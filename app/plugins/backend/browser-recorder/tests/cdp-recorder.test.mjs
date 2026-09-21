@@ -23,6 +23,15 @@ describe('cdp-recorder', () => {
   })
 
   it('真实连接 9343 探活与启停', async () => {
+    let alive = false
+    try {
+      const probe = await fetch('http://127.0.0.1:9343/json/version', { signal: AbortSignal.timeout(1000) })
+      alive = probe.ok
+    } catch {}
+    if (!alive) {
+      console.warn('专用浏览器 9343 未运行，跳过真实物理测试')
+      return
+    }
     const recorder = createCdpRecorder({ cdpUrl: 'http://127.0.0.1:9343' })
     const res = await recorder.captureControl.execute({ op: 'start', sessionId: 'test-real' })
     expect(res).toMatchObject({ handle: expect.stringContaining('cdp:9343') })
