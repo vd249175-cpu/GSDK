@@ -14,6 +14,19 @@ Windows Steps Recorder，结果保存为 UFO 可继续处理的 ZIP/MHT。录制
 Windows 输入观察源把鼠标、滚轮和隐私化键盘活动实时送入动作时间线；停止后再用
 PSR 产物中的权威 UFO 轨迹结算。
 
+## 当前能力边界
+
+本 run 已提供电脑操作的**观察与录制能力**，但尚未提供通用的**主动电脑控制
+能力**。ExecutionWorldNode 当前只负责启动/停止 PSR 与观察 helper，不会代表
+Agent 执行鼠标点击、键盘输入、窗口切换或应用操作，也没有把这些动作注册成
+Codex 可调用的 MCP/tool。
+
+要完成主动控制接入，还需要增加独立的 Windows ExecutionWorldNode 与
+EffectAdapter（可复用 UFO 的 UI Automation 能力），定义受控动作 Info、执行后
+Observation、目标窗口约束与敏感操作确认边界，并通过 MCP/tool 面向 Agent 暴露。
+这些 Node 可以直接用 Python、Rust 或其他语言实现；GraphFramework 的 daemon
+worker/provider 协议是语言无关的，JS 不是必经层。
+
 ## 启动
 
 ```bash
