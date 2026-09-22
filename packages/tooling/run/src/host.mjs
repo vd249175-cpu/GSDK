@@ -134,6 +134,10 @@ export async function runBackend(config) {
       assertReady();
       await injectPhase('start');
       await waitForState(control, parsed.lifecycle.ready, parsed.lifecycle.timeouts.startMs);
+      outerHost?.startPolling?.({
+        projection: () => control.projection(),
+        inject: (targetNodeId, info) => injectLifecycleInfos({ control, infos: [{ targetNodeId, info }], prefix: `${runId}/host/${randomUUID()}` }),
+      });
       const snapshot = mark('started', { state: 'running' });
       const result = { started: true, runId, runName, pid: process.pid, configPath: parsed.configPath, kernel: snapshot.kernel, stages: snapshot.stages, scenario: Boolean(parsed.scenarios?.length) };
       writeJsonRecord(join(runtime, 'business-start-result.json'), result);
@@ -148,8 +152,8 @@ export async function runBackend(config) {
     'stop-business': async () => {
       if (readSnapshot(config).stages.includes('settled')) return { settled: true };
       closing = true;
+      await outerHost?.stopPolling?.();
       mark('stopping', { state: 'stopping' });
-      if (mount?.admitted.length) await injectPhase('stop');
       await waitForSubmissions({ control, submissionIds: [], timeoutMs: parsed.lifecycle.timeouts.settleMs, label: 'shutdown drain' });
       mark('settled');
       return { settled: true };

@@ -72,6 +72,47 @@ export async function createRunHost({ runtimeDirectory, parsed } = {}) {
     enablePsr: process.platform === 'win32',
   })
 
+  // 5. 录制中 live 事件 tick：宿主常驻时钟，只发 Info，不碰 State。
+  // 前端保持无状态 projection 订阅；关窗口也不中断后端录制。
+  const pollIntervalMs = Number(parsed?.backend?.dependencies?.unifiedPollIntervalMs ?? 1200)
+  const pollInterval = Number.isFinite(pollIntervalMs) && pollIntervalMs > 0 ? pollIntervalMs : 1200
+  let pollTimer = null
+  let pollInject = null
+  let pollInFlight = false
+  const tickPoll = async () => {
+    if (pollInFlight) return
+    if (!pollInject || typeof pollInject.inject !== 'function' || typeof pollInject.projection !== 'function') return
+    let projection = null
+    try {
+      projection = await pollInject.projection()
+    } catch {
+      return
+    }
+    const session = projection?.nodes?.['recorder/session']
+    if (session?.state?.status !== 'recording') return
+    const sessionId = session?.state?.sessionId
+    if (typeof sessionId !== 'string' || sessionId.length === 0) return
+    pollInFlight = true
+    try {
+      await pollInject.inject('recorder/observation', { type: 'PollUnifiedEventsInfo', sessionId })
+    } catch {
+      // 下一 tick 重试：不抛、不累积、不改 State。
+    } finally {
+      pollInFlight = false
+    }
+  }
+  const startPolling = (hooks) => {
+    if (pollTimer || !hooks || typeof hooks.inject !== 'function' || typeof hooks.projection !== 'function') return
+    pollInject = hooks
+    pollTimer = setInterval(() => { void tickPoll() }, pollInterval)
+    pollTimer.unref?.()
+  }
+  const stopPolling = () => {
+    clearInterval(pollTimer)
+    pollTimer = null
+    pollInject = null
+    pollInFlight = false
+  }
   return {
     dependenciesFor: (instance) => {
       if (instance.id === 'recorder' || instance.factory?.plugin === 'example.unified-recorder') {
@@ -111,10 +152,16 @@ export async function createRunHost({ runtimeDirectory, parsed } = {}) {
         infoType: 'PollUnifiedEventsInfo',
       },
     ],
-    stopSources: async () => {
+     stopSources: async () => {
+      stopPolling()
       await osBridge.stopActive?.()
       await computer.stop?.()
     },
+    dispose: async () => {
+      stopPolling()
+    },
+    startPolling,
+    stopPolling,
   }
 }
 

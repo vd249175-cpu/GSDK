@@ -20,31 +20,15 @@ process.on('unhandledRejection', (error) => console.error('[Unified Recorder Hos
 
 let mainWindow = null
 let stopped = false
-let isPolling = false
 
 async function getSessionSnapshot() {
   try {
     const graphPrefix = `${context.instance.graph ?? 'recorder'}/`
-    let projection = await callRunControl(runtime, 'projection')
-    let nodeEntry = projection.nodes?.[`${graphPrefix}session`] ?? projection.nodes?.['example.unified-recorder/session']
-    let state = defaultValueCodec.decode(nodeEntry?.state) ?? {}
-    if (state.status === 'recording' && !isPolling) {
-      isPolling = true
-      try {
-        await callRunControl(runtime, 'inject-host', {
-          frontendId: context.instance.id ?? 'recorder-ui',
-          targetNodeId: `${graphPrefix}observation`,
-          info: { type: 'PollUnifiedEventsInfo', sessionId: state.sessionId },
-        })
-        projection = await callRunControl(runtime, 'projection')
-        nodeEntry = projection.nodes?.[`${graphPrefix}session`] ?? projection.nodes?.['example.unified-recorder/session']
-        state = defaultValueCodec.decode(nodeEntry?.state) ?? {}
-      } catch {
-        // A later refresh retries the observation poll without changing owner state.
-      } finally {
-        isPolling = false
-      }
-    }
+    // 前端无状态：只读 projection。live 事件 tick 由后端宿主常驻时钟注入，
+    // 此处不再发送 PollUnifiedEventsInfo（见 runs/main/host.mjs startPolling）。
+    const projection = await callRunControl(runtime, 'projection')
+    const nodeEntry = projection.nodes?.[`${graphPrefix}session`] ?? projection.nodes?.['example.unified-recorder/session']
+    const state = defaultValueCodec.decode(nodeEntry?.state) ?? {}
     let browserAlive = false
     try {
       const bRes = await fetch('http://127.0.0.1:9343/json/version', { signal: AbortSignal.timeout(800) })

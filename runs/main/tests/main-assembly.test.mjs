@@ -41,6 +41,8 @@ describe('runs/main integrated assembly', () => {
       })
 
       expect(typeof host.dependenciesFor).toBe('function')
+      expect(typeof host.startPolling).toBe('function')
+      expect(typeof host.stopPolling).toBe('function')
       expect(host.hostRoots).toEqual([
         {
           frontendId: 'main-ui',
