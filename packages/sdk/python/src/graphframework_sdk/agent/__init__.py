@@ -4,6 +4,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from graphframework_sdk.daemon import KernelDaemonClient
+
+__all__ = [
+    "KernelDaemonClient",
+    "analyze",
+    "inject",
+    "inspect",
+    "intervene_state",
+]
+
 
 async def inspect(client: Any, after: int | None = None, limit: int | None = None) -> Any:
     return await client.agent_inspect(after, limit)

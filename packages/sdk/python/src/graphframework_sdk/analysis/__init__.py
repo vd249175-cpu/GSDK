@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+__all__ = ["ANALYSIS_OPS", "analyze", "portable_snapshot"]
+
 
 ANALYSIS_OPS = frozenset({
     "index", "facts", "validate", "entity", "expand", "path",

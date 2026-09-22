@@ -6,6 +6,13 @@ import json
 import re
 from dataclasses import dataclass
 
+__all__ = [
+    "PluginContributes",
+    "StudioPluginManifest",
+    "define_studio_plugin_manifest",
+    "parse_studio_plugin_manifest",
+]
+
 
 _PLUGIN_ID = re.compile(r"^[a-z0-9][a-z0-9.-]*$")
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")

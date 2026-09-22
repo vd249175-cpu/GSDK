@@ -5,7 +5,7 @@ import asyncio
 import pytest
 
 from graphframework_sdk import agent, analysis, effect, node, plugin, protocol, testing
-from graphframework_sdk.daemon import KernelDaemonClient
+from graphframework_sdk.agent import KernelDaemonClient
 from graphframework_sdk.protocol import Info, ProtocolError
 
 
@@ -94,3 +94,15 @@ async def test_daemon_client_rejects_short_tokens_before_connect() -> None:
 
 def test_protocol_error_is_typed() -> None:
     assert issubclass(ProtocolError, Exception)
+
+
+def test_daemon_client_has_one_public_capability_face() -> None:
+    assert agent.KernelDaemonClient is KernelDaemonClient
+    assert "KernelDaemonClient" in agent.__all__
+
+
+def test_every_capability_face_declares_its_public_exports() -> None:
+    faces = (agent, analysis, effect, node, plugin, protocol, testing)
+    for face in faces:
+        assert face.__all__
+        assert all(hasattr(face, name) for name in face.__all__)

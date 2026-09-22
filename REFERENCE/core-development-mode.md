@@ -94,7 +94,7 @@ tags: [core-development, mental-model, rust-kernel, core-packages, core-plugins,
 ## 3. 核心开发工程纪律与开发流程
 
 ### 3.1 本地测试驱动开发
-- 修复缺陷或扩展能力时，**先写最小复现单测**（利用 `@graphframework/sdk/testing` 的 `createNodeTestingHarness`）；
+- 修复缺陷或扩展能力时，**先写最小复现单测**（利用 `@graphframework/sdk/testing` 的 `createTestRuntime`）；
 - 排障优先针对最小局部切片，严禁直接启动 Electron 黑盒界面进行肉眼盲测；
 - 严禁用 `node -e` 拼凑临时验证脚本。
 

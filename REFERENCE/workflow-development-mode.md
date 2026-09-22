@@ -117,11 +117,13 @@ export class PaymentExecutionNode extends ExecutionWorldNode<{ lastTradeNo: stri
 ### 步骤 4：编写纯内存单元测试（几毫秒内极速反馈）
 在 `tests/` 下建立单测，无需拉起 Electron：
 ```ts
-import { createNodeTestingHarness } from '@graphframework/sdk/testing';
+import { createTestRuntime } from '@graphframework/sdk/testing';
 
-const harness = createNodeTestingHarness(new OrderProcessorNode());
-await harness.send({ type: 'SubmitOrder', amount: 100 });
-expect(harness.readState('status')).toBe('processing');
+const runtime = createTestRuntime({ nodes: [new OrderProcessorNode()] });
+await runtime.inject('node-order', { type: 'SubmitOrder', amount: 100 });
+await runtime.waitForQuiescence();
+expect(runtime.getState('node-order')?.status).toBe('processing');
+await runtime.dispose();
 ```
 
 ### 步骤 5：启动运行与排障

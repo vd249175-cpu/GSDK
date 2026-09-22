@@ -1,102 +1,72 @@
 ---
-type: Developer Guide
-title: JavaScript / TypeScript SDK 全量接口指南 (packages/sdk/javascript)
-description: TS/JS SDK 全景接口规约：Node/WorldNode 基类、Change 上下文方法全集、NativeRuleSpace API 与单元测试 Harness。
+type: API Reference
+title: JavaScript / TypeScript SDK 公开接口
+description: 七个公开子路径、change context、NativeRuleSpace、插件与测试能力的源码对齐接口表。
 status: stable
-tags: [sdk, typescript, node, testing, effect-adapter, context-methods, native-rule-space]
+tags: [sdk, typescript, public-api, node, testing, native-rule-space]
 ---
 
-# JavaScript / TypeScript SDK 全量接口指南 (`packages/sdk/javascript`)
+# JavaScript / TypeScript SDK 公开接口
 
-源码目录：[`packages/sdk/javascript/`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/sdk/javascript)
+开始开发、最小示例与验收命令见 [SDK 开发入口](../README.md)。本页只回答“从哪里导入、可调用什么”。消费者不得导入 `packages/sdk/javascript/src/**`。
 
-本指南列出 TypeScript SDK 导出的**全部核心类、接口方法与上下文操作**，实现 100% 无遗漏覆盖，开发者读完即可直接上手进行业务开发。
+## 1. 七个稳定子路径
 
----
+| 子路径 | 主要公开 API |
+| :--- | :--- |
+| `@graphframework/sdk/protocol` | `Info`、change/projection/telemetry DTO、`defaultValueCodec`、daemon value codec、机器契约常量 |
+| `@graphframework/sdk/node` | `Node`、`WorldNode`、`ExecutionWorldNode`、`ObservationWorldNode`、contexts、`KernelRuntime`（测试 Oracle）、`NativeRuleSpace`、原生/daemon/process node 桥接 |
+| `@graphframework/sdk/effect` | `EffectAdapter`、`EffectContext`、daemon effect provider |
+| `@graphframework/sdk/plugin` | Node 基类重导出、工厂、`BackendPlugin`、renderer root 校验、Manifest 解析 |
+| `@graphframework/sdk/analysis` | 实例/便携事实、索引、查询、路径、视图、健康度、可达性、中心性与社区算法 |
+| `@graphframework/sdk/agent` | `KernelDaemonClient` 与 `connectKernelDaemon` |
+| `@graphframework/sdk/testing` | `createTestRuntime`、`EffectHarness` 及其类型 |
 
-## 1. 核心导出与命名空间速查
+包根 `@graphframework/sdk` 不导出 API；必须选择能力面，避免浏览器代码意外打包 Node/Rust 宿主依赖。
+
+## 2. change context
+
+| API | 允许位置 | 返回/效果 |
+| :--- | :--- | :--- |
+| `ctx.read(key)` | 所有 Node | 读取 Owner State 字段 |
+| `ctx.write(key, value)` | 所有 Node | 在当前 change 写一个字段 |
+| `ctx.patchState(patch)` | 所有 Node | 在当前 change 合并多个字段 |
+| `ctx.send(info, targetNodeId)` | 所有 Node | 返回 `DeliveryFeedback`；唯一节点通信路径 |
+| `await ctx.span(name, action)` | 所有 Node | 执行 action 并记录耗时 span |
+| `await ctx.effectAdapter(adapter, request, options?)` | WorldNode | 执行构造注入的 `EffectAdapter`；纯 Node 调用会报架构错误 |
+
+类型选择：纯领域 Node 使用 `DomainChangeContext<State>`；WorldNode 使用 `WorldChangeContext<State>`。公开 API 中没有 `ExecutionChangeContext`、`ObservationChangeContext` 或 `defineEffectAdapter`。
+
+## 3. NativeRuleSpace
+
+生产调度只使用 Rust-backed `NativeRuleSpace`。常用公开成员按职责分组如下：
+
+| 职责 | 成员 |
+| :--- | :--- |
+| 准入/替换 | `register`、`unregister`、`evict`、`replace`；类 Node 使用 `mountDomainNode` / `replaceDomainNode` 辅助函数 |
+| 注入/结算 | `injectRoot`、`waitForSubmission`、`submissionState`、`cancel`、`pump` |
+| 状态/控制面 | `getState`、`generation`、`admittedEntities`、`interveneState` |
+| 观察 | `readProjection`、`subscribeProjection`、`readCausalEvents`、`subscribeCausalEvents`、`readStaticTopology` |
+| 队列/丢弃 | `pendingTotal`、`queuedDepths`、`readPendingInfos`、`drops` |
+| 生命周期 | `waitForDisposals`、`shutdown`、`dispose` |
+
+`interveneState` 必须携带 actor、reason、预期 generation 与 version；普通业务变迁仍只能通过 Info 进入 Owner Node。
+
+## 4. 测试入口
 
 ```ts
-import {
-  Node,                         // 纯领域节点基类
-  ExecutionWorldNode,           // 物理执行类节点基类
-  ObservationWorldNode,         // 物理观察类节点基类
-  NativeRuleSpace,              // 原生规则空间主实例
-  mountDomainNode,              // 挂载节点辅助函数
-  replaceDomainNode,            // 替换节点辅助函数
-  describeDomainNode,           // 读取节点自描述元数据
-  type Info,                    // 因果脉冲通用结构
-  type DomainChangeContext,     // 纯领域变化上下文
-  type ExecutionChangeContext,  // 物理执行变化上下文
-  type ObservationChangeContext,// 物理观察变化上下文
-} from '@graphframework/sdk/node';
-
-import {
-  type EffectAdapter,           // 物理副作用适配器接口
-  defineEffectAdapter,          // 构造适配器工厂
-} from '@graphframework/sdk/effect';
-
-import {
-  createNodeTestingHarness,     // 节点纯内存单测工具
-  type NodeTestingHarness,
-} from '@graphframework/sdk/testing';
+import { createTestRuntime, EffectHarness } from '@graphframework/sdk/testing';
 ```
 
----
+`createTestRuntime({ nodes? })` 返回：`kernel`、`inject`、`injectRootInfo`、`waitForQuiescence`、`getState`、`getNode`、`readProjection`、`createProjection`、`dispose`。它使用冻结的 TypeScript 规约，仅用于局部测试，不是生产内核。
 
-## 2. 节点变化体上下文接口全集 (`ChangeContext`)
+`EffectHarness` 用显式 fixture 包装 adapter 调用，记录请求、观察结果与诊断摘要。源码没有 `createNodeTestingHarness` 或 `NodeTestingHarness`。
 
-在 Node 的 `change(info, ctx)` 内部，`ctx` 提供以下原子操作方法（无一遗漏）：
+## 5. 公开导出变更规则
 
-| 上下文方法 | 适用节点分类 | 参数与签名 | 行为与物理契约 |
-| :--- | :--- | :--- | :--- |
-| **`ctx.read(key)`** | 全部节点 | `key: keyof State` | 读取本节点当前 State 中的指定字段值。只读操作。 |
-| **`ctx.write(key, value)`** | 全部节点 | `key: keyof State, value: any` | 原子写入并更新本节点指定字段。立即在当前单飞中生效。 |
-| **`ctx.patchState(patch)`** | 全部节点 | `patch: Partial<State>` | 批量原子合并更新本节点的多个 State 字段。 |
-| **`ctx.send(info, targetNodeId)`** | 全部节点 | `info: Info, targetNodeId: string` | **节点间唯一合法的通信手段**。返回 `{ status: "enqueued" \| "dropped", reason? }`。 |
-| **`ctx.effectAdapter(adapter, request, options?)`** | 仅 `ExecutionWorldNode` | `adapter: EffectAdapter<Req, Obs>, request: Req, options?: { signal?: AbortSignal }` | **下发外部物理 I/O**。异步等待物理世界的返回结果，获得 Observation。其他节点严禁调用。 |
-| **`ctx.span(name, action)`** | 全部节点 | `name: string, action: () => Promise<T> \| T` | 创建命名执行性能耗时切片，用于遥测追踪。 |
+新增能力必须从所属 `src/<face>/index.ts` 导出。新增“能力面”才同时修改 `package.json#exports` 与 `vite.dist.config.ts`；向现有能力面增加成员不应新建深层子路径。提交前运行：
 
----
-
-## 3. 规则空间操作方法全集 (`NativeRuleSpace`)
-
-[`NativeRuleSpace`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/sdk/javascript/src/node/native-space.ts) 承载着上层与 Rust 原生微内核的完整交互：
-
-### 3.1 节点生命周期
-- `space.mountDomainNode(node)`: 装配并准入一个新节点。
-- `space.replaceNode(nodeId, newNode)`: 在单飞间隙原子热替换节点，自动换代并清空旧积压队列。
-- `space.evict(nodeId, options?: { timeoutMs?: number })`: 优雅注销节点，等待其在途 Change 执行完毕并执行清理。
-- `space.seal(nodeId)` / `space.unseal(nodeId)`: 临时密封/解封节点 Mailbox。
-
-### 3.2 任务注入与调度
-- `space.injectRootInfo(targetNodeId, info, submissionId)`: 从图外注入根脉冲，启动一个以 `submissionId` 归属的因果链路。
-- `space.cancelSubmission(submissionId)`: 一键取消指定根任务批次。
-- `space.getSubmissionState(submissionId)`: 查询批次生命周期状态（`"open:N"`, `"completed"`, `"cancelled"`, `"failed:..."`）。
-- `space.waitForQuiescence(timeoutMs?: number)`: 异步等待全图所有节点均达到静止态（队列无积压、无在途 Change）。
-
-### 3.3 状态观测与控制面干预
-- `space.getState(nodeId)`: 获取指定节点当前的只读 State 字典快照。
-- `space.getGeneration(nodeId)`: 获取指定节点当前的活跃代数（Generation）。
-- `space.readProjection()`: 读取全图所有节点的只读状态投影集合。
-- `space.readStaticTopology()`: 读取静态解析出的节点与因果路由拓扑。
-- `space.interveneState(nodeId, mutator, options?)`: **控制面单飞间隙状态修改**。传入 `mutator(currentState)` 函数进行原子热修改。
-
-### 3.4 拓扑分析与停机
-- `space.analyze(request)`: 传入分析操作对象（如 `{ op: "health" }`），直接在微内核内部调用高性能分析引擎。
-- `space.shutdown()`: 优雅停机。在无活跃节点和任务时安全注销微内核。
-- `space.dispose(options?)`: 组合清理。取消所有未决任务、逐个卸载所有节点并关闭底层规则空间。
-
----
-
-## 4. 纯内存单测 Harness 接口全集 (`NodeTestingHarness`)
-
-由 `createNodeTestingHarness(node)` 构造，提供以下测试断言辅助接口：
-
-| 测试方法 | 返回类型 | 功能说明 |
-| :--- | :--- | :--- |
-| `await harness.send(info)` | `Promise<void>` | 向测试节点灌入一条 Info 脉冲，并等待其 `change` 逻辑完全执行完毕。 |
-| `harness.readState(key?)` | `any` | 读取节点当前的特定状态字段值（或整个 State 快照）。 |
-| `harness.getSentInfos()` | `Array<{ info, targetNodeId }>` | 获取在当前测试轮次中，该节点通过 `ctx.send` 发送的所有脉冲记录。 |
-| `harness.getSentTo(targetId)` | `Info[]` | 筛选出发往特定目标节点的所有脉冲列表。 |
-| `harness.clearSent()` | `void` | 清空已记录的发送历史，便于进行下一轮断言。 |
+```bash
+npm --prefix packages/sdk/javascript run typecheck
+npm --prefix packages/sdk/javascript test
+```

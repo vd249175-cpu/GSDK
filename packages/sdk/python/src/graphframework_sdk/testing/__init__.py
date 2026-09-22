@@ -7,6 +7,8 @@ from typing import Any
 
 from graphframework_sdk.node import DaemonNodeChangeContext
 
+__all__ = ["FakeDaemonClient", "local_change_context", "wait_for"]
+
 
 class FakeDaemonClient:
     """In-memory stand-in with the same poll/commit shape as the daemon."""
