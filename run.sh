@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-[[ $# -ge 2 ]] || { echo 'Usage: bash ./run.sh start|stop|status|validate|analyze|inspect runs/<name>/run.config.json [json]; bash ./run.sh pack <capability-dir> [out.zip]; bash ./run.sh verify <capability.zip> [--expect-sha256 <hex>]; bash ./run.sh install <capability.zip> [--dir <dir>] [--run <run.config.json>] [--update] [--expect-sha256 <hex>]' >&2; exit 2; }
+[[ $# -ge 2 ]] || { echo 'Usage: bash ./run.sh start|stop|status|validate|analyze|inspect runs/<name>/run.config.json [json]; bash ./run.sh pack <capability-dir> [out.zip]; bash ./run.sh verify <capability.zip> [--expect-sha256 <hex>]; bash ./run.sh install <capability.zip> [--dir <dir>] [--run <run.config.json>] [--update] [--expect-sha256 <hex>]; bash ./run.sh pack-base [repo-root] [out.zip]; bash ./run.sh install-base <base.zip> <target-dir>; bash ./run.sh pack-run <run-dir> [out.zip]; bash ./run.sh install-run <run.zip> [target-base-dir]' >&2; exit 2; }
 op="$1"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 config_dir="$(cd "$(dirname "$2")" && pwd)"

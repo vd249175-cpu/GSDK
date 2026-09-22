@@ -38,13 +38,11 @@ tags: [distribution, contract, capability, collaboration, independent-acceptance
 <plugin-id>/
 ├── graphframework.plugin.json   # 插件元数据清单 (apiVersion: 2)
 ├── PACKAGE.md                   # 遵循 OKF 0.2 的交付说明文档
-├── backend.mjs (或 .ts)         # 后端节点实现与工厂导出
+├── index.mjs                    # 后端节点实现与工厂导出（manifest contributes.backend 指向的入口）
 ├── analysis/
 │   └── folds.recommended.json   # 推荐折叠配置 (覆盖插件全部基础节点)
 ├── docs/
 │   └── INTEGRATION.md           # 接入与拓扑集成指南
-├── elements/                    # (可选) 需要外部用户/物理操作时提供
-├── workspaces/                  # (可选) 需要工作区布局时提供
 └── frontend/ desktop/           # (可选) 按实际业务 UI 接入需要提供
 ```
 

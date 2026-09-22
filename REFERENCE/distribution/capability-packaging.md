@@ -28,7 +28,18 @@ bash ./run.sh verify <capability.zip> [--expect-sha256 <hex>]
 bash ./run.sh install <capability.zip> [--dir <dir>] [--run <run.config.json>] [--update] [--expect-sha256 <hex>]
 ```
 
-### 1.2 全局基础软件更新包（Base Software Package）命令
+
+### 1.2 整 run 分享（Run Archive）命令
+工作流分享以单个独立 run 为载体时（配置、非核心插件集合与测试一体），用整 run 打包代替能力包：
+```bash
+# 1. 打包整个 run 目录（排除 .generated / run.lock.json / node_modules，顶层为 <runName>/）
+bash ./run.sh pack-run <run-dir> [out.zip]
+
+# 2. 解压到目标目录的 runs/<runName>/ 下
+bash ./run.sh install-run <run.zip> [target-base-dir]
+```
+
+### 1.3 全局基础软件更新包（Base Software Package）命令
 ```bash
 # 1. 全局打包：一键生成包含全仓核心底座、核心插件、技能全集与 MCP 的全局更新包
 bash ./run.sh pack-base [repo-root] [out.zip]
@@ -55,7 +66,7 @@ bash ./run.sh install-base <base.zip> <target-dir>
     ├── backend/<plugin-id>/         # 后端插件（保留 Manifest 与源码）
     │   ├── graphframework.plugin.json
     │   ├── PACKAGE.md
-    │   ├── backend.mjs (或 backend.ts)
+    │   ├── index.mjs                # manifest contributes.backend 指向的入口
     │   └── docs/INTEGRATION.md
     └── frontend/<plugin-id>/        # 前端插件（仅在包含 UI 时存在）
         ├── graphframework.plugin.json
