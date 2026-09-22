@@ -45,12 +45,14 @@ GraphFramework 的设计**不是**为了把普通的函数、类、服务无意�
 │                                               │             │
 │                                               ▼             │
 │                                         Change Handler      │
-│                                         ┌─────────────┐     │
-│                                         │ ctx.read    │     │
-│                                         │ ctx.write   │     │
-│                                         │ ctx.send    │     │
-│                                         │ ctx.effect  │     │
-│                                         └─────────────┘     │
+│                                         ┌──────────────┐    │
+│                                         │ ctx.read     │    │
+│                                         │ ctx.write    │    │
+│                                         │ ctx.send     │    │
+│                                         │ ctx.effect*  │    │
+│                                         └──────────────┘    │
+│                                         * WorldNode 经构造  │
+│                                           注入的 Adapter    │
 │                                               │             │
 │                                               ▼             │
 │                           State 变更 ──► Projection (投影)  │
