@@ -19,7 +19,7 @@ function entryExists(directory, entry) {
 }
 
 /** Outer-host configuration; plugin directories may live anywhere on disk. */
-export function loadApplication(file = process.env.GRAPHFRAMEWORK_APPLICATION ?? process.env.GRAPHFRAMEWORK_APPLICATION ?? resolve(runtimeRoot, '../../app/application.json')) {
+export function loadApplication(file = process.env.GRAPHFRAMEWORK_APPLICATION ?? resolve(runtimeRoot, '../../app/application.json')) {
   const applicationPath = resolve(file)
   const directory = dirname(applicationPath)
   const definition = JSON.parse(readFileSync(applicationPath, 'utf8'))
@@ -32,9 +32,7 @@ export function loadApplication(file = process.env.GRAPHFRAMEWORK_APPLICATION ??
     if (ids.has(key)) throw new Error('Duplicate application plugin: ' + plugin.id)
     ids.add(key)
     const pluginDirectory = resolve(directory, plugin.path)
-    const manifestPath = existsSync(resolve(pluginDirectory, 'graphframework.plugin.json'))
-      ? resolve(pluginDirectory, 'graphframework.plugin.json')
-      : resolve(pluginDirectory, 'graphframework.plugin.json')
+    const manifestPath = resolve(pluginDirectory, 'graphframework.plugin.json')
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
     if (manifest.id !== plugin.id || (manifest.apiVersion !== 1 && manifest.apiVersion !== 2)) {
       throw new Error('Application plugin identity/API mismatch: ' + plugin.id)

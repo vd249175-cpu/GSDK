@@ -1,11 +1,26 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { loadApplication } from './application.mjs'
 import { loadBackendPlugins } from './host/plugin-loader.mjs'
 
 describe('application assembly', () => {
+  it('publishes one explicit subpath for every reusable desktop capability', () => {
+    const packageJson = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+    expect(Object.keys(packageJson.exports).sort()).toEqual([
+      './agent-control',
+      './application',
+      './command-gate',
+      './electron-window',
+      './element-catalog',
+      './graph-host',
+      './plugin-loader',
+      './renderer-security',
+      './window-options',
+    ])
+    expect(packageJson.exports['.']).toBeUndefined()
+  })
   it('loads the repository application with plugin-owned host and renderer', () => {
     const app = loadApplication()
     expect(app.hostEntry).toBe(resolve(app.directory, 'plugins/backend/demo-topology/desktop/demo-controller.mjs'))
