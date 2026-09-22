@@ -453,6 +453,12 @@ export abstract class Node<
   public onMount(): void {}
   public onUnmount(): void {}
 
+  /** @internal Runtime ownership boundary. Runs onUnmount synchronously exactly once. */
+  public _runUnmountSync(): void {
+    if (this.unmountConfirmed) return;
+    this.onUnmount();
+    this.unmountConfirmed = true;
+  }
   public registerDisposer(disposer: Disposer): void {
     this.disposers.add(disposer);
   }
@@ -465,8 +471,8 @@ export abstract class Node<
       for (const disposer of this.disposers) {
         try { await disposer(); this.disposers.delete(disposer); } catch (error) { errors.push(error); }
       }
-      if (!this.unmountConfirmed && errors.length === 0) {
-        try { this.onUnmount(); this.unmountConfirmed = true; } catch (error) { errors.push(error); }
+      if (errors.length === 0) {
+        try { this._runUnmountSync(); } catch (error) { errors.push(error); }
       }
       this.status = 'IDLE';
       if (errors.length) throw new AggregateError(errors, `Node ${this.id} cleanup failed`);

@@ -135,10 +135,10 @@ describe.skipIf(!binary)('Native domain-node bridge', () => {
     expect(events).toEqual([
       'mount:v1',
       'mount:v2',
-      'dispose:v1',
       'unmount:v1',
-      'dispose:v2',
+      'dispose:v1',
       'unmount:v2',
+      'dispose:v2',
     ]);
   });
 

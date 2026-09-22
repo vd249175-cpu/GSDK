@@ -227,6 +227,7 @@ export class KernelRuntime {
     node._sealedForReplace = true;
     node._discardMailbox(nodeRuntimeCapability, `evict:${nodeId}`);
     node._unmountKernel(nodeRuntimeCapability, this);
+    node._runUnmountSync();
     this.nodes.delete(nodeId);
     this.generations.set(nodeId, (this.generations.get(nodeId) ?? node.generation) + 1);
     void node.dispose().catch((err: unknown) => {
@@ -255,6 +256,7 @@ export class KernelRuntime {
       await this.waitForNodeIdle(old, options.timeoutMs ?? this.replaceWaitTimeoutMs);
       old._discardMailbox(nodeRuntimeCapability, `replace:${nodeId}`);
       old._unmountKernel(nodeRuntimeCapability, this);
+      old._runUnmountSync();
       this.nodes.delete(nodeId);
       await old.dispose().catch((err: unknown) => {
         console.error(`[KernelRuntime]: Failed to dispose replaced node ${nodeId}:`, err);

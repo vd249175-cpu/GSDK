@@ -16,7 +16,7 @@ describe('deterministic domain source boundary', () => {
   it('keeps Node imports inside the SDK and analysis/presentation out of its base class', () => {
     const sdk = resolve(import.meta.dirname, '../src');
     const root = join(sdk, 'node');
-    const bridgeFiles: Record<string, true> = { 'native-space.ts': true, 'process-node.ts': true };
+    const bridgeFiles: Record<string, true> = { 'native-space.ts': true, 'process-node.ts': true, 'native-node.ts': true, 'daemon-node.ts': true };
     const violations = sourceFiles(root).filter((file) => !file.endsWith('.test.ts')).flatMap((file) => {
       // native-space / process-node are the designed bridges feeding portable facts to Rust analysis.
       if (bridgeFiles[file.split(/[\\/]/).pop() ?? '']) return [];

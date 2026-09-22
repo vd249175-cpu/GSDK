@@ -1144,6 +1144,13 @@ export class NativeRuleSpace {
   }
 
   private queueDisposal(node: RegisteredNode): void {
+    const instance = node.nodeInstance as { _runUnmountSync?: () => void } | undefined;
+    try {
+      instance?._runUnmountSync?.();
+    } catch (error) {
+      this.disposalErrors.set(node, error);
+      return;
+    }
     if (!node.dispose) return;
     const pending = Promise.resolve(this.activeCompletions.get(node)).then(node.dispose).then(() => undefined);
     this.nodeDisposals.set(node, pending);
