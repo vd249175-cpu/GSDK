@@ -15,6 +15,7 @@ const FORBIDDEN_SEGMENTS = new Set(['node_modules', '.generated', '.git', '.hg',
 const FORBIDDEN_BASENAMES = new Set([
   '.env', 'daemon-token', 'control-token', 'control.json', 'environment.sh',
   'run.lock.json', 'config-snapshot.json', 'close-result.json',
+  'credentials.json', 'credentials.local.json',
 ]);
 const SKIPPED_BASENAMES = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini']);
 
@@ -629,7 +630,10 @@ async function checkInstalledCapabilityDrift({ capabilitiesDir, capabilityId, st
  */
 export async function packBaseSoftware(repoRoot, outPath) {
   const root = resolve(repoRoot);
-  const corePluginBasenames = new Set(['demo-topology', 'hello-counter']);
+  const corePluginBasenames = new Set([
+    'demo-topology', 'hello-counter',
+    'unified-recorder', 'browser-recorder', 'os-recorder', 'ufo-computer-control',
+  ]);
   const collected = [];
 
   const walk = (current, relPrefix = '') => {
@@ -642,14 +646,18 @@ export async function packBaseSoftware(repoRoot, outPath) {
         entry.name === 'target' ||
         entry.name === '.git' ||
         entry.name === '.generated' ||
-        entry.name === '.agents' ||
-        entry.name === '.omp' ||
         entry.name === '.venv' ||
         entry.name === 'venv' ||
         entry.name === '__pycache__' ||
+        entry.name === '.playwright-cli' ||
+        entry.name === '.playwright-mcp' ||
+        entry.name === '.test-temp' ||
         entry.name.endsWith('.egg-info') ||
         entry.name.endsWith('.dist-info')
       ) continue;
+
+      // Strictly skip sensitive files, logs, and credentials
+      if (FORBIDDEN_BASENAMES.has(entry.name) || entry.name.endsWith('.log')) continue;
 
       // Strictly skip installable package files and compiled artifacts
       const ext = extname(entry.name).toLowerCase();
@@ -683,14 +691,31 @@ export async function packBaseSoftware(repoRoot, outPath) {
     }
   };
 
-  // 1. packages/
+  // 1. packages/ (all SDKs, microkernel, desktop, frontend, contract, tooling)
   walk(join(root, 'packages'), 'packages');
-  // 2. DOCUMENTS/
-  walk(join(root, 'DOCUMENTS'), 'DOCUMENTS');
-  // 3. app/
+  // 2. REFERENCE/ (authoritative reference center)
+  if (existsSync(join(root, 'REFERENCE'))) walk(join(root, 'REFERENCE'), 'REFERENCE');
+  // 3. DOCUMENTS/ (backup documents)
+  if (existsSync(join(root, 'DOCUMENTS'))) walk(join(root, 'DOCUMENTS'), 'DOCUMENTS');
+  // 4. app/ (core plugins: demo-topology, hello-counter, unified-recorder, browser-recorder, os-recorder, ufo-computer-control)
   walk(join(root, 'app'), 'app');
-  // 4. Root files
-  for (const rootFile of ['run.sh', 'README.md']) {
+  // 5. .agents/skills/ (agent skills: alibabacloud-workbench-cli, browser-setup, gv-browser, ufo-computer-control, graph-health-inspection)
+  if (existsSync(join(root, '.agents', 'skills'))) {
+    walk(join(root, '.agents', 'skills'), '.agents/skills');
+  }
+  // 6. .omp/ (MCP server configurations)
+  if (existsSync(join(root, '.omp'))) {
+    walk(join(root, '.omp'), '.omp');
+  }
+  // 7. Base template runs (runs/alice, runs/main)
+  for (const templateRun of ['alice', 'main']) {
+    const runDir = join(root, 'runs', templateRun);
+    if (existsSync(runDir)) {
+      walk(runDir, `runs/${templateRun}`);
+    }
+  }
+  // 8. Root files
+  for (const rootFile of ['run.sh', 'AGENTS.md', 'README.md', 'LICENSE', 'skills-lock.json', '.gitattributes', '.gitignore']) {
     const abs = join(root, rootFile);
     if (existsSync(abs)) collected.push({ name: rootFile, absolute: abs });
   }

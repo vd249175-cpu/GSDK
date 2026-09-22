@@ -30,14 +30,14 @@
 
 ## 2. 事实裁决顺序
 
-开始修改前必须先读 [核心心智模型](DOCUMENTS/architecture/mental-model.md)。信息冲突时按以下顺序判断：
+开始修改前必须先读 [核心心智模型](REFERENCE/architecture/mental-model.md)（备用：[DOCUMENTS/architecture/mental-model.md](DOCUMENTS/architecture/mental-model.md)）。信息冲突时按以下顺序判断：
 
 ```text
 源码与针对性测试
-  > DOCUMENTS/architecture/mental-model.md
-  > DOCUMENTS/architecture/sdk-mental-model.md
-  > DOCUMENTS/guides/kernel-sdk-guide.md / plugin-sdk-guide.md / client-sdk-guide.md
-  > 其他当前文档
+  > REFERENCE/architecture/mental-model.md
+  > REFERENCE/core-development-mode.md / workflow-development-mode.md
+  > REFERENCE/packages/ / REFERENCE/plugins/ / REFERENCE/distribution/
+  > DOCUMENTS/ 备用参考文档
 ```
 
 本仓库不保存退役架构文档。出现 Socket Kernel、声明边、Wrapper、Transition Registry 或旧应用私有绑定等说法，应视为外部旧资料，不得据此改代码。生产调度内核唯一运行在 Rust 原生微内核（`packages/rust/kernel` 通过 `NativeRuleSpace`），旧 TS `KernelRuntime` 已降级为只读规约/测试 Oracle，不再维护双内核并行演进。
@@ -90,8 +90,10 @@
      - `app/` 与 `app/plugins/` 仅承载全仓最核心的底座与核心插件；
      - **所有非核心插件（业务流程、自动化策略、工作流专用节点）绝对不进入 `app/`**，只在 run 下的特定工作流中（开发阶段在 `runs/<name>/plugins/`）；
      - **先跑通测试再并入 main**：工作流分享以单个独立 run（包含配置、非核心插件集合与测试）为载体；接收方必须在独立 run 中先跑通测试，验证无误后，工作流可通过 `runs/main/plugins/` 并入主 run，但**非核心插件绝不进入核心 `app/`**。
-
-
+5. **多子 Agent 并行开发与 UFO 桌面绝对排他铁律**：
+   - 每个子 Agent 独占分配的 `runs/<subagent-id>/` 沙箱，微内核端口、Vite 端口与生成产物严格正交隔离，严禁并发全量暂存 Git；
+   - **UFO 物理桌面强占冲突红线**：操作系统前台焦点、鼠标光标与全屏窗口为单一硬件独占资源。**微软 UFO 计算机控制（`example.ufo-computer-control`）与 Windows 步骤记录器（`example.os-recorder`）绝对严禁多 Agent 并发执行真机物理自动化（严禁抢桌面）**；
+   - 并行期涉及 UFO 研发必须使用 `MockUfoEffectAdapter` 模拟单测进行逻辑分流；真机物理交互与录制必须获取系统级独占锁并严格串行执行。详见 [子 Agent 并行开发契约与桌面排他守卫](REFERENCE/subagent-parallel-contract.md)。
 
 ---
 
@@ -110,17 +112,20 @@
 
 ## 6. 任务与知识库导航 (Repository Task Navigation)
 
-遇到具体开发与维护任务时，直接跳转至对应的权威目标页，遵循“目标入口 → 决策模型 → 权威参考”三层结构：
+遇到具体开发与维护任务时，直接跳转至对应的权威目标页。以 **[REFERENCE 总索引](REFERENCE/README.md)** 为权威正本，原 `DOCUMENTS/` 目录保留作为备用参考：
 
-| 任务类型 | 权威目标入口 | 决策与参考文档 |
-| :--- | :--- | :--- |
-| **首次环境准备** | [第一次准备开发环境](DOCUMENTS/goals/first-setup.md) | [测试分层与命令正本](DOCUMENTS/guides/testing.md) |
-| **业务功能开发** | [开发第一个业务功能](DOCUMENTS/goals/build-feature.md) | [Plugin SDK 指南](DOCUMENTS/guides/plugin-sdk-guide.md) |
-| **外部 I/O 与硬件接入** | [接入外部世界](DOCUMENTS/goals/integrate-external-world.md) | [平台 SDK 心智模型](DOCUMENTS/architecture/sdk-mental-model.md) |
-| **桌面界面与交互** | [增加桌面界面](DOCUMENTS/goals/build-ui.md) | [Client SDK](DOCUMENTS/guides/client-sdk-guide.md) / [设计系统](DOCUMENTS/guides/design-system.md) |
-| **运行与生命周期** | [创建和运行独立 run](DOCUMENTS/goals/run-application.md) | [命名 run 生命周期](DOCUMENTS/architecture/application-lifecycle.md) |
-| **测试与提交验证** | [为改动补测试并提交](DOCUMENTS/goals/verify-change.md) | [测试分层](DOCUMENTS/guides/testing.md) |
-| **因果断点排查** | [排查因果链不推进](DOCUMENTS/goals/debug-causal-flow.md) | [Node 实例因果调试](DOCUMENTS/diagnostics/debug-guide.md) |
-| **能力打包与分发** | [打包、安装或更新能力](DOCUMENTS/goals/distribute-capability.md) | [分发契约](DOCUMENTS/contracts/distribution-contract.md) |
-| **微内核能力演进** | [开发或开放内核能力](DOCUMENTS/goals/evolve-kernel.md) | [开发准入约束](DOCUMENTS/architecture/development-constraints.md) |
-| **多语言运行时接入** | [接入其他编程语言](DOCUMENTS/goals/add-language-runtime.md) | [常驻宿主协议](DOCUMENTS/protocols/kernel-daemon-protocol.md) |
+| 任务类型 | 权威目标入口 (新版 REFERENCE) | 决策与参考文档 (新版 REFERENCE) | 备用参考 (原 DOCUMENTS) |
+| :--- | :--- | :--- | :--- |
+| **首次环境与冷启动** | [冷启动与环境初始化](REFERENCE/distribution/cold-start.md) | [冷启动与打包分发总览](REFERENCE/distribution/README.md) | [第一次准备开发环境](DOCUMENTS/goals/first-setup.md) / [测试分层](DOCUMENTS/guides/testing.md) |
+| **核心开发模式** | [核心开发模式指南](REFERENCE/core-development-mode.md) | [核心 Packages](REFERENCE/packages/README.md) / [核心 Plugins](REFERENCE/plugins/README.md) | [开发第一个业务功能](DOCUMENTS/goals/build-feature.md) / [Plugin SDK 指南](DOCUMENTS/guides/plugin-sdk-guide.md) |
+| **工作流开发模式** | [工作流开发全景指南](REFERENCE/workflow/README.md) | [Agent 原生层级五级金字塔](REFERENCE/workflow/agent-native-hierarchy.md) / [引导带教](REFERENCE/workflow/guided-onboarding.md) | [应用开发指南](DOCUMENTS/guides/application-development.md) |
+| **外部 I/O 与硬件接入** | [多语言 SDK (WorldNode / EffectAdapter)](REFERENCE/packages/sdk/README.md) | [UFO 计算机控制](REFERENCE/packages/ufo/README.md) / [统一录制器](REFERENCE/plugins/unified-recorder.md) | [接入外部世界](DOCUMENTS/goals/integrate-external-world.md) / [平台 SDK 心智模型](DOCUMENTS/architecture/sdk-mental-model.md) |
+| **桌面界面与达芬奇交互** | [零业务工作台与 Client Hooks](REFERENCE/packages/frontend/README.md) | [前端规范与达芬奇色彩](REFERENCE/plugins/frontend-specification.md) | [增加桌面界面](DOCUMENTS/goals/build-ui.md) / [设计系统](DOCUMENTS/guides/design-system.md) |
+| **运行与 8 步生命周期** | [冷启动与 8 步因果生命周期](REFERENCE/distribution/cold-start.md) | [桌面宿主与架构守卫](REFERENCE/packages/desktop/README.md) | [创建和运行独立 run](DOCUMENTS/goals/run-application.md) / [命名 run 生命周期](DOCUMENTS/architecture/application-lifecycle.md) |
+| **测试与因果指标验证** | [测试规范与针对性验证](REFERENCE/testing-specification.md) | [图分析工具与因果链路追踪](REFERENCE/testing-specification.md) | [为改动补测试并提交](DOCUMENTS/goals/verify-change.md) / [测试分层](DOCUMENTS/guides/testing.md) |
+| **因果断点与图健康排查** | [因果分析引擎与拓扑度量](REFERENCE/packages/rust/README.md) | [测试规范 (因果查询工具)](REFERENCE/testing-specification.md) | [排查因果链不推进](DOCUMENTS/goals/debug-causal-flow.md) / [Node 实例因果调试](DOCUMENTS/diagnostics/debug-guide.md) |
+| **能力打包与分发** | [能力包打包、验证与安装规范](REFERENCE/distribution/capability-packaging.md) | [团队三层分发契约](REFERENCE/distribution/distribution-contract.md) | [打包、安装或更新能力](DOCUMENTS/goals/distribute-capability.md) / [分发契约](DOCUMENTS/contracts/distribution-contract.md) |
+| **微内核能力演进** | [核心心智模型与 13 公理](REFERENCE/architecture/mental-model.md) | [开发准入约束与 11 红线](REFERENCE/architecture/development-constraints.md) / [Rust 物理微内核](REFERENCE/packages/rust/README.md) | [开发或开放内核能力](DOCUMENTS/goals/evolve-kernel.md) / [开发准入约束](DOCUMENTS/architecture/development-constraints.md) |
+| **多语言与跨进程接入** | [机器契约与 23 协议操作全集](REFERENCE/packages/contract/README.md) | [Rust 常驻守护进程与 C ABI](REFERENCE/packages/rust/README.md) | [接入其他编程语言](DOCUMENTS/goals/add-language-runtime.md) / [常驻宿主协议](DOCUMENTS/protocols/kernel-daemon-protocol.md) |
+| **子 Agent 并行与桌面排他** | [子 Agent 并行开发契约](REFERENCE/subagent-parallel-contract.md) | [UFO 计算机控制](REFERENCE/packages/ufo/README.md) / [统一录制器](REFERENCE/plugins/unified-recorder.md) | [多 Agent 协作指南](DOCUMENTS/contracts/multi-agent-run-guide.md) |
+| **Agent 技能与 MCP 工具箱** | [技能与 MCP 工具箱全景规范](REFERENCE/workflow/skills-and-mcp-tooling.md) | [Playwright / 阿里云 Workbench / UFO](REFERENCE/workflow/skills-and-mcp-tooling.md) | [工作流开发全景指南](REFERENCE/workflow/README.md) |

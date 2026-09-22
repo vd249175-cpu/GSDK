@@ -10,6 +10,10 @@ coverage/
 *.log
 .env
 .env.local
+credentials.json
+credentials.local.json
+credentials.*.json
+*.credentials.json
 
 # init 冷启动随包产物（export:sdk 组装，不进源码）
 sdk/init-bundle/
@@ -44,13 +48,12 @@ app/plugins/graphvideo.studio/resources/sample-media/
 runs/*/.generated/
 runs/*/run.lock.json
 
-.agents
+# Agent browser runtime profiles and local authentication
+.agents/browser/
+.agents/.lark-auth/
 
 # Playwright MCP run output (screenshots, page snapshots)
 .playwright-mcp/
 
 # Playwright CLI run output
 .playwright-cli/
-
-.omp/
-skills-lock.json

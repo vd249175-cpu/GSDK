@@ -1,0 +1,4 @@
+interface:
+  display_name: "UFO Computer Control"
+  short_description: "通过 Graph Info 控制并观测 Windows 桌面"
+  default_prompt: "Use $ufo-computer-control to inspect and operate the Windows desktop through UFO."

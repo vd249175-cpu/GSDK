@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "C:\\Users\\kp157\\Desktop\\PM\\GVSDK\\.agents\\skills\\browser-setup\\scripts\\browser.ps1",
+        "-Action",
+        "Mcp"
+      ]
+    }
+  }
+}
