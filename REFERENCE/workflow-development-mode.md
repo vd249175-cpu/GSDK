@@ -67,13 +67,15 @@ runs/my-feature/
 ### 步骤 2：声明插件清单 (`graphframework.plugin.json`)
 ```json
 {
-  "$schema": "https://graphframework.org/schemas/v2/plugin.manifest.json",
   "id": "my-org.my-feature",
   "name": "My Business Feature",
   "version": "1.0.0",
   "apiVersion": 2,
-  "backend": {
-    "entry": "./index.mjs"
+  "kind": "backend",
+  "contributes": {
+    "backend": "index.mjs",
+    "nodeFactories": [],
+    "graphFactories": []
   }
 }
 ```
@@ -82,7 +84,7 @@ runs/my-feature/
 遵循物理执行与观察严格分离原则：
 
 ```ts
-import { Node, ExecutionWorldNode } from '@graphframework/sdk/node';
+import { Node, ExecutionWorldNode } from '@graphframework/sdk/plugin';
 
 // 1. 纯业务逻辑节点（零 I/O）
 export class OrderProcessorNode extends Node<{ status: string }> {
@@ -120,7 +122,7 @@ export class PaymentExecutionNode extends ExecutionWorldNode<{ lastTradeNo: stri
 import { createTestRuntime } from '@graphframework/sdk/testing';
 
 const runtime = createTestRuntime({ nodes: [new OrderProcessorNode()] });
-await runtime.inject('node-order', { type: 'SubmitOrder', amount: 100 });
+runtime.inject({ targetNodeId: 'node-order', info: { type: 'SubmitOrder', amount: 100 } });
 await runtime.waitForQuiescence();
 expect(runtime.getState('node-order')?.status).toBe('processing');
 await runtime.dispose();

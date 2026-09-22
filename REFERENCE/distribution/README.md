@@ -19,7 +19,7 @@ tags: [distribution, cold-start, packaging, lifecycle, index]
 | 阶段 / 任务 | 权威文档 | 核心内容与操作 |
 | :--- | :--- | :--- |
 | **首次环境与冷启动** | [冷启动与首次开发环境初始化指南](cold-start.md) | 从零完成 Windows Git Bash、Node.js、Rust 工具链探测；依赖安装与 Rust 原生绑定编译；双工程严格 TypeScript 校验；复制并配置独占的 `runs/<name>/` 沙箱；通过根目录统一 `run.sh` 首次拉起并验证 8 步因果生命周期。 |
-| **能力包打包与实操** | [能力包打包、验证与安装规范](capability-packaging.md) | 统一三命令实操（`run.sh pack / verify / install`）；标准能力目录规范（`capability.json` + `assembly.mjs` + `plugins/`）；固定时间戳与存储模式的**确定性 ZIP 机制**；打包安全红线（严禁包含凭据、`node_modules`、运行状态）；安装前沙箱冲突预演与**三选一解决准则**。 |
+| **能力包打包与实操** | [能力包打包、验证与安装规范](capability-packaging.md) | 统一命令实操（`run.sh pack / verify / install`，另有 `pack-run / install-run` 整 run 分享与 `pack-base / install-base` 全局包）；标准能力目录规范（`graphframework.capability.json` + `assembly.mjs` + `plugins/`）；固定时间戳与存储模式的**确定性 ZIP 机制**；打包安全红线（严禁包含凭据、`node_modules`、运行状态）；安装前沙箱冲突预演与**三选一解决准则**。 |
 | **团队分发与架构契约** | [SDK、工作流与团队协作分发契约](distribution-contract.md) | **团队三层协作分发架构**（阿里云自建云主机知识库、独立 Run 场景分享、基础软件批量更新通道）；**非核心插件绝对不进入 `app/` 铁律**；插件正式交付标准形态；Generation 因果断代破坏性更新语义；脱离 GVSDK 源码树的**独立目录 7 步发布验收标准**；执行热路径与分析冷路径性能分流准则。 |
 
 ---
@@ -48,7 +48,7 @@ tags: [distribution, cold-start, packaging, lifecycle, index]
                          ▼
              【能力打包与安全发布】(capability-packaging.md)
                          │
-        1. 编写 capability.json 与 assembly.mjs
+        1. 编写 graphframework.capability.json 与 assembly.mjs
         2. 审查排除凭据、node_modules、.generated
         3. 确定性打包: bash ./run.sh pack capabilities/<id>
         4. 获取不可变 ZIP 产物与 SHA-256 校验值
