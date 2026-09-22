@@ -1,79 +1,76 @@
 ---
-type: Architecture Specification
-title: graphframework-kernel-daemon 常驻图宿主守护进程规约
-description: 常驻微内核守护进程架构、多 Session 租约调度、分布式 Effect 委派与行文本 JSON 协议。
+type: API Reference
+title: graphframework-kernel-daemon 接口
+description: TCP JSON Lines 宿主、Session/租约、Effect 委派、分析快照与公开 Rust API 的源码对齐参考。
 status: stable
-tags: [rust, daemon, kernel-daemon, multi-session, effect-delegation, protocol]
+tags: [rust, daemon, tcp, json-lines, session, lease, effect, public-api]
 ---
 
-# `graphframework-kernel-daemon` 常驻图宿主守护进程规约
+# `graphframework-kernel-daemon` 接口
 
-源码目录：[`packages/rust/kernel-daemon/`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-daemon)  
-源码入口：[`packages/rust/kernel-daemon/src/lib.rs`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-daemon/src/lib.rs) 与 [`main.rs`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-daemon/src/main.rs)
+开发流程和 crate 选择见 [Rust 开发入口](../README.md)。本页只描述 daemon 的真实物理接口；全部 JSON operation 与字段见 [机器契约](../../contract/README.md)。
 
-`graphframework-kernel-daemon` 是 GraphFramework 的常驻独立进程宿主。它在后台常驻运行 Rust 原生规则空间与只读/写入 JSON 状态树，允许外部多个客户端进程（Worker / Provider）以语言无关的方式挂载实体、拉取单飞任务并委派物理副作用。
+## 1. 传输与启动事实
 
----
+- binary 只监听 loopback TCP，不通过 STDIN 接收请求。
+- 每个 TCP 帧是 UTF-8 JSON 后加换行；响应同样一行一个 JSON。
+- 必须提供至少 16 字节的 `GRAPHFRAMEWORK_DAEMON_TOKEN`；bind 默认 `127.0.0.1:0`，可由 `GRAPHFRAMEWORK_DAEMON_BIND` 指定，但仍必须是 loopback。
+- 进程启动后只在 stdout 输出一次 readiness：`{"version":1,"address":"127.0.0.1:<port>","pid":...}`。这不是请求通道。
+- 正式启动由根目录 `run.sh` 管理；不得直接运行 binary 形成旁路宿主。
 
-## 1. 守护进程架构与多 Session 租约模型
+## 2. Rust library 公开入口
 
-```text
-┌────────────────────────────────────────────────────────┐
-│             graphframework-kernel-daemon               │
-│                                                        │
-│  ┌───────────────────┐        ┌─────────────────────┐  │
-│  │ Rust Kernel       │        │ Node Records        │  │
-│  │ (Single-flight)   │        │ (State & Version)   │  │
-│  └───────────────────┘        └─────────────────────┘  │
-│  ┌───────────────────┐        ┌─────────────────────┐  │
-│  │ Leases & Sessions │        │ Effect Records      │  │
-│  │ (Claim & Release) │        │ (Queued / Active)   │  │
-│  └───────────────────┘        └─────────────────────┘  │
-└───────────▲──────────────────────────────▲─────────────┘
-            │ STDIN / STDOUT               │ Socket / IPC
-┌───────────▼───────────┐      ┌───────────▼───────────┐
-│ Node Worker (Python)  │      │ Effect Adapter (Node) │
-│ Claims: ["node-calc"] │      │ Claims: ["adapter-fs"]│
-└───────────────────────┘      └───────────────────────┘
+```rust
+use graphframework_kernel_daemon::{
+    PendingAnalysis, Session, Space, PUBLIC_OPERATIONS,
+};
 ```
 
-- **Session 与租约机制 ([`Session`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-daemon/src/lib.rs#L56-L71))**：
-  - 每个连接到 Daemon 的客户端分配唯一 `session_id`；
-  - 客户端通过 `claim` 声明接管特定 Node ID 的执行租约；
-  - 若客户端断开连接，Daemon 自动清理该 Session 的在途 Effect 与认领租约，未完成的任务重置回队列。
-- **物理副作用异步外派 ([`EffectRecord`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-daemon/src/lib.rs#L45-L54))**：
-  - Node 在执行 Change 时若需执行 I/O，向 Daemon 提交 Effect 请求；
-  - 拥有对应 `adapter_id` 能力的外部 Provider（如专门的文件系统 Provider 或网络 Provider）通过 `poll_effect` 拉取请求；
-  - Provider 执行完物理动作后，通过 `commit_effect` 将观察结果回传，驱动后续因果流转。
+| API | 作用 |
+| :--- | :--- |
+| `Session::new(id)` | 创建一个连接作用域的 Node/Effect 租约容器 |
+| `Session::disconnect(&mut space)` | 归还租约、重排未完成 Effect、把在途 change 结算为错误事实 |
+| `Space::default()` | 创建拥有 Kernel、JSON State、租约、Effect 与事件环的宿主空间 |
+| `Space::handle(session, request, token)` | 同步处理普通 JSON Lines 请求，返回完整响应 envelope |
+| `Space::prepare_analyze(...)` | 在调度锁内复制不可变分析快照，供锁外计算 |
+| `Space::store_analysis(...)` | 仅在 revision 未变化时写回分析缓存 |
+| `Space::is_closed()` | 查询规则空间是否终止 |
+| `PUBLIC_OPERATIONS` | 26 个稳定 operation 名；测试与机器契约逐项相等 |
 
----
+`PendingAnalysis` 只包含 request、facts、context、revision、cached 与响应 id；它不持有锁，也不执行 Node 或 Effect。
 
-## 2. 通信协议动作集 (Protocol Actions)
+## 3. Session 与租约
 
-守护进程通过标准输入输出（STDIN/STDOUT）或 Socket 接收以换行符分隔的 JSON 报文：
+- `claim/release` 管理 Node worker 租约；一个 Node 同时只属于一个 Session。
+- 一个 Session 同时最多持有一个活跃 change；必须 `commit` 后才能再次 `poll` 或释放节点。
+- `claimEffects/releaseEffects` 管理 Effect provider 租约，与 Node 租约是两套物理集合。
+- worker 断连时，活跃 change 以 `Node worker disconnected` 结算并可路由 `@error/NodeFailed`；节点本身与 mailbox 保留。
+- provider 断连时，属于它的 active Effect 回到 queued，等待其他 provider；请求方断连时，它创建的 Effect 被删除。
 
-### 2.1 节点管理与认领
-- `admit`：在宿主中准入新节点，初始化其 JSON State 与 Effect 权限集合。
-- `claim`：Session 认领对某节点的处理权。
-- `release`：Session 释放对某节点的认领。
-- `evict`：注销节点，丢弃队列并产生墓碑。
+## 4. State、Effect 与错误边界
 
-### 2.2 任务拉取与结算 (Poll / Commit)
-- `poll_change`：Worker 批量或单次拉取其认领节点中已到达的 Change。返回 `{ token, view }`。
-- `commit_change`：Worker 执行完成后回传：
-  - 更新后的 State Patch 或新版本；
-  - 派生的新 `send` 脉冲列表；
-  - 派生的 `effect` 申请；
-  - 执行失败标记（若发生异常，自动转化为 `@error/NodeFailed` Info）。
+daemon 持有每个 Node 的 JSON object State、version、generation 和 `effectCapabilities`。`commit.operations` 只接受：
 
-### 2.3 副作用调度
-- `poll_effect`：适配器 Provider 拉取对应 `adapter_id` 的未决副作用请求。
-- `commit_effect`：适配器 Provider 回传物理操作的 Observation 事实。
+- `write`：写一个 State key；
+- `patchState`：合并一个对象；
+- `send`：定向发送一个带静态 `type` 的 Info。
 
-### 2.4 控制面与调试接口
-- `inject_root`：注入外部根脉冲。
-- `intervene`：控制面强制修改节点 State（单飞间隙原子生效）。
-- `snapshot`：读取全图节点当前 State、Version 与 Projection 映射。
-- `events`：读取全局因果事件环形缓冲区（最多保留 1000 条最近事件）。
-- `analyze`：针对当前图运行拓扑分析（直接调用内嵌的 `graphframework-analysis`）。
-- `shutdown`：请求平稳停机。
+每个 write/patch 各递增一次 version。`intervene/agentInterveneState` 同时校验 expected generation 与 version，只在单飞间隙修改。
+
+Effect 必须满足三项条件：请求发生在当前 Session 的活跃 change 内；Node 已声明 adapter capability；该 adapter 有在线 provider。失败必须通过 `completeEffect(ok:false,error)` 返回，不得让 provider 异常击穿循环。
+
+## 5. 分析与事件环
+
+- admit/replace 在 Node 生效前校验 `analysisFacts` 的尺寸、nodeId 与 schema；失败不会留下半准入节点。
+- analyze 在锁内只快照 facts/State keys/context，实际 `graphframework-analysis` 计算在锁外执行。
+- 缓存键是 `(analysisRevision, request)`；admit/replace/evict、分析 context 变化或新增 State key 都会递增 revision。
+- Agent 事件环最多 1000 条，`agentInspect(after,limit)` 使用单调 cursor 分页；默认 100，最大 1000。
+
+## 6. 验证
+
+```bash
+cargo test --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-daemon
+PYTHONPATH=packages/sdk/python/src python -m pytest packages/sdk/python/tests/test_mirror.py
+```
+
+第一项覆盖 Session、长轮询、Effect、显式 shutdown、Golden Frames 与 operation catalog；第二项覆盖 Python client 的公共方法与机器契约读取。

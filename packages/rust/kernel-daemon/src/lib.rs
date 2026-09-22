@@ -8,6 +8,37 @@ use graphframework_kernel::{
 };
 use serde_json::{json, Map, Value};
 
+/// Stable JSON Lines operations accepted by [`Space`]. The machine-readable
+/// twin lives in `packages/contract/operations.json` and is checked in tests.
+pub const PUBLIC_OPERATIONS: &[&str] = &[
+    "shutdown",
+    "health",
+    "admit",
+    "evict",
+    "replace",
+    "claim",
+    "release",
+    "inject",
+    "poll",
+    "commit",
+    "cancel",
+    "projection",
+    "analysisFacts",
+    "setErrorTarget",
+    "intervene",
+    "setAnalysisContext",
+    "analyze",
+    "agentInspect",
+    "agentInject",
+    "agentInterveneState",
+    "claimEffects",
+    "releaseEffects",
+    "pollEffect",
+    "requestEffect",
+    "awaitEffect",
+    "completeEffect",
+];
+
 const ERROR_INFO_TYPE: &str = "@error/NodeFailed";
 /// Raw per-Node facts larger than this are rejected before touching the Node.
 const MAX_FACT_BYTES: usize = 256 * 1024;
@@ -1327,6 +1358,24 @@ mod tests {
             "entities": [{"address": format!("node:{node_id}"), "kind": "node", "id": node_id}],
             "edges": [],
         })
+    }
+
+    #[test]
+    fn machine_contract_matches_the_public_operation_catalog() {
+        let contract: Value =
+            serde_json::from_str(include_str!("../../../contract/operations.json"))
+                .expect("operations contract must be valid JSON");
+        let names: Vec<&str> = contract["operations"]
+            .as_array()
+            .expect("operations must be an array")
+            .iter()
+            .map(|operation| {
+                operation["name"]
+                    .as_str()
+                    .expect("every operation must have a string name")
+            })
+            .collect();
+        assert_eq!(names, PUBLIC_OPERATIONS);
     }
 
     #[test]

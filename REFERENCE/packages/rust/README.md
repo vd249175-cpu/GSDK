@@ -1,190 +1,124 @@
 ---
-type: Architecture Specification
-title: Rust 原生微内核与规则空间使用指南 (packages/rust)
-description: 面向开箱即用的物理规则空间与因果分析引擎使用说明，零代码直接运行、JSON 数据驱动与黑盒操作接口。
+type: Developer Guide
+title: Rust 微内核开发入口
+description: 五个 Rust crate 的职责、统一公开导出、最短开发流程、宿主接入与验证门禁。
 status: stable
-tags: [rust, kernel, quick-start, zero-code, json-interface, daemon, analysis]
+tags: [rust, kernel, daemon, napi, ffi, analysis, quick-start, public-api]
 ---
 
-# Rust 原生微内核与规则空间使用指南 (`packages/rust`)
+# Rust 微内核开发入口 (`packages/rust`)
 
-`packages/rust` 是 GraphFramework 的核心动力总成。
+本页是 Rust 核心开发的起点。读完即可选对 crate、从稳定入口调用、编写最小测试并完成验证；子目录 README 用于查询成员与算法细节，不是开始开发的前置阅读。
 
-**本指南的目的是：让你在不阅读任何 Rust 源码、不开发任何 C++/Rust 底层代码的前提下，直接把这套高性能微内核与因果分析能力“开箱即用”地跑起来。**
+## 1. 五个 crate 与唯一职责
 
----
+| crate | 负责 | 不负责 | 公开入口 |
+| :--- | :--- | :--- | :--- |
+| `graphframework-kernel` | entity/generation、mailbox、single-flight、submission、drop ledger | JSON State、业务 handler、I/O、进程管理 | `kernel/src/lib.rs` 的重导出 |
+| `graphframework-analysis` | 便携事实校验、索引、路径、视图、健康度、中心性、社区 | 扫描源码、启动 runtime、保存业务配置 | `analysis/src/lib.rs` |
+| `graphframework-kernel-node` | 将 Kernel 与 analysis 暴露为 N-API | 持有业务 State、执行 Node change | N-API `RuleSpace` 与 `analyze_json` |
+| `graphframework-kernel-ffi` | C ABI 句柄、DTO 与内存释放函数 | Python/Go/C++ 的业务封装 | `extern "C"` 的 `gv_*` 函数 |
+| `graphframework-kernel-daemon` | TCP JSON Lines、JSON State、worker/effect 租约、Agent 控制面 | 解释业务字段、发现目录、拉起进程 | library 的 `Space/Session/PendingAnalysis/PUBLIC_OPERATIONS` 与 binary |
 
-## 1. 它是做什么的？（一句话定位）
+生产调度只有 `graphframework-kernel`。TypeScript `KernelRuntime` 只是测试 Oracle，不是第二套生产内核。
 
-它是一个**纯数据驱动的物理因果执行与调度黑盒**：
-- **为你解决并发灾难**：无论外部多少事件并发涌入，它保证每个节点内部永远**单飞执行（Single-flight）**，绝不产生数据竞争与脏写；
-- **为你兜底系统容灾**：任何业务逻辑报错，它自动转化为标准因果事件（`@error/NodeFailed`），**系统永不崩溃**，因果链不断裂；
-- **自带高维分析大脑**：你只需把系统当前的 JSON 结构丢给它，它瞬间为你计算出**全图健康度、因果死锁环路、性能瓶颈咽喉与子系统模块划分**。
+## 2. 从哪里导入
 
-你只需要学会：**如何启动它、如何向它发送 JSON 任务指令、以及如何获取结果。**
+Rust 消费者只从 crate 根导入，不引用私有文件：
 
----
+```rust
+use graphframework_kernel::{
+    BeginError, ChangeOutcome, DeliveryFeedback, Kernel, KernelError, SubmissionState,
+};
+use graphframework_analysis::{analyze_json, validate_snapshot};
+```
 
-## 2. 零代码上手：3 种开箱即用的使用方式
+统一导出规则：
 
-### 方式 A：作为常驻守护进程直接运行（跨语言/命令行黑盒模式）
+- `kernel` 的内部 `error/registry/scheduler` 保持私有，由 `lib.rs` 重导出稳定类型。
+- `analysis` 的语言无关入口直接由 `lib.rs` 导出；算法子模块不成为跨语言协议。
+- `kernel-daemon` 的公开操作名由 `PUBLIC_OPERATIONS` 导出，并与 `packages/contract/operations.json` 单测对齐。
+- `kernel-node` 只暴露 N-API DTO/方法；JavaScript 应通过 `@graphframework/sdk/node`，不直接依赖 `.node` 内部路径。
+- `kernel-ffi` 的函数名与所有权就是 ABI；新增或变更必须同步 ABI 测试与文档。
 
-无需编译 Node 插件或链接动态库，直接通过标准输入输出（STDIN/STDOUT）以单行 JSON 报文进行交互：
+## 3. 最短开发流程
+
+1. 先读 [`../../architecture/mental-model.md`](../../architecture/mental-model.md)，确认改动不引入业务语义、I/O 或宿主能力。
+2. 在上表选择唯一拥有语义的 crate；跨进程字段先改 `packages/contract`。
+3. 先在目标 crate 的 `tests/` 或 `#[cfg(test)]` 写最小复现。
+4. 从 crate 根公开新 API，并同步对应 binding/client；禁止让调用方导入私有模块。
+5. 运行目标 crate 测试，再运行 workspace 与两套 TypeScript 门禁。
 
 ```bash
-# 1. 启动守护进程（通过 Cargo 或根目录运行环境）
-cargo run -p graphframework-kernel-daemon -- --stdio
+# 针对性
+cargo test --manifest-path packages/rust/Cargo.toml -p graphframework-kernel
+cargo test --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-daemon
+
+# Rust 全量
+cargo test --manifest-path packages/rust/Cargo.toml
+
+# 强制跨层门禁
+npm --prefix packages/sdk/javascript run typecheck
+npm --prefix packages/desktop run typecheck
 ```
 
-启动后，在控制台直接输入指令（单行 JSON）即可完成全生命周期管理：
+## 4. TypeScript 生产装配
 
-#### ① 注册一个实体节点（初始化状态）
-```json
-{"action": "admit", "nodeId": "downloader", "state": {"downloadedBytes": 0, "status": "idle"}}
-```
-> **输出反馈**：`{"ok": true, "generation": 1}`
-
-#### ② 注入外部脉冲触发任务
-```json
-{"action": "inject_root", "target": "downloader", "infoType": "StartDownload", "payload": {"url": "https://example.com/data.bin"}, "submission": "task-001"}
-```
-> **输出反馈**：`{"ok": true, "status": "enqueued"}`（立即确认已安全进入队列，无需等待耗时下载完成）
-
-#### ③ 查询任务当前推进状态
-```json
-{"action": "submission_state", "submission": "task-001"}
-```
-> **输出反馈**：`{"ok": true, "state": "open:1"}`（表示该任务正在运行，当前还有 1 个派生步骤待结算）
-
-#### ④ 一键取消正在运行的任务
-```json
-{"action": "cancel_submission", "submission": "task-001"}
-```
-> **输出反馈**：`{"ok": true, "cancelled": true}`（微内核自动丢弃队列中剩余未执行的步骤，保证无资源泄漏）
-
----
-
-### 方式 B：直接用作因果图拓扑与健康度分析器（诊断引擎模式）
-
-如果你已经有一份业务系统的快照数据（`facts.json`），你**完全不需要启动微内核调度器**，可以直接调用内置的分析引擎进行静态体检：
-
-#### ① 一键检测系统健康度（发现死锁环路、孤立节点、源/汇分布）
-- **输入请求**：
-  ```json
-  { "op": "health" }
-  ```
-- **输出报告**：
-  ```json
-  {
-    "nodeCount": 8,
-    "routeCount": 15,
-    "density": 0.267,
-    "cyclicNodeIds": [],            // 若为空说明系统健康无死循环；若有节点则直接标红告警
-    "isolatedNodeIds": [],          // 发现完全没有接线的废弃僵尸节点
-    "sourceNodeIds": ["scheduler"], // 系统事件入口
-    "sinkNodeIds": ["storage"]      // 最终落盘出口
-  }
-  ```
-
-#### ② 计算系统性能单点与枢纽瓶颈（介数中心性）
-- **输入请求**：
-  ```json
-  { "op": "centrality" }
-  ```
-- **输出报告**：直接输出每个节点作为“交通咽喉”的介数得分（`betweenness`），分值最高的节点即为系统的单点瓶颈与重点优化对象。
-
-#### ③ 自动发现子系统边界（Louvain 社区发现算法）
-- **输入请求**：
-  ```json
-  { "op": "communities" }
-  ```
-- **输出报告**：算法根据节点间交互频次，自动聚类出高内聚子系统（如 `["auth-node", "user-node"]` 与 `["order-node", "payment-node"]`），帮助架构师重构代码边界。
-
----
-
-### 方式 C：在 TypeScript / Node.js 宿主中开箱即用
-
-对于前端桌面（Electron）或后端 Node.js 开发者，底层 Rust 已经预编译为 N-API 原生模块（`graphframework-kernel-node`），通过 SDK 直接实例化：
+业务 Node 不直接调用 N-API。通过 SDK 将 Node 描述为初始 State、handler、Effect 权限与便携事实，再挂到原生规则空间：
 
 ```ts
-import { NativeRuleSpace } from '@graphframework/sdk/node';
+import {
+  NativeRuleSpace,
+  mountDomainNode,
+  type Node,
+} from '@graphframework/sdk/node';
 
-// 1. 创建即用的物理规则空间
 const space = new NativeRuleSpace();
+mountDomainNode(space, myWorkerNode as Node<Record<string, unknown>>);
 
-// 2. 装配你的业务节点
-space.mountDomainNode(myWorkerNode);
-
-// 3. 注入外部启动事件并获得即时投递反馈
-const feedback = space.injectRootInfo('downloader', {
-  type: 'StartDownload',
-  url: 'https://example.com/file.zip'
-}, 'sub-001');
-
-console.log(feedback); // { status: 'enqueued' }
+const submissionId = space.injectRoot(
+  'downloader',
+  { type: 'StartDownload', url: 'https://example.invalid/file.zip' },
+  'sub-001',
+);
+await space.waitForSubmission(submissionId);
+await space.dispose();
 ```
 
----
+`mountDomainNode` 是模块函数，不是 `space` 方法；原生入口叫 `injectRoot`，不是 `injectRootInfo`。图外注入等待自己的 submission 终态，不等待全图静止。
 
-## 3. 使用者视角的核心操作指令字典（黑盒交互契约）
+## 5. 跨语言 daemon 接入
 
-无论你通过哪种语言或协议与微内核交互，底层统一支持以下 7 项核心操作：
+daemon 是 loopback TCP JSON Lines 服务，不提供 README 中手输 `action` 的 STDIO 协议。合法帧与全部 26 个 operation 见 [机器契约](../contract/README.md)。客户端使用 SDK 的 agent 能力面：
 
-| 你想做什么 | 调用的操作名 | 你需要提供的参数 | 你将获得的结果 |
-| :--- | :--- | :--- | :--- |
-| **装配/准入实体** | `admit` | 实体标识 `nodeId` | 该实体的代数 `generation: 1` |
-| **发送因果事件** | `send` | `sender`, `target`, `infoType`, `payload` | `{ status: "enqueued" }` 或 `{ status: "dropped", reason }` |
-| **从外部注入根任务** | `inject_root` | `target`, `infoType`, `payload`, `submission` | 立即确认排队成功，建立该 `submission` 的因果追踪 |
-| **查询任务生命周期** | `submission_state`| 任务标识 `submission` | `"open:N"`（运行中）、`"completed"`（已完成）、`"cancelled"`（已取消）、`"failed:原因"` |
-| **取消任务批次** | `cancel` | 任务标识 `submission` | 取消成功标记；剩余积压任务自动跳过不执行 |
-| **免重启热调节点状态** | `intervene` | `nodeId`, `statePatch` | 在执行间隙无感写入新状态，不打断因果流 |
-| **全图拓扑与健康体检** | `analyze` | 分析操作 `{ "op": "health" \| "path" \| ... }` | 完整的结构化分析 JSON 报告 |
+```ts
+import { connectKernelDaemon } from '@graphframework/sdk/agent';
+```
 
----
+```python
+from graphframework_sdk.agent import KernelDaemonClient
+```
 
-## 4. 微内核为你提供的“天然安全守卫”
+端口和每次启动随机 token 由当前 run 提供。不得硬编码、持久化或在 shell 中旁路启动 daemon。应用与 daemon 的唯一启动入口仍是：
 
-你不需要编写代码去防御并发、死锁或异常，微内核在底层默默为你保证：
+```bash
+bash ./run.sh start runs/<name>/run.config.json
+bash ./run.sh status runs/<name>/run.config.json
+bash ./run.sh stop runs/<name>/run.config.json
+```
 
-1. **单飞排他保证 (Single-flight Safety)**：
-   - 任何一个 Node 绝对不会在同一时刻执行两个 Change。所有到来的事件在 Mailbox 队列中严格 FIFO 排队，天然杜绝数据竞争，无需加应用层锁。
-2. **异常同权与自愈 (Error as Info)**：
-   - 某个 Node 里的业务代码抛出了异常？微内核绝对不会崩溃退出。异常会被自动捕获为一条 `@error/NodeFailed` 事件继续在因果链中流转，可供下游监听、告警或重试。
-3. **断代热替换 (Generation Discontinuity)**：
-   - 当你在运行时替换或更新某个 Node 时，微内核会自动销毁旧实例并递增代数（Generation）。所有陈旧、积压的旧事件在出队时会被自动识别并作为“过期待数”丢弃进台账，绝不污染新实例。
-4. **平稳优雅关机 (Quiescent Shutdown)**：
-   - 只要有未完成的计算任务，微内核绝不会暴力退市；调用停机指令时，它会确认任务已全部结算并完成资源回收。
+`cargo test`/`cargo build` 是开发验证，不等同于启动应用。
 
----
+## 6. 改动落点与完成标准
 
-## 5. 跨语言统一接口映射对照表（开发者速查）
+| 需求 | 首改位置 | 还需同步 |
+| :--- | :--- | :--- |
+| 调度语义、generation、drop | `kernel` | N-API、FFI、daemon、三侧测试 |
+| 新分析 operation/DTO | `analysis` | contract、daemon、N-API/FFI、SDK 类型 |
+| 新 daemon operation | `packages/contract` | `PUBLIC_OPERATIONS`、daemon match、JS/Python client |
+| 新 N-API 方法 | `kernel-node` | `NativeRuleSpace` binding interface 与测试 |
+| 新 C ABI | `kernel-ffi` | ABI version/兼容性判断、释放函数、头文件式文档 |
 
-如果你正在开发特定语言的胶水层，使用下表快速定位对应语言的接口调用方式：
+完成标准：核心无业务语义；公开 API 只经 crate 根或稳定 ABI；所有 binding 对 generation/submission/error 语义一致；契约、README 和针对性测试与源码同批更新。
 
-| 逻辑动作 | Rust 核心 (`Kernel`) | Node-API (`RuleSpace`) | TypeScript (`NativeRuleSpace`) | C ABI (`GvKernel`) | Daemon JSON 协议 |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| 准入节点 | `admit(id)` | `space.admit(id)` | `space.mountDomainNode(n)` | `gv_kernel_admit(...)` | `{"action": "admit", ...}` |
-| 外部注入 | `inject_root_json(...)` | `space.injectRoot(...)` | `space.injectRootInfo(...)`| `gv_kernel_inject_root(...)`| `{"action": "inject_root", ...}` |
-| 状态查询 | `submission_state(sub)` | `space.submissionState(sub)` | `space.getSubmissionState(sub)` | `gv_kernel_submission_state(...)` | `{"action": "submission_state", ...}` |
-| 任务取消 | `cancel(sub)` | `space.cancel(sub)` | `space.cancelSubmission(sub)` | `gv_kernel_cancel(...)` | `{"action": "cancel_submission", ...}` |
-| 状态干预 | `begin_edit` / `end_edit` | `beginEdit` / `endEdit` | `space.interveneState(...)` | *(扩展 C ABI)* | `{"action": "intervene", ...}` |
-| 运行分析 | `analyze_json(...)` | `analyze_json(...)` | `space.analyze(req)` | `gv_analyze_json(...)` | `{"action": "analyze", ...}` |
-
----
-
-## 6. 底层代码实现深入索引（供内核维护者查阅）
-
-如果你需要修改 Rust 微内核源码、扩展算法或排查调度器缺陷，请参阅以下详细源码解剖文档：
-
-- [`kernel/` 调度器核心实现](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/kernel/README.md)：
-  - [单飞执行与泵循环 (`scheduler.md`)](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/kernel/scheduler.md)
-  - [实体注册表与丢弃台账 (`registry.md`)](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/kernel/registry.md)
-  - [错误类型与模式匹配 (`error.md`)](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/kernel/error.md)
-- [`kernel-node/` N-API 跨语言绑定](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/kernel-node/README.md)：Node.js 动态链接与浮点数值安全转换。
-- [`kernel-ffi/` C ABI 导出](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/kernel-ffi/README.md)：面向 Python ctypes / C++ 的函数原型与内存管理。
-- [`kernel-daemon/` 常驻守护进程](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/kernel-daemon/README.md)：多 Session 租约与分布式副作用（Effect）委派。
-- [`analysis/` 拓扑分析引擎算法](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/analysis/README.md)：
-  - [因果实体模型 (`model.md`)](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/analysis/model.md)
-  - [图算法与健康度度量 (`metrics.md`)](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/analysis/metrics.md)
-  - [因果切片查询 (`query.md`)](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/analysis/query.md)
-  - [拓扑视图与层级折叠 (`views.md`)](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/analysis/views.md)
+详细参考：[Kernel](kernel/README.md)、[Daemon](kernel-daemon/README.md)、[N-API](kernel-node/README.md)、[C ABI](kernel-ffi/README.md)、[Analysis](analysis/README.md)。

@@ -1,150 +1,108 @@
 ---
 type: API Reference
-title: graphframework-kernel-ffi C ABI 跨语言导出规约
-description: C ABI 原生动态库规约、GvKernel 句柄生命周期、C 头文件函数签名与内存释放守则。
+title: graphframework-kernel-ffi C ABI
+description: 唯一公开头文件、句柄/Change 所有权、返回码、分析接口与释放规则的源码对齐参考。
 status: stable
-tags: [rust, ffi, c-abi, gv-kernel, ctypes]
+tags: [rust, ffi, c-abi, header, ownership, public-api]
 ---
 
-# `graphframework-kernel-ffi` C ABI 跨语言导出规约
+# `graphframework-kernel-ffi` C ABI
 
-源码目录：[`packages/rust/kernel-ffi/`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-ffi)  
-源码入口：[`packages/rust/kernel-ffi/src/lib.rs`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-ffi/src/lib.rs)
+开发流程见 [Rust 开发入口](../README.md)。C/C++、ctypes、cffi、cgo 等消费者只以 [`include/graphframework_kernel.h`](../../../../packages/rust/kernel-ffi/include/graphframework_kernel.h) 为公开入口；不要手抄 README 原型或绑定 Rust 私有结构。
 
-`graphframework-kernel-ffi` 为非 Rust、非 JavaScript 的宿主环境（如 Python ctypes/cffi、C++、Go cgo）提供标准 C ABI（`extern "C"`）动态库接口（`.so` / `.dll` / `.dylib`）。
-
-它包装了相同的 Rust `Kernel` 实例，提供同步互斥保护（`Mutex<Kernel>`）与确定性的 C 语言内存生命周期协议。
-
----
-
-## 1. 核心 C 结构体定义
+## 1. ABI 与句柄
 
 ```c
-// 对应 GvChange：单飞任务执行上下文
-typedef struct {
-    uint64_t change_id;
-    uint64_t info_id;
-    uint64_t caused_by;
-    bool has_caused_by;
-    uint64_t generation;
-    char *entity;
-    char *info_type;
-    char *sender;
-    char *payload_json;     // 可能为 NULL
-    char *submission;       // 可能为 NULL
-} GvChange;
+#include "graphframework_kernel.h"
 
-// 对应 GvAnalysisSnapshot：全图元数据快照
-typedef struct {
-    char *entity;
-    char *facts_json;
-} GvAnalysisEntry;
+if (gv_abi_version() != 1) {
+  /* refuse an incompatible library */
+}
 
-typedef struct {
-    size_t len;
-    GvAnalysisEntry *entries;
-} GvAnalysisSnapshot;
+GvKernel *kernel = gv_kernel_new();
+/* ... admit / inject / poll / settle ... */
+gv_kernel_shutdown(kernel);
+gv_kernel_free(kernel);
 ```
 
----
+- `GvKernel` 是不透明句柄，内部用 `Mutex<Kernel>` 同步；只能由 `gv_kernel_free` 释放一次。
+- ABI version 当前为 `1`。新增符号可以保持版本；改变现有签名、布局或语义必须升级版本并保留兼容判断。
+- 所有字符串输入必须是有效、NUL 结尾的 UTF-8；可选字符串用 `NULL`。
+- null/无效句柄、无效 UTF-8 或内部拒绝通过 `false`、`-1`、`NULL` 等当前函数的失败哨兵返回。
 
-## 2. 状态码与反馈编码规约
+## 2. 公开符号分组
 
-### 2.1 投递反馈状态码 [`feedback_code`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-ffi/src/lib.rs#L61-L71)
-当调用 `gv_kernel_send` 或 `gv_kernel_inject_root` 时，返回整数状态码：
-- `0`: `Enqueued`（成功进入 Mailbox）
-- `1`: `Dropped(UnknownTarget)`
-- `2`: `Dropped(SealedTarget)`
-- `3`: `Dropped(StaleGeneration)`
-- `4`: `Dropped(Cancelled)`
-- `5`: `Dropped(Evicted)`
-- `6`: `Dropped(KernelShutdown)`
+头文件声明全部 26 个符号，测试会将其与 `src/lib.rs` 的 `gv_*` 导出逐项比较。
 
-### 2.2 根任务生命周期状态码
-调用 `gv_kernel_submission_state` 返回：
-- `0`: 未知任务（`Unknown`）
-- `1`: 待决运行中（`Open`，通过 `out_pending` 返回未结算计数）
-- `2`: 全部结算成功（`Completed`）
-- `3`: 任务被取消（`Cancelled`）
-- `4`: 任务失败（`Failed`，通过 `out_failure` 输出错误原因）
+| 分组 | 符号 |
+| :--- | :--- |
+| 版本/生命周期 | `gv_abi_version`、`gv_kernel_new`、`gv_kernel_shutdown`、`gv_kernel_free` |
+| entity/generation | `gv_admit`、`gv_evict`、`gv_replace`、`gv_generation` |
+| State edit lease | `gv_begin_edit`、`gv_end_edit`、`gv_abort_edit` |
+| 因果调度 | `gv_send`、`gv_inject_root`、`gv_poll_next`、`gv_settle_change`、`gv_change_free` |
+| submission | `gv_cancel`、`gv_pending_total`、`gv_submission_state` |
+| 便携事实 | `gv_set_analysis_facts`、`gv_analysis_facts`、`gv_analysis_snapshot`、`gv_analysis_snapshot_free` |
+| 分析/字符串 | `gv_analyze`、`gv_analysis_free`、`gv_string_free` |
 
----
+`gv_admit/gv_replace/gv_generation/gv_begin_edit` 成功返回非负 generation，失败返回 `-1`。
 
-## 3. 核心导出函数清单
+## 3. 投递反馈
 
-### 3.1 空间创建与停机
-```c
-GvKernel* gv_kernel_new(void);
-uint32_t gv_abi_version(void); // 固定返回 1
-bool gv_kernel_shutdown(GvKernel *handle);
-void gv_kernel_free(GvKernel *handle);
+`gv_send` 与 `gv_inject_root` 返回：
+
+| code | 语义 |
+| :--- | :--- |
+| `0` | Enqueued |
+| `1` | Dropped: UnknownTarget |
+| `2` | Dropped: SealedTarget |
+| `3` | Dropped: StaleGeneration |
+| `4` | Dropped: Cancelled |
+| `5` | Dropped: Evicted |
+| `6` | Dropped: KernelShutdown |
+| `-1` | FFI 参数/句柄无效 |
+
+投递成功只表示进入目标 mailbox，不表示全图或外部 Effect 已完成。
+
+## 4. Change 所有权
+
+`gv_poll_next` 返回 `GvChange*` 或 `NULL`。成功返回的指针有且只有两种终结方式：
+
+1. `gv_settle_change(kernel, change, failed_message)`：消费指针并结算；`failed_message == NULL` 表示 Completed，否则表示 Failed。
+2. `gv_change_free(change)`：放弃尚未结算的 DTO 内存；它不会结算内核 change，因此只适用于宿主决定销毁整个内核的异常路径。
+
+调用任一函数后不得再次读取或释放该 `GvChange*`。结构体内部的字符串随整个 change 一次释放，调用方不能单独释放。
+
+## 5. 返回内存
+
+| 来源 | 释放函数 |
+| :--- | :--- |
+| `gv_submission_state`、`gv_analysis_facts` | `gv_string_free` |
+| `gv_analyze` | `gv_analysis_free`（与 `gv_string_free` 同所有权语义） |
+| `gv_analysis_snapshot` | `gv_analysis_snapshot_free`，深度释放 entries 与字符串 |
+| `gv_poll_next` | `gv_settle_change` 或 `gv_change_free` |
+| `gv_kernel_new` | `gv_kernel_free` |
+
+严禁使用系统 `free()` 释放 Rust 返回的内存。
+
+## 6. 分析入口
+
+`gv_analyze(request_json, facts_json)` 只做 JSON 解析和转发，算法由 `graphframework-analysis` 统一实现。`facts_json` 可为 snapshot 数组，或：
+
+```json
+{
+  "snapshots": [],
+  "liveStates": {},
+  "frontendLinks": [],
+  "frontendServiceLinks": []
+}
 ```
 
-### 3.2 实体生命周期
-```c
-int32_t gv_kernel_admit(GvKernel *handle, const char *id, uint64_t *out_generation);
-bool gv_kernel_evict(GvKernel *handle, const char *id);
-bool gv_kernel_seal(GvKernel *handle, const char *id);
-bool gv_kernel_unseal(GvKernel *handle, const char *id);
-int32_t gv_kernel_replace(GvKernel *handle, const char *id, uint64_t *out_generation);
-bool gv_kernel_generation(GvKernel *handle, const char *id, uint64_t *out_generation);
+成功返回确定性 JSON 字符串，失败返回 `NULL`。
+
+## 7. 验证
+
+```bash
+cargo test --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-ffi
 ```
 
-### 3.3 投递与单飞调度
-```c
-int32_t gv_kernel_send(
-    GvKernel *handle,
-    const char *sender,
-    const char *info_type,
-    const char *payload_json,
-    const char *target,
-    bool has_caused_by,
-    uint64_t caused_by,
-    const char *submission
-);
-
-int32_t gv_kernel_inject_root(
-    GvKernel *handle,
-    const char *target,
-    const char *info_type,
-    const char *payload_json,
-    const char *submission
-);
-
-bool gv_kernel_poll_next(GvKernel *handle, GvChange *out_change);
-
-bool gv_kernel_settle_change(
-    GvKernel *handle,
-    uint64_t change_id,
-    const char *entity,
-    uint64_t generation,
-    bool has_submission,
-    const char *submission,
-    bool has_failure,
-    const char *failure
-);
-
-bool gv_kernel_cancel(GvKernel *handle, const char *submission);
-size_t gv_kernel_pending_total(GvKernel *handle);
-```
-
-### 3.4 分析与拓扑计算
-```c
-bool gv_kernel_set_analysis_facts(GvKernel *handle, const char *id, uint64_t generation, const char *facts_json);
-bool gv_kernel_analysis_snapshot(GvKernel *handle, GvAnalysisSnapshot *out_snapshot);
-void gv_kernel_analysis_snapshot_free(GvAnalysisSnapshot *snapshot);
-char* gv_analyze_json(const char *request_json, const char *facts_json);
-```
-
----
-
-## 4. 内存管理与所有权释放契约
-
-凡由 `kernel-ffi` 动态分配并跨边界传递给调用方的指针，**调用方必须使用指定的释放函数归还所有权，严禁直接使用系统 `free()`**：
-
-1. **字符串释放**：
-   - 凡由 FFI 返回的 `char*`（如 `gv_analyze_json` 的返回值，或 `out_failure` 字符串），必须通过 [`gv_string_free(char *ptr)`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-ffi/src/lib.rs#L446-L451) 释放。
-2. **Change 结构体释放**：
-   - 由 `gv_kernel_poll_next` 填充的 `GvChange` 结构体，在使用完毕后必须调用 [`gv_change_free(GvChange *change)`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-ffi/src/lib.rs#L454-L466) 释放其内部包含的各个深拷贝字符串。
-3. **分析快照释放**：
-   - 由 `gv_kernel_analysis_snapshot` 填充的快照数组，必须通过 [`gv_kernel_analysis_snapshot_free`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-ffi/src/lib.rs#L425-L443) 深度释放。
+该测试覆盖 ABI 行为、Golden Frame 分析与头文件符号完整性。
