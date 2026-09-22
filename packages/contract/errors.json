@@ -1,1 +1,27 @@
-{"beginErrors": [{"name": "Busy"}, {"name": "Sealed"}, {"name": "Empty"}], "daemonRejections": ["unknown protocol version", "missing or wrong token", "analysisFacts.version != 1", "analysisFacts.nodeId mismatch", "entity/edge count over cap", "snapshot over 256 KiB", "single fold over 64 groups/5000 leaves", "response over 512 KiB", "generation/version precondition mismatch", "duplicate submissionId with different content"], "kernelErrors": [{"display": "entity already admitted: {id}", "name": "DuplicateEntity"}, {"display": "entity not admitted: {id}", "name": "UnknownEntity"}, {"display": "entity generation changed: {id}", "name": "StaleGeneration"}, {"display": "entity already bound: {id}", "name": "AlreadyBound"}, {"display": "entity busy, replace runs only in the single-flight gap: {id}", "name": "Busy"}]}
+{
+  "beginErrors": [
+    { "name": "Busy" },
+    { "name": "Sealed" },
+    { "name": "Empty" }
+  ],
+  "daemonRejections": [
+    "unsupported protocol version",
+    "unauthorized",
+    "analysisFacts exceeds size limit",
+    "analysisFacts must be a JSON object",
+    "analysisFacts.nodeId must match the admitted Node",
+    "invalid analysisFacts: <validation error>",
+    "analysis response exceeds size limit",
+    "state generation conflict",
+    "state version conflict",
+    "submissionId was already used for another injection"
+  ],
+  "kernelErrors": [
+    { "display": "rule space is closed", "name": "Shutdown" },
+    { "display": "entity already admitted: {id}", "name": "DuplicateEntity" },
+    { "display": "entity not admitted: {id}", "name": "UnknownEntity" },
+    { "display": "entity generation changed: {id}", "name": "StaleGeneration" },
+    { "display": "entity already bound: {id}", "name": "AlreadyBound" },
+    { "display": "entity busy, replace runs only in the single-flight gap: {id}", "name": "Busy" }
+  ]
+}

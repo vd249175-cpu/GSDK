@@ -1,12 +1,17 @@
 """Python mirror SDK: unit tests over pure faces (no daemon needed)."""
 
 import asyncio
+import json
+from pathlib import Path
 
 import pytest
 
 from graphframework_sdk import agent, analysis, effect, node, plugin, protocol, testing
 from graphframework_sdk.agent import KernelDaemonClient
 from graphframework_sdk.protocol import Info, ProtocolError
+
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_info_round_trips_through_dto_shape() -> None:
@@ -87,6 +92,26 @@ async def test_effect_provider_completes_with_the_adapter_observation() -> None:
 
 
 @pytest.mark.asyncio
+async def test_effect_provider_releases_effect_leases_on_shutdown() -> None:
+    client = testing.FakeDaemonClient()
+    released: list[list[str]] = []
+
+    async def release_effects(adapter_ids: list[str]) -> dict:
+        released.append(adapter_ids)
+        return {"adapterIds": []}
+
+    client.release_effects = release_effects  # type: ignore[method-assign]
+    stop = asyncio.Event()
+    stop.set()
+    await effect.run_daemon_effect_provider(
+        client,
+        {"fs/write": lambda request, context: request},
+        stop=stop,
+    )
+    assert released == [["fs/write"]]
+
+
+@pytest.mark.asyncio
 async def test_daemon_client_rejects_short_tokens_before_connect() -> None:
     with pytest.raises(ValueError):
         await KernelDaemonClient.connect("127.0.0.1:1", "short")
@@ -106,3 +131,47 @@ def test_every_capability_face_declares_its_public_exports() -> None:
     for face in faces:
         assert face.__all__
         assert all(hasattr(face, name) for name in face.__all__)
+
+
+@pytest.mark.asyncio
+async def test_daemon_client_exposes_every_unscoped_control_operation() -> None:
+    class RecordingClient(KernelDaemonClient):
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict | None]] = []
+
+        async def request(self, op: str, payload: dict | None = None) -> object:
+            self.calls.append((op, payload))
+            return {}
+
+    client = RecordingClient()
+    await client.shutdown()
+    await client.replace("worker", {"ready": True}, effect_capabilities=["fs/write"])
+    await client.analysis_facts()
+    await client.set_error_target("errors")
+    await client.release_effects(["fs/write"])
+    assert client.calls == [
+        ("shutdown", None),
+        ("replace", {
+            "nodeId": "worker",
+            "initialState": {"ready": True},
+            "analysisFacts": None,
+            "effectCapabilities": ["fs/write"],
+        }),
+        ("analysisFacts", None),
+        ("setErrorTarget", {"nodeId": "errors"}),
+        ("releaseEffects", {"adapterIds": ["fs/write"]}),
+    ]
+
+
+def test_machine_contract_lists_the_complete_daemon_surface() -> None:
+    contract_dir = REPO_ROOT / "packages" / "contract"
+    operations = json.loads((contract_dir / "operations.json").read_text(encoding="utf-8"))
+    names = [operation["name"] for operation in operations["operations"]]
+    assert len(names) == len(set(names)) == 26
+    assert {"shutdown", "release", "analysisFacts"}.issubset(names)
+    commit = next(operation for operation in operations["operations"] if operation["name"] == "commit")
+    assert commit["required"] == ["changeId", "operations"]
+    errors = json.loads((contract_dir / "errors.json").read_text(encoding="utf-8"))
+    assert "unsupported protocol version" in errors["daemonRejections"]
+    assert {item["name"] for item in errors["kernelErrors"]} >= {"Shutdown", "Busy"}
+    assert json.loads((contract_dir / "version.json").read_text(encoding="utf-8"))["protocol"] == 1

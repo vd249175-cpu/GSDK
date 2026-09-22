@@ -27,9 +27,10 @@ from graphframework_sdk.agent import KernelDaemonClient
 | :--- | :--- |
 | `request(op, payload=None)` | 底层请求；自动附加协议版本、递增 id 与 token |
 | `health()` | daemon 健康检查 |
+| `shutdown()` | 在无未结算 Effect 时关闭规则空间 |
 | `admit(node_id, initial_state, analysis_facts=None, effect_capabilities=None)` | 准入节点 |
 | `evict(node_id)` | 注销并发生破坏性断代 |
-| `replace(node_id, initial_state, analysis_facts=None)` | 替换 generation，不继承旧状态或 backlog |
+| `replace(node_id, initial_state, analysis_facts=None, effect_capabilities=None)` | 替换 generation 与能力声明，不继承旧状态或 backlog |
 | `inject(target_node_id, info, submission_id)` | 注入根 Info |
 | `claim(node_ids)` / `release(node_ids)` | 认领/释放 worker 节点集合 |
 | `poll(wait_ms=0)` | 拉取一个 change |
@@ -37,9 +38,10 @@ from graphframework_sdk.agent import KernelDaemonClient
 | `cancel(submission_id)` | 取消 submission |
 | `intervene(node_id, patch, expected_generation, expected_version)` | 带版本守卫的控制面修改 |
 | `projection()` | 读取投影 |
+| `analysis_facts()` / `set_error_target(node_id)` | 读取便携事实 / 设置已准入的错误汇聚节点 |
 | `analyze(request)` / `set_analysis_context(...)` | 调用 Rust 分析并设置图外链接上下文 |
 | `agent_inspect(...)` / `agent_inject(...)` / `agent_intervene_state(...)` | 带 Agent 审计字段的控制面操作 |
-| `claim_effects(adapter_ids)` / `poll_effect(wait_ms=0)` | 认领与拉取外派 Effect |
+| `claim_effects(adapter_ids)` / `release_effects(adapter_ids)` / `poll_effect(wait_ms=0)` | 认领、释放与拉取外派 Effect |
 | `request_effect(...)` / `await_effect(...)` / `complete_effect(...)` | Effect 请求、等待与结算 |
 | `close()` | 关闭 writer；调用方负责在 `finally` 中执行 |
 

@@ -1,1 +1,30 @@
-{"operations": [{"name": "health", "optional": [], "required": [], "result": ["pid", "nodes", "pending"]}, {"name": "admit", "optional": ["analysisFacts", "effectCapabilities"], "required": ["nodeId", "initialState"], "result": ["generation"]}, {"name": "evict", "optional": [], "required": ["nodeId"], "result": []}, {"name": "replace", "optional": ["analysisFacts"], "required": ["nodeId", "initialState"], "result": ["generation"]}, {"name": "inject", "optional": [], "required": ["targetNodeId", "info", "submissionId"], "result": ["duplicate", "feedback"]}, {"name": "claim", "optional": [], "required": ["nodeIds"], "result": ["claimed"]}, {"name": "poll", "optional": ["waitMs"], "required": [], "result": ["change|null"]}, {"name": "commit", "optional": ["operations", "error"], "required": ["changeId"], "result": ["settled"]}, {"name": "cancel", "optional": [], "required": ["submissionId"], "result": ["cancelled"]}, {"name": "intervene", "optional": [], "required": ["nodeId", "patch", "expectedGeneration", "expectedVersion"], "result": ["version", "state"]}, {"name": "projection", "optional": [], "required": [], "result": ["nodes", "scheduler"]}, {"name": "setAnalysisContext", "optional": [], "required": ["frontendLinks", "frontendServiceLinks"], "result": ["analysisRevision"]}, {"name": "analyze", "optional": [], "required": ["request"], "result": ["analysis DTO"]}, {"name": "agentInspect", "optional": ["after", "limit"], "required": [], "result": ["projection", "pending", "drops", "activeChanges", "leases", "effects", "submissions", "events"]}, {"name": "agentInject", "optional": [], "required": ["actor", "reason", "submissionId", "targetNodeId", "info"], "result": ["duplicate", "feedback"]}, {"name": "agentInterveneState", "optional": [], "required": ["actor", "reason", "nodeId", "patch", "expectedGeneration", "expectedVersion"], "result": ["version", "state"]}, {"name": "claimEffects", "optional": [], "required": ["adapterIds"], "result": ["adapterIds"]}, {"name": "releaseEffects", "optional": [], "required": ["adapterIds"], "result": ["adapterIds"]}, {"name": "pollEffect", "optional": [], "required": [], "result": ["effectId", "changeId", "nodeId", "generation", "adapterId", "request"]}, {"name": "requestEffect", "optional": [], "required": ["changeId", "adapterId", "request"], "result": ["effectId"]}, {"name": "awaitEffect", "optional": [], "required": ["effectId"], "result": ["observation|error"]}, {"name": "completeEffect", "optional": ["observation", "error"], "required": ["effectId", "ok"], "result": ["effectId", "completed"]}, {"name": "setErrorTarget", "optional": [], "required": ["nodeId"], "result": []}]}
+{
+  "operations": [
+    { "name": "shutdown", "optional": [], "required": [], "result": ["shutdown"] },
+    { "name": "health", "optional": [], "required": [], "result": ["closed", "pid", "nodes", "pending", "leases", "effectLeases", "effects"] },
+    { "name": "admit", "optional": ["analysisFacts", "effectCapabilities"], "required": ["nodeId", "initialState"], "result": ["generation"] },
+    { "name": "evict", "optional": [], "required": ["nodeId"], "result": ["evicted"] },
+    { "name": "replace", "optional": ["analysisFacts", "effectCapabilities"], "required": ["nodeId", "initialState"], "result": ["generation"] },
+    { "name": "claim", "optional": [], "required": ["nodeIds"], "result": ["nodeIds"] },
+    { "name": "release", "optional": [], "required": ["nodeIds"], "result": ["nodeIds"] },
+    { "name": "inject", "optional": [], "required": ["targetNodeId", "info", "submissionId"], "result": ["duplicate", "feedback"] },
+    { "name": "poll", "optional": ["waitMs"], "required": [], "result": ["change", "state"] },
+    { "name": "commit", "optional": ["error"], "required": ["changeId", "operations"], "result": ["results", "version", "settled"] },
+    { "name": "cancel", "optional": [], "required": ["submissionId"], "result": ["cancelled"] },
+    { "name": "projection", "optional": [], "required": [], "result": ["nodes", "submissions", "pending"] },
+    { "name": "analysisFacts", "optional": [], "required": [], "result": ["nodes"] },
+    { "name": "setErrorTarget", "optional": [], "required": ["nodeId"], "result": ["nodeId"] },
+    { "name": "intervene", "optional": [], "required": ["nodeId", "patch", "expectedGeneration", "expectedVersion"], "result": ["nodeId", "generation", "version", "state"] },
+    { "name": "setAnalysisContext", "optional": [], "required": ["frontendLinks", "frontendServiceLinks"], "result": ["analysisRevision"] },
+    { "name": "analyze", "optional": [], "required": ["request"], "result": ["analysis DTO"] },
+    { "name": "agentInspect", "optional": ["after", "limit"], "required": [], "result": ["projection", "pending", "drops", "activeChanges", "leases", "effects", "submissions", "events"] },
+    { "name": "agentInject", "optional": [], "required": ["actor", "reason", "submissionId", "targetNodeId", "info"], "result": ["duplicate", "feedback"] },
+    { "name": "agentInterveneState", "optional": [], "required": ["actor", "reason", "nodeId", "patch", "expectedGeneration", "expectedVersion"], "result": ["nodeId", "generation", "version", "state"] },
+    { "name": "claimEffects", "optional": [], "required": ["adapterIds"], "result": ["adapterIds"] },
+    { "name": "releaseEffects", "optional": [], "required": ["adapterIds"], "result": ["adapterIds"] },
+    { "name": "pollEffect", "optional": ["waitMs"], "required": [], "result": ["effectId", "changeId", "nodeId", "generation", "adapterId", "request"] },
+    { "name": "requestEffect", "optional": [], "required": ["changeId", "adapterId", "request"], "result": ["effectId"] },
+    { "name": "awaitEffect", "optional": ["waitMs"], "required": ["effectId"], "result": ["ok", "value"] },
+    { "name": "completeEffect", "optional": ["observation", "error"], "required": ["effectId", "ok"], "result": ["effectId", "completed"] }
+  ]
+}

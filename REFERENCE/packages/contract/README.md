@@ -1,121 +1,142 @@
 ---
 type: API Reference
-title: 机器契约与协议操作全集 (packages/contract)
-description: 全仓唯一声明式机器契约：23 项协议操作、入参/返回规范、错误码全集与 Golden Frames 验证指南。
+title: 机器契约与 26 项 daemon 操作
+description: 从 JSON Lines 报文、全部操作、错误边界到 Golden Frames 与契约变更验收的自包含参考。
 status: stable
-tags: [contract, operations, errors, golden-frames, zero-code, json-rpc]
+tags: [contract, operations, errors, golden-frames, json-lines, public-api]
 ---
 
-# 机器契约与协议操作全集 (`packages/contract`)
+# 机器契约与 26 项 daemon 操作 (`packages/contract`)
 
-源码目录：[`packages/contract/`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/contract)
+本页是跨语言客户端的开发入口。读完即可构造请求、选择 operation、解释响应并验证实现；`operations.json`、`errors.json`、`version.json` 与 `golden-frames/*.json` 是机器可读公开入口。
 
-`packages/contract` 是全仓的唯一声明式事实与跨语言契约中心。**所有语言宿主（Rust、TypeScript、Python、C++）与外部通信协议必须 100% 严格满足本目录定义的 JSON 规约**。
+## 1. 帧格式与连接边界
 
-无论通过 CLI、Socket 还是 STDIN/STDOUT 与 GraphFramework 交互，只要按本指南构造 JSON 报文，无需看任何源码即可开箱即用。
+daemon 使用 UTF-8 JSON Lines，一行一个请求与响应。协议版本是数值 `1`，不是字符串 `"1.0"`：
 
----
-
-## 1. 23 项全量协议操作字典 (`operations.json`)
-
-通信报文格式统一为：
 ```json
-{
-  "version": "1.0",
-  "id": 1,
-  "token": "<32字节十六进制密钥>",
-  "op": "<操作名称>",
-  "<参数名>": "<参数值>"
-}
+{"version":1,"id":1,"token":"<当前 run 的随机 token>","op":"health"}
 ```
 
-以下是全部 23 项操作的完整规约（无一遗漏）：
+成功响应：
 
-### 1.1 系统与健康检查
-| 操作名 (`op`) | 必需参数 | 可选参数 | 返回结果字段 | 作用与示例 |
-| :--- | :--- | :--- | :--- | :--- |
-| **`health`** | 无 | 无 | `pid`, `nodes`, `pending` | **系统探活与负载查询**。<br>返回当前守护进程 PID、当前所有准入节点清单及未决单飞任务总数。 |
+```json
+{"id":1,"ok":true,"result":{"closed":false,"pid":1234,"nodes":0,"pending":0,"leases":0,"effectLeases":0,"effects":0}}
+```
 
-### 1.2 节点生命周期管理
-| 操作名 (`op`) | 必需参数 | 可选参数 | 返回结果字段 | 作用与示例 |
-| :--- | :--- | :--- | :--- | :--- |
-| **`admit`** | `nodeId`: 节点唯一标识<br>`initialState`: 初始 JSON 状态对象 | `analysisFacts`: 静态拓扑事实<br>`effectCapabilities`: 允许触发的副作用列表 | `generation`: 初始代数（通常为 1） | **准入并初始化节点**。<br>`{"op": "admit", "nodeId": "downloader", "initialState": {"progress": 0}}` |
-| **`evict`** | `nodeId`: 待卸载节点 ID | 无 | 无 | **注销节点**。冻结并丢弃其队列，产生墓碑（Tombstone）。 |
-| **`replace`** | `nodeId`: 目标节点 ID<br>`initialState`: 新初始状态 | `analysisFacts`: 新的静态拓扑事实 | `generation`: 新代数（自增） | **热替换节点**。清空积压 Backlog，新实例干净启动。 |
+失败响应：
 
-### 1.3 任务注入、认领与单飞调度
-| 操作名 (`op`) | 必需参数 | 可选参数 | 返回结果字段 | 作用与示例 |
-| :--- | :--- | :--- | :--- | :--- |
-| **`inject`** | `targetNodeId`: 接收节点<br>`info`: 脉冲对象 `{ "type": "..." }`<br>`submissionId`: 溯源批次 ID | 无 | `duplicate`: 是否重复提交<br>`feedback`: 物理投递结果 (`enqueued` / `dropped`) | **外部注入根任务**。<br>`{"op": "inject", "targetNodeId": "calc", "info": {"type": "Add", "a": 1, "b": 2}, "submissionId": "s-101"}` |
-| **`claim`** | `nodeIds`: 节点 ID 数组 | 无 | `claimed`: 成功认领的节点列表 | **Worker 认领节点执行权**。声明本连接负责消费指定节点的队列。 |
-| **`poll`** | 无 | `waitMs`: 阻塞等待毫秒数 | `change`: 单飞任务上下文（或 `null`） | **Worker 拉取任务**。返回当前节点的 `changeId`、接收到的 `info` 及当前 `state`。 |
-| **`commit`** | `changeId`: 正在执行的 Change ID | `operations`: 状态写入操作列表<br>`error`: 失败原因（若发生异常） | `settled`: 是否结算成功布尔值 | **Worker 提交执行结果并释放单飞锁**。<br>`operations` 支持 `[{"op": "write", "key": "progress", "value": 100}]`。 |
-| **`cancel`** | `submissionId`: 待取消批次 ID | 无 | `cancelled`: 是否成功取消 | **一键取消长任务批次**。未出队的任务直接丢弃，不予执行。 |
+```json
+{"id":1,"ok":false,"error":"unsupported protocol version"}
+```
 
-### 1.4 控制面干预与状态观测
-| 操作名 (`op`) | 必需参数 | 可选参数 | 返回结果字段 | 作用与示例 |
-| :--- | :--- | :--- | :--- | :--- |
-| **`intervene`** | `nodeId`<br>`patch`: 状态更新字典<br>`expectedGeneration`: 期望代数<br>`expectedVersion`: 期望版本 | 无 | `version`: 新版本号<br>`state`: 更新后的全量状态 | **单飞间隙状态强制写入**。通过代数与版本号严格防并发脏写。 |
-| **`projection`** | 无 | 无 | `nodes`: 全节点状态字典<br>`scheduler`: 调度统计指标 | **读取全图状态投影**。前端或监控大屏的一键拉取接口。 |
-| **`setErrorTarget`**| `nodeId`: 默认错误汇聚节点 ID | 无 | 无 | **配置全图未捕获异常默认路由目标**。 |
+约束来自 `version.json`：单帧最多 1 MiB；token 至少 16 字节并由当前 run 生成；只连接 loopback 地址；分析事实最多 5000 个实体、20000 条边、256 KiB；分析响应最多 512 KiB。凭据不得写入源码、文档示例或 run 配置。
 
-### 1.5 因果拓扑分析与体检
-| 操作名 (`op`) | 必需参数 | 可选参数 | 返回结果字段 | 作用与示例 |
-| :--- | :--- | :--- | :--- | :--- |
-| **`setAnalysisContext`**| `frontendLinks`: 前端关联数组<br>`frontendServiceLinks`: 服务链路数组 | 无 | `analysisRevision`: 当前分析索引修订号 | **设置前端交互拓扑上下文**。 |
-| **`analyze`** | `request`: 分析请求对象 `{ "op": "health" \| "path" \| ... }` | 无 | `analysis DTO`: 结构化分析报告 | **直接运行内置拓扑算法**。详见 [分析引擎规约](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/analysis/README.md)。 |
+## 2. 26 项操作总表
 
-### 1.6 Agent 可信控制面操作
-| 操作名 (`op`) | 必需参数 | 可选参数 | 返回结果字段 | 作用与示例 |
-| :--- | :--- | :--- | :--- | :--- |
-| **`agentInspect`** | 无 | `after`: 时间戳游标<br>`limit`: 最大返回事件数 | `projection`, `pending`, `drops`, `activeChanges`, `leases`, `effects`, `submissions`, `events` | **Agent 全息可观测入口**。一次性拉取图状态、丢弃台账、租约与因果事件环。 |
-| **`agentInject`** | `actor`: Agent 名称<br>`reason`: 注入原因<br>`submissionId`, `targetNodeId`, `info` | 无 | `duplicate`, `feedback` | **携带审计痕迹的 Agent 脉冲注入**。自动进入全景遥测审计链。 |
-| **`agentInterveneState`**| `actor`, `reason`, `nodeId`, `patch`, `expectedGeneration`, `expectedVersion` | 无 | `version`, `state` | **携带审计痕迹的 Agent 状态原子修正**。 |
+`operations.json` 是字段级机器契约。下表给出开发时需要的语义；required/optional/result 的精确列表以该文件为准。
 
-### 1.7 物理副作用 (Effect) 分布式委派协议
-| 操作名 (`op`) | 必需参数 | 可选参数 | 返回结果字段 | 作用与示例 |
-| :--- | :--- | :--- | :--- | :--- |
-| **`claimEffects`** | `adapterIds`: 适配器标识数组 | 无 | `adapterIds`: 成功认领的适配器列表 | **Provider 认领副作用处理能力**（如认领 `["fs-write", "http-post"]`）。 |
-| **`releaseEffects`**| `adapterIds`: 待释放适配器数组 | 无 | `adapterIds`: 成功释放列表 | **释放对指定副作用的处理权**。 |
-| **`pollEffect`** | 无 | 无 | `effectId`, `changeId`, `nodeId`, `generation`, `adapterId`, `request` | **Provider 拉取待执行物理动作**。若当前无请求返回空。 |
-| **`requestEffect`**| `changeId`: 当前正在执行的 Change ID<br>`adapterId`: 目标适配器<br>`request`: 动作请求参数 DTO | 无 | `effectId`: 生成的副作用任务 ID | **Node 在 Change 内发起外部动作**。将阻塞等待其完成。 |
-| **`awaitEffect`** | `effectId`: 副作用任务 ID | 无 | `observation`: 观察事实（或 `error`） | **Node 挂起等待动作执行结果**。 |
-| **`completeEffect`**| `effectId`<br>`ok`: 动作是否成功布尔值 | `observation`: 成功输出结果<br>`error`: 失败错误文案 | `effectId`, `completed`: true | **Provider 提交物理执行结果**。唤醒挂起的 Node 继续因果变迁。 |
+### 2.1 进程与节点生命周期
 
----
+| op | 输入 | result | 规则 |
+| :--- | :--- | :--- | :--- |
+| `shutdown` | 无 | `shutdown` | 仅在无未结算 Effect 时关闭规则空间；关闭后只接受 `health/shutdown` |
+| `health` | 无 | `closed,pid,nodes,pending,leases,effectLeases,effects` | 无副作用探活 |
+| `admit` | `nodeId,initialState`; 可选 `analysisFacts,effectCapabilities` | `generation` | 新节点 generation 从内核结果开始 |
+| `evict` | `nodeId` | `evicted` | 丢弃 backlog、释放节点租约、清除事实 |
+| `replace` | `nodeId,initialState`; 可选 `analysisFacts,effectCapabilities` | `generation` | 破坏性断代，不继承 State/backlog |
 
-## 2. 错误码与拒绝原因全集 (`errors.json`)
+### 2.2 Worker、提交与状态
 
-系统在处理请求时，严格返回以下三类标准化错误：
+| op | 输入 | result | 规则 |
+| :--- | :--- | :--- | :--- |
+| `claim` | `nodeIds` | 当前连接的 `nodeIds` | 一条连接独占认领；全部节点须已准入 |
+| `release` | `nodeIds` | 释放后剩余 `nodeIds` | 活跃 change 未结算时拒绝 |
+| `inject` | `targetNodeId,info,submissionId` | `duplicate,feedback` | 同 submission 重放必须内容一致 |
+| `poll` | 可选 `waitMs` | `{change,state}` 或 `null` | 先 claim；同连接一次只允许一个活跃 change |
+| `commit` | `changeId`; 可选 `operations,error` | `results,version,settled` | write/patch/send 按数组顺序原子结算 |
+| `cancel` | `submissionId` | `cancelled` | 丢弃该 submission 未出队工作 |
+| `projection` | 无 | `nodes,submissions,pending` | UI/消费端业务事实来源 |
+| `analysisFacts` | 无 | `nodes` | 读取当前已准入节点的便携事实 |
+| `setErrorTarget` | `nodeId` | `nodeId` | 目标必须已准入；Node 失败作为 `@error/NodeFailed` 路由 |
+| `intervene` | `nodeId,patch,expectedGeneration,expectedVersion` | `nodeId,generation,version,state` | 单飞间隙、双前置条件控制面修改 |
 
-### 2.1 协议层阻断拒绝 (`daemonRejections`)
-1. `"unknown protocol version"`：协议版本不匹配（当前固定为 `"1.0"`）；
-2. `"missing or wrong token"`：连接未携带合法鉴权 Token；
-3. `"analysisFacts.version != 1"`：静态分析元数据格式版本错误；
-4. `"analysisFacts.nodeId mismatch"`：实体事实冒充了其他节点的 Node ID；
-5. `"entity/edge count over cap"`：快照规模超过单节点上限（实体 > 5000 或边 > 20000）；
-6. `"snapshot over 256 KiB"`：单节点快照体积超出物理上限（256 KiB）；
-7. `"single fold over 64 groups/5000 leaves"`：折叠树规模超出处理限制；
-8. `"response over 512 KiB"`：分析计算响应超出上限；
-9. `"generation/version precondition mismatch"`：状态干预时乐观并发锁冲突；
-10. `"duplicate submissionId with different content"`：同一任务批次 ID 被重复注入了不同内容。
+`commit.operations` 只允许三种形状：
 
-### 2.2 微内核调度错误 (`kernelErrors`)
-- `DuplicateEntity`：`"entity already admitted: {id}"`
-- `UnknownEntity`：`"entity not admitted: {id}"`
-- `StaleGeneration`：`"entity generation changed: {id}"`
-- `AlreadyBound`：`"entity already bound: {id}"`
-- `Busy`：`"entity busy, replace runs only in the single-flight gap: {id}"`
+```json
+[
+  {"op":"write","key":"count","value":1},
+  {"op":"patchState","patch":{"status":"done"}},
+  {"op":"send","targetNodeId":"consumer","info":{"type":"CountChanged","count":1}}
+]
+```
 
-### 2.3 单飞开闭错误 (`beginErrors`)
-- `Busy`：目标实体正处于活跃 Change 状态；
-- `Sealed`：目标实体正处于替换密封态，新任务冻结；
-- `Empty`：目标实体队列无待决脉冲。
+### 2.3 分析与 Agent 控制面
 
----
+| op | 输入 | result |
+| :--- | :--- | :--- |
+| `setAnalysisContext` | `frontendLinks,frontendServiceLinks` | `analysisRevision` |
+| `analyze` | `request` | 对应 Rust analysis DTO |
+| `agentInspect` | 可选 `after,limit` | `projection,pending,drops,activeChanges,leases,effects,submissions,events` |
+| `agentInject` | `actor,reason,submissionId,targetNodeId,info` | `duplicate,feedback` |
+| `agentInterveneState` | `actor,reason,nodeId,patch,expectedGeneration,expectedVersion` | `nodeId,generation,version,state` |
 
-## 3. Golden Frames 黄金帧验证与回归测试
+Agent 写操作必须提供非空 actor 与 reason，以便进入审计事件环。分析 operation 的请求/响应字典见 [Rust 分析引擎](../rust/analysis/README.md)。
 
-[`golden-frames/`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/contract/golden-frames) 目录中存储了全套行为测试向量（如 `daemon-counter-cycle.json`）。
+### 2.4 Effect 委派
 
-任何新增语言的 SDK、外部客户端或测试桩，**只要按文件中的 `requests` 依次发送操作，比对最终的 `expect.projection`**，即可证明其完全合规，无需搭建全量 Electron 环境即可自动化回归。
+| op | 输入 | result | 调用方 |
+| :--- | :--- | :--- | :--- |
+| `claimEffects` | `adapterIds` | 当前认领的 `adapterIds` | provider |
+| `releaseEffects` | `adapterIds` | 释放后剩余 `adapterIds` | provider |
+| `pollEffect` | 可选 `waitMs` | Effect DTO 或 `null` | provider |
+| `requestEffect` | `changeId,adapterId,request` | `effectId` | 持有活跃 change 的 worker |
+| `awaitEffect` | `effectId`; 可选 `waitMs` | `{ok,value}` 或 `null` | Effect 所属 worker |
+| `completeEffect` | `effectId,ok`; 成功给 `observation`，失败给 `error` | `effectId,completed` | 认领该 adapter 的 provider |
+
+Node 必须在 admit/replace 时声明 `effectCapabilities`；未授权 adapter 或无 provider 的请求会被拒绝。provider 退出时必须调用 `releaseEffects`，不得用节点租约的 `release` 代替。
+
+## 3. 客户端公开入口
+
+不要在业务代码里手拼 transport。公开入口保持语言惯用形式：
+
+```ts
+import { connectKernelDaemon } from '@graphframework/sdk/agent';
+```
+
+```python
+from graphframework_sdk.agent import KernelDaemonClient
+```
+
+两种 client 都以本页 operation 名与 DTO 字段为准。新增语言实现应把 transport 封装在本语言的 agent 能力面，并通过 Golden Frames 验证。
+
+## 4. 错误与拒绝
+
+`errors.json` 分三类：
+
+- `daemonRejections`：版本/token、分析事实尺寸、响应尺寸、乐观并发与 submission 幂等冲突。
+- `kernelErrors`：`DuplicateEntity / UnknownEntity / StaleGeneration / AlreadyBound / Busy`。
+- `beginErrors`：`Busy / Sealed / Empty`，表示 change 当前不能开始，不等同于业务失败。
+
+调用方不得依赖未登记的完整错误文案做业务分支；优先按 operation 语义与稳定错误类别处理。
+
+## 5. Golden Frames 与开发流程
+
+Golden frame 的 `requests` 使用 `{op,args}` 便于跨语言重放；发送时客户端负责把 `args` 展开到顶层，并补 `version/id/token`。`$poll.change.changeId` 等字符串是对前序响应的引用占位符，不是原样发送的值。
+
+修改契约的最小闭环：
+
+1. 先改 `operations.json` / `errors.json` / `version.json` 或 golden frame；不要先在某个 SDK 私自增加字段。
+2. 同步 Rust daemon 权威实现与 JavaScript、Python client。
+3. 每种语言只从其 agent 能力面导出 client，不暴露传输实现路径。
+4. 运行纯契约测试；涉及 daemon 行为时再运行 Rust daemon/golden tests。
+5. 同步本 README，保证示例可直接形成合法帧。
+
+```bash
+PYTHONPATH=packages/sdk/python/src python -m pytest packages/sdk/python/tests/test_mirror.py
+cargo test --manifest-path packages/rust/Cargo.toml -p graphframework-kernel-daemon
+npm --prefix packages/sdk/javascript run typecheck
+npm --prefix packages/desktop run typecheck
+```
+
+完成标准：`operations.json` 覆盖 daemon 的每个公开 op；各语言 client 有同语义方法；README 的帧可被 daemon 接受；Golden Frames 可由至少一个跨语言客户端重放。

@@ -53,6 +53,6 @@ async def run_daemon_effect_provider(client: Any, adapters: Mapping[str, DaemonE
                 await client.complete_effect(effect["effectId"], False, error=message)
     finally:
         try:
-            await client.release(adapter_ids)
+            await client.release_effects(adapter_ids)
         except Exception:  # noqa: BLE001 - shutdown path must not raise
             pass

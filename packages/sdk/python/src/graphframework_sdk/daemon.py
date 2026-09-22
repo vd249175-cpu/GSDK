@@ -45,6 +45,9 @@ class KernelDaemonClient:
     async def health(self) -> Any:
         return await self.request("health")
 
+    async def shutdown(self) -> Any:
+        return await self.request("shutdown")
+
     async def admit(self, node_id: str, initial_state: dict[str, Any],
                    analysis_facts: Any = None,
                    effect_capabilities: list[str] | None = None) -> Any:
@@ -56,9 +59,11 @@ class KernelDaemonClient:
     async def evict(self, node_id: str) -> Any:
         return await self.request("evict", {"nodeId": node_id})
 
-    async def replace(self, node_id: str, initial_state: dict[str, Any], analysis_facts: Any = None) -> Any:
+    async def replace(self, node_id: str, initial_state: dict[str, Any], analysis_facts: Any = None,
+                      effect_capabilities: list[str] | None = None) -> Any:
         return await self.request("replace", {
-            "nodeId": node_id, "initialState": initial_state, "analysisFacts": analysis_facts,
+            "nodeId": node_id, "initialState": initial_state,
+            "analysisFacts": analysis_facts, "effectCapabilities": effect_capabilities or [],
         })
 
     async def inject(self, target_node_id: str, info: dict[str, Any], submission_id: str) -> Any:
@@ -94,6 +99,12 @@ class KernelDaemonClient:
     async def projection(self) -> Any:
         return await self.request("projection")
 
+    async def analysis_facts(self) -> Any:
+        return await self.request("analysisFacts")
+
+    async def set_error_target(self, node_id: str) -> Any:
+        return await self.request("setErrorTarget", {"nodeId": node_id})
+
     async def analyze(self, request: dict[str, Any]) -> Any:
         return await self.request("analyze", {"request": request})
 
@@ -128,6 +139,9 @@ class KernelDaemonClient:
 
     async def claim_effects(self, adapter_ids: list[str]) -> Any:
         return await self.request("claimEffects", {"adapterIds": adapter_ids})
+
+    async def release_effects(self, adapter_ids: list[str]) -> Any:
+        return await self.request("releaseEffects", {"adapterIds": adapter_ids})
 
     async def poll_effect(self, wait_ms: int = 0) -> Any:
         return await self.request("pollEffect", {"waitMs": wait_ms})
