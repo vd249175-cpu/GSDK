@@ -477,6 +477,8 @@ export class UnifiedObserverNode extends ObservationWorldNode {
           this.sessionId,
         )
       }
+      // Request 必须保持 daemon-portable：只传 string/number/boolean/普通对象，严禁传 function。
+      // 进度以离散 Info 表达（开始前一次、完成后一次），不做 effect 内的流式回调。
       emitProgress('merge-started')
       const observation = await ctx.effectAdapter(this.desktopObservation, {
         op: 'observe',
@@ -487,11 +489,9 @@ export class UnifiedObserverNode extends ObservationWorldNode {
         liveEvents: info.liveEvents,
         startedAt: info.startedAt,
         completedAt: info.completedAt,
-        onProgress: (report) => {
-          emitProgress(report?.stage ?? 'merging', { count: report?.count ?? null })
-        },
       })
       const events = Array.isArray(observation?.events) ? observation.events : []
+      emitProgress('merge-done', { count: events.length })
       ctx.patchState({
         lastCount: ctx.read('lastCount') + events.length,
         lastArtifactPath: info.artifactPath ?? info.sessionDir,

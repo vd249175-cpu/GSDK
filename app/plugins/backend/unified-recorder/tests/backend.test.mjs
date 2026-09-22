@@ -119,7 +119,8 @@ describe('unified-recorder causal flow', () => {
     runtime.dispose()
   })
 
-  it('streams merge progress into session progressLog during observe', async () => {
+  it('emits portable merge pulses without functions in the observe request', async () => {
+    let observedRequest = null
     const nodes = createUnifiedRecorder({
       instanceId: 'recorder',
       nodeIdFor: (local) => `recorder/${local}`,
@@ -129,8 +130,7 @@ describe('unified-recorder causal flow', () => {
         desktopObservation: {
           id: 'unified/desktop-observation',
           execute: async (request) => {
-            await request.onProgress?.({ stage: 'screenshots-extracted', sessionId: request.sessionId, count: 2 })
-            await request.onProgress?.({ stage: 'export-done', sessionId: request.sessionId, count: 2 })
+            observedRequest = request
             return {
               events: [
                 { index: 1, source: 'desktop', action: 'Mouse Left Click', application: 'EXPLORER.EXE', description: 'Clicked' },
@@ -151,8 +151,11 @@ describe('unified-recorder causal flow', () => {
     await runtime.waitForQuiescence()
     const state = runtime.getState('recorder/session')
     expect(state.status).toBe('idle')
+    // daemon-portable 断言：request 内不得出现 function，否则 daemon codec 直接 throw。
+    expect(JSON.stringify(observedRequest, (_key, value) => (typeof value === 'function' ? '__FUNCTION__' : value))).not.toContain('__FUNCTION__')
+    expect(observedRequest.onProgress).toBeUndefined()
     expect(state.progressLog.map((entry) => entry.stage)).toEqual(
-      expect.arrayContaining(['start-requested', 'merging', 'merge-started', 'screenshots-extracted', 'export-done']),
+      expect.arrayContaining(['start-requested', 'merging', 'merge-started', 'merge-done']),
     )
     runtime.dispose()
   })
