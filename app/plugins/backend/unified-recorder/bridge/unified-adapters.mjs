@@ -668,6 +668,7 @@ export function createUnifiedAdapters({
 
   const activeDesktop = new Map()
   let inputSource = null
+  let lastBrowserSnapshot = null
 
   const desktopControl = {
     id: DESKTOP_CONTROL_ID,
@@ -817,6 +818,7 @@ export function createUnifiedAdapters({
           }
         }
         await runCli([`-s=${cliSession}`, 'recording-start'])
+        lastBrowserSnapshot = null
         return { handle: `playwright-cli:${cliSession}:${request.sessionId}` }
       }
       if (request?.op === 'stop') {
@@ -841,8 +843,11 @@ export function createUnifiedAdapters({
     execute: async (request) => {
       if (request?.op !== 'poll') throw new Error(`Unknown unified browser-events request: ${JSON.stringify(request?.op)}`)
       const output = await runCli([`-s=${cliSession}`, 'snapshot'])
+      const snapshot = String(output ?? '')
+      if (snapshot === lastBrowserSnapshot) return { events: [], cursor: request?.cursor ?? null }
+      lastBrowserSnapshot = snapshot
       return {
-        events: [{ kind: 'snapshot', sessionId: request?.sessionId ?? null, snapshot: String(output ?? '') }],
+        events: [{ kind: 'snapshot', sessionId: request?.sessionId ?? null, snapshot }],
         cursor: request?.cursor ?? null,
       }
     },
