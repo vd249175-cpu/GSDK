@@ -292,7 +292,7 @@ export class SwissModernist2DRenderer implements IVisualizerRenderer {
   public updateTopology(
     nodes: CausalNode3D[],
     edges: CausalEdge3D[],
-    communities: CausalCommunity3D[],
+    communities: CausalCommunity3D[] = [],
   ): void {
     this.nodes = nodes
     this.edges = edges

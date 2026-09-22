@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { defaultValueCodec } from '@graphframework/sdk/protocol';
-import { serveRunControl, callRunControl } from '../../../../../packages/tooling/run/src/control.mjs';
+import { serveRunControl, callRunControl } from '../../../../../packages/tooling/run/index.mjs';
 
 const execFileAsync = promisify(execFile);
 const context = JSON.parse(readFileSync(process.argv[2], 'utf8'));

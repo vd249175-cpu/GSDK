@@ -2,12 +2,20 @@
   "name": "@graphframework/causal-visualizer",
   "version": "1.0.0",
   "private": true,
-  "description": "GSDK 独立 3D 因果数据流全息观测工具（图无关内核可视化展开）",
+  "description": "GraphFramework Swiss-2D causal topology visualizer and telemetry client.",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
     "react": "^19.0.0",
@@ -20,6 +28,7 @@
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^4.0.0",
     "typescript": "^5.4.5",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^3.2.7"
   }
 }

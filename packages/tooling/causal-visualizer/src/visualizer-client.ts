@@ -25,7 +25,12 @@ export interface TopologySnapshot {
   recentEvents?: CausalTelemetryEvent[]
 }
 
-const DEFAULT_SERVER_URL = 'http://127.0.0.1:51888'
+export const DEFAULT_SERVER_URL = 'http://127.0.0.1:51888'
+
+export interface VisualizerClientOptions {
+  serverUrl?: string
+  autoConnect?: boolean
+}
 
 export class VisualizerClient {
   private listeners = new Set<TelemetryListener>()
@@ -35,9 +40,11 @@ export class VisualizerClient {
   private isElectron = typeof window !== 'undefined' && Boolean((window as any).graphframeworkDesktop?.graphKernel)
   private isConnected = false
   private reconnectTimer?: ReturnType<typeof setTimeout>
+  private readonly serverUrl: string
 
-  constructor() {
-    this.connect()
+  constructor({ serverUrl = DEFAULT_SERVER_URL, autoConnect = true }: VisualizerClientOptions = {}) {
+    this.serverUrl = serverUrl.replace(/\/$/, '')
+    if (autoConnect) this.connect()
   }
 
   public get connected(): boolean {
@@ -85,7 +92,7 @@ export class VisualizerClient {
     }
 
     try {
-      const sse = new EventSource(`${DEFAULT_SERVER_URL}/api/events`)
+      const sse = new EventSource(`${this.serverUrl}/api/events`)
       this.eventSource = sse
 
       sse.onopen = () => {
@@ -141,7 +148,7 @@ export class VisualizerClient {
     }
 
     try {
-      const res = await fetch(`${DEFAULT_SERVER_URL}/api/topology`)
+      const res = await fetch(`${this.serverUrl}/api/topology`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data: TopologySnapshot = await res.json()
       this.notifyConnection(true)

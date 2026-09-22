@@ -4,6 +4,7 @@
   "type": "module",
   "description": "Named-run configuration, path resolution and control records for the unified Bash run lifecycle.",
   "exports": {
+    ".": "./index.mjs",
     "./config": "./src/config.mjs",
     "./paths": "./src/paths.mjs",
     "./lock": "./src/lock.mjs",
@@ -13,10 +14,12 @@
     "./assembly": "./src/assembly.mjs",
     "./scenario": "./src/scenario.mjs",
     "./discovery": "./src/discovery.mjs",
+    "./control": "./src/control.mjs",
     "./package.json": "./package.json",
     "./package": "./src/package.mjs"
   },
   "scripts": {
-    "typecheck": "node --check src/config.mjs && node --check src/paths.mjs && node --check src/lock.mjs && node --check src/record.mjs && node --check src/kernel.mjs && node --check src/lifecycle.mjs && node --check src/assembly.mjs && node --check src/scenario.mjs && node --check src/discovery.mjs && node --check src/session.mjs && node --check src/frontend.mjs && node --check src/package.mjs && node --check src/cli.mjs"
+    "test": "node --test src/public-entrypoints.test.mjs",
+    "typecheck": "node --check index.mjs && node --check src/config.mjs && node --check src/paths.mjs && node --check src/lock.mjs && node --check src/record.mjs && node --check src/kernel.mjs && node --check src/lifecycle.mjs && node --check src/assembly.mjs && node --check src/scenario.mjs && node --check src/discovery.mjs && node --check src/control.mjs && node --check src/session.mjs && node --check src/frontend.mjs && node --check src/package.mjs && node --check src/cli.mjs"
   }
 }

@@ -6,7 +6,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { defaultValueCodec } from '@graphframework/sdk/protocol'
-import { serveRunControl, callRunControl } from '../../../../../packages/tooling/run/src/control.mjs'
+import { serveRunControl, callRunControl } from '../../../../../packages/tooling/run/index.mjs'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = fileURLToPath(new URL('../../../../../', import.meta.url))

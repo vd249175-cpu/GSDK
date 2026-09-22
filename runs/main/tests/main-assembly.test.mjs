@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { resolve, join } from 'node:path'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { loadRunConfig } from '../../../packages/tooling/run/src/session.mjs'
-import { resolveRunAssembly, loadRunNodes } from '../../../packages/tooling/run/src/assembly.mjs'
+import { loadRunConfig, resolveRunAssembly, loadRunNodes } from '../../../packages/tooling/run/index.mjs'
 import { createRunHost } from '../host.mjs'
 
 describe('runs/main integrated assembly', () => {
   it('assembles all core plugins with isolated dependencies and valid host roots', async () => {
-    const configPath = resolve('runs/main/run.config.json')
+    const configPath = fileURLToPath(new URL('../run.config.json', import.meta.url))
     const initial = loadRunConfig(configPath)
     const parsed = await resolveRunAssembly(initial)
 

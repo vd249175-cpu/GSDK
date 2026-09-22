@@ -2,7 +2,7 @@ import { app, BrowserWindow, Menu, clipboard, ipcMain, shell } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { defaultValueCodec } from '@graphframework/sdk/protocol'
-import { serveRunControl, callRunControl } from '../../../../../packages/tooling/run/src/control.mjs'
+import { serveRunControl, callRunControl } from '../../../../../packages/tooling/run/index.mjs'
 
 const context = JSON.parse(readFileSync(process.argv[2], 'utf8'))
 const runtime = context.runtimeDirectory

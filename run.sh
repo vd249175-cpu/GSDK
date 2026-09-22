@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-[[ $# -ge 2 ]] || { echo 'Usage: bash ./run.sh start|stop|status|analyze|inspect runs/<name>/run.config.json [json]; bash ./run.sh pack <capability-dir> [out.zip]; bash ./run.sh verify <capability.zip> [--expect-sha256 <hex>]; bash ./run.sh install <capability.zip> [--dir <dir>] [--run <run.config.json>] [--update] [--expect-sha256 <hex>]' >&2; exit 2; }
+[[ $# -ge 2 ]] || { echo 'Usage: bash ./run.sh start|stop|status|validate|analyze|inspect runs/<name>/run.config.json [json]; bash ./run.sh pack <capability-dir> [out.zip]; bash ./run.sh verify <capability.zip> [--expect-sha256 <hex>]; bash ./run.sh install <capability.zip> [--dir <dir>] [--run <run.config.json>] [--update] [--expect-sha256 <hex>]' >&2; exit 2; }
 op="$1"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 config_dir="$(cd "$(dirname "$2")" && pwd)"
@@ -8,7 +8,7 @@ config="$config_dir/$(basename "$2")"
 cli="$repo_root/packages/tooling/run/src/cli.mjs"
 case "$op" in
   pack|verify|install|pack-base|install-base|pack-run|install-run) exec node "$cli" "$op" "$2" "${3:-}" "${4:-}" "${5:-}" "${6:-}" ;;
-  stop|status|analyze|inspect) exec node "$cli" "$op" "$config" "${3:-}" ;;
+  stop|status|validate|analyze|inspect) exec node "$cli" "$op" "$config" "${3:-}" ;;
   start)
     node "$cli" validate "$config" >/dev/null
     runtime="$config_dir/.generated/runtime"

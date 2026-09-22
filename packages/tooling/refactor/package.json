@@ -2,6 +2,20 @@
   "name": "@graphframework/refactor",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./index.mjs",
+    "./rewrite-imports": "./rewrite-imports.mjs",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "graphframework-refactor": "./refactor.mjs",
+    "graphframework-rewrite-imports": "./rewrite-imports.mjs",
+    "graphframework-check-layout": "./check-layout.mjs"
+  },
   "dependencies": { "typescript": "^5.0.0" },
-  "scripts": { "check:layout": "node check-layout.mjs" }
+  "scripts": {
+    "check:layout": "node check-layout.mjs",
+    "test": "node --test rewrite-imports.test.mjs",
+    "typecheck": "node --check index.mjs && node --check refactor.mjs && node --check rewrite-imports.mjs && node --check check-layout.mjs"
+  }
 }
