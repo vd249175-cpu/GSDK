@@ -119,11 +119,8 @@ const emptyState: RecorderState = {
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform)
 
 const PAGE_TABS = [
-  { key: 'editing', label: '工台分屏', icon: '◫', badge: 'Blender' },
-  { key: 'timeline', label: '实时轨迹', icon: '☍', badge: 'Live' },
-  { key: 'agent', label: 'Agent文字版', icon: '🤖', badge: 'Clean' },
-  { key: 'screenshots', label: '截图索引', icon: '🖼', badge: 'IMG' },
-  { key: 'native', label: '原生回放', icon: '☰', badge: 'Raw' },
+  { key: 'controls', label: '控制中枢', icon: '⬡', badge: 'REC' },
+  { key: 'screenshots', label: '截图证据', icon: '🖼', badge: 'IMG' },
 ] as const
 
 export function App() {
@@ -475,25 +472,18 @@ export function App() {
             })}
           </nav>
 
-          {/* 极客底栏：因果状态与快捷键指引 */}
+          {/* 极简底栏：因果状态 + 双页指引 */}
           <footer className="app-footer">
             <span>
               <i className={`connection-dot ${state.status !== 'error' ? '' : 'is-offline'}`} />
               {state.status !== 'error' ? 'RuleSpace 微内核协同中' : '服务通信异常'}
             </span>
             <span className="footer-meta-tag">
-              Rev: <code>{state.revision}</code>
-            </span>
-            <span className="footer-meta-tag">
               会话: <code>{state.sessionId ?? 'IDLE'}</code>
             </span>
-            <span className="footer-meta-tag" style={{ marginLeft: '12px' }}>
-              快捷键: <code>Ctrl+Space</code> 最大化当前面板 · 左上角可自由切换页面 · 右上角切分与拖出窗口
-            </span>
             <span className="footer-spacer" />
-            <span>GraphFramework · DaVinci & Blender Dock Suite</span>
+            <span>控制中枢 · 截图证据</span>
           </footer>
-
           {/* 全局偏好设置弹窗 */}
           <SettingsDialog
             isOpen={isSettingsOpen}

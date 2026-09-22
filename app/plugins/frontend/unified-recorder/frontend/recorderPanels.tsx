@@ -1,22 +1,15 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import {
-  Activity,
-  Bot,
   Check,
-  Clock,
-  Code2,
   Copy,
   ExternalLink,
   FolderOpen,
   Globe,
   Image as ImageIcon,
-  Layers,
   MonitorDot,
-  MousePointer2,
   Play,
   Sliders,
   Square,
-  Terminal,
   X,
 } from 'lucide-react'
 import type { PanelDefinition, PanelProps } from '@graphframework/workbench'
@@ -241,156 +234,7 @@ export function ControlsPanel(_props: PanelProps) {
 }
 
 /* ==========================================================================
-   2. 实时轨迹面板 (recorder.timeline)
-   ========================================================================== */
-export function TimelinePanel(_props: PanelProps) {
-  const { state } = useRecorder()
-  const [filter, setFilter] = useState<'all' | 'desktop' | 'browser'>('all')
-
-  const filteredEvents = state.events.filter((e) => (filter === 'all' ? true : e.source === filter))
-
-  return (
-    <div className="panel-container timeline-panel-content">
-      <div className="panel-filter-bar">
-        <span className="filter-title">动作事件流 ({filteredEvents.length})</span>
-        <div className="filter-tabs">
-          <button
-            type="button"
-            className={`filter-tab ${filter === 'all' ? 'is-active' : ''}`}
-            onClick={() => setFilter('all')}
-          >
-            全部 ({state.events.length})
-          </button>
-          <button
-            type="button"
-            className={`filter-tab ${filter === 'desktop' ? 'is-active' : ''}`}
-            onClick={() => setFilter('desktop')}
-          >
-            桌面 ({state.events.filter((e) => e.source === 'desktop').length})
-          </button>
-          <button
-            type="button"
-            className={`filter-tab ${filter === 'browser' ? 'is-active' : ''}`}
-            onClick={() => setFilter('browser')}
-          >
-            浏览器 ({state.events.filter((e) => e.source === 'browser').length})
-          </button>
-        </div>
-      </div>
-
-      <div className="timeline-scroll-box">
-        {filteredEvents.length === 0 ? (
-          <EmptyState
-            icon={Activity}
-            title={state.status === 'recording' ? '正在监听输入与操作…' : '暂无事件记录'}
-            description="点击控制面板的“开始统一录制”，在屏幕或浏览器中操作即可实时产生事件流。"
-          />
-        ) : (
-          <div className="timeline-events-list">
-            {filteredEvents.map((event) => {
-              const isBrowser = event.source === 'browser'
-              return (
-                <div key={`${event.source}-${event.index}`} className={`timeline-event-card is-${event.source}`}>
-                  <div className="event-card-header">
-                    <span className="event-index is-mono">#{String(event.index).padStart(2, '0')}</span>
-                    <span className={`event-source-badge is-${event.source}`}>
-                      {isBrowser ? <Globe size={11} /> : <MonitorDot size={11} />}
-                      <span>{isBrowser ? '浏览器' : '桌面'}</span>
-                    </span>
-                    {event.application && <span className="event-app-badge">{event.application}</span>}
-                    <span className="event-spacer" />
-                    {event.time && <span className="event-time is-mono"><Clock size={10} /> {event.time}</span>}
-                  </div>
-
-                  <div className="event-card-body">
-                    <div className="event-action-line">
-                      <span className="action-tag">{event.action ?? 'Action'}</span>
-                      <span className="action-desc">{event.description ?? '-'}</span>
-                    </div>
-
-                    {event.code && (
-                      <div className="event-code-snippet is-mono">
-                        <code>{event.code}</code>
-                      </div>
-                    )}
-
-                    {event.text && (
-                      <div className="event-text-snippet">
-                        <span className="text-label">输入文本:</span>
-                        <span className="text-val">"{event.text}"</span>
-                      </div>
-                    )}
-
-                    {event.screenshotFile && (
-                      <div className="event-screenshot-ref is-mono">
-                        <ImageIcon size={11} />
-                        <span>{event.screenshotFile}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/* ==========================================================================
-   3. Agent 纯文字版面板 (recorder.agent)
-   ========================================================================== */
-export function AgentTranscriptPanel(_props: PanelProps) {
-  const { state, handleCopy, copied } = useRecorder()
-
-  const transcript = state.agentTranscriptContent || (
-    state.events.length > 0
-      ? `# Unified Recording Transcript: ${state.sessionId ?? 'session'}\n` +
-        `- Started: ${state.startedAt ?? '-'}\n` +
-        `- Total Steps: ${state.events.length}\n\n` +
-        `## Operations\n` +
-        state.events.map((e) => `### Step ${String(e.index).padStart(2, '0')} [${e.source}]\n- Action: ${e.action}\n- Description: ${e.description}`).join('\n\n')
-      : ''
-  )
-
-  return (
-    <div className="panel-container agent-panel-content">
-      <div className="panel-filter-bar">
-        <div className="panel-bar-title">
-          <Bot size={14} />
-          <span>专供 LLM / Agent 纯文字语义记录 (agent-transcript.md)</span>
-        </div>
-        <div className="panel-bar-actions">
-          <button
-            type="button"
-            className="action-btn is-small"
-            disabled={!transcript}
-            onClick={() => void handleCopy('transcript', transcript)}
-          >
-            {copied === 'transcript' ? <Check size={12} /> : <Copy size={12} />}
-            <span>{copied === 'transcript' ? '已复制' : '复制全文'}</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="agent-text-view">
-        {!transcript ? (
-          <EmptyState
-            icon={Bot}
-            title="尚未生成 Agent 纯文字版"
-            description="完成录制并停止后，系统将自动抽离 Base64 截图并编译出专供 LLM 与 Agent 调用的语义 Markdown。"
-          />
-        ) : (
-          <pre className="transcript-markdown is-mono">{transcript}</pre>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/* ==========================================================================
-   4. 截图与证据面板 (recorder.screenshots)
+   2. 截图与证据面板 (recorder.screenshots)
    ========================================================================== */
 function ScreenshotCard({
   event,
@@ -541,58 +385,6 @@ export function ScreenshotsPanel(_props: PanelProps) {
   )
 }
 
-/* ==========================================================================
-   5. 原生代码回放面板 (recorder.native)
-   ========================================================================== */
-export function NativeReplayPanel(_props: PanelProps) {
-  const { state, handleCopy, copied } = useRecorder()
-
-  const browserCode = state.browserActions ?? state.nativeExports.browser ?? ''
-  const fullReplay = state.events.map((event) => {
-    if (event.source === 'browser' && event.code) return event.code
-    return `// DESKTOP ${event.index}: [${event.application ?? '-'}] ${event.action ?? '-'} — ${event.description ?? ''}`
-  }).join('\n')
-
-  return (
-    <div className="panel-container native-panel-content">
-      <div className="panel-filter-bar">
-        <div className="panel-bar-title">
-          <Code2 size={14} />
-          <span>原生自动化回放脚本 (Playwright / replay.js)</span>
-        </div>
-        <div className="panel-bar-actions">
-          <button
-            type="button"
-            className="action-btn is-small"
-            disabled={!fullReplay}
-            onClick={() => void handleCopy('script', fullReplay)}
-          >
-            {copied === 'script' ? <Check size={12} /> : <Copy size={12} />}
-            <span>{copied === 'script' ? '已复制' : '复制完整脚本'}</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="code-view-container">
-        {!fullReplay && !browserCode ? (
-          <EmptyState
-            icon={Code2}
-            title="暂无回放脚本"
-            description="浏览器操作将自动编译为 Playwright 精准调用（goto/click/fill），桌面操作将编译为动作时序。"
-          />
-        ) : (
-          <pre className="code-snippet-box is-mono">
-            <code>{fullReplay || browserCode}</code>
-          </pre>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/* ==========================================================================
-   Panel 注册表：导出标准 PanelDefinition
-   ========================================================================== */
 export const RECORDER_PANEL_DEFINITIONS: PanelDefinition[] = [
   {
     id: 'recorder.controls',
@@ -601,27 +393,9 @@ export const RECORDER_PANEL_DEFINITIONS: PanelDefinition[] = [
     component: ControlsPanel,
   },
   {
-    id: 'recorder.timeline',
-    title: '实时轨迹',
-    icon: Activity,
-    component: TimelinePanel,
-  },
-  {
-    id: 'recorder.agent',
-    title: 'Agent文字版',
-    icon: Bot,
-    component: AgentTranscriptPanel,
-  },
-  {
     id: 'recorder.screenshots',
     title: '截图证据',
     icon: ImageIcon,
     component: ScreenshotsPanel,
-  },
-  {
-    id: 'recorder.native',
-    title: '原生回放',
-    icon: Code2,
-    component: NativeReplayPanel,
   },
 ]

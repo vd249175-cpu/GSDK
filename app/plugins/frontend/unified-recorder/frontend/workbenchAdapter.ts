@@ -87,181 +87,43 @@ export function createRecorderWorkbenchAdapter(panels: PanelDefinition[]): Recor
   })
 
   // 达芬奇/Blender 风格多工作区分页（支持底部坞切换，内部二叉树支持左上角自由页面切换、任意切分与拖拽拖出）
+  // 精简双页：控制中枢 + 截图证据（单区全屏，无侧栏）
   const workspaces: Record<string, WorkspaceRuntimeState> = {
-    // 1. 工台分屏（经典多屏联动：左控制+轨迹，右上Agent纯文字，右下原生代码回放）
-    editing: {
-      id: 'editing',
-      name: '工台分屏',
+    // 1. 控制中枢（全屏单区）
+    controls: {
+      id: 'controls',
+      name: '控制中枢',
       order: 0,
       focusedAreaId: 'area-recorder-controls',
       maximizedAreaId: null,
       layout: {
-        kind: 'split',
-        id: 'split-editing-root',
-        direction: 'horizontal',
-        ratio: 0.45,
-        first: {
-          kind: 'split',
-          id: 'split-editing-left',
-          direction: 'vertical',
-          ratio: 0.42,
-          first: {
-            kind: 'area',
-            id: 'area-recorder-controls',
-            activePanelId: 'recorder.controls',
-            panelHistory: ['recorder.controls'],
-            panelInstanceIds: { 'recorder.controls': 'inst-controls-1' },
-          },
-          second: {
-            kind: 'area',
-            id: 'area-recorder-timeline',
-            activePanelId: 'recorder.timeline',
-            panelHistory: ['recorder.timeline'],
-            panelInstanceIds: { 'recorder.timeline': 'inst-timeline-1' },
-          },
-        },
-        second: {
-          kind: 'split',
-          id: 'split-editing-right',
-          direction: 'vertical',
-          ratio: 0.52,
-          first: {
-            kind: 'area',
-            id: 'area-recorder-agent',
-            activePanelId: 'recorder.agent',
-            panelHistory: ['recorder.agent'],
-            panelInstanceIds: { 'recorder.agent': 'inst-agent-1' },
-          },
-          second: {
-            kind: 'area',
-            id: 'area-recorder-native',
-            activePanelId: 'recorder.native',
-            panelHistory: ['recorder.native'],
-            panelInstanceIds: { 'recorder.native': 'inst-native-1' },
-          },
-        },
+        kind: 'area',
+        id: 'area-recorder-controls',
+        activePanelId: 'recorder.controls',
+        panelHistory: ['recorder.controls'],
+        panelInstanceIds: { 'recorder.controls': 'inst-controls-1' },
       },
     },
 
-    // 2. 实时轨迹专页 (Live Stream)
-    timeline: {
-      id: 'timeline',
-      name: '实时轨迹',
-      order: 1,
-      focusedAreaId: 'area-timeline-solo',
-      maximizedAreaId: null,
-      layout: {
-        kind: 'split',
-        id: 'split-timeline-root',
-        direction: 'horizontal',
-        ratio: 0.72,
-        first: {
-          kind: 'area',
-          id: 'area-timeline-solo',
-          activePanelId: 'recorder.timeline',
-          panelHistory: ['recorder.timeline'],
-          panelInstanceIds: { 'recorder.timeline': 'inst-timeline-solo' },
-        },
-        second: {
-          kind: 'area',
-          id: 'area-timeline-controls-side',
-          activePanelId: 'recorder.controls',
-          panelHistory: ['recorder.controls'],
-          panelInstanceIds: { 'recorder.controls': 'inst-timeline-controls-side' },
-        },
-      },
-    },
-
-    // 3. Agent 文字版专页 (左右对比 Agent Transcript vs 截图证据)
-    agent: {
-      id: 'agent',
-      name: 'Agent文字版',
-      order: 2,
-      focusedAreaId: 'area-agent-solo',
-      maximizedAreaId: null,
-      layout: {
-        kind: 'split',
-        id: 'split-agent-root',
-        direction: 'horizontal',
-        ratio: 0.55,
-        first: {
-          kind: 'area',
-          id: 'area-agent-solo',
-          activePanelId: 'recorder.agent',
-          panelHistory: ['recorder.agent'],
-          panelInstanceIds: { 'recorder.agent': 'inst-agent-solo' },
-        },
-        second: {
-          kind: 'area',
-          id: 'area-agent-screenshots-side',
-          activePanelId: 'recorder.screenshots',
-          panelHistory: ['recorder.screenshots'],
-          panelInstanceIds: { 'recorder.screenshots': 'inst-agent-screenshots-side' },
-        },
-      },
-    },
-
-    // 4. 截图索引专页 (IMG Grid)
+    // 2. 截图证据（全屏单区）
     screenshots: {
       id: 'screenshots',
-      name: '截图索引',
-      order: 3,
+      name: '截图证据',
+      order: 1,
       focusedAreaId: 'area-screenshots-solo',
       maximizedAreaId: null,
       layout: {
-        kind: 'split',
-        id: 'split-screenshots-root',
-        direction: 'horizontal',
-        ratio: 0.68,
-        first: {
-          kind: 'area',
-          id: 'area-screenshots-solo',
-          activePanelId: 'recorder.screenshots',
-          panelHistory: ['recorder.screenshots'],
-          panelInstanceIds: { 'recorder.screenshots': 'inst-screenshots-solo' },
-        },
-        second: {
-          kind: 'area',
-          id: 'area-screenshots-timeline-side',
-          activePanelId: 'recorder.timeline',
-          panelHistory: ['recorder.timeline'],
-          panelInstanceIds: { 'recorder.timeline': 'inst-screenshots-timeline-side' },
-        },
-      },
-    },
-
-    // 5. 原生回放专页 (Playwright / Raw Code)
-    native: {
-      id: 'native',
-      name: '原生回放',
-      order: 4,
-      focusedAreaId: 'area-native-solo',
-      maximizedAreaId: null,
-      layout: {
-        kind: 'split',
-        id: 'split-native-root',
-        direction: 'horizontal',
-        ratio: 0.6,
-        first: {
-          kind: 'area',
-          id: 'area-native-solo',
-          activePanelId: 'recorder.native',
-          panelHistory: ['recorder.native'],
-          panelInstanceIds: { 'recorder.native': 'inst-native-solo' },
-        },
-        second: {
-          kind: 'area',
-          id: 'area-native-timeline-side',
-          activePanelId: 'recorder.timeline',
-          panelHistory: ['recorder.timeline'],
-          panelInstanceIds: { 'recorder.timeline': 'inst-native-timeline-side' },
-        },
+        kind: 'area',
+        id: 'area-screenshots-solo',
+        activePanelId: 'recorder.screenshots',
+        panelHistory: ['recorder.screenshots'],
+        panelInstanceIds: { 'recorder.screenshots': 'inst-screenshots-solo' },
       },
     },
   }
 
   const store = new WorkspaceStore({
-    activeWorkspaceId: 'editing',
+    activeWorkspaceId: 'controls',
     items: workspaces,
   })
 
