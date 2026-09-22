@@ -14,7 +14,7 @@ tags: [rust, kernel, error, exceptions]
 
 ---
 
-## 1. 规则空间错误 [`KernelError`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/error.rs#L8-L24)
+## 1. 规则空间错误 [`KernelError`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/error.rs#L8-L25)
 
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,7 +46,7 @@ pub enum KernelError {
 
 ---
 
-## 2. 单飞开启错误 [`BeginError`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/error.rs#L47-L56)
+## 2. 单飞开启错误 [`BeginError`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/error.rs#L49-L58)
 
 当针对某个特定实体尝试拉取并开启下一个单飞 Change 时（`begin_change`），可能返回如下失败原因：
 

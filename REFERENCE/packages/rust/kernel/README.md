@@ -16,7 +16,7 @@ tags: [rust, kernel, scheduler, physical-rule-space]
 
 ## 1. 基础因果类型标识
 
-在 [`packages/rust/kernel/src/lib.rs`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/lib.rs#L8-L17) 中定义了五项核心因果类型别名：
+在 [`packages/rust/kernel/src/lib.rs`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/lib.rs#L1-L10) 中定义了五项核心因果类型别名：
 
 ```rust
 /// 稳定实体唯一标识符（对应 TS 中的 nodeId）
@@ -39,7 +39,7 @@ pub type Generation = u64;
 
 ## 2. `Kernel` 核心结构体与生命周期
 
-[`Kernel`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/scheduler.rs#L126-L136) 是整个规则空间的主状态机：
+[`Kernel`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/scheduler.rs#L125-L135) 是整个规则空间的主状态机：
 
 ```rust
 #[derive(Debug, Default)]

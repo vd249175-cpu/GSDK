@@ -34,16 +34,16 @@ tags: [rust, node-api, napi, kernel-node, native-rule-space]
 所有与 JavaScript 互操作的对象均声明为纯数据传输对象（DTO）：
 
 ### 2.1 任务执行相关
-- [`JsChangeToken`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L62-L68)：结算令牌 `{ change_id, entity, generation, submission }`。
-- [`JsChangeView`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L71-L82)：交由 JS 执行的只读视图 `{ change_id, info_id, caused_by, entity, generation, info_type, sender, payload_json, submission }`。
-- [`JsPolledChange`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L85-L89)：`poll_next()` 的返回包 `{ token: JsChangeToken, view: JsChangeView }`。
+- [`JsChangeToken`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L63-L68)：结算令牌 `{ change_id, entity, generation, submission }`。
+- [`JsChangeView`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L72-L82)：交由 JS 执行的只读视图 `{ change_id, info_id, caused_by, entity, generation, info_type, sender, payload_json, submission }`。
+- [`JsPolledChange`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L86-L89)：`poll_next()` 的返回包 `{ token: JsChangeToken, view: JsChangeView }`。
 
 ### 2.2 物理反馈与可观测性
-- [`JsDeliveryFeedback`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L53-L59)：发送即时反馈 `{ status: "enqueued" | "dropped", reason?: string }`。
-- [`JsDroppedDelivery`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L92-L98)：丢弃项 `{ target, generation, submission, reason }`。
-- [`JsQueuedDepth`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L101-L105)：队列深度 `{ entity, depth }`。
-- [`JsQueuedInfo`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L107-L117)：排队明细快照。
-- [`JsAnalysisFacts`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L119-L123)：实体分析事实 `{ entity, facts_json }`。
+- [`JsDeliveryFeedback`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L54-L58)：发送即时反馈 `{ status: "enqueued" | "dropped", reason?: string }`。
+- [`JsDroppedDelivery`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L93-L98)：丢弃项 `{ target, generation, submission, reason }`。
+- [`JsQueuedDepth`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L102-L105)：队列深度 `{ entity, depth }`。
+- [`JsQueuedInfo`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L108-L117)：排队明细快照。
+- [`JsAnalysisFacts`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L120-L123)：实体分析事实 `{ entity, facts_json }`。
 
 ---
 
@@ -126,7 +126,7 @@ while (true) {
 
 ---
 
-## 5. 分析引擎统一入口透传 [`analyze_json`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L445-L457)
+## 5. 分析引擎统一入口透传 [`analyze_json`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel-node/src/lib.rs#L446-L452)
 
 `graphframework-kernel-node` 导出了模块级静态函数 `analyze_json`：
 ```rust
