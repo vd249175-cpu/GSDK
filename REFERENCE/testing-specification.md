@@ -179,7 +179,7 @@ expect(health.cyclicNodeIds).toEqual([]); // 保证零因果环路
 
 ### 3.1 四大可观测成功断言
 单元测试必须断言以下至少三项可观测事实：
-1. **State 变迁可观测**：通过 `runtime.readState(nodeId)`，断言 Owner Node 的核心状态字段发生了符合预期的确定性跃迁；
+1. **State 变迁可观测**：通过 `runtime.getState(nodeId)`，断言 Owner Node 的核心状态字段发生了符合预期的确定性跃迁；
 2. **因果流通可观测**：目标节点收到了下游的定向 Info，或者流转终点收到了聚合回执；
 3. **真实物理副作用可观测**：
    - 若执行了落盘：真实检查文件系统生成了目标文件（例如 `stat(artifactPath)` 存在、ZIP 解压出了 MHT、`agent-transcript.md` 包含正确文件路径）；
@@ -191,14 +191,11 @@ expect(health.cyclicNodeIds).toEqual([]); // 保证零因果环路
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { stat, readFile } from 'node:fs/promises';
 import { createTestRuntime } from '@graphframework/sdk/testing';
-import { createUnifiedRecorder } from 'app/plugins/backend/unified-recorder/index.mjs';
+import { createUnifiedRecorder } from '../../app/plugins/backend/unified-recorder/index.mjs';
 
 describe('UnifiedRecorder 实际可行结果端到端验证', () => {
   it('执行录制生命周期并产生真实可读的 Agent Transcript', async () => {
-    const runtime = createTestRuntime();
-
     // 1. 替换构造注入的物理适配器，捕获下发参数并模拟成功返回
     const mockDesktopControl = {
       id: 'unified/desktop-control',
@@ -219,7 +216,7 @@ describe('UnifiedRecorder 实际可行结果端到端验证', () => {
       }),
     };
 
-    // 2. 构造节点集合
+    // 2. 构造节点集合并挂载（构造时传入）
     const { session, execution, observation } = createUnifiedRecorder({
       instanceId: 'test-rec',
       dependencies: {
@@ -227,24 +224,23 @@ describe('UnifiedRecorder 实际可行结果端到端验证', () => {
         desktopObservation: mockDesktopObs,
       },
     });
+    const runtime = createTestRuntime({ nodes: [session, execution, observation] });
 
-    runtime.mountNode(session);
-    runtime.mountNode(execution);
-    runtime.mountNode(observation);
+    // 3. 执行业务动作：开始录制并等待因果结算（只用 desktop 源，避免未注入的 browserControl 干扰）
+    runtime.inject({ targetNodeId: 'test-rec/session', info: { type: 'StartRecordingInfo', sessionId: 'sess-test-01', sources: ['desktop'] } });
+    await runtime.waitForQuiescence();
 
-    // 3. 执行业务动作：开始录制
-    await runtime.send({ type: 'StartRecordingInfo', sessionId: 'sess-test-01' }, 'test-rec/session');
-    
     // 【可观测断言 1】：会话状态真实变迁为 recording，句柄正确记录
-    let state = runtime.readState('test-rec/session');
+    let state = runtime.getState('test-rec/session');
     expect(state.status).toBe('recording');
     expect(state.handles.desktop).toBe('psr:sess-test-01');
 
-    // 4. 执行业务动作：停止录制
-    await runtime.send({ type: 'StopRecordingInfo' }, 'test-rec/session');
+    // 4. 执行业务动作：停止录制并等待结算
+    runtime.inject({ targetNodeId: 'test-rec/session', info: { type: 'StopRecordingInfo' } });
+    await runtime.waitForQuiescence();
 
     // 【可观测断言 2】：后处理完成，状态回落到 idle，清洗事件数 > 0
-    state = runtime.readState('test-rec/session');
+    state = runtime.getState('test-rec/session');
     expect(state.status).toBe('idle');
     expect(state.eventCount).toBe(1);
     expect(state.applications).toContain('notepad.exe');
@@ -252,6 +248,7 @@ describe('UnifiedRecorder 实际可行结果端到端验证', () => {
     // 【可观测断言 3】：产物实际内容真实可观测
     expect(state.agentTranscriptContent).toContain('01 [desktop|notepad.exe] Left Click');
     expect(state.lastError).toBeNull();
+    runtime.dispose();
   });
 });
 ```
