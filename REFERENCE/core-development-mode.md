@@ -42,19 +42,19 @@ tags: [core-development, mental-model, rust-kernel, core-packages, core-plugins,
 - **跨语言绑定与宿主 (`kernel-node`, `kernel-ffi`, `kernel-daemon`)**：
   - `kernel-node`：Node.js N-API 高性能本地绑定，驱动 TypeScript `NativeRuleSpace`；
   - `kernel-ffi`：面向 Python、C++ 等多语言的 C ABI 动态链接库；
-  - `kernel-daemon`：支持多 Session 租约、Effect 异步外派与 STDIN/Socket 通信的常驻宿主进程。
+  - `kernel-daemon`：支持多 Session 租约、Effect 异步外派的 TCP JSON Lines 常驻宿主进程（26 项 operation，见机器契约）。
 - **因果分析引擎 (`analysis`)**：零运行时纯静态拓扑大脑，提供环路死锁检测、可达矩阵、Brandes 介数中心性与 Louvain 社区划分算法。
 - **核心开发守则**：绝对零业务语义；任何行业名词、业务字段严禁进入 Rust 代码。
 
 ### 支柱二：核心 Packages (`packages/*`)
 支撑上层运行的跨语言基础软件套件：
 - **`packages/sdk` (多语言 SDK)**：
-  - `javascript/`：提供 `Node`、`ExecutionWorldNode`、`ObservationWorldNode` 基类、`DomainChangeContext` 上下文全量方法、`NativeRuleSpace` 适配器以及纯内存单测 Harness；
+  - `javascript/`：提供 `Node`、`ExecutionWorldNode`、`ObservationWorldNode` 基类、`DomainChangeContext` / `WorldChangeContext` 上下文、`NativeRuleSpace` 适配器以及纯内存单测 Harness；
   - `python/`：提供 Python 生态对齐的 `KernelDaemonClient` 与 Worker 接口。
 - **`packages/desktop` (通用桌面宿主)**：提供 Electron 运行时物理端口、Preload IPC 上下文隔离与 `run.sh` 架构守卫。
 - **`packages/frontend` (前端底座)**：零业务语义工作台（`workbench`）、达芬奇瑞士风设计系统（`theme`）与响应式客户端 Hooks（`client`）。
 - **`packages/tooling` (工具链)**：统一启动管理器（`run/`）、瑞士风 2D 交互式因果可视化器（`causal-visualizer/`）与 AST 重构工具（`refactor/`）。
-- **`packages/contract` (机器契约)**：维护全仓唯一的声明式 23 项协议操作（`operations.json`）、标准化错误码（`errors.json`）与跨语言回归 Golden Frames。
+- **`packages/contract` (机器契约)**：维护全仓唯一的声明式 26 项协议操作（`operations.json`）、标准化错误码（`errors.json`）与跨语言回归 Golden Frames。
 
 ### 支柱三：核心 Plugins (`app/plugins/*`)
 随**基础软件更新包**统一分发的官方核心基础设施插件（严禁放置未经验收的临时代码）：
@@ -121,6 +121,5 @@ cargo test --manifest-path packages/rust/Cargo.toml
 
 - [核心心智模型与 13 条不可破坏公理](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/architecture/mental-model.md)
 - [开发准入约束与架构红线](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/architecture/development-constraints.md)
-- [Rust 原生微内核全量使用指南](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/rust/README.md)
-- [机器契约与 23 项协议操作全集](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/contract/README.md)
+- [机器契约与 26 项协议操作全集](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/contract/README.md)
 - [工作流开发模式指南](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/workflow-development-mode.md)

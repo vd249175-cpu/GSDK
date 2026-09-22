@@ -149,5 +149,5 @@ bash ./run.sh stop runs/my-feature/run.config.json
 - [核心开发模式与底层规范](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/core-development-mode.md)
 - [Agent 技能与 MCP 工具箱全景规范 (Playwright / Aliyun Workbench / UFO)](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/workflow/skills-and-mcp-tooling.md)
 - [JavaScript / TypeScript SDK 全量接口指南](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/sdk/javascript/README.md)
-- [机器契约与 23 项操作全集](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/contract/README.md)
+- [机器契约与 26 项操作全集](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/contract/README.md)
 - [统一运行管理器 CLI 指南](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/packages/tooling/run.md)

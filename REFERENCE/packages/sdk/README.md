@@ -53,7 +53,7 @@ class CounterNode extends Node<CounterState> {
 import { createTestRuntime } from '@graphframework/sdk/testing';
 
 const runtime = createTestRuntime({ nodes: [new CounterNode()] });
-await runtime.inject('counter', { type: 'IncrementRequested' });
+runtime.inject({ targetNodeId: 'counter', info: { type: 'IncrementRequested' } });
 await runtime.waitForQuiescence();
 if (runtime.getState('counter')?.count !== 1) throw new Error('unexpected count');
 await runtime.dispose();
