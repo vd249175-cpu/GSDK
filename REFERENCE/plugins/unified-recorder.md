@@ -69,7 +69,7 @@ flowchart TD
 
 ### 2.1 节点类工厂：`createUnifiedRecorder(ctx)`
 
-导出路径：`import { createUnifiedRecorder } from 'app/plugins/backend/unified-recorder/index.mjs'`
+导出路径：`import { createUnifiedRecorder } from '../../app/plugins/backend/unified-recorder/index.mjs'`
 
 - **函数签名**：
   ```typescript
@@ -98,7 +98,7 @@ flowchart TD
 
 ### 2.2 图工厂：`createUnifiedRecorderGraph(ctx)`
 
-导出路径：`import { createUnifiedRecorderGraph } from 'app/plugins/backend/unified-recorder/index.mjs'`
+导出路径：`import { createUnifiedRecorderGraph } from '../../app/plugins/backend/unified-recorder/index.mjs'`
 
 - **函数签名**：
   ```typescript

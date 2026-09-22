@@ -37,7 +37,7 @@ flowchart LR
 
 ### 2.1 节点类工厂：`createCounterNode`
 
-导出路径：`import { createCounterNode } from 'app/plugins/backend/hello-counter/index.mjs'`
+导出路径：`import { createCounterNode } from '../../app/plugins/backend/hello-counter/index.mjs'`
 
 - **定义方式**：通过 `@graphframework/sdk/plugin` 的 `defineNodeFactory` 高阶包装：
   ```typescript
@@ -176,26 +176,25 @@ export default {
 import { createTestRuntime } from '@graphframework/sdk/testing';
 import { CounterNode } from '../../app/plugins/backend/hello-counter/index.mjs';
 
-const runtime = createTestRuntime();
-const counter = new CounterNode('test.counter');
-
-runtime.mountNode(counter);
+const runtime = createTestRuntime({ nodes: [new CounterNode('test.counter')] });
 
 // 初始状态
-console.log(runtime.readState('test.counter')); // { count: 0 }
+console.log(runtime.getState('test.counter')); // { count: 0 }
 
-// 发送 3 次自增
-await runtime.send({ type: 'IncrementInfo' }, 'test.counter');
-await runtime.send({ type: 'IncrementInfo' }, 'test.counter');
-await runtime.send({ type: 'IncrementInfo' }, 'test.counter');
+// 发送 3 次自增并等待结算
+runtime.inject({ targetNodeId: 'test.counter', info: { type: 'IncrementInfo' } });
+runtime.inject({ targetNodeId: 'test.counter', info: { type: 'IncrementInfo' } });
+runtime.inject({ targetNodeId: 'test.counter', info: { type: 'IncrementInfo' } });
+await runtime.waitForQuiescence();
 
 // 最终状态
-console.log(runtime.readState('test.counter')); // { count: 3 }
+console.log(runtime.getState('test.counter')); // { count: 3 }
+runtime.dispose();
 ```
 
 ### 5.3 自动化测试执行
 
 ```bash
-npm --prefix packages/desktop test -- app/plugins/hello-counter/backend.test.mjs --silent
-npm --prefix packages/desktop test -- app/plugins/hello-counter/tests/native-graph-host.test.mjs --silent
+npm --prefix packages/desktop test -- app/plugins/backend/hello-counter/backend.test.mjs --silent
+npm --prefix packages/desktop test -- app/plugins/backend/hello-counter/tests/native-graph-host.test.mjs --silent
 ```

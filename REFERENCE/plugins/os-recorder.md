@@ -60,7 +60,7 @@ flowchart TD
 
 ### 2.1 节点类工厂：`createOsRecorder(ctx)`
 
-导出路径：`import { createOsRecorder } from 'app/plugins/backend/os-recorder/index.mjs'`
+导出路径：`import { createOsRecorder } from '../../app/plugins/backend/os-recorder/index.mjs'`
 
 - **函数签名**：
   ```typescript
@@ -87,7 +87,7 @@ flowchart TD
 
 ### 2.2 图工厂：`createOsRecorderGraph(ctx)`
 
-导出路径：`import { createOsRecorderGraph } from 'app/plugins/backend/os-recorder/index.mjs'`
+导出路径：`import { createOsRecorderGraph } from '../../app/plugins/backend/os-recorder/index.mjs'`
 
 - **函数签名**：
   ```typescript
@@ -212,8 +212,6 @@ export default {
 import { createTestRuntime } from '@graphframework/sdk/testing';
 import { createOsRecorder } from '../../app/plugins/backend/os-recorder/index.mjs';
 
-const runtime = createTestRuntime();
-
 const mockControl = {
   id: 'ufo/psr-capture-control',
   execute: async ({ op }) => ({ handle: 'psr:mock', artifactPath: 'C:/temp/rec.zip', startedAt: new Date().toISOString() }),
@@ -231,14 +229,15 @@ const { session, execution, observation } = createOsRecorder({
   },
 });
 
-runtime.mountNode(session);
-runtime.mountNode(execution);
-runtime.mountNode(observation);
+const runtime = createTestRuntime({ nodes: [session, execution, observation] });
 
-await runtime.send({ type: 'StartRecordingInfo', sessionId: 'sess-1' }, 'test-os/session');
-await runtime.send({ type: 'StopRecordingInfo' }, 'test-os/session');
+runtime.inject({ targetNodeId: 'test-os/session', info: { type: 'StartRecordingInfo', sessionId: 'sess-1' } });
+await runtime.waitForQuiescence();
+runtime.inject({ targetNodeId: 'test-os/session', info: { type: 'StopRecordingInfo' } });
+await runtime.waitForQuiescence();
 
-const state = runtime.readState('test-os/session');
+const state = runtime.getState('test-os/session');
 console.log('Session Status:', state.status); // 'idle'
 console.log('Recorded Events:', state.events);
+runtime.dispose();
 ```

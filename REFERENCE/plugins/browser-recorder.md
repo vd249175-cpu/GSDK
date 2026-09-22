@@ -62,7 +62,7 @@ flowchart TD
 
 ### 2.1 节点类工厂：`createBrowserRecorder(ctx)`
 
-导出路径：`import { createBrowserRecorder } from 'app/plugins/backend/browser-recorder/index.mjs'`
+导出路径：`import { createBrowserRecorder } from '../../app/plugins/backend/browser-recorder/index.mjs'`
 
 - **函数签名**：
   ```typescript
@@ -88,7 +88,7 @@ flowchart TD
 
 ### 2.2 图工厂：`createBrowserRecorderGraph(ctx)`
 
-导出路径：`import { createBrowserRecorderGraph } from 'app/plugins/backend/browser-recorder/index.mjs'`
+导出路径：`import { createBrowserRecorderGraph } from '../../app/plugins/backend/browser-recorder/index.mjs'`
 
 - **函数签名**：
   ```typescript
@@ -154,36 +154,28 @@ interface BrowserSessionState {
 ## 4. 适配器与原生 CDP 录制器 (Adapters & CDP Recorder)
 
 插件提供了开箱即用的两套物理适配器生成器：
-
-### 4.1 CLI 管道适配器
-
 ```javascript
 import {
   createBrowserCaptureControlAdapter,
   createBrowserCaptureEventsAdapter,
-} from 'app/plugins/backend/browser-recorder/index.mjs';
+} from '../../app/plugins/backend/browser-recorder/index.mjs';
 
-// 基于 playwright-cli 的控制适配器
+// 基于 playwright-cli 的控制适配器（参数为 { runCli, session }）
 const controlAdapter = createBrowserCaptureControlAdapter({
+  runCli: async (args) => output, // 宿主调用 playwright-cli 进程
   session: 'rec-session',
-  runCli: async (args) => {
-    // 宿主调用 playwright-cli 进程
-    return output;
-  },
 });
 
 // 基于 playwright-cli 的观察适配器
 const eventsAdapter = createBrowserCaptureEventsAdapter({
+  runCli: async (args) => output,
   session: 'rec-session',
-  runCli: async (args) => {
-    return output;
-  },
 });
 ```
 
 ### 4.2 CDP 实时流式录制器 (`createCdpRecorder`)
 
-导出路径：`import { createCdpRecorder } from 'app/plugins/backend/browser-recorder/cdp-recorder.mjs'`
+导出路径：`import { createCdpRecorder } from '../../app/plugins/backend/browser-recorder/cdp-recorder.mjs'`
 
 通过 Chrome 9343 端口连接 Chrome 实例：
 - 自动挂载 `Target.setAutoAttach` 监听所有新开页面与标签页；
@@ -197,15 +189,12 @@ const eventsAdapter = createBrowserCaptureEventsAdapter({
   6. `page.getByText(...)`
 
 ```javascript
-import { createCdpRecorder } from 'app/plugins/backend/browser-recorder/cdp-recorder.mjs';
+import { createCdpRecorder } from '../../app/plugins/backend/browser-recorder/cdp-recorder.mjs';
 
-const cdp = createCdpRecorder({
-  cdpUrl: 'http://127.0.0.1:9343',
-  onAction: (action) => console.log('Live action:', action.code),
-});
-
-await cdp.start();
-// cdp 暴露标准的 controlAdapter 与 eventsAdapter
+const cdp = createCdpRecorder({ cdpUrl: 'http://127.0.0.1:9343' });
+// 返回 { captureControl, captureEvents }：可直接作为工厂 dependencies 注入，
+// captureControl.execute({ op: 'start' | 'stop', sessionId }) 控制录制，
+// captureEvents.execute({ op: 'poll', sessionId, cursor }) 拉取动作事件。
 ```
 
 ---
@@ -250,8 +239,6 @@ export default {
 import { createTestRuntime } from '@graphframework/sdk/testing';
 import { createBrowserRecorder } from '../../app/plugins/backend/browser-recorder/index.mjs';
 
-const runtime = createTestRuntime();
-
 const mockControl = {
   id: 'browser/capture-control',
   execute: async ({ op }) => ({ handle: 'mock-browser-handle', actions: 'await page.click("button");' }),
@@ -262,13 +249,14 @@ const { session, execution, observation } = createBrowserRecorder({
   dependencies: { captureControl: mockControl },
 });
 
-runtime.mountNode(session);
-runtime.mountNode(execution);
-runtime.mountNode(observation);
+const runtime = createTestRuntime({ nodes: [session, execution, observation] });
 
-await runtime.send({ type: 'StartRecordingInfo', sessionId: 'test-01' }, 'test-browser/session');
-await runtime.send({ type: 'StopRecordingInfo' }, 'test-browser/session');
+runtime.inject({ targetNodeId: 'test-browser/session', info: { type: 'StartRecordingInfo', sessionId: 'test-01' } });
+await runtime.waitForQuiescence();
+runtime.inject({ targetNodeId: 'test-browser/session', info: { type: 'StopRecordingInfo' } });
+await runtime.waitForQuiescence();
 
-const state = runtime.readState('test-browser/session');
+const state = runtime.getState('test-browser/session');
 console.log('Recorded Playwright Actions:', state.lastActions);
+runtime.dispose();
 ```

@@ -49,7 +49,7 @@ flowchart LR
 
 ### 2.1 节点类工厂：`createDemoTopology(ctx)`
 
-导出路径：`import { createDemoTopology } from 'app/plugins/backend/demo-topology/index.mjs'`
+导出路径：`import { createDemoTopology } from '../../app/plugins/backend/demo-topology/index.mjs'`
 
 - **函数签名**：
   ```typescript
@@ -75,7 +75,7 @@ flowchart LR
 
 ### 2.2 图工厂：`createDemoTopologyGraph(ctx)`
 
-导出路径：`import { createDemoTopologyGraph } from 'app/plugins/backend/demo-topology/index.mjs'`
+导出路径：`import { createDemoTopologyGraph } from '../../app/plugins/backend/demo-topology/index.mjs'`
 
 - **函数签名**：
   ```typescript
@@ -112,28 +112,34 @@ flowchart LR
 
 ## 4. 动态节点准入模式 (Dynamic Node Attachment Pattern)
 
-在系统运行期间（而非启动前硬编码），可以通过微内核的运行时挂载接口和动态 Info 注册新节点：
+在测试中演示动态挂接时，先用初始图启动 `createTestRuntime`，再构造 `FraudNode` 并经宿主挂载（生产 run 中由宿主装配流程完成挂载），最后发 `AttachScreening` 让路由器把它加入扇出名单：
 
 ```javascript
-import { FraudNode } from 'app/plugins/backend/demo-topology/index.mjs';
+import { createTestRuntime } from '@graphframework/sdk/testing';
+import { FraudNode, createDemoTopology } from '../../app/plugins/backend/demo-topology/index.mjs';
 
-// 1. 在生产环境运行中构造新节点实例
-const fraudNode = new FraudNode('demo.fraud', { ledger: 'demo.ledger' });
+const nodes = createDemoTopology({ instanceId: 'demo' });
+const runtime = createTestRuntime({ nodes: Object.values(nodes) });
 
-// 2. 挂载入当前运行空间
-runtime.mountNode(fraudNode);
+// 1. 在运行中构造筛查节点实例（生产 run 中由宿主挂载，这里用构造时传入演示同一效果）
+const fraudNode = new FraudNode('demo/fraud', { ledger: 'demo/ledger' });
+const runtimeWithFraud = createTestRuntime({ nodes: [...Object.values(nodes), fraudNode] });
 
-// 3. 向路由器发送 AttachScreening Info，动态完成拓扑热插拔
-await runtime.send({
-  type: 'AttachScreening',
-  nodeId: 'demo.fraud',
-}, 'demo.router');
+// 2. 向路由器发送 AttachScreening Info，动态完成拓扑热插拔
+runtimeWithFraud.inject({
+  targetNodeId: 'demo/router',
+  info: { type: 'AttachScreening', nodeId: 'demo/fraud' },
+});
+await runtimeWithFraud.waitForQuiescence();
 
-// 4. 此后下达订单，FraudNode 将自动收到 ScreenOrder 并参与因果结算
-await runtime.send({
-  type: 'SubmitOrder',
-  orderId: 'ORD-999',
-}, 'demo.orders');
+// 3. 此后下达订单，FraudNode 将自动收到 ScreenOrder 并参与因果结算
+runtimeWithFraud.inject({
+  targetNodeId: 'demo/orders',
+  info: { type: 'SubmitOrder', orderId: 'ORD-999' },
+});
+await runtimeWithFraud.waitForQuiescence();
+runtime.dispose();
+runtimeWithFraud.dispose();
 ```
 
 ---
@@ -179,17 +185,18 @@ export default {
 import { createTestRuntime } from '@graphframework/sdk/testing';
 import { createDemoTopology } from '../../app/plugins/backend/demo-topology/index.mjs';
 
-const runtime = createTestRuntime();
 const nodes = createDemoTopology({ instanceId: 'test-demo' });
 
-// 挂载全部静态节点
-Object.values(nodes).forEach((node) => runtime.mountNode(node));
+// 挂载全部静态节点（构造时传入）
+const runtime = createTestRuntime({ nodes: Object.values(nodes) });
 
-// 提交订单
-await runtime.send({ type: 'SubmitOrder', orderId: 'ORDER-1001' }, 'test-demo/orders');
+// 提交订单并等待结算
+runtime.inject({ targetNodeId: 'test-demo/orders', info: { type: 'SubmitOrder', orderId: 'ORDER-1001' } });
+await runtime.waitForQuiescence();
 
 // 验证账本节点的状态变迁（已同时收到发票回执与库存锁定回执）
-const ledgerState = runtime.readState('test-demo/ledger');
+const ledgerState = runtime.getState('test-demo/ledger');
 console.log('Receipts:', ledgerState.receipts); // ['ORDER-1001']
 console.log('Reservations:', ledgerState.reservations); // ['ORDER-1001']
+runtime.dispose();
 ```
