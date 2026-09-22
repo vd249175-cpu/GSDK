@@ -324,8 +324,8 @@ export class UnifiedCaptureNode extends ExecutionWorldNode {
       lastError: null,
     })
     this.sessionId = sessionId
-    this.desktopControl = adapters.desktopControl ?? missingAdapter(DESKTOP_CONTROL_ID)
-    this.browserControl = adapters.browserControl ?? missingAdapter(BROWSER_CONTROL_ID)
+    this.desktopControl = adapters.desktopControl ?? missingAdapter(DESKTOP_CONTROL_ADAPTER_ID)
+    this.browserControl = adapters.browserControl ?? missingAdapter(BROWSER_CONTROL_ADAPTER_ID)
   }
 
   async change(info, ctx) {
