@@ -10,7 +10,7 @@ tags: [rust, analysis, model, causal-entities, snapshot]
 
 源码文件：[`packages/rust/analysis/src/model.rs`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/analysis/src/model.rs)
 
-`model.rs` 维护可移植因果图的纯内存倒排索引 [`Index`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/analysis/src/model.rs#L31-L41)。它将来自不同语言 Node 的静态事实与动态运行时状态融合成全局有向图。
+`model.rs` 维护可移植因果图的纯内存倒排索引 [`Index`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/analysis/src/model.rs#L33-L41)。它将来自不同语言 Node 的静态事实与动态运行时状态融合成全局有向图。
 
 ---
 

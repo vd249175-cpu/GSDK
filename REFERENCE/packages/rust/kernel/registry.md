@@ -37,7 +37,7 @@ pub struct EntitySlot {
 
 ---
 
-## 2. 队列脉冲 [`QueuedInfo`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/registry.rs#L43-L61)
+## 2. 队列脉冲 [`QueuedInfo`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/registry.rs#L44-L61)
 
 等待处理的单条因果投递结构：
 
@@ -56,7 +56,7 @@ pub struct QueuedInfo {
 
 ---
 
-## 3. 墓碑机制 [`Tombstone`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/registry.rs)
+## 3. 墓碑机制 [`Tombstone`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/registry.rs#L96-L101)
 
 当实体被推出（`evict`）或替换（`replace`）时，其历史槽位被销毁，但在注册表中保留一个轻量 `Tombstone`：
 - 记录最后的 `generation`（避免重新准入同名 ID 时代数冲突）；
@@ -65,7 +65,7 @@ pub struct QueuedInfo {
 
 ---
 
-## 4. 投递丢弃动因 [`DropReason`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/registry.rs#L13-L27)
+## 4. 投递丢弃动因 [`DropReason`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/registry.rs#L14-L27)
 
 因果脉冲未到达最终业务 Handler 的六大物理归因：
 
@@ -78,7 +78,7 @@ pub struct QueuedInfo {
 | `Cancelled` | `"cancelled"` | 脉冲所属的根 Submission 已被主动调用 `cancel` 取消 |
 | `Evicted` | `"evicted"` | 实体执行 `evict` 或 `replace` 时，旧 Mailbox 中的存量 Backlog 被整批物理丢弃 |
 
-每条被丢弃的投递均记录进丢弃台账 [`DroppedDelivery`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/registry.rs#L30-L40)，保留完整因果上下文供调试排查。
+每条被丢弃的投递均记录进丢弃台账 [`DroppedDelivery`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/kernel/src/registry.rs#L31-L40)，保留完整因果上下文供调试排查。
 
 ---
 

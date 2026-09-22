@@ -17,7 +17,7 @@ tags: [rust, analysis, topology, metrics, causal-graph]
 
 ## 1. 核心架构与请求派发入口
 
-外部系统通过统一函数 [`analyze_json`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/analysis/src/lib.rs#L161-L255) 发起分析计算：
+外部系统通过统一函数 [`analyze_json`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/rust/analysis/src/lib.rs#L161) 发起分析计算：
 
 ```rust
 pub fn analyze_json(

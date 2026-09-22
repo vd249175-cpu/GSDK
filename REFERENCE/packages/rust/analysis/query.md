@@ -30,16 +30,15 @@ tags: [rust, analysis, query, path, subgraph, validation]
 
 ---
 
-## 3. 因果传递路径搜索 (`find_chain`)
+## 3. 因果传递路径搜索 (`find_chain` / `find_paths`)
 
 支持在任意多个实体地址之间搜索因果影响传播链路（Causal Chain）：
 - **参数约束**：
-  - `maxDepth`：最大搜索深度（默认 6，防止深层图爆炸）；
-  - `maxPaths`：最大返回路径数（默认 5 条最佳因果链）。
+  - `maxDepth`：最大搜索深度（默认 15）；
+  - `maxPaths`：最大返回路径数（默认 50 条最佳因果链）。
 - **算法模型**：
   - 基于加权 BFS 优先遍历核心因果边类型（`trigger`、`send`、`write`、`read-by`、`effect`）；
   - 自动跳过弱置信度边或与因果流向相反的无效依赖，返回格式化链路数组。
-
 ---
 
 ## 4. 诱导子图提取 (`select_subgraph`)
