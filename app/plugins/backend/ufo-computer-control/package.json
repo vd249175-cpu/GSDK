@@ -3,6 +3,11 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "exports": {
+    ".": "./index.mjs",
+    "./bridge": "./bridge/ufo-computer-bridge.mjs",
+    "./package.json": "./package.json"
+  },
   "dependencies": {
     "@graphframework/sdk": "file:../../../../packages/sdk/javascript"
   }

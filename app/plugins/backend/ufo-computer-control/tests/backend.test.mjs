@@ -1,6 +1,24 @@
 import { describe, expect, it } from 'vitest'
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createTestRuntime } from '@graphframework/sdk/testing'
 import { createUfoComputerControl } from '../index.mjs'
+
+const pluginDirectory = fileURLToPath(new URL('..', import.meta.url))
+
+describe('UFO computer control public entrypoints', () => {
+  it('resolves the plugin root and bridge exports', () => {
+    const manifest = JSON.parse(readFileSync(resolve(pluginDirectory, 'package.json'), 'utf8'))
+    expect(manifest.exports).toMatchObject({
+      '.': './index.mjs',
+      './bridge': './bridge/ufo-computer-bridge.mjs',
+    })
+    for (const target of Object.values(manifest.exports)) {
+      expect(existsSync(resolve(pluginDirectory, target))).toBe(true)
+    }
+  })
+})
 
 const assemble = ({ failExecution = false, failObservation = false } = {}) => {
   const calls = []

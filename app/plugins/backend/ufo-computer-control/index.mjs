@@ -11,7 +11,7 @@ export const UFO_OBSERVATION_ADAPTER_ID = 'ufo/computer-observation'
 const missingAdapter = (id) => ({
   id,
   execute: async () => {
-    throw new Error(`EffectAdapter ${id} was not injected by the os-recorder run host`)
+    throw new Error(`EffectAdapter ${id} was not injected by the named run host`)
   },
 })
 
@@ -108,7 +108,7 @@ export class UfoComputerSessionNode extends Node {
         screenshotPath: observation.screenshotPath ?? null,
         uiTree: observation.uiTree ?? null,
         observation,
-        completedAt: observation.observedAt ?? new Date().toISOString(),
+        completedAt: observation.observedAt ?? null,
         lastError: null,
       })
       return
@@ -117,7 +117,7 @@ export class UfoComputerSessionNode extends Node {
     if (info.type === 'ComputerControlFailedInfo') {
       ctx.patchState({
         status: 'error',
-        completedAt: new Date().toISOString(),
+        completedAt: info.failedAt ?? null,
         lastError: info.message ?? 'UFO computer control failed',
       })
     }
