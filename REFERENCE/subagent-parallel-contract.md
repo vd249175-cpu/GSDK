@@ -76,7 +76,7 @@ runs/
 【第一阶段：逻辑与契约开发 —— 允许并行】
   - 编写 UFO 专属 Node（SessionNode, ExecutionNode, ObservationNode）
   - 编写 Info 与 Observation 数据结构
-  - 构造 MockUfoEffectAdapter（在内存中模拟 UIA 返回与点击成功回执）
+  - 构造内存 mock EffectAdapter（在内存中模拟 UIA 返回与点击成功回执，见 app/plugins/backend/ufo-computer-control/tests/backend.test.mjs 的 assemble() 模式）
   - 在独立 Run 中运行单测与逻辑闭环验证
       │
       ▼

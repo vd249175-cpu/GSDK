@@ -30,7 +30,7 @@ flowchart TD
     
     subgraph S2["【域 B：远程云端电脑 (Remote Cloud)】"]
         WCLI["alibabacloud-workbench-cli (免公网毫秒级执行 / 1GB 文件互传)"]
-        ECS["阿里云 ECS 主机 (/root/knowledgeroot 知识库 / 远程 VSCode)"]
+        ECS["阿里云 ECS 主机 (/root/knowledgeroot 知识库)"]
         WCLI --> ECS
     end
     
@@ -160,9 +160,9 @@ workbench upgrade
 
 ---
 
-### 3.3 凭证自动装配（结合 `credentials.json`）
+### 3.3 凭证装配（结合 `credentials.json`，`0600` 权限）
 
-Agent 可直接读取根目录 [`credentials.json`](file:///c:/Users/kp157/Desktop/PM/GVSDK/credentials.json) 中的阿里云凭证，静默写入 Workbench 配置文件：
+凭据安全红线：`credentials.json` 已被 `.gitignore` 保护，读取后只写入本地 `~/.workbench/config.json`，绝不提交进仓库、绝不写入 `assembly.mjs` 或 Markdown。AK 模式 schema 以 skill 为准（无 `region_id` 字段）：
 
 ```bash
 # 1. 创建配置目录
@@ -176,8 +176,7 @@ cat > ~/.workbench/config.json << 'EOF'
     "default": {
       "mode": "AK",
       "access_key_id": "<AccessKeyID-from-credentials.json>",
-      "access_key_secret": "<AccessKeySecret-from-credentials.json>",
-      "region_id": "cn-shanghai"
+      "access_key_secret": "<AccessKeySecret-from-credentials.json>"
     }
   }
 }
@@ -198,21 +197,16 @@ workbench exec -i i-uf6xxxxxxxxxxxxxx -c "ls -la /root/knowledgeroot"
 ```
 
 #### 2. 大文件双向传输 (`workbench upload` / `workbench download`)
-最大支持 **1GB** 单文件高速传输，用于本地能力包发布到云端，或从云端拉取知识库最新变更：
+最大支持 **1GB** 单文件高速传输（经 OSS 中转），位置参数为 `<local> <remote>` / `<remote> <local>`，实例用 `--instance-id` 指定。`upload` 覆盖远端已存在文件会交互确认，自动化流程先用 `exec ls` 确认：
 ```bash
 # 上传能力包至远程主机知识库
-workbench upload -i i-uf6xxxxxxxxxxxxxx -s ./my-capability-1.0.0.zip -d /root/knowledgeroot/capabilities/
+workbench upload ./my-capability-1.0.0.zip /root/knowledgeroot/capabilities/my-capability-1.0.0.zip --instance-id i-uf6xxxxxxxxxxxxxx
 
 # 下载远程生成的最新工作流 SOP 文档
-workbench download -i i-uf6xxxxxxxxxxxxxx -s /root/knowledgeroot/workflows/order-sync.md -d ./runs/alice/docs/
+workbench download /root/knowledgeroot/workflows/order-sync.md ./runs/alice/docs/order-sync.md --instance-id i-uf6xxxxxxxxxxxxxx
 ```
 
-#### 3. TCP 端口安全转发 (`workbench forward`)
-将远程主机的私有服务（例如远程 Web VSCode 的 8080 端口）映射到本地回环地址：
-```bash
-workbench forward -i i-uf6xxxxxxxxxxxxxx -r 8080 -l 18080
-# 之后本地可通过 http://127.0.0.1:18080 安全访问远程知识库 VSCode 界面
-```
+> 端口转发：以 skill 的实际命令为准，文档不虚构 `forward` 语法；需要时先查 skill 再执行。
 
 ---
 
@@ -225,18 +219,13 @@ workbench forward -i i-uf6xxxxxxxxxxxxxx -r 8080 -l 18080
 - **排他守卫铁律**：
   > [!CAUTION]
   > **桌面独占红线**：遵循 [`REFERENCE/subagent-parallel-contract.md`](file:///c:/Users/kp157/Desktop/PM/GVSDK/REFERENCE/subagent-parallel-contract.md)，严禁多 Agent 并发抢桌面！
-  > - 开发阶段：必须使用 `MockUfoEffectAdapter` 进行离线单测分流；
+  > - 开发阶段：用内存 mock EffectAdapter 做离线单测分流（见 `app/plugins/backend/ufo-computer-control/tests/backend.test.mjs` 的 `assemble()` 模式）；
   > - 真机联调：必须在取得桌面锁后单 Agent 串行执行，执行完立即释放前台焦点。
 
 ---
 
 ## 5. Agent 工具箱选型与优先级决策表
-
-当 Agent 收到新的操作需求时，依据 **Agent 原生程度五级金字塔** 选择工具：
-
-| 任务场景 | 首选工具栈 | 备用降级方案 | 绝对禁止项 |
-| :--- | :--- | :--- | :--- |
-| **云端知识库维护 / 远程主机管理** | `alibabacloud-workbench-cli`（免公网 exec/upload） | Web VSCode 浏览器访问 (`http://47.117.177.31:8080`) | 严禁明文密码写入代码仓库 |
+| **云端知识库维护 / 远程主机管理** | `alibabacloud-workbench-cli`（免公网 exec/upload/download） | 按 skill 查端口转发命令 | 严禁明文密码写入代码仓库 |
 | **Web 平台配置 / 开放平台 API 开通** | `gv-browser`（`playwright-cli` attach 9343） | `chrome-devtools` MCP | 严禁开启不受管的日常 Chrome 抢占标签 |
 | **Web 业务操作录制与意图解析** | `playwright-cli recording-start/stop` | `chrome-devtools` 网络抓包逆向 API | 严禁使用死板的像素绝对坐标盲点 |
 | **Windows 本地软件操作** | `ufo-computer-control`（基于 UIA 控件树） | PSR 步骤记录器 (`example.os-recorder`) | **严禁多 Agent 并发拉起 UFO 强占物理桌面** |

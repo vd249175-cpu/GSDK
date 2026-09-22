@@ -98,10 +98,10 @@ $$\Large \text{API} \ > \ \text{MCP} \ > \ \text{浏览器自动化} \ > \ \text
   - 通过 Windows UI Automation 协议遍历窗口与控件层级；
   - 依赖 `AutomationId`、`ControlType`（如 `Button`, `Edit`, `MenuItem`）和控件名称 `Name` 定位；
   - 获取控件的真实屏幕边界 (`BoundingBox`) 后精准聚焦或触发 UIA 默认动作（`InvokePattern`）。
-- **范式示例**：
+- **范式示例**（外部通过宿主向 session 节点注入命令；节点内部才用 `ctx.send` 做定向转发）：
   ```javascript
-  // 基于 UFO 控制节点下发结构化指令
-  ctx.send({
+  // 外部调用方：经宿主 daemon client / run control 注入（非节点内部）
+  control.inject('computer/session', {
     type: 'ControlComputerInfo',
     requestId: 'req-click-submit',
     action: {
@@ -109,7 +109,7 @@ $$\Large \text{API} \ > \ \text{MCP} \ > \ \text{浏览器自动化} \ > \ \text
       controlId: 'SaveButton',
       controlType: 'Button',
     },
-  }, 'computer/session');
+  });
   ```
 
 ---

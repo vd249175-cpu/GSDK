@@ -71,9 +71,15 @@ flowchart TD
 如果在第一步已指导用户开通了开放平台：
 - **废弃所有 UI 录制脚本**；
 - 将 20 个界面的点击跳转，直接替换为一个轻量的领域 Node 或外部执行适配器；
-- 示例：
+- 示例（外部 I/O 必须在 `ExecutionWorldNode` 中经构造注入的 `EffectAdapter` 执行，纯领域 `Node` 零 I/O）：
   ```javascript
-  export class SalesExportNode extends Node {
+  import { ExecutionWorldNode } from '@graphframework/sdk/plugin';
+
+  export class SalesExportNode extends ExecutionWorldNode {
+    constructor(id, apiAdapter) {
+      super(id, 'SalesExport', { lastSync: null, status: 'idle' });
+      this.apiAdapter = apiAdapter;
+    }
     async change(info, ctx) {
       if (info.type === 'TriggerDailySync') {
         const reportData = await ctx.effectAdapter(this.apiAdapter, {

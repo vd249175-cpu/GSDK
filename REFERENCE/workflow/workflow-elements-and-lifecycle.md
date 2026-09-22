@@ -162,24 +162,24 @@ sequenceDiagram
 ### 3.1 远程探活与目录检查
 ```bash
 # 检查远程 ECS 主机上的知识库根目录状态
-workbench exec --instance-id i-uf6fm76cksm8ipd5mfjy --region cn-shanghai --command "ls -la /root/knowledgeroot"
+workbench exec --instance-id i-uf6fm76cksm8ipd5mfjy --command "ls -la /root/knowledgeroot"
 ```
 
 ### 3.2 增量拉取知识正文与 SOP
 当本地首次构建工作流或版本发生更新时，通过索引拉取到本地缓存：
 ```bash
 # 从远程 ECS 主机下载指定业务知识文档至本地工作流沙箱
-workbench download /root/knowledgeroot/sales-data-spec.md runs/<workflow>/knowledge/sales-data-spec.md --instance-id i-uf6fm76cksm8ipd5mfjy --region cn-shanghai
+workbench download /root/knowledgeroot/sales-data-spec.md runs/<workflow>/knowledge/sales-data-spec.md --instance-id i-uf6fm76cksm8ipd5mfjy
 ```
 
 ### 3.3 人机协同维护与安全回传
 当 Agent 或用户更新了业务字典、补全了隐藏导出口说明后，按规则回传：
 ```bash
-# 上传更新后的知识库正文至 ECS 共享知识库（执行前先确认目标文件状态）
-workbench upload runs/<workflow>/knowledge/sales-data-spec.md /root/knowledgeroot/sales-data-spec.md --instance-id i-uf6fm76cksm8ipd5mfjy --region cn-shanghai
+# 上传更新后的知识库正文至 ECS 共享知识库（执行前先用 exec 确认目标文件状态，避免覆盖提示卡住自动化流程）
+workbench upload runs/<workflow>/knowledge/sales-data-spec.md /root/knowledgeroot/sales-data-spec.md --instance-id i-uf6fm76cksm8ipd5mfjy
 
 # 回读校验文件大小与权限
-workbench exec --instance-id i-uf6fm76cksm8ipd5mfjy --region cn-shanghai --command "ls -la /root/knowledgeroot/sales-data-spec.md"
+workbench exec --instance-id i-uf6fm76cksm8ipd5mfjy --command "ls -la /root/knowledgeroot/sales-data-spec.md"
 ```
 
 ### 3.4 运行时校验

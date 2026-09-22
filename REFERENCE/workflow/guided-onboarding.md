@@ -92,7 +92,7 @@ sequenceDiagram
 ### 4.1 Agent 自动化安装与配置检查
 Agent 可代为检查本地环境：
 1. 检查 Node.js / Python 运行时是否就绪；
-2. 在该工作流独立 Run 的配置沙箱（`runs/<name>/mcp_config.json`）中声明该服务：
+2. 在该工作流独立 Run 的目录旁声明该服务（例如 `runs/<name>/mcp-config.json`，注意 run 配置校验只接受已知字段，不要塞进 `run.config.json` 本体）：
    ```json
    {
      "mcpServers": {
