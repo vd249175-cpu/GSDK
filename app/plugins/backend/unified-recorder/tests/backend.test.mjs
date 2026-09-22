@@ -119,6 +119,44 @@ describe('unified-recorder causal flow', () => {
     runtime.dispose()
   })
 
+  it('streams merge progress into session progressLog during observe', async () => {
+    const nodes = createUnifiedRecorder({
+      instanceId: 'recorder',
+      nodeIdFor: (local) => `recorder/${local}`,
+      dependencies: {
+        desktopControl: desktopControl([]),
+        browserControl: browserControl([]),
+        desktopObservation: {
+          id: 'unified/desktop-observation',
+          execute: async (request) => {
+            await request.onProgress?.({ stage: 'screenshots-extracted', sessionId: request.sessionId, count: 2 })
+            await request.onProgress?.({ stage: 'export-done', sessionId: request.sessionId, count: 2 })
+            return {
+              events: [
+                { index: 1, source: 'desktop', action: 'Mouse Left Click', application: 'EXPLORER.EXE', description: 'Clicked' },
+              ],
+              applications: ['EXPLORER.EXE'],
+              completedAt: 't1',
+            }
+          },
+        },
+        desktopEvents: desktopEvents([]),
+        browserEvents: browserEvents([]),
+      },
+    })
+    const runtime = createTestRuntime({ nodes: Object.values(nodes) })
+    runtime.inject({ targetNodeId: 'recorder/session', info: { type: 'StartRecordingInfo', sessionId: 's-progress' } })
+    await runtime.waitForQuiescence()
+    runtime.inject({ targetNodeId: 'recorder/session', info: { type: 'StopRecordingInfo' } })
+    await runtime.waitForQuiescence()
+    const state = runtime.getState('recorder/session')
+    expect(state.status).toBe('idle')
+    expect(state.progressLog.map((entry) => entry.stage)).toEqual(
+      expect.arrayContaining(['start-requested', 'merging', 'merge-started', 'screenshots-extracted', 'export-done']),
+    )
+    runtime.dispose()
+  })
+
   it('fails one source without dropping the other', async () => {
     const calls = []
     const nodes = createUnifiedRecorder({

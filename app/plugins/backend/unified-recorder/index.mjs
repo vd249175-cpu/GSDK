@@ -161,6 +161,7 @@ export class UnifiedSessionNode extends Node {
       completedAt: null,
       lastEvent: null,
       lastError: null,
+      progressLog: [],
     })
     this.executionId = targets.execution
     this.observationId = targets.observation
@@ -197,6 +198,7 @@ export class UnifiedSessionNode extends Node {
         completedAt: null,
         lastEvent: null,
         lastError: null,
+        progressLog: [{ at: new Date().toISOString(), stage: 'start-requested', sessionId }],
       })
       ctx.send({ type: 'StartCaptureInfo', sessionId, sources }, this.executionId)
     } else if (info.type === 'StopRecordingInfo') {
@@ -234,6 +236,7 @@ export class UnifiedSessionNode extends Node {
         artifactPath,
         sessionDir,
         lastError: info.error ?? null,
+        progressLog: [...(ctx.read('progressLog') ?? []), { at: new Date().toISOString(), stage: 'merging', sessionId: info.sessionId }],
       })
       // 触发 ObservationWorldNode 进行后处理、截图解压与 Agent Transcript 写入
       ctx.send(
@@ -281,6 +284,10 @@ export class UnifiedSessionNode extends Node {
         lastEvent: mergedEvents.at(-1) ?? null,
         lastError: null,
       })
+    } else if (info.type === 'RecordingProgressInfo') {
+      if (typeof info.sessionId === 'string' && (ctx.read('sessionId') ?? info.sessionId) !== info.sessionId) return
+      const entry = { at: new Date().toISOString(), stage: info.stage ?? 'merging', ...(info.count != null ? { count: info.count } : {}) }
+      ctx.patchState({ progressLog: [...(ctx.read('progressLog') ?? []), entry].slice(-50) })
     } else if (info.type === 'RecordingEventInfo') {
       const event = info.event ?? null
       if (!event) return
@@ -302,7 +309,6 @@ export class UnifiedSessionNode extends Node {
     }
   }
 }
-
 const pickSources = (info) => (
   Array.isArray(info?.sources) && info.sources.length > 0
     ? [...new Set(info.sources.filter((source) => VALID_SOURCES.includes(source)))]
@@ -465,6 +471,13 @@ export class UnifiedObserverNode extends ObservationWorldNode {
     if (info.type !== 'ObserveRecordingInfo') return
 
     try {
+      const emitProgress = (stage, extra = {}) => {
+        ctx.send(
+          { type: 'RecordingProgressInfo', sessionId: info.sessionId, stage, ...extra },
+          this.sessionId,
+        )
+      }
+      emitProgress('merge-started')
       const observation = await ctx.effectAdapter(this.desktopObservation, {
         op: 'observe',
         sessionId: info.sessionId,
@@ -474,6 +487,9 @@ export class UnifiedObserverNode extends ObservationWorldNode {
         liveEvents: info.liveEvents,
         startedAt: info.startedAt,
         completedAt: info.completedAt,
+        onProgress: (report) => {
+          emitProgress(report?.stage ?? 'merging', { count: report?.count ?? null })
+        },
       })
       const events = Array.isArray(observation?.events) ? observation.events : []
       ctx.patchState({

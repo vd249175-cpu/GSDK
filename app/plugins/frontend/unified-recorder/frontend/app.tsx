@@ -1,11 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Globe,
-  Play,
-  Settings,
-  Square,
-  FolderOpen,
-} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Settings } from 'lucide-react'
 import {
   WorkbenchHostContext,
   WorkspacePages,
@@ -48,6 +42,12 @@ export type UnifiedEvent = {
   screenshotFile: string | null
 }
 
+export type RecorderProgressEntry = {
+  at: string
+  stage: string
+  count?: number | null
+}
+
 export type RecorderState = {
   status: RecorderStatus
   sessionId: string | null
@@ -66,6 +66,7 @@ export type RecorderState = {
   startedAt: string | null
   completedAt: string | null
   lastError: string | null
+  progressLog: RecorderProgressEntry[]
   browserAlive: boolean
   revision: number
 }
@@ -112,6 +113,7 @@ const emptyState: RecorderState = {
   startedAt: null,
   completedAt: null,
   lastError: null,
+  progressLog: [],
   browserAlive: false,
   revision: 0,
 }
@@ -325,8 +327,6 @@ export function App() {
     ],
   )
 
-  const isRecording = state.status === 'recording' || state.status === 'starting'
-
   return (
     <RecorderContext.Provider value={recorderContextValue}>
       <WorkbenchHostContext.Provider value={workbenchAdapter}>
@@ -360,56 +360,8 @@ export function App() {
 
             <span className="topbar-spacer" />
 
-            {/* 顶栏全局快捷控制工具组 */}
-            <div className="topbar-actions" role="toolbar" aria-label="全局录制控制">
-              {!isRecording ? (
-                <button
-                  type="button"
-                  className="action-btn is-primary"
-                  disabled={busy}
-                  onClick={() => void handleStart()}
-                  title="启动双源统一录制 (Windows 钩子 + 9343 Chrome)"
-                >
-                  <Play size={11} />
-                  <span>{busy ? '启动中…' : '开始录制'}</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="action-btn is-danger"
-                  disabled={busy}
-                  onClick={() => void handleStop()}
-                  title="停止录制并生成 Agent Transcript 与 Playwright 脚本"
-                >
-                  <Square size={11} />
-                  <span>{busy ? '正在清洗…' : '停止录制'}</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                className={`action-btn ${state.browserAlive ? 'is-accent' : ''}`}
-                disabled={browserBusy}
-                onClick={() => void handleLaunchBrowser()}
-                title={state.browserAlive ? '专用浏览器 (9343) 已连通，点击唤醒置顶' : '打开独立 Profile 1 且暴露 9343 CDP 的专用 Chrome'}
-              >
-                <Globe size={11} />
-                <span>{browserBusy ? '连接中…' : state.browserAlive ? '专用浏览器 (已就绪)' : '打开专用浏览器 (9343)'}</span>
-              </button>
-
-              {state.artifactPath && (
-                <button
-                  type="button"
-                  className="action-btn"
-                  onClick={() => void handleOpenArtifact()}
-                  title="打开当前产物保存文件夹"
-                >
-                  <FolderOpen size={11} />
-                  <span>产物目录</span>
-                </button>
-              )}
-
-              {/* 工业设置入口按钮 */}
+            {/* 工业设置入口按钮 */}
+            <div className="topbar-actions" role="toolbar" aria-label="工作台设置">
               <button
                 type="button"
                 className="action-btn"

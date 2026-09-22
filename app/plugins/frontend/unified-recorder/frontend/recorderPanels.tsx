@@ -332,6 +332,22 @@ export function ScreenshotsPanel(_props: PanelProps) {
           <ImageIcon size={14} />
           <span>截图索引与关键帧证据 ({screenshotEvents.length})</span>
         </div>
+        <div className="merge-progress is-mono" title="录制后 5 分钟数据存储与合并流逝输出">
+          <span className="merge-progress-label">合并进度</span>
+          {state.progressLog.length === 0 ? (
+            <span className="merge-progress-empty">暂无合并输出</span>
+          ) : (
+            <ol className="merge-progress-list">
+              {state.progressLog.slice(-8).map((entry, position) => (
+                <li key={`${entry.at}-${entry.stage}-${position}`}>
+                  <span className="merge-progress-time">{entry.at}</span>
+                  <span className="merge-progress-stage">{entry.stage}</span>
+                  {entry.count != null && <span className="merge-progress-count">×{entry.count}</span>}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
         {state.screenshotsDirectory && (
           <button
             type="button"

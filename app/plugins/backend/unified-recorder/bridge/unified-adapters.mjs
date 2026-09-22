@@ -572,15 +572,16 @@ export async function processRecordingExport({
   startedAt = null,
   completedAt = null,
   readArchive = readPsrArchiveAndExtract,
-}) {
+  onProgress = null,
+} = {}) {
   const nativeDir = join(sessionDirectory, 'native')
   const screenshotsDir = join(sessionDirectory, 'screenshots')
   await mkdir(nativeDir, { recursive: true })
   await mkdir(screenshotsDir, { recursive: true })
-
   // 1. 保存浏览器原生产物
   const nativeBrowserPath = join(nativeDir, 'browser-playwright.js')
   await writeFile(nativeBrowserPath, browserRawActions || '// No browser actions recorded\n', 'utf8')
+  await onProgress?.({ stage: 'browser-saved', sessionId })
 
   // 2. 保存桌面原生产物并解析截图
   let nativeDesktopPath = null
@@ -590,12 +591,13 @@ export async function processRecordingExport({
     nativeDesktopPath = join(nativeDir, 'desktop-psr.zip')
     try {
       await copyFile(desktopZipPath, nativeDesktopPath)
+      await onProgress?.({ stage: 'desktop-copied', sessionId })
       extractedDesktop = await readArchive(nativeDesktopPath, screenshotsDir)
+      await onProgress?.({ stage: 'screenshots-extracted', sessionId, count: extractedDesktop?.events?.length ?? 0 })
     } catch (err) {
       console.warn('[Unified Recorder] Failed to parse PSR archive, falling back to live events:', err)
     }
   }
-
   const desktopEvents = extractedDesktop?.events?.length > 0
     ? extractedDesktop.events
     : liveDesktopEvents
@@ -603,11 +605,11 @@ export async function processRecordingExport({
 
   // 3. 数据清洗与对齐合并
   const mergedEvents = mergeAndCleanEvents({ desktopEvents, browserEvents })
+  await onProgress?.({ stage: 'events-merged', sessionId, count: mergedEvents.length })
   const applications = [...new Set([
     ...(extractedDesktop?.applications ?? []),
     ...mergedEvents.map((e) => e.application).filter(Boolean),
   ])]
-
   // 4. 生成 Agent 纯文字版本
   const agentTranscriptContent = buildAgentTranscript({
     sessionId,
@@ -618,7 +620,7 @@ export async function processRecordingExport({
   })
   const agentTranscriptPath = join(sessionDirectory, 'agent-transcript.md')
   await writeFile(agentTranscriptPath, agentTranscriptContent, 'utf8')
-
+  await onProgress?.({ stage: 'transcript-written', sessionId })
   // 5. 生成 JSON 与可回放脚本
   const unifiedEventsJsonPath = join(sessionDirectory, 'unified-events.json')
   await writeFile(unifiedEventsJsonPath, JSON.stringify({
@@ -637,6 +639,7 @@ export async function processRecordingExport({
 
   const replayPath = join(sessionDirectory, 'replay.js')
   await writeFile(replayPath, buildReplayScript(mergedEvents), 'utf8')
+  await onProgress?.({ stage: 'export-done', sessionId, count: mergedEvents.length })
 
   return {
     events: mergedEvents,
@@ -727,7 +730,7 @@ export function createUnifiedAdapters({
         if (recording.artifactPath) {
           try {
             await stopPsrProcess({ executable: psrExecutable })
-            await waitForArtifact(recording.artifactPath, 15000)
+            await waitForArtifact(recording.artifactPath, 300_000)
           } catch (err) {
             console.warn('[Unified Recorder] PSR stop/wait artifact warning:', err.message)
           }

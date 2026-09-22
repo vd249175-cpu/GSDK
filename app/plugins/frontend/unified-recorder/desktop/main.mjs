@@ -69,6 +69,7 @@ async function getSessionSnapshot() {
       startedAt: state.startedAt ?? null,
       completedAt: state.completedAt ?? null,
       lastError: state.lastError ?? null,
+      progressLog: Array.isArray(state.progressLog) ? state.progressLog : [],
       browserAlive,
       revision: projection.revision ?? 0,
     }
