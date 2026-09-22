@@ -92,7 +92,7 @@ npm --prefix packages/desktop run typecheck
 npm --prefix packages/sdk/javascript run typecheck
 
 # 3. 静态验证主 run 配置合法性
-node packages/tooling/run/src/cli.mjs validate runs/main/run.config.json
+bash ./run.sh validate runs/main/run.config.json
 ```
 
 > [!IMPORTANT]
@@ -141,7 +141,7 @@ GraphFramework 采用命名 run 机制实现多开发者完全隔离。每位开
 
 ```bash
 # 1. 校验配置合法性
-node packages/tooling/run/src/cli.mjs validate runs/<your-name>/run.config.json
+bash ./run.sh validate runs/<your-name>/run.config.json
 
 # 2. 启动统一 run
 bash ./run.sh start runs/<your-name>/run.config.json

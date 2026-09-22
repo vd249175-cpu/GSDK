@@ -1,3 +1,11 @@
+---
+type: Developer Guide
+title: GraphFramework SDK
+description: 仓库开发入口、统一 run 命令与权威文档导航。
+status: stable
+tags: [graphframework, sdk, development, run]
+---
+
 # GraphFramework SDK
 
 GraphFramework 是一个面向桌面与后端系统的因果应用框架，用于构建由业务事实和显式因果事件驱动的高可靠应用。业务开发者无需先理解 Rust 内核或底层调度实现。
@@ -10,7 +18,7 @@ GraphFramework 是一个面向桌面与后端系统的因果应用框架，用�
 
 ```bash
 # 校验 run 配置
-node packages/tooling/run/src/cli.mjs validate runs/<name>/run.config.json
+bash ./run.sh validate runs/<name>/run.config.json
 
 # 启动运行
 bash ./run.sh start runs/<name>/run.config.json

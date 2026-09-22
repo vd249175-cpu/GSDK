@@ -287,12 +287,12 @@ bash ./run.sh inspect runs/<name>/run.config.json '{"limit":100}'
    - 观察每条 Info 的 `causeInfoId`，还原完整的因果推导拓扑树。
 
 ### 4.3 全息因果可视化器排查 (Causal Visualizer)
-启动全仓内置的瑞士风 2D 可视化器（位于 [`packages/tooling/causal-visualizer`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/tooling/causal-visualizer)）：
+[`packages/tooling/causal-visualizer`](packages/tooling/causal-visualizer.md) 当前提供可构建的 Swiss-2D 组件和 telemetry client，但尚无经 `run.sh` 装配的独立 visualizer run。开发时可执行构建与布局测试：
 ```bash
-# 启动遥测服务端与 2D 拓扑画布
-npm --prefix packages/tooling/causal-visualizer run start
+npm --prefix packages/tooling/causal-visualizer run build
+npm --prefix packages/tooling/causal-visualizer test
 ```
-在浏览器中打开画布，实时观察：
+集成到命名 run 后，可在浏览器画布观察：
 - **Node 节点气泡**：颜色反映节点当前代数（Generation）与生命周期；
 - **定向连线**：实线箭头反映静态因果路由；
 - **光点脉冲**：实时展现 Info 在节点间的流动方向，一旦出现因果断点，光点将在故障节点处停止前进并标红。

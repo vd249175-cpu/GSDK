@@ -1,69 +1,112 @@
 ---
 type: Developer Guide
-title: 统一运行管理器与 CLI 操作全集 (packages/tooling/run)
-description: 根目录 run.sh 底层引擎、CLI 子命令全集（start/status/stop/analyze/inspect/pack/install）与生命周期锁。
+title: 统一 Run 管理器开发指南
+description: 根 run.sh 的公开命令、v2 配置、assembly、包导出、生命周期边界和验证方式。
 status: stable
-tags: [tooling, run, cli, supervisor, lifecycle, distribution]
+tags: [tooling, run, cli, assembly, lifecycle, distribution, public-api]
 ---
 
-# 统一运行管理器与 CLI 操作全集 (`packages/tooling/run`)
+# 统一 Run 管理器开发指南 (`packages/tooling/run`)
 
-源码目录：[`packages/tooling/run/`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/tooling/run)  
-入口文件：[`packages/tooling/run/src/cli.mjs`](file:///c:/Users/kp157/Desktop/PM/GVSDK/packages/tooling/run/src/cli.mjs)
+`@graphframework/run` 实现命名 run 的配置解析、assembly、控制面、生命周期记录和能力分发。生产入口只有仓库根 `run.sh`；`src/cli.mjs` 和 `supervisor.sh` 由它调用，不是用户入口。
 
-本包提供全仓的统一进程生命周期管理器、分发打包工具与实时控制命令集。
-
----
-
-## 1. 唯一合法启动器：`run.sh` 核心命令
-
-全仓所有功能必须通过根目录 `run.sh` 拉起，严禁绕过：
+## 1. 公开命令
 
 ```bash
-# 1. 启动命名 run（自动前置检查依赖、锁定 PID、预编译原生层、拉起守护进程与桌面宿主）
+bash ./run.sh validate runs/<name>/run.config.json
 bash ./run.sh start runs/<name>/run.config.json
-
-# 2. 查询当前 run 状态（实时探活 PID、心跳与微内核健康度）
 bash ./run.sh status runs/<name>/run.config.json
-
-# 3. 平稳停机（发送退出 Info、等待单飞结算完毕、释放 PID 锁、清空临时 IPC 句柄）
+bash ./run.sh analyze runs/<name>/run.config.json '{"op":"health"}'
+bash ./run.sh inspect runs/<name>/run.config.json '{"limit":100}'
 bash ./run.sh stop runs/<name>/run.config.json
 ```
 
----
+`start` 先校验、加 run-local 锁，再由 Bash supervisor 依次启动 Rust daemon 和宿主；`stop` 请求单飞结算、卸载与关闭。不要直接执行 `cli.mjs`、`supervisor.sh`、Electron、daemon 或任一宿主模块。
 
-## 2. CLI 高级运维与分析操作全集 (`cli.mjs`)
+能力分发同样经根入口：
 
-通过 `node packages/tooling/run/src/cli.mjs <command> <config-path>` 可直接向正在运行的 run 发起非侵入式运维指令：
+```bash
+bash ./run.sh pack <capability-dir> [out.zip]
+bash ./run.sh verify <capability.zip> [--expect-sha256 <hex>]
+bash ./run.sh install <capability.zip> --run runs/<name>/run.config.json
+bash ./run.sh pack-run runs/<name> [out.zip]
+bash ./run.sh install-run <run.zip> runs
+```
 
-| CLI 子命令 | 语法与参数 | 物理行为与返回 |
-| :--- | :--- | :--- |
-| **`status`** | `<run.config.json>` | 检查该 run 是否处于活跃态，探活 IPC 管道与返回微内核 PID。 |
-| **`stop`** | `<run.config.json>` | 触发优雅停机协议。 |
-| **`analyze`** | `<run.config.json> [requestJson]` | **直接对正在运行的图发起分析**。<br>默认执行 `{ "op": "health" }`，输出实时死锁与孤立节点报告。 |
-| **`inspect`** | `<run.config.json> [optionsJson]` | **全息状态拉取**。读取当前状态投影、队列深度、活跃租约与事件环。 |
-| **`validate`**| `<run.config.json>` | 校验 run 配置与 assembly 依赖是否完整、Rust 守护进程二进制是否存在。 |
-| **`pack`** | `<pluginDir> <targetArchive>` | 将特定插件打包为分发包（含 SHA-256 签名）。 |
-| **`verify`** | `<archive> [--expect-sha256 <hash>]` | 校验分发包的 SHA-256 完整性与签名。 |
-| **`install`**| `<archive> --run <configPath>` | 将分发包解压并安装注册进指定 run 配置中。 |
-| **`pack-run`**| `<runDir> <targetArchive>` | 导出整个命名 run（包含配置与专用插件集），用于团队共享与迁移。 |
-| **`install-run`**| `<archive> <destDir>` | 导入并还原一个完整的独立 run 工作流。 |
+## 2. 最小 v2 配置
 
----
-
-## 3. 运行配置规范与路径隔离 (`run.config.json`)
+run 名必须等于配置所在目录名。相对路径以该目录为基准；生成物只能进入该 run 的 `.generated/`。
 
 ```json
 {
-  "$schema": "https://graphframework.org/schemas/v2/run.config.json",
-  "name": "my-scenario",
-  "description": "自定义自动化场景",
-  "plugins": [
-    "./plugins/backend/custom-logic",
-    "./plugins/frontend/custom-view"
-  ],
-  "assembly": "./assembly.mjs"
+  "version": 2,
+  "name": "my-feature",
+  "assembly": { "modules": ["assembly.mjs"] },
+  "plugins": { "backend": [], "frontend": [] },
+  "kernel": {
+    "daemonPath": "../../packages/rust/target/debug/graphframework-kernel-daemon",
+    "bind": "127.0.0.1:0",
+    "startupTimeoutMs": 10000,
+    "shutdownTimeoutMs": 10000
+  },
+  "backend": { "dependencies": {} },
+  "frontend": { "instances": [] },
+  "graph": { "instances": [] },
+  "lifecycle": {
+    "initInfos": [],
+    "startInfos": [],
+    "stopInfos": [],
+    "ready": null,
+    "timeouts": { "initMs": 30000, "startMs": 30000, "stopMs": 30000, "settleMs": 30000 }
+  },
+  "scenarios": null,
+  "resources": {
+    "generatedDirectory": ".generated",
+    "dataDirectory": ".generated/data",
+    "logsDirectory": ".generated/logs",
+    "runtimeDirectory": ".generated/runtime"
+  }
 }
 ```
 
-- **数据隔离原则**：该 run 启动产生的所有构建缓存、日志文件（`supervisor.log`）、套接字与锁文件均严格保存在 `runs/<name>/.generated/` 内部，运行完毕后可一键彻底清理，绝不污染系统全局。
+`plugins.backend/frontend` 是 `{id,path}` 数组；`graph.instances` 是显式 `{kind,id,factory,params,bindings}` 数组；前端实例单独位于 `frontend.instances`。旧的字符串插件数组、顶层 `description` 和字符串 `assembly` 都会被拒绝。
+
+## 3. Assembly 模块
+
+```js
+export default {
+  id: 'my-feature.assembly',
+  contribute(run) {
+    run.backendPlugin({ id: 'example.counter', path: './plugins/example.counter' })
+    run.node({
+      id: 'counter',
+      plugin: 'example.counter',
+      factory: 'createCounterNode',
+      params: { initial: 0 },
+      bindings: {},
+    })
+    run.requireNode('counter')
+  },
+}
+```
+
+可用贡献方法是 `backendPlugin`、`frontendPlugin`、`node`、`graph`、`frontend`、`requireNode`。工厂名称必须同时出现在插件 v2 Manifest 和后端模块导出中；图实例内 Node ID 必须位于 `<instance-id>/` 命名空间。
+
+## 4. JavaScript 公开接口
+
+复用方从 `@graphframework/run` 根入口导入。根入口汇总已经公开的 config、assembly、control、discovery、kernel、lifecycle、lock、package、paths、record 和 scenario 契约；稳定子路径仍由 `package.json#exports` 声明。应用插件需要 run-local RPC 时使用 `@graphframework/run/control`，不新增 `src/control.mjs` 深层导入。
+
+生命周期阶段由 `START_STAGES` / `STOP_STAGES` 定义。`startRun` 只为测试/组合调用者委托同一个根 `run.sh`，不会创建第二条启动路径。
+
+## 5. 开发验证
+
+```bash
+npm --prefix packages/tooling/run test
+npm --prefix packages/tooling/run run typecheck
+bash ./run.sh validate runs/main/run.config.json
+npm --prefix packages/desktop test -- host/p3-run-lifecycle.test.mjs host/p9-bash-lifecycle.test.mjs --silent
+npm --prefix packages/desktop run typecheck
+npm --prefix packages/sdk/javascript run typecheck
+```
+
+完成标准：v2 配置拒绝未知字段；assembly 只构造显式实例；控制面校验 run identity/token；运行锁和凭据留在本 run；所有启动、检查和停止均经过 `run.sh`。

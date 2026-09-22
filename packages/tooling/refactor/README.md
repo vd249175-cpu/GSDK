@@ -5,6 +5,8 @@ title: AST 与 LanguageService 重构工具
 
 # AST 与 LanguageService 重构工具
 
+包根入口 `@graphframework/refactor` 导出可组合的 `rewriteImports(text, file, replace)`。三个可执行入口分别是 `graphframework-refactor`、`graphframework-rewrite-imports` 与 `graphframework-check-layout`；在本仓库内仍建议使用下述显式路径，方便审阅实际工具版本。
+
 先运行 `npm --prefix packages/tooling/refactor ci` 安装工具依赖。以下命令在仓库根目录执行。
 
 文件移动优先使用 `node packages/tooling/refactor/refactor.mjs move <from> <to> --project <tsconfig>`，它通过 TypeScript LanguageService 更新引用，并用 AST 调整被移动文件的模块路径。from、to 相对于 tsconfig 所在目录，支持仓库内单文件移动。

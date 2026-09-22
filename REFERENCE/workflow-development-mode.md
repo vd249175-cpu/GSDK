@@ -136,7 +136,7 @@ bash ./run.sh start runs/my-feature/run.config.json
 bash ./run.sh status runs/my-feature/run.config.json
 
 # 遇到因果链不推进时，直接运行内置拓扑体检分析
-node packages/tooling/run/src/cli.mjs analyze runs/my-feature/run.config.json
+bash ./run.sh analyze runs/my-feature/run.config.json
 
 # 停止
 bash ./run.sh stop runs/my-feature/run.config.json
