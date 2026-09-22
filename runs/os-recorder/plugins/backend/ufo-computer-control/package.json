@@ -1,9 +1,0 @@
-{
-  "name": "graphframework-ufo-computer-control-plugin",
-  "private": true,
-  "version": "1.0.0",
-  "type": "module",
-  "dependencies": {
-    "@graphframework/sdk": "file:../../../../../packages/sdk/javascript"
-  }
-}
