@@ -15,7 +15,7 @@ downstream_modification: forbidden
 事件归一化为一套 agent 可读的 canonical step，输出 transcript 与可回放
 脚本。会话 Owner 还维护麦克风字幕与声音片段时间轴；声音采集、落盘及
 OpenRouter 转写由桌面宿主完成。个人系统：输入明文直接保留在 `text`/`code`，不做脱敏。
-宿主请求词级与片段时间；前端同时从本地录音检测发声区间，供单片段转写按停顿拆成多条字幕。
+宿主默认使用 MAI-Transcribe 2 请求词级时间；前端生成 WAV 转写副本并从本地录音检测发声区间，供单片段转写按停顿拆成多条字幕。WebM 原音频保持不变。
 
 明确不承担：不修改、不导入 `example.os-recorder` 与 `example.browser-recorder`
 的内部实现；不持有浏览器、不直驱 PSR。桌面与浏览器捕获经 run 宿主注入的五个 Adapter；麦克风采集与声音文件存储由前端桌面宿主负责，会话 Node 只接收字幕 Info。

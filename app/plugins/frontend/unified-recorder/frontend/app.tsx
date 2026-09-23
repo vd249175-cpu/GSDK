@@ -25,7 +25,7 @@ import {
   type RecorderContextValue,
 } from './recorderPanels'
 import { createRecorderWorkbenchAdapter } from './workbenchAdapter'
-import { detectWebmSpeechRanges, type SpeechRange } from './speechRanges'
+import { prepareWebmTranscription, type SpeechRange } from './speechRanges'
 
 export type RecorderStatus = 'idle' | 'starting' | 'recording' | 'stopping' | 'processing' | 'error'
 
@@ -86,7 +86,7 @@ export interface UnifiedRecorderBridge {
   launchBrowser: () => Promise<{ ok: boolean; alive?: boolean; output?: string; error?: string }>
   copyToClipboard: (text: string) => Promise<{ ok: boolean }>
   readImage?: (targetPath: string) => Promise<{ ok: boolean; dataUrl?: string; error?: string }>
-  saveAudio: (payload: { sessionId: string; bytes: Uint8Array; mimeType: string; startedAt: string; durationMs: number; timeoutMs: number; speechRanges: SpeechRange[] }) => Promise<{ ok: boolean; transcriptionError?: string | null }>
+  saveAudio: (payload: { sessionId: string; bytes: Uint8Array; mimeType: string; transcriptionBytes: Uint8Array; transcriptionFormat: 'wav' | 'webm'; startedAt: string; durationMs: number; timeoutMs: number; speechRanges: SpeechRange[] }) => Promise<{ ok: boolean; transcriptionError?: string | null }>
   finalizeRecording: (sessionId: string) => Promise<{ merged: boolean }>
   correctSubtitle: (id: string, text: string) => Promise<{ ok: boolean }>
   readAudio: (sessionId: string) => Promise<string>
@@ -492,8 +492,10 @@ export function App() {
         media.stream.getTracks().forEach((track) => track.stop())
         audioTask = blobTask.then(async (blob) => {
           const bytes = new Uint8Array(await blob.arrayBuffer())
-          const speechRanges = await detectWebmSpeechRanges(bytes).catch(() => [])
-          const audio = { sessionId: media.sessionId, bytes, mimeType: media.recorder.mimeType, startedAt: media.startedAt, durationMs: Date.now() - Date.parse(media.startedAt), timeoutMs: Math.max(1000, deadline - Date.now()), speechRanges }
+          const prepared = await prepareWebmTranscription(bytes).catch(() => ({
+            speechRanges: [], transcriptionBytes: bytes, transcriptionFormat: 'webm' as const,
+          }))
+          const audio = { sessionId: media.sessionId, bytes, mimeType: media.recorder.mimeType, startedAt: media.startedAt, durationMs: Date.now() - Date.parse(media.startedAt), timeoutMs: Math.max(1000, deadline - Date.now()), ...prepared }
           return bridge.saveAudio(audio)
         })
       }

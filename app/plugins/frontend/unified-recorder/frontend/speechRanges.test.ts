@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectSpeechRanges } from './speechRanges'
+import { detectSpeechRanges, encodeMonoPcm16Wav } from './speechRanges'
 
 describe('speech pause detection', () => {
   it('keeps separate utterances apart across quiet intervals', () => {
@@ -20,5 +20,13 @@ describe('speech pause detection', () => {
       for (let index = start; index < end; index += 1) samples[index] = 0.15
     }
     expect(detectSpeechRanges([samples], 1000)).toHaveLength(4)
+  })
+
+  it('encodes a mono PCM WAV transcription copy without changing the source recording', () => {
+    const wav = encodeMonoPcm16Wav([new Float32Array([0, 0.5, -0.5, 1])], 4, 4)
+    expect(new TextDecoder().decode(wav.slice(0, 4))).toBe('RIFF')
+    expect(new TextDecoder().decode(wav.slice(8, 12))).toBe('WAVE')
+    expect(new DataView(wav.buffer).getUint32(24, true)).toBe(4)
+    expect(new DataView(wav.buffer).getUint32(40, true)).toBe(8)
   })
 })

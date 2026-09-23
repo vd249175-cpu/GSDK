@@ -26,9 +26,9 @@ describe('narration storage and transcription', () => {
           return { ok: true, json: async () => ({ text: '你好', segments: [{ start: 0.25, end: 1.5, text: ' 你好 ' }] }) }
         },
       })
-      const result = await store.save({ sessionId: 'clip-1', bytes: new Uint8Array([1, 2, 3]), mimeType: 'audio/webm', startedAt: '2026-09-23T00:00:01.000Z', narrationStartedAt: '2026-09-23T00:00:00.000Z', durationMs: 2000, timeoutMs: 10_000 })
+      const result = await store.save({ sessionId: 'clip-1', bytes: new Uint8Array([1, 2, 3]), mimeType: 'audio/webm', transcriptionBytes: new Uint8Array([4, 5]), transcriptionFormat: 'wav', startedAt: '2026-09-23T00:00:01.000Z', narrationStartedAt: '2026-09-23T00:00:00.000Z', durationMs: 2000, timeoutMs: 10_000 })
       expect(result.subtitles).toMatchObject([{ id: 'clip-1:0', startMs: 1250, endMs: 2500, text: '你好' }])
-      expect(requests[0]).toMatchObject({ model: 'qwen/qwen3-asr-1.7b', response_format: 'verbose_json', input_audio: { format: 'webm' } })
+      expect(requests[0]).toMatchObject({ model: 'microsoft/mai-transcribe-2', response_format: 'verbose_json', timestamp_granularities: ['word'], input_audio: { format: 'wav', data: 'BAU=' } })
       expect(await readFile(join(directory, 'clip-1.webm'))).toEqual(Buffer.from([1, 2, 3]))
       await store.correct('clip-1:0', '您好')
       expect((await store.readIndex()).subtitles[0].text).toBe('您好')
@@ -48,7 +48,7 @@ describe('narration storage and transcription', () => {
       },
     })
     expect(result).toEqual({ segments: [] })
-    expect(requests).toEqual([['segment', 'word'], ['segment']])
+    expect(requests).toEqual([['word'], ['segment']])
   })
 
   it('preserves audio when OpenRouter fails and falls back to a timed text segment', async () => {
@@ -78,6 +78,25 @@ describe('narration storage and transcription', () => {
     ])
   })
 
+  it('splits MAI Chinese word timestamps at sentence punctuation', () => {
+    const result = normalizeTranscription({
+      text: '音频片段一。音频片段二。',
+      segments: [{ start: 0, end: 13.68, text: '音频片段一。音频片段二。' }],
+      words: [
+        { word: '音', start: 3.48, end: 3.56 }, { word: '频', start: 3.64, end: 3.72 },
+        { word: '片', start: 3.88, end: 3.96 }, { word: '段', start: 4.04, end: 4.12 },
+        { word: '一', start: 4.36, end: 4.44 }, { word: '。', start: 4.72, end: 4.8 },
+        { word: '音', start: 10.44, end: 10.52 }, { word: '频', start: 10.6, end: 10.68 },
+        { word: '片', start: 10.84, end: 10.92 }, { word: '段', start: 10.96, end: 11.04 },
+        { word: '二', start: 11.2, end: 11.279 }, { word: '。', start: 11.44, end: 11.52 },
+      ],
+    }, 13680)
+    expect(result).toEqual([
+      { startMs: 3480, endMs: 4800, text: '音频片段一。' },
+      { startMs: 10440, endMs: 11520, text: '音频片段二。' },
+    ])
+  })
+
   it('uses detected speech ranges when the provider only returns one combined segment', () => {
     const result = normalizeTranscription({
       segments: [{ start: 5.5, end: 24.8, text: '再次录制测试。浏览器打开测试。本地文件测试。' }],
@@ -87,9 +106,21 @@ describe('narration storage and transcription', () => {
       { startMs: 20000, endMs: 24900 },
     ])
     expect(result).toEqual([
-      { startMs: 5500, endMs: 8200, text: '再次录制测试。' },
+      { startMs: 5400, endMs: 8200, text: '再次录制测试。' },
       { startMs: 12300, endMs: 16300, text: '浏览器打开测试。' },
-      { startMs: 20000, endMs: 24800, text: '本地文件测试。' },
+      { startMs: 20000, endMs: 24900, text: '本地文件测试。' },
+    ])
+  })
+
+  it('rejects a zero-duration provider timestamp and uses recorded pauses', () => {
+    const result = normalizeTranscription({
+      text: '音频片段一，音频片段二。',
+      segments: [{ start: 11.44, end: 11.44, text: '音频片段一，音频片段二。' }],
+      words: [{ start: 11.44, end: 11.44, word: '音频片段一，音频片段二。' }],
+    }, 13680, [{ startMs: 3240, endMs: 5100 }, { startMs: 10280, endMs: 11520 }])
+    expect(result).toEqual([
+      { startMs: 3240, endMs: 5100, text: '音频片段一，' },
+      { startMs: 10280, endMs: 11520, text: '音频片段二。' },
     ])
   })
 

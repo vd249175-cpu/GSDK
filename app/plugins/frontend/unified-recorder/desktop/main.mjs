@@ -119,6 +119,7 @@ async function startHost() {
     const result = await narrationStore.save({
       ...payload,
       bytes: new Uint8Array(payload.bytes),
+      transcriptionBytes: new Uint8Array(payload.transcriptionBytes ?? payload.bytes),
       narrationStartedAt: snapshot.narrationStartedAt,
     })
     await callRunControl(runtime, 'inject-renderer', {

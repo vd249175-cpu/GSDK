@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const SESSION_ID = /^[a-zA-Z0-9_-]{1,100}$/
-const DEFAULT_STT_MODEL = 'qwen/qwen3-asr-1.7b'
+const DEFAULT_STT_MODEL = 'microsoft/mai-transcribe-2'
 
 export async function resolveOpenRouterApiKey({ credentialsPath, environment = process.env }) {
   const fromEnvironment = environment.OPENROUTER_API_KEY?.trim()
@@ -33,7 +33,7 @@ const timedPart = (part, field = 'text') => ({
   text: String(part[field] ?? '').trim(),
 })
 
-const sentences = (text) => (text.match(/[^。！？!?；;]+[。！？!?；;]?/gu) ?? [])
+const sentences = (text) => (text.match(/[^。！？!?；;，,]+[。！？!?；;，,]?/gu) ?? [])
   .map((part) => part.trim()).filter(Boolean)
 
 const joinAtLargestPauses = (parts, count) => {
@@ -66,7 +66,7 @@ const splitTimedWords = (words, sourceText) => {
   const originalSentences = sentences(sourceText)
   if (originalSentences.length > 1) {
     const markedBoundaries = valid.slice(0, -1).flatMap((word, index) =>
-      /[。！？!?；;]$/.test(word.text) ? [index] : [])
+      /[。！？!?；;，,]$/.test(word.text) ? [index] : [])
     const groups = markedBoundaries.length === originalSentences.length - 1
       ? valid.reduce((all, word, index) => {
           if (index === 0 || markedBoundaries.includes(index - 1)) all.push([])
@@ -81,7 +81,7 @@ const splitTimedWords = (words, sourceText) => {
   const groups = []
   for (const word of valid) {
     const previous = groups.at(-1)
-    if (!previous || word.startMs - previous.endMs >= 500 || /[。！？!?；;]$/.test(previous.text)) {
+    if (!previous || word.startMs - previous.endMs >= 500 || /[。！？!?；;，,]$/.test(previous.text)) {
       groups.push({ ...word })
     } else {
       previous.endMs = Math.max(previous.endMs, word.endMs)
@@ -106,14 +106,13 @@ export function normalizeTranscription(result, durationMs, speechRanges = []) {
   if (!combined) return wordParts
   const parts = sentences(combined.text)
   const ranges = (Array.isArray(speechRanges) ? speechRanges : []).filter((range) =>
-    Number.isFinite(range?.startMs) && Number.isFinite(range?.endMs)
-      && range.endMs > range.startMs && range.endMs >= combined.startMs && range.startMs <= combined.endMs)
+    Number.isFinite(range?.startMs) && Number.isFinite(range?.endMs) && range.endMs > range.startMs)
     .sort((left, right) => left.startMs - right.startMs)
   const groupedRanges = joinAtLargestPauses(ranges, parts.length)
   if (parts.length > 1 && groupedRanges.length === parts.length) {
     return groupedRanges.map((group, index) => ({
-      startMs: Math.max(combined.startMs, group[0].startMs),
-      endMs: Math.min(combined.endMs, group.at(-1).endMs),
+      startMs: group[0].startMs,
+      endMs: group.at(-1).endMs,
       text: parts[index],
     }))
   }
@@ -134,7 +133,7 @@ export async function transcribeAudio({ bytes, format, timeoutMs, apiKey, model 
     }),
     signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
   })
-  let response = await request(['segment', 'word'])
+  let response = await request(['word'])
   if (!response.ok && (response.status === 400 || response.status === 422)) {
     response = await request(['segment'])
   }
@@ -197,10 +196,12 @@ export function createNarrationStore({ directory, apiKey = process.env.OPENROUTE
         index.recordingDirectories = { ...index.recordingDirectories, [sessionId]: sessionDirectory }
       })
     },
-    save: async ({ sessionId, bytes, mimeType, startedAt, durationMs, timeoutMs, narrationStartedAt, speechRanges = [] }) => {
+    save: async ({ sessionId, bytes, mimeType, transcriptionBytes = bytes, transcriptionFormat = 'webm', startedAt, durationMs, timeoutMs, narrationStartedAt, speechRanges = [] }) => {
       assertSession(sessionId)
       if (mimeType !== 'audio/webm' && mimeType !== 'audio/webm;codecs=opus') throw new Error('Only WebM/Opus audio is supported')
       if (!(bytes instanceof Uint8Array) || bytes.length === 0 || bytes.length > 100_000_000) throw new Error('Invalid audio data')
+      if (!(transcriptionBytes instanceof Uint8Array) || transcriptionBytes.length === 0 || transcriptionBytes.length > 100_000_000) throw new Error('Invalid transcription audio data')
+      if (transcriptionFormat !== 'wav' && transcriptionFormat !== 'webm') throw new Error('Invalid transcription audio format')
       const limit = Math.min(600_000, Math.max(5_000, Number(timeoutMs) || 120_000))
       const deadline = Date.now() + limit
       await mkdir(directory, { recursive: true })
@@ -210,7 +211,7 @@ export function createNarrationStore({ directory, apiKey = process.env.OPENROUTE
       let transcriptionError = null
       try {
         const resolvedApiKey = typeof apiKey === 'function' ? await apiKey() : apiKey
-        const result = await transcribeAudio({ bytes, format: 'webm', timeoutMs: Math.max(1, deadline - Date.now()), apiKey: resolvedApiKey, model, fetchImpl })
+        const result = await transcribeAudio({ bytes: transcriptionBytes, format: transcriptionFormat, timeoutMs: Math.max(1, deadline - Date.now()), apiKey: resolvedApiKey, model, fetchImpl })
         segments = normalizeTranscription(result, durationMs, speechRanges)
       } catch (error) {
         transcriptionError = error instanceof Error ? error.message : String(error)
