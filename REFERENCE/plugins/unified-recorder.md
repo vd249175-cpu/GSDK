@@ -1,315 +1,320 @@
 ---
 type: Reference Manual
-title: 统一双源录制插件 (Unified Recorder Plugin)
-description: 官方 example.unified-recorder 插件的无遗漏参考手册。涵盖桌面与浏览器实时合流、节点与图工厂、前端工作台与推荐装配方式。
+title: 统一双源录制插件
+description: example.unified-recorder 的架构、消息、时间轴、声音字幕、产物与装配契约。
 status: stable
 ---
 
-# 统一双源录制插件 (Unified Recorder Plugin)
+# 统一双源录制插件
 
-插件 ID：`example.unified-recorder`  
-代码源码路径：
-- 后端：[`app/plugins/backend/unified-recorder/`](file:///c:/Users/kp157/Desktop/PM/GVSDK/app/plugins/backend/unified-recorder)
-- 前端：[`app/plugins/frontend/unified-recorder/`](file:///c:/Users/kp157/Desktop/PM/GVSDK/app/plugins/frontend/unified-recorder)
+| 项目 | 值 |
+| :--- | :--- |
+| 插件 ID | `example.unified-recorder` |
+| 后端 | [`app/plugins/backend/unified-recorder/`](../../app/plugins/backend/unified-recorder/) |
+| 前端 | [`app/plugins/frontend/unified-recorder/`](../../app/plugins/frontend/unified-recorder/) |
+| 主 run 数据 | `runs/main/.generated/data/recordings/` |
 
-`example.unified-recorder` 是 GraphFramework 的核心录制基础设施，也是 `runs/main` 桌面工作台的主力录制引擎。它支持 **Windows 桌面原生输入事件与 Chrome/Playwright 浏览器快照的双源流式合流**，能够实时提取高信噪比纯文字 Transcript、自动抽离落盘 MHT Base64 截图并生成可回放脚本。
+插件把 Windows 桌面、浏览器和麦克风合为同一录制会话，输出 Agent 可读操作记录、可回放脚本、截图、原生备份、独立声音轨道和字幕。
 
----
-
-## 1. 架构职责切分 (Architectural Separation)
-
-严格遵循微内核与世界节点分离原则：
-1. **`UnifiedSessionNode`（纯领域节点，所有者）**：
-   - 录制会话状态（State）的唯一 Owner，零 I/O、零系统调用；
-   - 集中维护流式合并的 `events`、`applications`、产物路径以及会话状态机。
-2. **`UnifiedCaptureNode`（ExecutionWorldNode，物理下发者）**：
-   - 经由注入的 `desktopControl` 和 `browserControl` 适配器向操作系统与浏览器下发 `start` / `stop` 指令；
-   - 执行完成后立即结算并回传句柄，**零持续轮询监听职责**。
-3. **`UnifiedObserverNode`（ObservationWorldNode，物理观察者）**：
-   - 经由注入的 `desktopEvents` / `browserEvents` 适配器轮询未读事件，打包装入 `RecordingEventInfo` 交回 Owner；
-   - 录制结束时经由 `desktopObservation` 适配器解压 PSR ZIP/MHT 截图并提取 Agent 纯文本，**零主动写操作**。
+## 一图总览
 
 ```mermaid
-flowchart TD
-    subgraph UI ["前端界面 (Electron / React)"]
-        UI_Trigger["StartRecordingInfo / StopRecordingInfo"]
-    end
-
-    subgraph Domain ["领域层 (Pure Node)"]
-        Session["UnifiedSessionNode<br>(State Owner, 零 I/O)"]
-    end
-
-    subgraph World_Exec ["物理执行层 (ExecutionWorldNode)"]
-        Capture["UnifiedCaptureNode<br>(StartCaptureInfo / StopCaptureInfo)"]
-    end
-
-    subgraph World_Obs ["物理观察层 (ObservationWorldNode)"]
-        Observer["UnifiedObserverNode<br>(PollUnifiedEventsInfo / ObserveRecordingInfo)"]
-    end
-
-    subgraph Adapters ["物理适配器 (EffectAdapters)"]
-        A_DC["desktopControl<br>(PSR / WinAPI)"]
-        A_BC["browserControl<br>(Playwright CLI / CDP)"]
-        A_DO["desktopObservation<br>(MHT 解压 / 截图提取)"]
-        A_BE["browserEvents<br>(CDP 动作捕获)"]
-    end
-
-    UI_Trigger -->|rendererRoot 白名单校验| Session
-    Session -->|StartCaptureInfo / StopCaptureInfo| Capture
-    Capture -->|ctx.effectAdapter| A_DC & A_BC
-    Capture -->|RecordingStartedInfo / RecordingStoppedInfo| Session
-    Session -->|ObserveRecordingInfo| Observer
-    Observer -->|ctx.effectAdapter| A_DO & A_BE
-    Observer -->|RecordingObservedInfo / RecordingEventInfo| Session
+mindmap
+  root((统一录制))
+    输入
+      Windows 桌面
+        PSR
+        输入钩子
+      浏览器
+        Playwright 动作
+        CDP 快照
+      麦克风
+        WebM 原音频
+        WAV 转写副本
+    核心
+      Session
+        状态唯一 Owner
+        零 I/O
+      Execution
+        启停桌面与浏览器
+      Observation
+        轮询事件
+        整理归档
+    输出
+      操作文字稿
+      对齐时间轴
+      回放脚本
+      截图
+      声音与字幕
+      原生导出
+    守护
+      Renderer 白名单
+      输入校验
+      渲染错误边界
+      启动恢复
+      保存超时
 ```
 
----
+## 架构边界
 
-## 2. 节点工厂与图工厂 (Node & Graph Factories)
-
-### 2.1 节点类工厂：`createUnifiedRecorder(ctx)`
-
-导出路径：`import { createUnifiedRecorder } from '../../app/plugins/backend/unified-recorder/index.mjs'`
-
-- **函数签名**：
-  ```typescript
-  function createUnifiedRecorder(ctx?: {
-    instanceId?: string;
-    nodeIdFor?: (local: string) => string;
-    dependencies?: {
-      desktopControl?: EffectAdapter;
-      browserControl?: EffectAdapter;
-      desktopObservation?: EffectAdapter;
-      desktopEvents?: EffectAdapter;
-      browserEvents?: EffectAdapter;
-    };
-  }): {
-    session: UnifiedSessionNode;
-    execution: UnifiedCaptureNode;
-    observation: UnifiedObserverNode;
-  };
-  ```
-- **返回值**：包含 3 个已经正确连接（ID 已自动绑定路由）的节点实例集合：
-  - `session`: `UnifiedSessionNode`（默认 ID：`example.unified-recorder/session` 或 `<instanceId>/session`）
-  - `execution`: `UnifiedCaptureNode`（默认 ID：`example.unified-recorder/execution` 或 `<instanceId>/execution`）
-  - `observation`: `UnifiedObserverNode`（默认 ID：`example.unified-recorder/observation` 或 `<instanceId>/observation`）
-
----
-
-### 2.2 图工厂：`createUnifiedRecorderGraph(ctx)`
-
-导出路径：`import { createUnifiedRecorderGraph } from '../../app/plugins/backend/unified-recorder/index.mjs'`
-
-- **函数签名**：
-  ```typescript
-  function createUnifiedRecorderGraph(ctx?: Context): Node[];
-  ```
-- **描述符元数据 (`createUnifiedRecorderGraph.describe()`)**：
-  ```javascript
-  {
-    kind: 'graph',
-    localIds: ['session', 'execution', 'observation'],
-    requiredBindings: [],
-    rendererRoots: [
-      { localId: 'session', infoType: 'StartRecordingInfo' },
-      { localId: 'session', infoType: 'StopRecordingInfo' },
-    ],
-  }
-  ```
-
----
-
-## 3. 节点类、状态机与 Info 契约
-
-### 3.1 `UnifiedSessionNode`
-
-#### 状态模式 (State Schema)
-```typescript
-interface UnifiedSessionState {
-  status: 'idle' | 'starting' | 'recording' | 'stopping' | 'processing' | 'error';
-  sessionId: string | null;
-  sources: Array<'desktop' | 'browser'>;
-  handles: { desktop: string | null; browser: string | null };
-  eventCount: number;
-  events: UnifiedEvent[];
-  applications: string[];
-  artifactPath: string | null;
-  sessionDir: string | null;
-  agentTranscriptPath: string | null;
-  agentTranscriptContent: string | null;
-  screenshotsDirectory: string | null;
-  nativeExports: { browser: string | null; desktop: string | null };
-  browserActions: string | null;
-  startedAt: string | null;
-  completedAt: string | null;
-  lastEvent: UnifiedEvent | null;
-  lastError: string | null;
-}
-
-interface UnifiedEvent {
-  index: number;
-  time: string | null;
-  source: 'desktop' | 'browser';
-  application: string | null;
-  windowTitle: string | null;
-  action: string | null;
-  description: string | null;
-  locator: string | null;
-  code: string | null;
-  text: string | null;
-  screenshotFile: string | null;
-}
+```mermaid
+mindmap
+  root((三节点))
+    UnifiedSessionNode
+      普通 Node
+      唯一 State Owner
+      合并事件与字幕
+      只发 Info
+    UnifiedCaptureNode
+      ExecutionWorldNode
+      调用 control adapters
+      执行后立即结算
+      不轮询
+    UnifiedObserverNode
+      ObservationWorldNode
+      调用 observation adapters
+      产生物理事实 Info
+      不主动写外部状态
 ```
 
-#### 接受的 Info 契约 (Inbound Infos)
-| Info 类型 (`info.type`) | 字段载荷 | 触发行为与变迁 |
+```mermaid
+flowchart LR
+    UI[Electron / React] -->|5 类 rendererRoots| S[Session]
+    S -->|StartCaptureInfo<br/>StopCaptureInfo| E[Execution]
+    E -->|RecordingStartedInfo<br/>RecordingStoppedInfo| S
+    S -->|ObserveRecordingInfo| O[Observation]
+    O -->|RecordingEventInfo<br/>RecordingObservedInfo| S
+    E --> C[desktopControl<br/>browserControl]
+    O --> A[desktopObservation<br/>desktopEvents<br/>browserEvents]
+```
+
+五个物理能力均由 run 宿主以 `EffectAdapter` 注入；插件不持有浏览器，也不直接驱动 PSR。
+
+| Adapter 常量 | ID | 用途 |
 | :--- | :--- | :--- |
-| `StartRecordingInfo` | `{ sessionId?: string, sources?: ('desktop'\|'browser')[] }` | 检查当前为 `idle` 或 `error`，置状态为 `starting`，向 `execution` 发送 `StartCaptureInfo`。 |
-| `StopRecordingInfo` | `{}` | 检查当前为 `recording`，置状态为 `stopping`，向 `execution` 发送 `StopCaptureInfo`。 |
-| `RecordingStartedInfo` | `{ sessionId, desktopHandle, browserHandle, artifactPath, sessionDir, startedAt }` | 置状态为 `recording`，记录底层物理句柄与会话目录。 |
-| `RecordingStoppedInfo` | `{ sessionId, artifactPath, sessionDir, browserActions, liveEvents, completedAt }` | 置状态为 `processing`，向 `observation` 发送 `ObserveRecordingInfo` 触发归档后处理。 |
-| `RecordingObservedInfo` | `{ sessionId, artifactPath, sessionDirectory, events, applications, agentTranscriptPath, ... }` | 归档处理完成，状态重置为 `idle`，更新完整合并事件集。 |
-| `RecordingEventInfo` | `{ sessionId, source, event }` | 收到流式事件，标准化后推入 `events` 数组，递增 `eventCount`。 |
-| `RecordingFailedInfo` | `{ phase, message }` | 发生非预期错误，置状态为 `error` 并记录 `lastError`。 |
+| `DESKTOP_CONTROL_ADAPTER_ID` | `unified/desktop-control` | 启停桌面录制 |
+| `BROWSER_CONTROL_ADAPTER_ID` | `unified/browser-control` | 启停浏览器录制 |
+| `DESKTOP_OBSERVATION_ADAPTER_ID` | `unified/desktop-observation` | 解包 PSR/MHT、提取截图和权威轨迹 |
+| `DESKTOP_EVENTS_ADAPTER_ID` | `unified/desktop-events` | 轮询桌面实时事件 |
+| `BROWSER_EVENTS_ADAPTER_ID` | `unified/browser-events` | 轮询浏览器实时事件 |
 
----
+## 工厂与公开入口
 
-### 3.2 物理 EffectAdapters 规格
-
-插件定义了 5 个核心 Adapter ID 常量：
-```javascript
-export const DESKTOP_CONTROL_ADAPTER_ID = 'unified/desktop-control';
-export const BROWSER_CONTROL_ADAPTER_ID = 'unified/browser-control';
-export const DESKTOP_OBSERVATION_ADAPTER_ID = 'unified/desktop-observation';
-export const DESKTOP_EVENTS_ADAPTER_ID = 'unified/desktop-events';
-export const BROWSER_EVENTS_ADAPTER_ID = 'unified/browser-events';
+```js
+import {
+  createUnifiedRecorder,
+  createUnifiedRecorderGraph,
+} from '../../app/plugins/backend/unified-recorder/index.mjs'
 ```
 
-宿主在装配时注入提供物理实现的 Adapter：
-```typescript
-interface EffectAdapter {
-  id: string;
-  execute: (request: any) => Promise<any>;
-}
+| API | 返回值 | 说明 |
+| :--- | :--- | :--- |
+| `createUnifiedRecorder(ctx)` | `{ session, execution, observation }` | 自动绑定三个节点 ID；依赖从 `ctx.dependencies` 注入。 |
+| `createUnifiedRecorderGraph(ctx)` | `Node[]` | 图工厂；本地 ID 为 `session`、`execution`、`observation`，无 required binding。 |
+
+节点 ID 默认为 `example.unified-recorder/<localId>`；存在 `nodeIdFor()` 或 `instanceId` 时使用实例前缀。
+
+### Renderer 白名单
+
+五类消息均发往 `session`，并由 `validate()` 校验：
+
+| Info | 关键载荷 | 作用 |
+| :--- | :--- | :--- |
+| `StartRecordingInfo` | `sessionId?`, `sources?` | 从 `idle/error` 进入 `starting`。来源限 `desktop/browser`。 |
+| `StopRecordingInfo` | 无 | 从 `recording` 进入 `stopping`。 |
+| `AudioTranscribedInfo` | `sessionId`, `audioFile`, `startedAt`, `durationMs`, `segments[]` | 合并声音片段和字幕。 |
+| `CorrectSubtitleInfo` | `id`, `text` | 修正字幕并同步持久化。 |
+| `RestoreSubtitlesInfo` | `subtitles[]`, `audioClips[]` | 启动后恢复声音时间轴。 |
+
+`StartCaptureInfo`、`StopCaptureInfo`、`RecordingStartedInfo`、`RecordingStoppedInfo`、`ObserveRecordingInfo`、`RecordingObservedInfo`、`RecordingEventInfo` 和 `PollUnifiedEventsInfo` 是内部消息，不向 renderer 开放。宿主只可经 `hostRoots` 向 observation 注入 `PollUnifiedEventsInfo`。
+
+### 会话状态
+
+| 分组 | 字段 |
+| :--- | :--- |
+| 生命周期 | `status`, `sessionId`, `sources`, `startedAt`, `completedAt`, `lastError` |
+| 物理句柄 | `handles.desktop`, `handles.browser` |
+| 操作轨迹 | `events[]`, `eventCount`, `lastEvent`, `applications[]`, `browserActions` |
+| 产物 | `artifactPath`, `sessionDir`, `agentTranscriptPath`, `agentTranscriptContent`, `screenshotsDirectory`, `nativeExports` |
+| 处理进度 | `progressLog[]` |
+| 声音 | `narrationStartedAt`, `subtitles[]`, `audioClips[]` |
+
+状态流转：
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> starting: StartRecordingInfo
+    error --> starting: StartRecordingInfo
+    starting --> recording: RecordingStartedInfo
+    recording --> stopping: StopRecordingInfo
+    recording --> error: RecordingFailedInfo
+    stopping --> processing: RecordingStoppedInfo
+    processing --> idle: RecordingObservedInfo
+    starting --> error: RecordingFailedInfo
+    stopping --> error: RecordingFailedInfo
+    processing --> error: RecordingFailedInfo
 ```
 
----
+`RecordingEventInfo` 在录制中追加标准事件；`RecordingProgressInfo` 更新处理进度。桌面归档完成后，权威桌面轨迹替换桌面预览，浏览器流保留。
 
-### 3.3 事件标准化与清洗工具函数
+标准事件字段为：
 
-插件在顶层直接导出了高效的数据清洗与产物生成函数：
-- `normalizeDesktopEvent(raw, index)`: 格式化 Windows 原始动作。
-- `normalizeBrowserEvent(raw, index)`: 格式化浏览器代码/快照。
-- `buildTranscript(events)`: 生成可读操作摘要序列。
-- `buildReplayScript(events)`: 提取合流的可执行 Playwright 脚本（桌面步骤作为注释保留）。
-- `plaintextOf(code)`: 提取 `fill` / `type` 中的明文内容。
-
----
-
-## 4. 前端工作台与 UI 交互 (Frontend & Workbench)
-
-前端代码位于 [`app/plugins/frontend/unified-recorder/`](file:///c:/Users/kp157/Desktop/PM/GVSDK/app/plugins/frontend/unified-recorder)。
-
-### 4.1 渲染根白名单与安全校验 (`rendererRoots`)
-在后端插件定义中，向前端暴露的唯一白名单操作为开始和停止录制：
-```javascript
-export default defineBackendPlugin({
-  id: 'example.unified-recorder',
-  createNodes: (context) => Object.values(createUnifiedRecorder(context)),
-  rendererRoots: [
-    {
-      targetNodeId: 'example.unified-recorder/session',
-      infoType: 'StartRecordingInfo',
-      validate: (info) => info?.type === 'StartRecordingInfo',
-    },
-    {
-      targetNodeId: 'example.unified-recorder/session',
-      infoType: 'StopRecordingInfo',
-      validate: (info) => info?.type === 'StopRecordingInfo',
-    },
-  ],
-});
+```text
+index, time, timestamp, atMs, timeSource, source, application, windowTitle,
+action, description, locator, code, text, screenshotFile
 ```
 
-### 4.2 前端宿主与 IPC 网桥 (`UnifiedRecorderBridge`)
-Electron 宿主进程中封装了暴露给页面的 `window.recorder` 桥接对象：
-```typescript
-interface UnifiedRecorderBridge {
-  readState: () => Promise<RecorderState>;
-  start: (sessionId?: string, sources?: Array<'desktop' | 'browser'>) => Promise<RecorderState>;
-  stop: () => Promise<RecorderState>;
-  openArtifact: () => Promise<{ ok: boolean; error?: string }>;
-  openPath: (targetPath: string) => Promise<{ ok: boolean; error?: string }>;
-  launchBrowser: () => Promise<{ ok: boolean; alive?: boolean; output?: string; error?: string }>;
-  copyToClipboard: (text: string) => Promise<{ ok: boolean }>;
-  readImage?: (targetPath: string) => Promise<{ ok: boolean; dataUrl?: string; error?: string }>;
-}
+顶层工具函数：`normalizeDesktopEvent`、`normalizeBrowserEvent`、`normalizeEvent`、`renumberEvents`、`buildTranscript`、`buildReplayScript`、`plaintextOf`。个人系统中的 `fill/type` 明文保存在 `text/code`，不做脱敏。
+
+## 声音、字幕与时间轴
+
+```mermaid
+flowchart LR
+    M[选定麦克风] --> W[录制 WebM/Opus 原件]
+    W --> P[本地检测发声与停顿]
+    W --> V[生成单声道 16 kHz WAV]
+    V --> R[OpenRouter 转写]
+    R --> T[词级或片段时间]
+    P --> S[按停顿拆分字幕]
+    T --> S
+    S --> C[人工修正]
+    C --> F[subtitles.json / SRT / 解说文字稿]
+    W --> F
+    F --> U[合入最终会话目录]
 ```
 
-UI 界面基于 `@graphframework/workbench` 与 `@graphframework/ui` 构建，具备深浅主题切换、状态机徽章 (`IndustrialChip`)、录制产物目录一键打开与代码复制能力。
+- 前端可选择麦克风、查看电平，并试录 5 秒回放。
+- 原始声音始终保留为 WebM；16 kHz 单声道 WAV 只用于转写。
+- 宿主优先读取 `OPENROUTER_API_KEY`，其次读取仓库根目录未入 Git 的 `credentials.json` 中 `openrouter.apiKey`。
+- 默认模型为 `microsoft/mai-transcribe-2`，可用 `OPENROUTER_STT_MODEL` 覆盖。OpenRouter 不保证中国区域路由。
+- 请求 `verbose_json` 词级时间；提供方不接受时退回片段时间。
+- 多句被合成单片段时，先用词级时间拆分；缺少词级时间时，按本地发声区间、最长停顿和句子数拆分；证据不足则保留原片段。
+- 转写失败不丢声音。字幕可逐行修正，修正同步到索引、SRT 和解说文字稿。
 
-前端把 IPC 快照作为不可信运行时输入，在进入工作台前校验状态、事件、进度、字幕与声音片段。宿主用同一映射生成正常和错误快照；状态读取失败会显示错误并继续轮询。根组件有渲染错误边界，意外组件异常时显示错误和“重试界面”，同时把异常写入渲染日志。启动恢复会等 run 进入 `running` 且 session Node 已出现后再注入字幕，失败则在下次状态读取时重试。
+### 统一时间基准
 
-声音字幕页使用麦克风的 WebM/Opus 片段；控制中枢可选择输入设备、查看音量电平，并试录五秒后回放。桌面宿主将原音频保存在运行数据目录的 `recordings/narration/`，前端另生成单声道 16 kHz WAV 转写副本。宿主优先读取环境变量 `OPENROUTER_API_KEY`，否则只读取仓库根目录未纳入 Git 的 `credentials.json` 中 `openrouter.apiKey`。调用 OpenRouter `/api/v1/audio/transcriptions` 时默认使用 `microsoft/mai-transcribe-2`，可通过 `OPENROUTER_STT_MODEL` 覆盖。请求 `verbose_json` 词级时间；若提供方不接受词级参数，会退回片段时间。录音会在本地检测静音间隔：当转写只返回一条包含多个句子的片段时，优先按词级时间拆分，否则按最长停顿与句子数对应拆分；没有足够时间依据时保留原片段。字幕时间相对于首次录制起点，允许直接在字幕行修正文字，修正同步保存为 `subtitles.json` 和 `subtitles.srt`。接口失败时原始 WebM 仍保留。OpenRouter 当前不提供中国区域的转写请求路由保证。
+```mermaid
+mindmap
+  root((timeBase.startedAt))
+    操作
+      atMs
+      timestamp
+      timeSource
+    解说
+      startMs
+      endMs
+      timestamp
+    交错索引
+      timeline atMs
+    展示
+      UI 最新在前
+      Agent 文本按原时序
+      文本显示到秒
+      浏览器未知时间留空
+```
 
-字幕列表按数值时间倒序显示，最新解说位于最前；字幕行和截图步骤显示同一来源的本地钟表时间，只显示到秒。供播放器使用的 SRT 仍按时间正序保存。
+同一会话以 `unified-events.json.timeBase.startedAt` 为零点。内部排序和播放保留毫秒；`agent-transcript.md`、`narration-transcript.md`、`aligned-timeline.md` 只显示到秒。SRT 按格式保留毫秒并按时间正序；前端字幕按数值时间倒序，最新项在最前。
 
-每段停止后，工作台等待操作导出与音频转写都完成，再将该段声音合入最终记录：会话目录的 `audio/narration.webm` 是独立声音轨道，`narration-transcript.md` 是独立的带时间戳解说文字，`agent-transcript.md` 只记录操作步骤，便于 Agent 分别读取并对照；`subtitles.srt` 是该段播放字幕。`unified-events.json` 的 `narration.audioClips`、`narration.subtitles` 和 `narration.transcriptFile` 保存两条轨道的关联与相对于该段录制起点的时间。字幕修正会同步更新字幕与独立解说文字；即使转写失败，声音轨道也会进入最终记录。只选择浏览器来源时，导出同样使用独立会话目录。
+桌面输入钩子提供毫秒时间。PSR 只有钟表秒，能匹配钩子时标记 `hook-correlated`。浏览器步骤没有可靠时间时留空，不推算。旧录制只有秒级事实时，补写过程不能恢复毫秒精度。
 
-同一会话以 `unified-events.json.timeBase.startedAt` 为起点。操作事件的 `atMs`、解说字幕的 `startMs` 与交错索引 `timeline[].atMs` 都使用这个起点；各项同时保存 ISO `timestamp`，供内部排序和播放定位。给 Agent 阅读的 `aligned-timeline.md`、`agent-transcript.md` 与 `narration-transcript.md` 只显示到秒，并按原始时间交错列出操作、浏览器观察与解说。桌面输入钩子提供毫秒时间；PSR 只有钟表秒时记录为秒级，能与输入钩子匹配时标记为 `hook-correlated`；浏览器脚本步骤若没有可靠时间，时间栏留空，不推算假时间。
+## 产物
 
-宿主下次启动时，会为已关联会话中缺少 `narration-transcript.md` 或 `aligned-timeline.md` 的旧导出补写文件，并从操作文字稿移除旧版追加的整段解说。旧录制只有钟表秒的事件无法恢复毫秒精度。
+```mermaid
+mindmap
+  root((会话目录))
+    Agent
+      agent-transcript.md
+      aligned-timeline.md
+      narration-transcript.md
+    结构化数据
+      unified-events.json
+      subtitles.srt
+    回放与证据
+      replay.js
+      screenshots
+      native
+    声音
+      audio/narration.webm
+```
 
-主 run 的操作录制保存在 `runs/main/.generated/data/recordings/`。每段录制结束后，会话目录名是 `YYYY-MM-DD_HH-mm-ss__YYYY-MM-DD_HH-mm-ss_<sessionId>`，分别表示本地开始与结束时间，精确到秒；录制中目录以 `_recording_<sessionId>` 结尾。目录内包含 `agent-transcript.md`、`aligned-timeline.md`、`unified-events.json`、`replay.js`、`native/`、`screenshots/`，启用麦克风时还包含 `audio/`、`narration-transcript.md` 与 `subtitles.srt`。历史录制目录保持原名。
+| 路径 | 内容 |
+| :--- | :--- |
+| `agent-transcript.md` | 只含操作步骤，便于单独读取。 |
+| `narration-transcript.md` | 带真实时间与相对时间的解说。 |
+| `aligned-timeline.md` | 操作、浏览器观察与解说的交错时间线。 |
+| `unified-events.json` | 事件、`timeBase`、`timeline[]` 与 `narration` 关联。 |
+| `audio/narration.webm` | 当前片段的独立原始声音轨道。 |
+| `subtitles.srt` | 播放字幕。 |
+| `native/`, `screenshots/`, `replay.js` | 原生导出、抽离截图与回放脚本。 |
 
-控制中枢可设置录制间隔与保存等待上限。到达间隔时桌面窗口弹出暂停提示，停止当前片段并等待操作记录及音频结算；全部完成后自动开始下一段。超过上限或转写失败时停止自动续录，供用户检查已经保存的声音和录制产物。
+声音暂存于 `recordings/narration/`，结算时复制进对应会话。`unified-events.json.narration` 保存 `audioClips`、`subtitles` 和 `transcriptFile`；即使转写失败，也写入声音关联。宿主启动后会为旧会话补写缺失的解说或对齐文字稿，并移除旧版嵌入操作文字稿的整段解说。
 
----
+目录名使用宿主本地时间：
 
-## 5. 推荐装配与实例化方式 (Recommended Assembly)
+```text
+录制中  YYYY-MM-DD_HH-mm-ss_recording_<sessionId>
+已完成  YYYY-MM-DD_HH-mm-ss__YYYY-MM-DD_HH-mm-ss_<sessionId>
+```
 
-### 5.1 在工作流中装配 (`runs/<name>/assembly.mjs`) —— 推荐
+结束日期单独记录，跨午夜不丢日期；历史目录不改名。只录浏览器时也使用独立会话目录。
 
-```javascript
-// runs/<name>/assembly.mjs
+## 前端可靠性与分段录制
+
+```mermaid
+mindmap
+  root((轻量工作台))
+    界面
+      深浅主题
+      状态徽章
+      打开产物目录
+      复制代码
+    输入防护
+      IPC 快照运行时校验
+      缺失列表归一为空数组
+    渲染防护
+      React 错误边界
+      故障页
+      重试界面
+      渲染日志
+    恢复
+      等待 run running
+      等待 session Projection
+      注入字幕索引
+      失败后下次读取重试
+    分段
+      设置录制间隔
+      到时弹窗暂停操作
+      等待操作与声音结算
+      保存后自动续录
+      超时或转写失败停止续录
+```
+
+正常快照与错误快照共用字段映射。状态读取失败时界面保持可见、显示错误并继续轮询。
+
+`window.recorder` 桥接提供状态读取、启停与结算、暂停提示、打开产物或指定路径、启动专用浏览器、复制文本、读取截图或声音、保存声音、修正字幕和打开声音目录；页面不直接访问 Node 或文件系统。
+
+“录制间隔”决定每段时长；“保存等待上限”覆盖停止录制、操作归档和音频转写。到时先弹出阻塞提示，再保存当前片段；全部完成后开始下一段。超时或转写失败时停止自动续录，已落盘内容仍可检查。
+
+## 装配与运行
+
+`runs/<name>/assembly.mjs`：
+
+```js
 export default {
   id: 'main.assembly',
   contribute(run) {
-    // 1. 注册后端插件
-    run.backendPlugin({
-      id: 'example.unified-recorder',
-      path: '../../app/plugins/backend/unified-recorder',
-    });
-
-    // 2. 注册前端插件
-    run.frontendPlugin({
-      id: 'example.unified-recorder',
-      path: '../../app/plugins/frontend/unified-recorder',
-    });
-
-    // 3. 实例化录制图
-    run.graph({
-      id: 'recorder',
-      plugin: 'example.unified-recorder',
-      factory: 'createUnifiedRecorderGraph',
-    });
-
-    // 4. 挂载主工作台 UI
-    run.frontend({
-      id: 'main-ui',
-      plugin: 'example.unified-recorder',
-      graph: 'recorder',
-    });
-
-    // 5. 守卫会话核心节点
-    run.requireNode('recorder/session');
+    run.backendPlugin({ id: 'example.unified-recorder', path: '../../app/plugins/backend/unified-recorder' })
+    run.frontendPlugin({ id: 'example.unified-recorder', path: '../../app/plugins/frontend/unified-recorder' })
+    run.graph({ id: 'recorder', plugin: 'example.unified-recorder', factory: 'createUnifiedRecorderGraph' })
+    run.frontend({ id: 'main-ui', plugin: 'example.unified-recorder', graph: 'recorder' })
+    run.requireNode('recorder/session')
   },
-};
+}
 ```
 
-### 5.2 宿主环境依赖配置 (`runs/<name>/run.config.json`)
+`runs/<name>/run.config.json` 中的宿主依赖：
 
-在 `run.config.json` 的 `backend.dependencies` 中指定底层执行器选项：
 ```json
 {
   "version": 2,
@@ -327,7 +332,7 @@ export default {
 }
 ```
 
-### 5.3 启动命令
+唯一启动入口：
 
 ```bash
 bash ./run.sh start runs/main/run.config.json
