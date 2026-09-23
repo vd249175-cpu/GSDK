@@ -223,6 +223,8 @@ await page.getByRole('button', { name: 'Login' }).click();
     expect(transcript).toContain('### Step 01 [Browser | example.com]')
     expect(transcript).toContain('- Action: fill')
     expect(transcript).toContain('- Input Text: "alice"')
+    expect(transcript).toContain('- Session time: ')
+    expect(transcript).not.toContain('时间未知')
     expect(transcript).toContain('- Screenshot: screenshots/screenshot0001.jpeg')
     // 关键红线：绝对不能包含 base64 字符串
     expect(transcript).not.toContain('base64')
@@ -236,12 +238,16 @@ await page.getByRole('button', { name: 'Login' }).click();
       const result = await processRecordingExport({
         sessionId: 'session-full',
         sessionDirectory: tempDir,
+        startedAt: '2026-09-23T00:00:00.000Z',
+        completedAt: '2026-09-23T00:00:05.000Z',
         browserRawActions: browserCode,
+        browserObservations: [{ index: 1, source: 'browser', action: 'snapshot', description: 'Browser snapshot', timestamp: '2026-09-23T00:00:01.500Z' }],
         desktopZipPath: null,
         liveDesktopEvents: [
           {
             index: 1,
             time: '15:00:01',
+            timestamp: '2026-09-23T00:00:01.000Z',
             source: 'desktop',
             application: 'EXPLORER.EXE',
             action: 'Mouse Left Click',
@@ -265,6 +271,12 @@ await page.getByRole('button', { name: 'Login' }).click();
       const jsonDisk = JSON.parse(await readFile(join(tempDir, 'unified-events.json'), 'utf8'))
       expect(jsonDisk.events).toHaveLength(3)
       expect(jsonDisk.agentTranscript).toBe('agent-transcript.md')
+      expect(jsonDisk.alignedTimeline).toBe('aligned-timeline.md')
+      expect(jsonDisk.events.every((event) => Object.hasOwn(event, 'atMs'))).toBe(true)
+      expect(jsonDisk.browserObservations[0].atMs).toBe(1500)
+      expect(jsonDisk.timeline.map((item) => [item.kind, item.atMs])).toEqual([
+        ['operation', 1000], ['observation', 1500], ['operation', null], ['operation', null],
+      ])
     } finally {
       await rm(tempDir, { recursive: true, force: true }).catch(() => {})
     }
@@ -282,6 +294,7 @@ await page.getByRole('button', { name: 'Login' }).click();
 
     const polled = await adapters.browserEvents.execute({ op: 'poll', sessionId: 's-1' })
     expect(polled.events[0].snapshot).toContain('heading')
+    expect(Number.isFinite(Date.parse(polled.events[0].timestamp))).toBe(true)
 
     const stopped = await adapters.browserControl.execute({ op: 'stop', sessionId: 's-1' })
     expect(stopped.actions).toContain('page.goto')

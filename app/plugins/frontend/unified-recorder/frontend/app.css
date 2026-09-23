@@ -898,7 +898,7 @@ body {
 .narration-subtitles { flex: 1; overflow: auto; padding: 12px; }
 .subtitle-row { display: flex; gap: 12px; align-items: center; padding: 8px; border-bottom: 1px solid var(--border-subtle); }
 .subtitle-row.is-current { background: rgba(56, 189, 248, .12); }
-.subtitle-time { width: 110px; flex-shrink: 0; border: 0; background: none; color: var(--accent-primary); cursor: pointer; font: 11px monospace; text-align: left; }
+.subtitle-time { width: 125px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; border: 0; background: none; color: var(--accent-primary); cursor: pointer; font: 11px monospace; text-align: left; }
 .subtitle-row input { flex: 1; min-width: 0; padding: 7px; color: var(--text-primary); background: var(--surface-canvas); border: 1px solid var(--border-subtle); border-radius: 3px; }
 .renderer-failure { box-sizing: border-box; min-height: 100vh; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 16px; padding: 48px; background: #0c0e12; color: #f8fafc; font-family: sans-serif; }
 .renderer-failure h1 { margin: 0; font-size: 22px; }

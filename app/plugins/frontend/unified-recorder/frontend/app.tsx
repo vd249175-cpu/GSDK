@@ -31,6 +31,8 @@ export type RecorderStatus = 'idle' | 'starting' | 'recording' | 'stopping' | 'p
 export type UnifiedEvent = {
   index: number
   time: string | null
+  timestamp: string | null
+  atMs: number | null
   source: 'desktop' | 'browser'
   application: string | null
   windowTitle: string | null
@@ -149,6 +151,8 @@ const normalizeRecorderState = (raw: unknown): RecorderState => {
     return [{
       index: finiteNumber(event.index, index + 1),
       time: stringOrNull(event.time),
+      timestamp: stringOrNull(event.timestamp),
+      atMs: typeof event.atMs === 'number' && Number.isFinite(event.atMs) ? event.atMs : null,
       source: event.source === 'browser' ? 'browser' : 'desktop',
       application: stringOrNull(event.application),
       windowTitle: stringOrNull(event.windowTitle),

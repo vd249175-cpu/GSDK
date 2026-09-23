@@ -78,6 +78,13 @@ const statusLabelZh: Record<string, string> = {
   error: '运行异常',
 }
 
+const wallClock = (timestamp: string | null) => {
+  const value = Date.parse(timestamp ?? '')
+  return Number.isFinite(value) ? new Date(value).toLocaleTimeString('zh-CN', {
+    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3,
+  }) : null
+}
+
 /* ==========================================================================
    1. 控制中枢面板 (recorder.controls)
    ========================================================================== */
@@ -339,6 +346,7 @@ function ScreenshotCard({
     <div className="screenshot-card">
       <div className="screenshot-header is-mono">
         <span>Step {String(event.index).padStart(2, '0')}</span>
+        {wallClock(event.timestamp) && <span>{wallClock(event.timestamp)}</span>}
         <span>{event.application ?? event.source}</span>
       </div>
       <div
@@ -479,6 +487,13 @@ export function NarrationPanel(_props: PanelProps) {
     ?? state.audioClips.reduce<(typeof state.audioClips)[number] | undefined>((latest, item) =>
       !latest || item.startMs > latest.startMs ? item : latest, undefined)
   const totalMs = Math.max(1000, ...state.audioClips.map((item) => item.startMs + item.durationMs))
+  const captionClock = (atMs: number) => {
+    const origin = Date.parse(state.narrationStartedAt ?? '')
+    const value = origin + atMs
+    return Number.isFinite(value) && Math.abs(value) <= 8.64e15
+      ? wallClock(new Date(value).toISOString()) ?? clock(atMs)
+      : clock(atMs)
+  }
 
   useEffect(() => {
     if (!clip) return
@@ -527,8 +542,8 @@ export function NarrationPanel(_props: PanelProps) {
       <div className="narration-subtitles">
         {state.subtitles.length === 0 ? <EmptyState icon={Mic} title="暂无字幕" description="开始录制并用麦克风解说。每段保存后会生成带时间戳的字幕；识别文字可直接修改。" /> : newestSubtitlesFirst(state.subtitles).map((item) => (
           <div key={item.id} className={`subtitle-row ${currentMs >= item.startMs && currentMs <= item.endMs ? 'is-current' : ''}`}>
-            <button type="button" className="subtitle-time" onClick={() => seek(item.startMs)} title="跳转并播放此处">{clock(item.startMs)}–{clock(item.endMs)}</button>
-            <input aria-label={`${clock(item.startMs)} 字幕`} value={drafts[item.id] ?? item.text} onChange={(event) => setDrafts((previous) => ({ ...previous, [item.id]: event.target.value }))} onBlur={() => void correct(item.id, item.text)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} />
+            <button type="button" className="subtitle-time" onClick={() => seek(item.startMs)} title={`全局录制位置 ${clock(item.startMs)}，点击跳转并播放`}><span>{captionClock(item.startMs)}</span><span>→ {captionClock(item.endMs)}</span></button>
+            <input aria-label={`${captionClock(item.startMs)} 字幕`} value={drafts[item.id] ?? item.text} onChange={(event) => setDrafts((previous) => ({ ...previous, [item.id]: event.target.value }))} onBlur={() => void correct(item.id, item.text)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} />
           </div>
         ))}
       </div>

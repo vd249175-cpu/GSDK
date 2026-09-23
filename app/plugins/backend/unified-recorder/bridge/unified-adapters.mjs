@@ -33,6 +33,7 @@ import { constants as fsConstants } from 'node:fs'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { alignRecordingEvents, buildSharedTimeline, correlateDesktopEvents, formatOffset, renderSharedTimeline } from './recording-timeline.mjs'
 
 const execFileAsync = promisify(execFile)
 const recordingSessionId = /^[A-Za-z0-9_-]{1,100}$/
@@ -161,12 +162,15 @@ export const waitForArtifact = async (artifactPath, timeoutMs = 15000) => {
 export const liveEventFrom = (input, index) => {
   const application = typeof input.application === 'string' ? input.application : null
   const windowTitle = typeof input.windowTitle === 'string' ? input.windowTitle : null
-  const time = new Date(Number(input.timestamp) || Date.now()).toLocaleTimeString()
+  const capturedAt = new Date(Number(input.timestamp) || Date.now())
+  const time = capturedAt.toLocaleTimeString()
+  const timestamp = capturedAt.toISOString()
   if (input.kind === 'mouse') {
     const button = input.button === 'right' ? 'Right' : input.button === 'middle' ? 'Middle' : 'Left'
     return {
       index,
       time,
+      timestamp,
       source: 'desktop',
       application,
       windowTitle,
@@ -182,6 +186,7 @@ export const liveEventFrom = (input, index) => {
     return {
       index,
       time,
+      timestamp,
       source: 'desktop',
       application,
       windowTitle,
@@ -196,6 +201,7 @@ export const liveEventFrom = (input, index) => {
   return {
     index,
     time,
+    timestamp,
     source: 'desktop',
     application,
     windowTitle,
@@ -290,7 +296,9 @@ export function createWindowsInputEventSource({
       for (const input of batch) {
         const previous = events.at(-1)
         if (input.kind === 'keyboard' && previous?.action === 'Keyboard Input' && previous.application === input.application) {
-          previous.time = new Date(Number(input.timestamp) || Date.now()).toLocaleTimeString()
+          const capturedAt = new Date(Number(input.timestamp) || Date.now())
+          previous.time = capturedAt.toLocaleTimeString()
+          previous.timestamp = capturedAt.toISOString()
           continue
         }
         events.push(liveEventFrom(input, nextIndex++))
@@ -503,6 +511,7 @@ export function buildAgentTranscript({ sessionId, startedAt, completedAt, applic
     `- Completed: ${completedAt ?? '-'}`,
     `- Applications: ${(applications ?? []).join(', ') || '-'}`,
     `- Total Steps: ${events.length}`,
+    '- Aligned Timeline: aligned-timeline.md',
     '',
     '## Step-by-Step Operations',
     '',
@@ -514,7 +523,8 @@ export function buildAgentTranscript({ sessionId, startedAt, completedAt, applic
     const appTag = event.application ? ` | ${event.application}` : ''
     const lines = [
       `### Step ${num} [${sourceTag}${appTag}]`,
-      `- Time: ${event.time ?? '-'}`,
+      `- Session time: ${formatOffset(event.atMs)}`,
+      `- Timestamp: ${event.timestamp ?? ''}`,
       `- Action: ${event.action ?? '-'}`,
       `- Description: ${event.description ?? '-'}`,
     ]
@@ -554,6 +564,8 @@ export function mergeAndCleanEvents({ desktopEvents = [], browserEvents = [] }) 
         ...bEvent,
         screenshotFile: desk.screenshotFile ?? bEvent.screenshotFile,
         time: desk.time ?? bEvent.time,
+        timestamp: desk.timestamp ?? bEvent.timestamp ?? null,
+        timeSource: 'desktop-pair',
         application: desk.application ?? bEvent.application,
       })
     } else {
@@ -590,6 +602,7 @@ export async function processRecordingExport({
   browserRawActions = '',
   desktopZipPath = null,
   liveDesktopEvents = [],
+  browserObservations = [],
   startedAt = null,
   completedAt = null,
   readArchive = readPsrArchiveAndExtract,
@@ -620,12 +633,16 @@ export async function processRecordingExport({
     }
   }
   const desktopEvents = extractedDesktop?.events?.length > 0
-    ? extractedDesktop.events
+    ? correlateDesktopEvents(extractedDesktop.events, liveDesktopEvents, startedAt, completedAt)
     : liveDesktopEvents
   const browserEvents = parsePlaywrightScript(browserRawActions)
 
   // 3. 数据清洗与对齐合并
-  const mergedEvents = mergeAndCleanEvents({ desktopEvents, browserEvents })
+  const mergedEvents = alignRecordingEvents(mergeAndCleanEvents({ desktopEvents, browserEvents }), startedAt, completedAt)
+  const alignedBrowserObservations = alignRecordingEvents(browserObservations, startedAt, completedAt)
+  const timeline = buildSharedTimeline({ events: mergedEvents, browserObservations: alignedBrowserObservations, startedAt })
+  const alignedTimelinePath = join(sessionDirectory, 'aligned-timeline.md')
+  await writeFile(alignedTimelinePath, renderSharedTimeline({ startedAt, timeline }), 'utf8')
   await onProgress?.({ stage: 'events-merged', sessionId, count: mergedEvents.length })
   const applications = [...new Set([
     ...(extractedDesktop?.applications ?? []),
@@ -650,6 +667,10 @@ export async function processRecordingExport({
     completedAt: completedAt ?? new Date().toISOString(),
     applications,
     events: mergedEvents,
+    browserObservations: alignedBrowserObservations,
+    timeline,
+    alignedTimeline: 'aligned-timeline.md',
+    timeBase: { startedAt, unit: 'ms' },
     nativeExports: {
       browser: relative(sessionDirectory, nativeBrowserPath).replace(/\\/g, '/'),
       desktop: nativeDesktopPath ? relative(sessionDirectory, nativeDesktopPath).replace(/\\/g, '/') : null,
@@ -826,6 +847,7 @@ export function createUnifiedAdapters({
         browserRawActions: request.browserActions ?? '',
         desktopZipPath: request.artifactPath,
         liveDesktopEvents: request.liveEvents ?? [],
+        browserObservations: request.browserObservations ?? [],
         startedAt: request.startedAt,
         completedAt: request.completedAt,
       })
@@ -888,7 +910,7 @@ export function createUnifiedAdapters({
       if (snapshot === lastBrowserSnapshot) return { events: [], cursor: request?.cursor ?? null }
       lastBrowserSnapshot = snapshot
       return {
-        events: [{ kind: 'snapshot', sessionId: request?.sessionId ?? null, snapshot }],
+        events: [{ kind: 'snapshot', sessionId: request?.sessionId ?? null, snapshot, timestamp: new Date().toISOString() }],
         cursor: request?.cursor ?? null,
       }
     },

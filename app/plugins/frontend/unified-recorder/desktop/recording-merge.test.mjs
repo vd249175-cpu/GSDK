@@ -13,7 +13,7 @@ describe('final recording merge', () => {
       const narrationDirectory = join(recordingsDirectory, 'narration')
       const sessionDirectory = join(recordingsDirectory, '2026-09-23_09-00-00__2026-09-23_09-00-05_clip-1')
       await mkdir(sessionDirectory, { recursive: true })
-      await writeFile(join(sessionDirectory, 'unified-events.json'), JSON.stringify({ sessionId: 'clip-1', startedAt: '2026-09-23T00:00:00.000Z', events: [{ index: 1, source: 'desktop', action: 'click' }] }))
+      await writeFile(join(sessionDirectory, 'unified-events.json'), JSON.stringify({ sessionId: 'clip-1', startedAt: '2026-09-23T00:00:00.000Z', events: [{ index: 1, source: 'desktop', action: 'click', timestamp: '2026-09-23T00:00:01.500Z', atMs: 1500, timeSource: 'input-hook' }] }))
       await writeFile(join(sessionDirectory, 'agent-transcript.md'), '# Recording\n\n## Step-by-Step Operations\n\n### Step 01\n\n<!-- voice-narration:start -->\n## Voice Narration\n旧版解说\n<!-- voice-narration:end -->\n')
       const store = createNarrationStore({
         directory: narrationDirectory, apiKey: 'test-key',
@@ -26,12 +26,15 @@ describe('final recording merge', () => {
 
       const record = JSON.parse(await readFile(join(sessionDirectory, 'unified-events.json'), 'utf8'))
       expect(record.events).toHaveLength(1)
-      expect(record.narration.audioClips).toEqual([{ audioFile: 'audio/narration.webm', startMs: 1000, durationMs: 2000 }])
+      expect(record.narration.audioClips).toMatchObject([{ audioFile: 'audio/narration.webm', startMs: 1000, durationMs: 2000 }])
       expect(record.narration.subtitles).toMatchObject([{ startMs: 1250, endMs: 2500, text: '初始字幕' }])
+      expect(record.narration.subtitles[0].timestamp).toBe('2026-09-23T00:00:01.250Z')
+      expect(record.timeline.map((item) => [item.kind, item.atMs])).toEqual([['speech', 1250], ['operation', 1500]])
       expect(record.narration.transcriptFile).toBe('narration-transcript.md')
       expect(await readFile(join(sessionDirectory, 'audio', 'narration.webm'))).toEqual(Buffer.from([1, 2, 3]))
       expect(await readFile(join(sessionDirectory, 'subtitles.srt'), 'utf8')).toContain('00:00:01,250 --> 00:00:02,500\n初始字幕')
-      expect(await readFile(join(sessionDirectory, 'narration-transcript.md'), 'utf8')).toContain('00:00:01–00:00:02 初始字幕')
+      expect(await readFile(join(sessionDirectory, 'narration-transcript.md'), 'utf8')).toContain('00:00:01.250–00:00:02.500 | 2026-09-23T00:00:01.250Z | 初始字幕')
+      expect(await readFile(join(sessionDirectory, 'aligned-timeline.md'), 'utf8')).toContain('click')
 
       const corrected = await store.correct('clip-1:0', '修正字幕')
       expect(corrected.recordingDirectories['clip-1']).toBe(sessionDirectory)

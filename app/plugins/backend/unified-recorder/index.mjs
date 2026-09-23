@@ -102,6 +102,7 @@ export function normalizeBrowserEvent(raw, index) {
   return {
     index: finiteIndex(typeof raw === 'object' ? raw?.index : null, index),
     time: (typeof raw === 'object' && raw?.time) ?? null,
+    timestamp: (typeof raw === 'object' && raw?.timestamp) ?? null,
     source: 'browser',
     application: hostOf(where ?? '') ?? where,
     windowTitle: url,
@@ -251,6 +252,7 @@ export class UnifiedSessionNode extends Node {
           artifactPath,
           browserActions,
           liveEvents,
+          browserObservations: ctx.read('events').filter((event) => event.source === 'browser' && event.action === 'snapshot'),
           startedAt: ctx.read('startedAt'),
           completedAt: info.completedAt ?? new Date().toISOString(),
         },
@@ -517,6 +519,7 @@ export class UnifiedObserverNode extends ObservationWorldNode {
         artifactPath: info.artifactPath,
         browserActions: info.browserActions,
         liveEvents: info.liveEvents,
+        browserObservations: info.browserObservations,
         startedAt: info.startedAt,
         completedAt: info.completedAt,
       })
