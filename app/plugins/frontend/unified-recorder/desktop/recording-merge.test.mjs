@@ -33,7 +33,7 @@ describe('final recording merge', () => {
       expect(record.narration.transcriptFile).toBe('narration-transcript.md')
       expect(await readFile(join(sessionDirectory, 'audio', 'narration.webm'))).toEqual(Buffer.from([1, 2, 3]))
       expect(await readFile(join(sessionDirectory, 'subtitles.srt'), 'utf8')).toContain('00:00:01,250 --> 00:00:02,500\n初始字幕')
-      expect(await readFile(join(sessionDirectory, 'narration-transcript.md'), 'utf8')).toContain('00:00:01.250–00:00:02.500 | 2026-09-23T00:00:01.250Z | 初始字幕')
+      expect(await readFile(join(sessionDirectory, 'narration-transcript.md'), 'utf8')).toContain('00:00:01–00:00:03 | 2026-09-23T00:00:01Z | 初始字幕')
       expect(await readFile(join(sessionDirectory, 'aligned-timeline.md'), 'utf8')).toContain('click')
 
       const corrected = await store.correct('clip-1:0', '修正字幕')

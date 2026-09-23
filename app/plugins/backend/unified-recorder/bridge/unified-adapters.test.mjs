@@ -200,13 +200,15 @@ await page.getByRole('button', { name: 'Login' }).click();
   it('生成专供 Agent 的纯文字 Markdown 版本，包含相对截图路径，绝不内嵌 Base64', () => {
     const transcript = buildAgentTranscript({
       sessionId: 'test-session',
-      startedAt: '15:00:00',
-      completedAt: '15:05:00',
+      startedAt: '2026-09-23T15:00:00.123Z',
+      completedAt: '2026-09-23T15:05:00.987Z',
       applications: ['CHROME.EXE', 'NOTEPAD.EXE'],
       events: [
         {
           index: 1,
           time: '15:00:05',
+          atMs: 5515,
+          timestamp: '2026-09-23T15:00:05.638Z',
           source: 'browser',
           application: 'example.com',
           action: 'fill',
@@ -223,8 +225,10 @@ await page.getByRole('button', { name: 'Login' }).click();
     expect(transcript).toContain('### Step 01 [Browser | example.com]')
     expect(transcript).toContain('- Action: fill')
     expect(transcript).toContain('- Input Text: "alice"')
-    expect(transcript).toContain('- Session time: ')
+    expect(transcript).toContain('- Session time: 00:00:06')
+    expect(transcript).toContain('- Timestamp: 2026-09-23T15:00:06Z')
     expect(transcript).not.toContain('时间未知')
+    expect(transcript).not.toMatch(/- Timestamp: .*\.\d{3}Z/)
     expect(transcript).toContain('- Screenshot: screenshots/screenshot0001.jpeg')
     // 关键红线：绝对不能包含 base64 字符串
     expect(transcript).not.toContain('base64')

@@ -1,7 +1,7 @@
 import { access, copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { subtitlesToSrt } from './narration.mjs'
-import { alignRecordingEvents, buildSharedTimeline, formatOffset, renderSharedTimeline, timestampAt } from '../../../backend/unified-recorder/bridge/recording-timeline.mjs'
+import { alignRecordingEvents, buildSharedTimeline, formatOffset, formatTimestamp, renderSharedTimeline, timestampAt } from '../../../backend/unified-recorder/bridge/recording-timeline.mjs'
 
 const SESSION_ID = /^[a-zA-Z0-9_-]{1,100}$/
 export async function mergeNarrationIntoRecording({ sessionId, sessionDirectory, recordingsDirectory, narrationDirectory, index }) {
@@ -56,11 +56,11 @@ export async function mergeNarrationIntoRecording({ sessionId, sessionDirectory,
     '',
     `- Audio: ${audioFile}`,
     '- Subtitles: subtitles.srt',
-    `- Recording started: ${record.startedAt ?? '-'}`,
+    `- Recording started: ${formatTimestamp(record.startedAt)}`,
     '',
     '## Timed Speech',
     '',
-    ...subtitles.map((item) => `- ${formatOffset(item.startMs)}–${formatOffset(item.endMs)} | ${item.timestamp ?? ''} | ${item.text}`),
+    ...subtitles.map((item) => `- ${formatOffset(item.startMs)}–${formatOffset(item.endMs)} | ${formatTimestamp(item.timestamp)} | ${item.text}`),
     '',
   ].join('\n')
   const nextTranscript = transcript.replace(/\n?<!-- voice-narration:start -->[\s\S]*?<!-- voice-narration:end -->\n?/, '\n')

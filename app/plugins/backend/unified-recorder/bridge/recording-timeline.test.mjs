@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { alignRecordingEvents, buildSharedTimeline, correlateDesktopEvents, renderSharedTimeline } from './recording-timeline.mjs'
+import { alignRecordingEvents, buildSharedTimeline, correlateDesktopEvents, formatOffset, formatTimestamp, renderSharedTimeline } from './recording-timeline.mjs'
 
 describe('recording timeline', () => {
+  it('renders agent-facing times to seconds while retaining millisecond offsets', () => {
+    expect(formatOffset(5515)).toBe('00:00:06')
+    expect(formatTimestamp('2026-09-23T02:39:18.499Z')).toBe('2026-09-23T02:39:18Z')
+    expect(formatTimestamp(null)).toBe('')
+  })
   it('aligns local clock readings and hook timestamps to one session start across midnight', () => {
     const startedAt = new Date(2026, 8, 23, 23, 59, 58, 500).toISOString()
     const completedAt = new Date(2026, 8, 24, 0, 0, 3).toISOString()
@@ -29,6 +34,8 @@ describe('recording timeline', () => {
     expect(timeline[0].timestamp).toBe('2026-09-23T00:00:01.200Z')
     const markdown = renderSharedTimeline({ startedAt, timeline })
     expect(markdown).not.toContain('时间未知')
+    expect(markdown).toContain('| 00:00:01 | 2026-09-23T00:00:01Z | Speech | 点击这里 |')
+    expect(markdown).not.toContain('.200Z')
     expect(markdown).toContain('|  |  | Browser | Navigate |')
   })
 

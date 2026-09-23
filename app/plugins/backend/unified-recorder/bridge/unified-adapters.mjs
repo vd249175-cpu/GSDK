@@ -33,7 +33,7 @@ import { constants as fsConstants } from 'node:fs'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { alignRecordingEvents, buildSharedTimeline, correlateDesktopEvents, formatOffset, renderSharedTimeline } from './recording-timeline.mjs'
+import { alignRecordingEvents, buildSharedTimeline, correlateDesktopEvents, formatOffset, formatTimestamp, renderSharedTimeline } from './recording-timeline.mjs'
 
 const execFileAsync = promisify(execFile)
 const recordingSessionId = /^[A-Za-z0-9_-]{1,100}$/
@@ -507,8 +507,8 @@ export function parsePlaywrightScript(script) {
 export function buildAgentTranscript({ sessionId, startedAt, completedAt, applications, events }) {
   const header = [
     `# Unified Recording Transcript: ${sessionId ?? 'session'}`,
-    `- Started: ${startedAt ?? '-'}`,
-    `- Completed: ${completedAt ?? '-'}`,
+    `- Started: ${formatTimestamp(startedAt)}`,
+    `- Completed: ${formatTimestamp(completedAt)}`,
     `- Applications: ${(applications ?? []).join(', ') || '-'}`,
     `- Total Steps: ${events.length}`,
     '- Aligned Timeline: aligned-timeline.md',
@@ -524,7 +524,7 @@ export function buildAgentTranscript({ sessionId, startedAt, completedAt, applic
     const lines = [
       `### Step ${num} [${sourceTag}${appTag}]`,
       `- Session time: ${formatOffset(event.atMs)}`,
-      `- Timestamp: ${event.timestamp ?? ''}`,
+      `- Timestamp: ${formatTimestamp(event.timestamp)}`,
       `- Action: ${event.action ?? '-'}`,
       `- Description: ${event.description ?? '-'}`,
     ]

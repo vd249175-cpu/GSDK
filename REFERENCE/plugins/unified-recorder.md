@@ -252,11 +252,11 @@ UI 界面基于 `@graphframework/workbench` 与 `@graphframework/ui` 构建，�
 
 声音字幕页使用麦克风的 WebM/Opus 片段；控制中枢可选择输入设备、查看音量电平，并试录五秒后回放。桌面宿主将音频保存在运行数据目录的 `recordings/narration/`，优先读取宿主环境变量 `OPENROUTER_API_KEY`，否则只读取仓库根目录未纳入 Git 的 `credentials.json` 中 `openrouter.apiKey`。调用 OpenRouter `/api/v1/audio/transcriptions` 时默认使用 `qwen/qwen3-asr-1.7b`，可通过 `OPENROUTER_STT_MODEL` 覆盖。请求 `verbose_json` 的片段与词级时间；若提供方不接受词级参数，会退回片段时间。录音会在本地检测静音间隔：当转写只返回一条包含多个句子的片段时，优先按词级时间拆分，否则按最长停顿与句子数对应拆分；没有足够时间依据时保留原片段。字幕时间相对于首次录制起点，允许直接在字幕行修正文字，修正同步保存为 `subtitles.json` 和 `subtitles.srt`。接口失败时原始 WebM 仍保留。OpenRouter 当前不提供中国区域的转写请求路由保证，Qwen 模型仅代表中文语音能力与模型来源，不保证音频在中国境内处理。
 
-字幕列表按数值时间倒序显示，最新解说位于最前；字幕行和截图步骤显示同一来源的本地钟表时间，精确到毫秒。供播放器使用的 SRT 仍按时间正序保存。
+字幕列表按数值时间倒序显示，最新解说位于最前；字幕行和截图步骤显示同一来源的本地钟表时间，只显示到秒。供播放器使用的 SRT 仍按时间正序保存。
 
 每段停止后，工作台等待操作导出与音频转写都完成，再将该段声音合入最终记录：会话目录的 `audio/narration.webm` 是独立声音轨道，`narration-transcript.md` 是独立的带时间戳解说文字，`agent-transcript.md` 只记录操作步骤，便于 Agent 分别读取并对照；`subtitles.srt` 是该段播放字幕。`unified-events.json` 的 `narration.audioClips`、`narration.subtitles` 和 `narration.transcriptFile` 保存两条轨道的关联与相对于该段录制起点的时间。字幕修正会同步更新字幕与独立解说文字；即使转写失败，声音轨道也会进入最终记录。只选择浏览器来源时，导出同样使用独立会话目录。
 
-同一会话以 `unified-events.json.timeBase.startedAt` 为起点。操作事件的 `atMs`、解说字幕的 `startMs` 与交错索引 `timeline[].atMs` 都使用这个起点；各项同时保存 ISO `timestamp`。`aligned-timeline.md` 按时间交错列出操作、浏览器观察与解说，供 Agent 逐项对照。桌面输入钩子提供毫秒时间；PSR 只有钟表秒时记录为秒级，能与输入钩子匹配时标记为 `hook-correlated`；浏览器脚本步骤若没有可靠时间，时间栏留空，不推算假时间。
+同一会话以 `unified-events.json.timeBase.startedAt` 为起点。操作事件的 `atMs`、解说字幕的 `startMs` 与交错索引 `timeline[].atMs` 都使用这个起点；各项同时保存 ISO `timestamp`，供内部排序和播放定位。给 Agent 阅读的 `aligned-timeline.md`、`agent-transcript.md` 与 `narration-transcript.md` 只显示到秒，并按原始时间交错列出操作、浏览器观察与解说。桌面输入钩子提供毫秒时间；PSR 只有钟表秒时记录为秒级，能与输入钩子匹配时标记为 `hook-correlated`；浏览器脚本步骤若没有可靠时间，时间栏留空，不推算假时间。
 
 宿主下次启动时，会为已关联会话中缺少 `narration-transcript.md` 或 `aligned-timeline.md` 的旧导出补写文件，并从操作文字稿移除旧版追加的整段解说。旧录制只有钟表秒的事件无法恢复毫秒精度。
 

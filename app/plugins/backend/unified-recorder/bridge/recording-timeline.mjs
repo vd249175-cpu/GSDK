@@ -5,11 +5,16 @@ const validDate = (value) => {
 
 export const formatOffset = (atMs) => {
   if (!Number.isFinite(atMs)) return ''
-  const value = Math.max(0, Math.round(atMs))
-  const hours = Math.floor(value / 3_600_000)
-  const minutes = Math.floor(value / 60_000) % 60
-  const seconds = Math.floor(value / 1000) % 60
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(value % 1000).padStart(3, '0')}`
+  const value = Math.max(0, Math.round(atMs / 1000))
+  const hours = Math.floor(value / 3600)
+  const minutes = Math.floor(value / 60) % 60
+  const seconds = value % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+export const formatTimestamp = (timestamp) => {
+  const value = validDate(timestamp)
+  return value === null ? '' : new Date(Math.round(value / 1000) * 1000).toISOString().replace(/\.000Z$/, 'Z')
 }
 
 export const timestampAt = (startedAt, atMs) => {
@@ -119,7 +124,7 @@ export function renderSharedTimeline({ startedAt, timeline }) {
   return [
     '# Aligned Recording Timeline',
     '',
-    `- Session started: ${startedAt ?? ''}`,
+    `- Session started: ${formatTimestamp(startedAt)}`,
     '- Operation and speech offsets use the same session start.',
     '',
     '| Session time | Timestamp | Track | Detail |',
@@ -127,7 +132,7 @@ export function renderSharedTimeline({ startedAt, timeline }) {
     ...timeline.map((item) => {
       const track = item.kind === 'speech' ? 'Speech' : item.kind === 'observation' ? 'Browser observation'
         : item.source === 'browser' ? 'Browser' : 'Desktop'
-      return `| ${item.atMs === null ? '' : formatOffset(item.atMs)} | ${item.timestamp ?? ''} | ${track} | ${cell(item.description)} |`
+      return `| ${item.atMs === null ? '' : formatOffset(item.atMs)} | ${formatTimestamp(item.timestamp)} | ${track} | ${cell(item.description)} |`
     }),
     '',
   ].join('\n')
