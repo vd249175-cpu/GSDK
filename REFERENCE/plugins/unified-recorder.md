@@ -252,6 +252,8 @@ UI 界面基于 `@graphframework/workbench` 与 `@graphframework/ui` 构建，�
 
 声音字幕页使用麦克风的 WebM/Opus 片段；控制中枢可选择输入设备、查看音量电平，并试录五秒后回放。桌面宿主将音频保存在运行数据目录的 `recordings/narration/`，优先读取宿主环境变量 `OPENROUTER_API_KEY`，否则只读取仓库根目录未纳入 Git 的 `credentials.json` 中 `openrouter.apiKey`。调用 OpenRouter `/api/v1/audio/transcriptions` 时默认使用 `qwen/qwen3-asr-1.7b`，可通过 `OPENROUTER_STT_MODEL` 覆盖。请求使用 `verbose_json` 片段时间戳。字幕时间相对于首次录制起点，允许直接在字幕行修正文字，修正同步保存为 `subtitles.json` 和 `subtitles.srt`。接口失败时原始 WebM 仍保留。OpenRouter 当前不提供中国区域的转写请求路由保证，Qwen 模型仅代表中文语音能力与模型来源，不保证音频在中国境内处理。
 
+主 run 的操作录制保存在 `runs/main/.generated/data/recordings/`。每段录制结束后，会话目录名是 `YYYY-MM-DD_HH-mm-ss__YYYY-MM-DD_HH-mm-ss_<sessionId>`，分别表示本地开始与结束时间，精确到秒；录制中目录以 `_recording_<sessionId>` 结尾。目录内包含 `agent-transcript.md`、`unified-events.json`、`replay.js`、`native/` 和 `screenshots/` 等产物。历史录制目录保持原名。
+
 控制中枢可设置录制间隔与保存等待上限。到达间隔时桌面窗口弹出暂停提示，停止当前片段并等待操作记录及音频结算；全部完成后自动开始下一段。超过上限或转写失败时停止自动续录，供用户检查已经保存的声音和录制产物。
 
 ---

@@ -435,7 +435,7 @@ export class UnifiedCaptureNode extends ExecutionWorldNode {
           sessionDir,
           browserActions,
           liveEvents: desktop?.liveEvents ?? [],
-          completedAt: new Date().toISOString(),
+          completedAt: desktop?.completedAt ?? new Date().toISOString(),
           ...(failures.length > 0 ? { error: failures.join('; ') } : {}),
         },
         this.sessionId,

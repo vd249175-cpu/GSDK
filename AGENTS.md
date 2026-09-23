@@ -1,3 +1,10 @@
+---
+type: Developer Guide
+title: GraphFramework SDK 开发守则与 Agent 指引
+description: 本仓库的开发原则、架构红线、运行安全、录制产物查找入口与任务导航。
+status: stable
+---
+
 # GraphFramework SDK 开发守则与 Agent 指引
 
 本文档是本仓库中所有开发者与 Agent 的最高行为准则与任务导航中枢。
@@ -120,6 +127,7 @@
 | **核心开发模式** | [核心开发模式指南](REFERENCE/core-development-mode.md) | [核心 Packages](REFERENCE/packages/README.md) / [核心 Plugins](REFERENCE/plugins/README.md) | [开发第一个业务功能](DOCUMENTS/goals/build-feature.md) / [Plugin SDK 指南](DOCUMENTS/guides/plugin-sdk-guide.md) |
 | **工作流开发模式** | [工作流开发全景指南](REFERENCE/workflow/README.md) | [Agent 原生层级五级金字塔](REFERENCE/workflow/agent-native-hierarchy.md) / [引导带教](REFERENCE/workflow/guided-onboarding.md) | [应用开发指南](DOCUMENTS/guides/application-development.md) |
 | **外部 I/O 与硬件接入** | [多语言 SDK (WorldNode / EffectAdapter)](REFERENCE/packages/sdk/README.md) | [UFO 计算机控制](REFERENCE/packages/ufo/README.md) / [统一录制器](REFERENCE/plugins/unified-recorder.md) | [接入外部世界](DOCUMENTS/goals/integrate-external-world.md) / [平台 SDK 心智模型](DOCUMENTS/architecture/sdk-mental-model.md) |
+| **用户录制转自动化流程** | [从用户录制到健壮工作流](REFERENCE/workflow/recording-to-workflow.md) | [统一录制器](REFERENCE/plugins/unified-recorder.md) / 下方的录制产物定位说明 | — |
 | **桌面界面与达芬奇交互** | [零业务工作台与 Client Hooks](REFERENCE/packages/frontend/README.md) | [前端规范与达芬奇色彩](REFERENCE/plugins/frontend-specification.md) | [增加桌面界面](DOCUMENTS/goals/build-ui.md) / [设计系统](DOCUMENTS/guides/design-system.md) |
 | **运行与 8 步生命周期** | [冷启动与 8 步因果生命周期](REFERENCE/distribution/cold-start.md) | [桌面宿主与架构守卫](REFERENCE/packages/desktop/README.md) | [创建和运行独立 run](DOCUMENTS/goals/run-application.md) / [命名 run 生命周期](DOCUMENTS/architecture/application-lifecycle.md) |
 | **测试与因果指标验证** | [测试规范与针对性验证](REFERENCE/testing-specification.md) | [图分析工具与因果链路追踪](REFERENCE/testing-specification.md) | [为改动补测试并提交](DOCUMENTS/goals/verify-change.md) / [测试分层](DOCUMENTS/guides/testing.md) |
@@ -129,3 +137,12 @@
 | **多语言与跨进程接入** | [机器契约与 23 协议操作全集](REFERENCE/packages/contract/README.md) | [Rust 常驻守护进程与 C ABI](REFERENCE/packages/rust/README.md) | [接入其他编程语言](DOCUMENTS/goals/add-language-runtime.md) / [常驻宿主协议](DOCUMENTS/protocols/kernel-daemon-protocol.md) |
 | **子 Agent 并行与桌面排他** | [子 Agent 并行开发契约](REFERENCE/subagent-parallel-contract.md) | [UFO 计算机控制](REFERENCE/packages/ufo/README.md) / [统一录制器](REFERENCE/plugins/unified-recorder.md) | [多 Agent 协作指南](DOCUMENTS/contracts/multi-agent-run-guide.md) |
 | **Agent 技能与 MCP 工具箱** | [技能与 MCP 工具箱全景规范](REFERENCE/workflow/skills-and-mcp-tooling.md) | [Playwright / 阿里云 Workbench / UFO](REFERENCE/workflow/skills-and-mcp-tooling.md) | [工作流开发全景指南](REFERENCE/workflow/README.md) |
+
+### 用户电脑操作录制的产物定位
+
+用户说“我刚录制了电脑操作，按录制内容做自动化流程”时，先查找录制产物，再按 [从用户录制到健壮工作流](REFERENCE/workflow/recording-to-workflow.md) 提炼流程。
+
+- **主 run 默认位置**：仓库根目录下的 `runs/main/.generated/data/recordings/`。其他 run 先读其 `runs/<name>/run.config.json` 的 `resources.dataDirectory`，录制根目录是该数据目录下的 `recordings/`；不要把主 run 路径套用于其他 run。
+- **每次操作录制**：完成后的目录名为 `recordings/YYYY-MM-DD_HH-mm-ss__YYYY-MM-DD_HH-mm-ss_<sessionId>/`，前后分别是本地开始和结束时间，精确到秒；录制中暂为 `recordings/YYYY-MM-DD_HH-mm-ss_recording_<sessionId>/`。旧录制仍可能使用 `<sessionId>-<UTC开始时间>/`，不会自动改名。结合用户提供的会话 ID 和录制时间定位；未提供时查看该目录下最近完成的会话。录制停止并完成清洗导出后，优先阅读 `agent-transcript.md`（整理后的步骤）与 `unified-events.json`（结构化事件），再核对 `native/browser-playwright.js`、`native/desktop-psr.zip`、`screenshots/`；`raw-desktop-psr.zip` 是原始桌面归档，`replay.js` 是录制生成的回放草稿。PSR 文件可能因设备或录制源不可用而缺失。
+- **解说声音与字幕**：另存于 `recordings/narration/`，包含 `<sessionId>.webm`、`subtitles.json` 和 `subtitles.srt`。可按 `sessionId` 将声音片段、时间轴字幕与操作会话对应起来。
+- **转化入口**：将上述产物作为理解用户意图的证据，按 `REFERENCE/workflow/recording-to-workflow.md` 清理误操作、识别参数与结果，再在独立 run 中实现和验证自动化流程。不要直接把 `replay.js` 当作已经验收的工作流。

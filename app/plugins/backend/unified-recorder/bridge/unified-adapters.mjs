@@ -24,6 +24,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  rename,
   rm,
   stat,
   writeFile,
@@ -34,6 +35,26 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 const execFileAsync = promisify(execFile)
+const recordingSessionId = /^[A-Za-z0-9_-]{1,100}$/
+const twoDigits = (value) => String(value).padStart(2, '0')
+
+function formatRecordingTimestamp(value) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (!Number.isFinite(date.getTime())) throw new Error('Invalid recording time')
+  return `${date.getFullYear()}-${twoDigits(date.getMonth() + 1)}-${twoDigits(date.getDate())}_${twoDigits(date.getHours())}-${twoDigits(date.getMinutes())}-${twoDigits(date.getSeconds())}`
+}
+
+export function formatRecordingDirectoryName({ sessionId, startedAt, completedAt }) {
+  if (typeof sessionId !== 'string' || !recordingSessionId.test(sessionId)) throw new Error('Invalid recording session ID')
+  return `${formatRecordingTimestamp(startedAt)}__${formatRecordingTimestamp(completedAt)}_${sessionId}`
+}
+
+function recordingPath(recordingsDirectory, leaf) {
+  const root = resolve(recordingsDirectory)
+  const target = resolve(root, leaf)
+  if (dirname(target) !== root) throw new Error('Recording directory must stay inside its data root')
+  return target
+}
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 const repositoryRoot = fileURLToPath(new URL('../../../../../', import.meta.url))
 
@@ -666,6 +687,7 @@ export function createUnifiedAdapters({
   observerScript = join(dirname(fileURLToPath(import.meta.url)), 'windows-input-observer.py'),
   psrExecutable = join(process.env.WINDIR ?? 'C:\\Windows', 'System32', 'psr.exe'),
   enablePsr = process.platform === 'win32',
+  enableInputObserver = process.platform === 'win32',
 } = {}) {
   if (typeof runCli !== 'function') throw new Error('createUnifiedAdapters 需要 runCli(args) 函数')
 
@@ -679,9 +701,10 @@ export function createUnifiedAdapters({
       if (request?.op === 'start') {
         if (activeDesktop.has(request.sessionId)) throw new Error('Desktop recording already active')
         const startedAt = new Date().toISOString()
-        const stamp = startedAt.replace(/[:.]/g, '-')
-        const sessionDir = join(recordingsDirectory, `${request.sessionId}-${stamp}`)
-        await mkdir(sessionDir, { recursive: true })
+        if (typeof request.sessionId !== 'string' || !recordingSessionId.test(request.sessionId)) throw new Error('Invalid recording session ID')
+        const sessionDir = recordingPath(recordingsDirectory, `${formatRecordingTimestamp(startedAt)}_recording_${request.sessionId}`)
+        await mkdir(resolve(recordingsDirectory), { recursive: true })
+        await mkdir(sessionDir)
         const artifactPath = join(sessionDir, 'raw-desktop-psr.zip')
 
         let psrStarted = false
@@ -695,7 +718,7 @@ export function createUnifiedAdapters({
           }
         }
 
-        if (!inputSource && process.platform === 'win32') {
+        if (!inputSource && enableInputObserver && process.platform === 'win32') {
           try {
             inputSource = createWindowsInputEventSource({
               observerScript,
@@ -726,6 +749,7 @@ export function createUnifiedAdapters({
       if (request?.op === 'stop') {
         const recording = activeDesktop.get(request.sessionId)
         if (!recording) throw new Error(`No active unified desktop session: ${request.sessionId}`)
+        const completedAt = new Date().toISOString()
 
         if (recording.artifactPath) {
           try {
@@ -749,13 +773,21 @@ export function createUnifiedAdapters({
 
         recording.liveEvents = [...recording.liveEvents, ...finalLiveEvents]
         const allLiveEvents = [...recording.liveEvents]
+        const finalSessionDir = recordingPath(recordingsDirectory, formatRecordingDirectoryName({
+          sessionId: request.sessionId,
+          startedAt: recording.startedAt,
+          completedAt,
+        }))
+        if (dirname(resolve(recording.sessionDir)) !== resolve(recordingsDirectory)) throw new Error('Recording source directory is outside its data root')
+        await rename(recording.sessionDir, finalSessionDir)
         activeDesktop.delete(request.sessionId)
 
         return {
           stopped: true,
           liveEvents: allLiveEvents,
-          sessionDir: recording.sessionDir,
-          ...(recording.artifactPath ? { artifactPath: recording.artifactPath } : {}),
+          sessionDir: finalSessionDir,
+          completedAt,
+          ...(recording.artifactPath ? { artifactPath: join(finalSessionDir, 'raw-desktop-psr.zip') } : {}),
         }
       }
 
