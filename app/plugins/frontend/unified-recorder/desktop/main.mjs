@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url'
 import { defaultValueCodec } from '@graphframework/sdk/protocol'
 import { serveRunControl, callRunControl } from '../../../../../packages/tooling/run/index.mjs'
 import { createNarrationStore, resolveOpenRouterApiKey } from './narration.mjs'
+import { createRecorderSnapshot } from './snapshot.mjs'
+import { createNarrationRestorer } from './restore.mjs'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = fileURLToPath(new URL('../../../../../', import.meta.url))
@@ -19,7 +21,11 @@ const narrationStore = createNarrationStore({
   directory: narrationDirectory,
   apiKey: () => resolveOpenRouterApiKey({ credentialsPath: join(repositoryRoot, 'credentials.json') }),
 })
-let narrationRestored = false
+const restoreNarration = createNarrationRestorer({
+  targetNodeId: `${context.instance.graph ?? 'recorder'}/session`,
+  readIndex: () => narrationStore.readIndex(),
+  callControl: (operation, payload) => callRunControl(runtime, operation, payload),
+})
 const token = readFileSync(join(runtime, 'control-token'), 'utf8').trim()
 
 process.on('uncaughtException', (error) => console.error('[Unified Recorder Host]', error?.stack ?? error))
@@ -33,21 +39,7 @@ async function getSessionSnapshot() {
     const graphPrefix = `${context.instance.graph ?? 'recorder'}/`
     // 前端无状态：只读 projection。live 事件 tick 由后端宿主常驻时钟注入，
     // 此处不再发送 PollUnifiedEventsInfo（见 runs/main/host.mjs startPolling）。
-    let projection = await callRunControl(runtime, 'projection')
-    if (!narrationRestored && projection.nodes?.[`${graphPrefix}session`]) {
-      const health = await callRunControl(runtime, 'health')
-      if (health.state === 'running') {
-        const saved = await narrationStore.readIndex()
-        if (saved.subtitles.length || saved.audioClips.length) {
-          await callRunControl(runtime, 'inject-renderer', {
-            targetNodeId: `${graphPrefix}session`,
-            info: { type: 'RestoreSubtitlesInfo', ...saved },
-          })
-          projection = await callRunControl(runtime, 'projection')
-        }
-        narrationRestored = true
-      }
-    }
+    const projection = await restoreNarration(await callRunControl(runtime, 'projection'))
     const nodeEntry = projection.nodes?.[`${graphPrefix}session`] ?? projection.nodes?.['example.unified-recorder/session']
     const state = defaultValueCodec.decode(nodeEntry?.state) ?? {}
     let browserAlive = false
@@ -56,58 +48,10 @@ async function getSessionSnapshot() {
       browserAlive = bRes.ok
     } catch {}
 
-    return {
-      status: state.status ?? 'idle',
-      sessionId: state.sessionId ?? null,
-      sources: Array.isArray(state.sources) ? state.sources : ['desktop', 'browser'],
-      handles: state.handles ?? { desktop: null, browser: null },
-      eventCount: state.eventCount ?? 0,
-      events: Array.isArray(state.events) ? state.events : [],
-      applications: Array.isArray(state.applications) ? state.applications : [],
-      artifactPath: state.artifactPath ?? null,
-      sessionDir: state.sessionDir ?? null,
-      agentTranscriptPath: state.agentTranscriptPath ?? null,
-      agentTranscriptContent: state.agentTranscriptContent ?? null,
-      screenshotsDirectory: state.screenshotsDirectory ?? null,
-      nativeExports: state.nativeExports ?? { browser: null, desktop: null },
-      browserActions: state.browserActions ?? null,
-      startedAt: state.startedAt ?? null,
-      completedAt: state.completedAt ?? null,
-      lastError: state.lastError ?? null,
-      progressLog: Array.isArray(state.progressLog) ? state.progressLog : [],
-      narrationStartedAt: state.narrationStartedAt ?? null,
-      subtitles: Array.isArray(state.subtitles) ? state.subtitles : [],
-      audioClips: Array.isArray(state.audioClips) ? state.audioClips : [],
-      browserAlive,
-      revision: projection.revision ?? 0,
-    }
+    return createRecorderSnapshot(state, { browserAlive, revision: projection.revision ?? 0 })
   } catch (error) {
     console.error('[Recorder state snapshot failed]', error?.stack ?? error)
-    return {
-      status: 'error',
-      sessionId: null,
-      sources: ['desktop', 'browser'],
-      handles: { desktop: null, browser: null },
-      eventCount: 0,
-      events: [],
-      applications: [],
-      artifactPath: null,
-      sessionDir: null,
-      agentTranscriptPath: null,
-      agentTranscriptContent: null,
-      screenshotsDirectory: null,
-      nativeExports: { browser: null, desktop: null },
-      browserActions: null,
-      startedAt: null,
-      completedAt: null,
-      lastError: error?.message ?? 'Failed to read recorder state',
-      progressLog: [],
-      narrationStartedAt: null,
-      subtitles: [],
-      audioClips: [],
-      browserAlive: false,
-      revision: 0,
-    }
+    return createRecorderSnapshot(null, { status: 'error', lastError: error?.message ?? 'Failed to read recorder state' })
   }
 }
 

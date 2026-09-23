@@ -40,4 +40,59 @@ describe('unified recorder renderer', () => {
       delete shell.recorder
     }
   })
+
+  it('shows a state error when the bridge returns null', async () => {
+    const shell = window as typeof window & { recorder?: unknown }
+    shell.recorder = { readState: async () => null }
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    try {
+      await act(async () => root.render(<App />))
+      expect(host.textContent).toContain('录制控制核心')
+      expect(host.textContent).toContain('录制状态数据无效')
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+      delete shell.recorder
+    }
+  })
+
+  it('drops malformed nested projection entries before rendering panels', async () => {
+    const shell = window as typeof window & { recorder?: unknown }
+    shell.recorder = { readState: async () => ({
+      status: 'idle', events: [null, { screenshotFile: 42 }],
+      applications: [null], progressLog: [null], subtitles: [null], audioClips: [null],
+    }) }
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    try {
+      await act(async () => root.render(<App />))
+      expect(host.textContent).toContain('录制控制核心')
+      expect(host.textContent).toContain('暂无独立截图')
+      expect(host.textContent).toContain('暂无字幕')
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+      delete shell.recorder
+    }
+  })
+
+  it('shows bridge read errors and keeps polling recoverable', async () => {
+    const shell = window as typeof window & { recorder?: unknown }
+    shell.recorder = { readState: async () => { throw new Error('状态服务暂不可用') } }
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    try {
+      await act(async () => root.render(<App />))
+      expect(host.textContent).toContain('录制控制核心')
+      expect(host.textContent).toContain('状态服务暂不可用')
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+      delete shell.recorder
+    }
+  })
 })

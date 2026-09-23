@@ -900,3 +900,8 @@ body {
 .subtitle-row.is-current { background: rgba(56, 189, 248, .12); }
 .subtitle-time { width: 110px; flex-shrink: 0; border: 0; background: none; color: var(--accent-primary); cursor: pointer; font: 11px monospace; text-align: left; }
 .subtitle-row input { flex: 1; min-width: 0; padding: 7px; color: var(--text-primary); background: var(--surface-canvas); border: 1px solid var(--border-subtle); border-radius: 3px; }
+.renderer-failure { box-sizing: border-box; min-height: 100vh; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 16px; padding: 48px; background: #0c0e12; color: #f8fafc; font-family: sans-serif; }
+.renderer-failure h1 { margin: 0; font-size: 22px; }
+.renderer-failure p { margin: 0; color: #aeb5c1; line-height: 1.5; }
+.renderer-failure code { max-width: 100%; padding: 10px 12px; overflow-wrap: anywhere; color: #fda4af; background: #17191f; }
+.renderer-failure button { padding: 9px 15px; border: 1px solid #4b5563; border-radius: 3px; background: #26313e; color: #f8fafc; cursor: pointer; }

@@ -129,16 +129,80 @@ const emptyState: RecorderState = {
   revision: 0,
 }
 
-const normalizeRecorderState = (next: Partial<RecorderState>): RecorderState => ({
-  ...emptyState,
-  ...next,
-  sources: Array.isArray(next.sources) ? next.sources : emptyState.sources,
-  events: Array.isArray(next.events) ? next.events : [],
-  applications: Array.isArray(next.applications) ? next.applications : [],
-  progressLog: Array.isArray(next.progressLog) ? next.progressLog : [],
-  subtitles: Array.isArray(next.subtitles) ? next.subtitles : [],
-  audioClips: Array.isArray(next.audioClips) ? next.audioClips : [],
-})
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+const stringOrNull = (value: unknown): string | null => typeof value === 'string' ? value : null
+const finiteNumber = (value: unknown, fallback = 0): number =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback
+const recorderStatuses: RecorderStatus[] = ['idle', 'starting', 'recording', 'stopping', 'processing', 'error']
+
+// IPC 和 Projection 是运行时数据边界；TS 类型不能替代入站校验。
+const normalizeRecorderState = (raw: unknown): RecorderState => {
+  const next = asRecord(raw)
+  const status = recorderStatuses.includes(next?.status as RecorderStatus) ? next?.status as RecorderStatus : 'error'
+  const handles = asRecord(next?.handles)
+  const nativeExports = asRecord(next?.nativeExports)
+  const events: UnifiedEvent[] = Array.isArray(next?.events) ? next.events.flatMap((value, index) => {
+    const event = asRecord(value)
+    if (!event) return []
+    return [{
+      index: finiteNumber(event.index, index + 1),
+      time: stringOrNull(event.time),
+      source: event.source === 'browser' ? 'browser' : 'desktop',
+      application: stringOrNull(event.application),
+      windowTitle: stringOrNull(event.windowTitle),
+      action: stringOrNull(event.action),
+      description: stringOrNull(event.description),
+      locator: stringOrNull(event.locator),
+      code: stringOrNull(event.code),
+      text: stringOrNull(event.text),
+      screenshotFile: stringOrNull(event.screenshotFile),
+    }]
+  }) : []
+  const progressLog: RecorderProgressEntry[] = Array.isArray(next?.progressLog) ? next.progressLog.flatMap((value) => {
+    const entry = asRecord(value)
+    return entry && typeof entry.at === 'string' && typeof entry.stage === 'string'
+      ? [{ at: entry.at, stage: entry.stage, count: typeof entry.count === 'number' && Number.isFinite(entry.count) ? entry.count : null }]
+      : []
+  }) : []
+  const subtitles: RecorderState['subtitles'] = Array.isArray(next?.subtitles) ? next.subtitles.flatMap((value) => {
+    const item = asRecord(value)
+    return item && typeof item.id === 'string' && typeof item.sessionId === 'string' && typeof item.text === 'string'
+      ? [{ id: item.id, sessionId: item.sessionId, text: item.text, startMs: finiteNumber(item.startMs), endMs: finiteNumber(item.endMs) }]
+      : []
+  }) : []
+  const audioClips: RecorderState['audioClips'] = Array.isArray(next?.audioClips) ? next.audioClips.flatMap((value) => {
+    const item = asRecord(value)
+    return item && typeof item.sessionId === 'string' && typeof item.audioFile === 'string'
+      ? [{ sessionId: item.sessionId, audioFile: item.audioFile, startMs: finiteNumber(item.startMs), durationMs: finiteNumber(item.durationMs) }]
+      : []
+  }) : []
+  return {
+    status,
+    sessionId: stringOrNull(next?.sessionId),
+    sources: Array.isArray(next?.sources) ? next.sources.filter((value): value is 'desktop' | 'browser' => value === 'desktop' || value === 'browser') : emptyState.sources,
+    handles: { desktop: stringOrNull(handles?.desktop), browser: stringOrNull(handles?.browser) },
+    eventCount: finiteNumber(next?.eventCount),
+    events,
+    applications: Array.isArray(next?.applications) ? next.applications.filter((value): value is string => typeof value === 'string') : [],
+    artifactPath: stringOrNull(next?.artifactPath),
+    sessionDir: stringOrNull(next?.sessionDir),
+    agentTranscriptPath: stringOrNull(next?.agentTranscriptPath),
+    agentTranscriptContent: stringOrNull(next?.agentTranscriptContent),
+    screenshotsDirectory: stringOrNull(next?.screenshotsDirectory),
+    nativeExports: { browser: stringOrNull(nativeExports?.browser), desktop: stringOrNull(nativeExports?.desktop) },
+    browserActions: stringOrNull(next?.browserActions),
+    startedAt: stringOrNull(next?.startedAt),
+    completedAt: stringOrNull(next?.completedAt),
+    lastError: stringOrNull(next?.lastError) ?? (status === 'error' ? '录制状态数据无效' : null),
+    progressLog,
+    narrationStartedAt: stringOrNull(next?.narrationStartedAt),
+    subtitles,
+    audioClips,
+    browserAlive: next?.browserAlive === true,
+    revision: finiteNumber(next?.revision),
+  }
+}
 
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform)
 const readSeconds = (key: string, fallback: number, min: number, max: number) => {
@@ -327,8 +391,13 @@ export function App() {
     try {
       const next = await bridge.readState()
       setState(normalizeRecorderState(next))
-    } catch {
-      // 优雅降级
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setState((previous) => ({
+        ...previous,
+        status: previous.status === 'idle' ? 'error' : previous.status,
+        lastError: message,
+      }))
     }
   }, [])
 

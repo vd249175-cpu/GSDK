@@ -1,12 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './frontend/app'
+import { RendererErrorBoundary } from './frontend/rendererErrorBoundary'
 
 const container = document.getElementById('root')
 if (container) {
   createRoot(container).render(
     <StrictMode>
-      <App />
+      <RendererErrorBoundary><App /></RendererErrorBoundary>
     </StrictMode>,
   )
 }

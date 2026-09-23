@@ -30,6 +30,7 @@ OpenRouter 转写由桌面宿主完成。个人系统：输入明文直接保留
   - `RecordingObservedInfo`（仅 observation 发送，权威桌面轨迹替换桌面预览、保留浏览器流）。
 - `AudioTranscribedInfo { sessionId, audioFile, startedAt, durationMs, segments }` 将转写片段合入跨段字幕时间轴；`CorrectSubtitleInfo { id, text }` 修正字幕；`RestoreSubtitlesInfo` 在宿主重启后从已保存的字幕索引恢复状态。
 - 桌面宿主在 run 进入 `running` 且 session Node 出现在 Projection 后注入恢复消息；恢复未成功时下次读取状态会重试。前端对错误快照中缺失的列表字段使用空列表，保持工作台可见。
+- 宿主的正常与错误快照由同一字段映射生成；React 入口对 IPC 数据做运行时校验，组件渲染异常显示可重试故障页。读取失败会在控制中枢显示错误，并在下一次轮询时自动重试。
 - 字幕状态为 `subtitles[]`、`audioClips[]` 与 `narrationStartedAt`；每次新录制保留此前字幕。声音目录保存 WebM 原件、`subtitles.json` 与 `subtitles.srt`。
 - 公开 Projection：`{ status, sessionId, sources, handles, eventCount, events, applications, artifactPath, browserActions, startedAt, completedAt, lastEvent, lastError }`。
 - 对外发送：session → execution（`StartCaptureInfo`/`StopCaptureInfo`）；
