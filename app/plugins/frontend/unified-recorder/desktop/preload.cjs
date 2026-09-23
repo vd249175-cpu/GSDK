@@ -9,6 +9,11 @@ contextBridge.exposeInMainWorld('recorder', {
   launchBrowser: () => ipcRenderer.invoke('recorder:launch-browser'),
   copyToClipboard: (text) => ipcRenderer.invoke('recorder:copy-to-clipboard', text),
   readImage: (targetPath) => ipcRenderer.invoke('recorder:read-image', targetPath),
+  saveAudio: (payload) => ipcRenderer.invoke('recorder:save-audio', payload),
+  correctSubtitle: (id, text) => ipcRenderer.invoke('recorder:correct-subtitle', id, text),
+  readAudio: (sessionId) => ipcRenderer.invoke('recorder:read-audio', sessionId),
+  openNarration: () => ipcRenderer.invoke('recorder:open-narration'),
+  pauseNotice: () => ipcRenderer.invoke('recorder:pause-notice'),
 })
 
 contextBridge.exposeInMainWorld('shell', {

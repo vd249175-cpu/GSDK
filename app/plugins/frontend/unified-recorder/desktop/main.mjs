@@ -1,18 +1,25 @@
 import { app, BrowserWindow, Menu, clipboard, ipcMain, shell } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { extname, join, resolve } from 'node:path'
+import { dirname, extname, join, resolve } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { defaultValueCodec } from '@graphframework/sdk/protocol'
 import { serveRunControl, callRunControl } from '../../../../../packages/tooling/run/index.mjs'
+import { createNarrationStore, resolveOpenRouterApiKey } from './narration.mjs'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = fileURLToPath(new URL('../../../../../', import.meta.url))
 
 const context = JSON.parse(readFileSync(process.argv[2], 'utf8'))
 const runtime = context.runtimeDirectory
+const narrationDirectory = join(dirname(runtime), 'data', 'recordings', 'narration')
+const narrationStore = createNarrationStore({
+  directory: narrationDirectory,
+  apiKey: () => resolveOpenRouterApiKey({ credentialsPath: join(repositoryRoot, 'credentials.json') }),
+})
+let narrationRestored = false
 const token = readFileSync(join(runtime, 'control-token'), 'utf8').trim()
 
 process.on('uncaughtException', (error) => console.error('[Unified Recorder Host]', error?.stack ?? error))
@@ -24,6 +31,16 @@ let stopped = false
 async function getSessionSnapshot() {
   try {
     const graphPrefix = `${context.instance.graph ?? 'recorder'}/`
+    if (!narrationRestored) {
+      narrationRestored = true
+      const saved = await narrationStore.readIndex()
+      if (saved.subtitles.length || saved.audioClips.length) {
+        await callRunControl(runtime, 'inject-renderer', {
+          targetNodeId: `${graphPrefix}session`,
+          info: { type: 'RestoreSubtitlesInfo', ...saved },
+        })
+      }
+    }
     // 前端无状态：只读 projection。live 事件 tick 由后端宿主常驻时钟注入，
     // 此处不再发送 PollUnifiedEventsInfo（见 runs/main/host.mjs startPolling）。
     const projection = await callRunControl(runtime, 'projection')
@@ -54,6 +71,9 @@ async function getSessionSnapshot() {
       completedAt: state.completedAt ?? null,
       lastError: state.lastError ?? null,
       progressLog: Array.isArray(state.progressLog) ? state.progressLog : [],
+      narrationStartedAt: state.narrationStartedAt ?? null,
+      subtitles: Array.isArray(state.subtitles) ? state.subtitles : [],
+      audioClips: Array.isArray(state.audioClips) ? state.audioClips : [],
       browserAlive,
       revision: projection.revision ?? 0,
     }
@@ -76,6 +96,9 @@ async function getSessionSnapshot() {
       startedAt: null,
       completedAt: null,
       lastError: error?.message ?? 'Failed to read recorder state',
+      narrationStartedAt: null,
+      subtitles: [],
+      audioClips: [],
       revision: 0,
     }
   }
@@ -121,7 +144,13 @@ async function startHost() {
         ...(Array.isArray(sources) && sources.length > 0 ? { sources } : {}),
       },
     })
-    return getSessionSnapshot()
+    const deadline = Date.now() + 30_000
+    while (Date.now() < deadline) {
+      const snapshot = await getSessionSnapshot()
+      if (snapshot.sessionId === normalized && (snapshot.status === 'recording' || snapshot.status === 'error')) return snapshot
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    throw new Error('录制启动超过 30 秒，请检查录制设备与浏览器')
   })
   ipcMain.handle('recorder:stop', async () => {
     const graphName = context.instance.graph ?? 'recorder'
@@ -130,6 +159,48 @@ async function startHost() {
       info: { type: 'StopRecordingInfo' },
     })
     return getSessionSnapshot()
+  })
+  ipcMain.handle('recorder:save-audio', async (_event, payload) => {
+    const snapshot = await getSessionSnapshot()
+    if (payload?.sessionId !== snapshot.sessionId) throw new Error('Audio session does not match the active recording')
+    const result = await narrationStore.save({
+      ...payload,
+      bytes: new Uint8Array(payload.bytes),
+      narrationStartedAt: snapshot.narrationStartedAt,
+    })
+    await callRunControl(runtime, 'inject-renderer', {
+      targetNodeId: `${context.instance.graph ?? 'recorder'}/session`,
+      info: {
+        type: 'AudioTranscribedInfo', sessionId: payload.sessionId,
+        audioFile: result.audioFile, startedAt: payload.startedAt,
+        durationMs: payload.durationMs, segments: result.segments,
+      },
+    })
+    return { ok: true, transcriptionError: result.transcriptionError }
+  })
+  ipcMain.handle('recorder:correct-subtitle', async (_event, id, value) => {
+    await narrationStore.correct(id, value)
+    await callRunControl(runtime, 'inject-renderer', {
+      targetNodeId: `${context.instance.graph ?? 'recorder'}/session`,
+      info: { type: 'CorrectSubtitleInfo', id, text: value },
+    })
+    return { ok: true }
+  })
+  ipcMain.handle('recorder:read-audio', async (_event, sessionId) => {
+    const bytes = await narrationStore.readAudio(sessionId)
+    return `data:audio/webm;base64,${bytes.toString('base64')}`
+  })
+  ipcMain.handle('recorder:open-narration', async () => {
+    const error = await shell.openPath(narrationDirectory)
+    return { ok: !error, ...(error ? { error } : {}) }
+  })
+  ipcMain.handle('recorder:pause-notice', async () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show()
+      mainWindow.focus()
+      mainWindow.setAlwaysOnTop(true)
+      setTimeout(() => mainWindow?.setAlwaysOnTop(false), 3000)
+    }
   })
   ipcMain.handle('recorder:open-artifact', async () => {
     const state = await getSessionSnapshot()

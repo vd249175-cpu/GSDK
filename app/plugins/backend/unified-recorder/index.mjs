@@ -162,6 +162,9 @@ export class UnifiedSessionNode extends Node {
       lastEvent: null,
       lastError: null,
       progressLog: [],
+      narrationStartedAt: null,
+      subtitles: [],
+      audioClips: [],
     })
     this.executionId = targets.execution
     this.observationId = targets.observation
@@ -199,6 +202,7 @@ export class UnifiedSessionNode extends Node {
         lastEvent: null,
         lastError: null,
         progressLog: [{ at: new Date().toISOString(), stage: 'start-requested', sessionId }],
+        narrationStartedAt: ctx.read('narrationStartedAt') ?? new Date().toISOString(),
       })
       ctx.send({ type: 'StartCaptureInfo', sessionId, sources }, this.executionId)
     } else if (info.type === 'StopRecordingInfo') {
@@ -284,6 +288,32 @@ export class UnifiedSessionNode extends Node {
         lastEvent: mergedEvents.at(-1) ?? null,
         lastError: null,
       })
+    } else if (info.type === 'AudioTranscribedInfo') {
+      if (typeof info.sessionId !== 'string' || !Array.isArray(info.segments)) return
+      const base = Date.parse(ctx.read('narrationStartedAt') ?? '')
+      const clipStart = Date.parse(info.startedAt ?? '')
+      const offset = Number.isFinite(base) && Number.isFinite(clipStart) ? Math.max(0, clipStart - base) : 0
+      const subtitles = info.segments
+        .filter((segment) => typeof segment.text === 'string' && segment.text.trim())
+        .map((segment, index) => ({
+          id: `${info.sessionId}:${index}`,
+          sessionId: info.sessionId,
+          startMs: offset + Math.max(0, Number(segment.startMs) || 0),
+          endMs: offset + Math.max(0, Number(segment.endMs) || 0),
+          text: segment.text.trim(),
+        }))
+      ctx.patchState({
+        subtitles: [...ctx.read('subtitles').filter((item) => item.sessionId !== info.sessionId), ...subtitles].sort((a, b) => a.startMs - b.startMs),
+        audioClips: [...ctx.read('audioClips').filter((item) => item.sessionId !== info.sessionId), {
+          sessionId: info.sessionId, audioFile: info.audioFile, startMs: offset, durationMs: Math.max(0, Number(info.durationMs) || 0),
+        }],
+      })
+    } else if (info.type === 'CorrectSubtitleInfo') {
+      if (typeof info.id !== 'string' || typeof info.text !== 'string') return
+      ctx.write('subtitles', ctx.read('subtitles').map((item) => item.id === info.id ? { ...item, text: info.text.trim() } : item))
+    } else if (info.type === 'RestoreSubtitlesInfo') {
+      if (!Array.isArray(info.subtitles) || !Array.isArray(info.audioClips)) return
+      ctx.patchState({ subtitles: info.subtitles, audioClips: info.audioClips, narrationStartedAt: info.narrationStartedAt ?? null })
     } else if (info.type === 'RecordingProgressInfo') {
       if (typeof info.sessionId === 'string' && (ctx.read('sessionId') ?? info.sessionId) !== info.sessionId) return
       const entry = { at: new Date().toISOString(), stage: info.stage ?? 'merging', ...(info.count != null ? { count: info.count } : {}) }
@@ -552,6 +582,9 @@ createUnifiedRecorderGraph.describe = () => ({
   rendererRoots: [
     { localId: 'session', infoType: 'StartRecordingInfo' },
     { localId: 'session', infoType: 'StopRecordingInfo' },
+    { localId: 'session', infoType: 'AudioTranscribedInfo' },
+    { localId: 'session', infoType: 'CorrectSubtitleInfo' },
+    { localId: 'session', infoType: 'RestoreSubtitlesInfo' },
   ],
 })
 
@@ -573,6 +606,21 @@ export default defineBackendPlugin({
       targetNodeId: 'example.unified-recorder/session',
       infoType: 'StopRecordingInfo',
       validate: isStopRecordingInfo,
+    },
+    {
+      targetNodeId: 'example.unified-recorder/session',
+      infoType: 'AudioTranscribedInfo',
+      validate: (info) => info?.type === 'AudioTranscribedInfo' && typeof info.sessionId === 'string' && typeof info.audioFile === 'string' && Array.isArray(info.segments),
+    },
+    {
+      targetNodeId: 'example.unified-recorder/session',
+      infoType: 'CorrectSubtitleInfo',
+      validate: (info) => info?.type === 'CorrectSubtitleInfo' && typeof info.id === 'string' && typeof info.text === 'string',
+    },
+    {
+      targetNodeId: 'example.unified-recorder/session',
+      infoType: 'RestoreSubtitlesInfo',
+      validate: (info) => info?.type === 'RestoreSubtitlesInfo' && Array.isArray(info.subtitles) && Array.isArray(info.audioClips),
     },
   ],
 })

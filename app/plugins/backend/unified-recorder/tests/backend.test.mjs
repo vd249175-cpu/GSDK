@@ -87,6 +87,23 @@ describe('unified-recorder normalization', () => {
 })
 
 describe('unified-recorder causal flow', () => {
+  it('keeps timed narration subtitles across recording segments and accepts corrections', async () => {
+    const { nodes } = assemble()
+    const runtime = createTestRuntime({ nodes })
+    runtime.inject({ targetNodeId: 'recorder/session', info: { type: 'StartRecordingInfo', sessionId: 'clip-1' } })
+    await runtime.waitForQuiescence()
+    runtime.inject({ targetNodeId: 'recorder/session', info: { type: 'AudioTranscribedInfo', sessionId: 'clip-1', audioFile: 'clip-1.webm', segments: [{ startMs: 1200, endMs: 2500, text: '错误字幕' }] } })
+    await runtime.waitForQuiescence()
+    expect(runtime.getState('recorder/session').subtitles).toMatchObject([{ id: 'clip-1:0', startMs: 1200, endMs: 2500, text: '错误字幕' }])
+    runtime.inject({ targetNodeId: 'recorder/session', info: { type: 'CorrectSubtitleInfo', id: 'clip-1:0', text: '正确字幕' } })
+    await runtime.waitForQuiescence()
+    runtime.inject({ targetNodeId: 'recorder/session', info: { type: 'StopRecordingInfo' } })
+    await runtime.waitForQuiescence()
+    runtime.inject({ targetNodeId: 'recorder/session', info: { type: 'StartRecordingInfo', sessionId: 'clip-2' } })
+    await runtime.waitForQuiescence()
+    expect(runtime.getState('recorder/session').subtitles).toMatchObject([{ id: 'clip-1:0', text: '正确字幕' }])
+    runtime.dispose()
+  })
   it('starts both sources, streams live events, settles with authoritative desktop trace', async () => {
     const { calls, nodes } = assemble({
       liveDesktop: [{ events: [{ action: 'Mouse Left Click', application: 'NOTEPAD.EXE', description: 'Clicked' }] }],

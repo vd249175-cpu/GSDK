@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import {
   Check,
   Copy,
@@ -7,6 +7,7 @@ import {
   Globe,
   Image as ImageIcon,
   MonitorDot,
+  Mic,
   Play,
   Sliders,
   Square,
@@ -25,6 +26,22 @@ export interface RecorderContextValue {
   browserBusy: boolean
   activeSources: Array<'desktop' | 'browser'>
   setActiveSources: (sources: Array<'desktop' | 'browser'>) => void
+  audioEnabled: boolean
+  setAudioEnabled: (enabled: boolean) => void
+  microphones: Array<{ id: string; label: string }>
+  selectedMicrophoneId: string
+  setSelectedMicrophoneId: (id: string) => void
+  micTesting: boolean
+  micLevel: number
+  micPreviewUrl: string | null
+  micError: string | null
+  handleTestMicrophone: () => Promise<void>
+  refreshMicrophones: () => Promise<void>
+  recordIntervalSec: number
+  setRecordIntervalSec: (seconds: number) => void
+  saveTimeoutSec: number
+  setSaveTimeoutSec: (seconds: number) => void
+  handleCorrectSubtitle: (id: string, text: string) => Promise<void>
   copied: 'path' | 'script' | 'transcript' | null
   handleStart: () => Promise<void>
   handleStop: () => Promise<void>
@@ -70,6 +87,21 @@ export function ControlsPanel(_props: PanelProps) {
     browserBusy,
     activeSources,
     setActiveSources,
+    audioEnabled,
+    setAudioEnabled,
+    microphones,
+    selectedMicrophoneId,
+    setSelectedMicrophoneId,
+    micTesting,
+    micLevel,
+    micPreviewUrl,
+    micError,
+    handleTestMicrophone,
+    refreshMicrophones,
+    recordIntervalSec,
+    setRecordIntervalSec,
+    saveTimeoutSec,
+    setSaveTimeoutSec,
     handleStart,
     handleStop,
     handleLaunchBrowser,
@@ -125,7 +157,33 @@ export function ControlsPanel(_props: PanelProps) {
               <Globe size={14} />
               <span>专用 Chrome 浏览器 (CDP 9343 Playwright)</span>
             </label>
+            <label className={`source-checkbox-item ${audioEnabled ? 'is-checked' : ''}`}>
+              <input type="checkbox" checked={audioEnabled} disabled={isRecording} onChange={(event) => setAudioEnabled(event.target.checked)} />
+              <Mic size={14} />
+              <span>麦克风解说（录后 OpenRouter 转字幕）</span>
+            </label>
           </div>
+          {audioEnabled && <div className="microphone-debug">
+            <label htmlFor="recorder-microphone-device">麦克风设备</label>
+            <select id="recorder-microphone-device" value={selectedMicrophoneId} disabled={isRecording || micTesting} onChange={(event) => setSelectedMicrophoneId(event.target.value)}>
+              <option value="">系统默认麦克风</option>
+              {microphones.filter((device) => device.id).map((device) => <option key={device.id} value={device.id}>{device.label}</option>)}
+            </select>
+            <button type="button" className="action-btn is-small" disabled={isRecording} onClick={() => void refreshMicrophones()}>刷新设备</button>
+            <button type="button" className="action-btn is-small" disabled={isRecording || busy} onClick={() => void handleTestMicrophone()}>{micTesting ? '停止试录' : '试录 5 秒'}</button>
+            <div className="microphone-meter" role="meter" aria-label="麦克风输入音量" aria-valuemin={0} aria-valuemax={100} aria-valuenow={micLevel}><span style={{ width: `${micLevel}%` }} /></div>
+            {micPreviewUrl && <audio src={micPreviewUrl} controls aria-label="麦克风试录回放" />}
+            {micError && <span className="microphone-error">{micError}</span>}
+          </div>}
+          <div className="recording-options">
+            <label>录制间隔（秒）
+              <input type="number" min={10} max={3600} value={recordIntervalSec} disabled={isRecording} onChange={(event) => setRecordIntervalSec(Math.min(3600, Math.max(10, Number(event.target.value) || 10)))} />
+            </label>
+            <label>保存等待上限（秒）
+              <input type="number" min={5} max={600} value={saveTimeoutSec} disabled={isRecording} onChange={(event) => setSaveTimeoutSec(Math.min(600, Math.max(5, Number(event.target.value) || 5)))} />
+            </label>
+          </div>
+          <p className="recording-option-hint">到间隔后自动暂停并弹窗，保存完成后自动开始下一段；超时停止续录。</p>
         </div>
 
         {/* 主动作按钮 */}
@@ -134,11 +192,11 @@ export function ControlsPanel(_props: PanelProps) {
             <button
               type="button"
               className="action-btn is-primary is-hero"
-              disabled={busy || activeSources.length === 0}
+              disabled={busy || micTesting || activeSources.length === 0 || (state.status !== 'idle' && state.status !== 'error')}
               onClick={() => void handleStart()}
             >
               <Play size={14} />
-              <span>{busy ? '启动微内核…' : '开始统一录制'}</span>
+              <span>{state.status === 'processing' || state.status === 'stopping' ? '正在保存当前片段…' : busy ? '启动微内核…' : '开始统一录制'}</span>
             </button>
           ) : (
             <button
@@ -401,6 +459,79 @@ export function ScreenshotsPanel(_props: PanelProps) {
   )
 }
 
+const clock = (ms: number) => {
+  const seconds = Math.max(0, Math.floor(ms / 1000))
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+export function NarrationPanel(_props: PanelProps) {
+  const { state, handleCorrectSubtitle } = useRecorder()
+  const [selectedSession, setSelectedSession] = useState<string | null>(null)
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [currentMs, setCurrentMs] = useState(0)
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [editError, setEditError] = useState<string | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const seekRef = useRef<number | null>(null)
+  const clip = state.audioClips.find((item) => item.sessionId === selectedSession) ?? state.audioClips[0]
+  const totalMs = Math.max(1000, ...state.audioClips.map((item) => item.startMs + item.durationMs))
+
+  useEffect(() => {
+    if (!clip) return
+    let canceled = false
+    setAudioUrl(null)
+    const bridge = (window as unknown as { recorder?: { readAudio: (sessionId: string) => Promise<string> } }).recorder
+    void bridge?.readAudio(clip.sessionId).then((url) => { if (!canceled) setAudioUrl(url) }).catch((error) => {
+      if (!canceled) setEditError(error instanceof Error ? error.message : String(error))
+    })
+    return () => { canceled = true }
+  }, [clip?.sessionId])
+
+  const seek = (atMs: number) => {
+    setCurrentMs(atMs)
+    const target = state.audioClips.find((item) => atMs >= item.startMs && atMs <= item.startMs + item.durationMs)
+      ?? state.audioClips.find((item) => item.startMs >= atMs)
+      ?? state.audioClips.at(-1)
+    if (!target) return
+    seekRef.current = Math.max(0, (atMs - target.startMs) / 1000)
+    if (target.sessionId !== clip?.sessionId) setSelectedSession(target.sessionId)
+    else if (audioRef.current) audioRef.current.currentTime = seekRef.current
+  }
+
+  const correct = async (id: string, original: string) => {
+    const text = drafts[id]
+    if (text === undefined || text === original) return
+    try {
+      await handleCorrectSubtitle(id, text)
+      setEditError(null)
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  return (
+    <div className="panel-container narration-panel">
+      <div className="panel-section">
+        <div className="section-header"><span className="section-title">声音与字幕时间轴</span><span>{state.subtitles.length} 条字幕 · {state.audioClips.length} 段声音</span><button type="button" className="action-btn is-small" onClick={() => void (window as unknown as { recorder?: { openNarration: () => Promise<unknown> } }).recorder?.openNarration()}>打开声音与 SRT 目录</button></div>
+        <input className="narration-timeline" aria-label="字幕时间轴" type="range" min={0} max={totalMs} value={Math.min(currentMs, totalMs)} onChange={(event) => seek(Number(event.target.value))} />
+        <div className="narration-time-label"><span>{clock(currentMs)}</span><span>{clock(totalMs)}</span></div>
+        {clip && <div className="narration-player"><span>{clip.audioFile}</span><audio ref={audioRef} src={audioUrl ?? undefined} controls onLoadedMetadata={() => {
+          if (seekRef.current != null && audioRef.current) { audioRef.current.currentTime = seekRef.current; seekRef.current = null }
+        }} onTimeUpdate={(event) => setCurrentMs(clip.startMs + event.currentTarget.currentTime * 1000)} /></div>}
+        {editError && <div className="error-callout">{editError}</div>}
+      </div>
+      <div className="narration-subtitles">
+        {state.subtitles.length === 0 ? <EmptyState icon={Mic} title="暂无字幕" description="开始录制并用麦克风解说。每段保存后会生成带时间戳的字幕；识别文字可直接修改。" /> : state.subtitles.map((item) => (
+          <div key={item.id} className={`subtitle-row ${currentMs >= item.startMs && currentMs <= item.endMs ? 'is-current' : ''}`}>
+            <button type="button" className="subtitle-time" onClick={() => seek(item.startMs)} title="跳转并播放此处">{clock(item.startMs)}–{clock(item.endMs)}</button>
+            <input aria-label={`${clock(item.startMs)} 字幕`} value={drafts[item.id] ?? item.text} onChange={(event) => setDrafts((previous) => ({ ...previous, [item.id]: event.target.value }))} onBlur={() => void correct(item.id, item.text)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export const RECORDER_PANEL_DEFINITIONS: PanelDefinition[] = [
   {
     id: 'recorder.controls',
@@ -414,4 +545,5 @@ export const RECORDER_PANEL_DEFINITIONS: PanelDefinition[] = [
     icon: ImageIcon,
     component: ScreenshotsPanel,
   },
+  { id: 'recorder.narration', title: '声音字幕', icon: Mic, component: NarrationPanel },
 ]

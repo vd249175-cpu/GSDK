@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Settings } from 'lucide-react'
 import {
   WorkbenchHostContext,
@@ -67,6 +67,9 @@ export type RecorderState = {
   completedAt: string | null
   lastError: string | null
   progressLog: RecorderProgressEntry[]
+  narrationStartedAt: string | null
+  subtitles: Array<{ id: string; sessionId: string; startMs: number; endMs: number; text: string }>
+  audioClips: Array<{ sessionId: string; audioFile: string; startMs: number; durationMs: number }>
   browserAlive: boolean
   revision: number
 }
@@ -80,6 +83,11 @@ export interface UnifiedRecorderBridge {
   launchBrowser: () => Promise<{ ok: boolean; alive?: boolean; output?: string; error?: string }>
   copyToClipboard: (text: string) => Promise<{ ok: boolean }>
   readImage?: (targetPath: string) => Promise<{ ok: boolean; dataUrl?: string; error?: string }>
+  saveAudio: (payload: { sessionId: string; bytes: Uint8Array; mimeType: string; startedAt: string; durationMs: number; timeoutMs: number }) => Promise<{ ok: boolean; transcriptionError?: string | null }>
+  correctSubtitle: (id: string, text: string) => Promise<{ ok: boolean }>
+  readAudio: (sessionId: string) => Promise<string>
+  openNarration: () => Promise<{ ok: boolean; error?: string }>
+  pauseNotice: () => Promise<void>
 }
 
 const getBridge = (): UnifiedRecorderBridge | undefined =>
@@ -114,15 +122,28 @@ const emptyState: RecorderState = {
   completedAt: null,
   lastError: null,
   progressLog: [],
+  narrationStartedAt: null,
+  subtitles: [],
+  audioClips: [],
   browserAlive: false,
   revision: 0,
 }
 
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform)
+const readSeconds = (key: string, fallback: number, min: number, max: number) => {
+  try {
+    const value = Number(window.localStorage.getItem(key))
+    return Number.isFinite(value) && value >= min && value <= max ? value : fallback
+  } catch { return fallback }
+}
+const readPreference = (key: string) => {
+  try { return window.localStorage.getItem(key) ?? '' } catch { return '' }
+}
 
 const PAGE_TABS = [
   { key: 'controls', label: '控制中枢', icon: '⬡', badge: 'REC' },
   { key: 'screenshots', label: '截图证据', icon: '🖼', badge: 'IMG' },
+  { key: 'narration', label: '声音字幕', icon: '♫', badge: 'SRT' },
 ] as const
 
 export function App() {
@@ -132,6 +153,23 @@ export function App() {
   const [browserBusy, setBrowserBusy] = useState(false)
   const [copied, setCopied] = useState<'path' | 'script' | 'transcript' | null>(null)
   const [activeSources, setActiveSources] = useState<Array<'desktop' | 'browser'>>(['desktop', 'browser'])
+  const [audioEnabled, setAudioEnabled] = useState(true)
+  const [microphones, setMicrophones] = useState<Array<{ id: string; label: string }>>([])
+  const [selectedMicrophoneId, setSelectedMicrophoneId] = useState(() => readPreference('recorder.microphoneId'))
+  const [micTesting, setMicTesting] = useState(false)
+  const [micLevel, setMicLevel] = useState(0)
+  const [micPreviewUrl, setMicPreviewUrl] = useState<string | null>(null)
+  const [micError, setMicError] = useState<string | null>(null)
+  const micTestStopRef = useRef<(() => void) | null>(null)
+  const micTestStartingRef = useRef(false)
+  const [recordIntervalSec, setRecordIntervalSec] = useState(() => readSeconds('recorder.intervalSec', 60, 10, 3600))
+  const [saveTimeoutSec, setSaveTimeoutSec] = useState(() => readSeconds('recorder.saveTimeoutSec', 120, 5, 600))
+  const [saveNotice, setSaveNotice] = useState<{ title: string; detail: string } | null>(null)
+  const mediaRef = useRef<{ recorder: MediaRecorder; stream: MediaStream; chunks: Blob[]; sessionId: string; startedAt: string } | null>(null)
+  const rotationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const operationRef = useRef(false)
+  const finishRef = useRef<(automatic: boolean) => Promise<void>>(async () => {})
+  const startRef = useRef<() => Promise<void>>(async () => {})
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [theme, setTheme] = useState<ThemeName>(() => readThemePreference('dark'))
   const [typography, setTypography] = useState(() => readTypographyPreferences())
@@ -144,6 +182,98 @@ export function App() {
     applyThemePreference(theme)
     applyTypographyPreferences(typography)
   }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('recorder.intervalSec', String(recordIntervalSec))
+      window.localStorage.setItem('recorder.saveTimeoutSec', String(saveTimeoutSec))
+      window.localStorage.setItem('recorder.microphoneId', selectedMicrophoneId)
+    } catch {}
+  }, [recordIntervalSec, saveTimeoutSec, selectedMicrophoneId])
+
+  const refreshMicrophones = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      setMicError('当前环境无法列出麦克风设备')
+      return
+    }
+    try {
+      const inputs = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === 'audioinput')
+      setMicrophones(inputs.map((device, index) => ({ id: device.deviceId, label: device.label || `麦克风 ${index + 1}（授权后显示名称）` })))
+      setSelectedMicrophoneId((current) => current && !inputs.some((device) => device.deviceId === current) ? '' : current)
+    } catch (error) {
+      setMicError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshMicrophones()
+    navigator.mediaDevices?.addEventListener?.('devicechange', refreshMicrophones)
+    return () => navigator.mediaDevices?.removeEventListener?.('devicechange', refreshMicrophones)
+  }, [refreshMicrophones])
+
+  useEffect(() => () => { if (micPreviewUrl) URL.revokeObjectURL(micPreviewUrl) }, [micPreviewUrl])
+
+  const handleTestMicrophone = useCallback(async () => {
+    if (micTestStopRef.current) { micTestStopRef.current(); return }
+    if (micTestStartingRef.current || operationRef.current || state.status === 'recording' || state.status === 'starting') return
+    micTestStartingRef.current = true
+    setMicTesting(true)
+    let stream: MediaStream | null = null
+    let context: AudioContext | null = null
+    let meterTimer: ReturnType<typeof setInterval> | null = null
+    let stopTimer: ReturnType<typeof setTimeout> | null = null
+    try {
+      if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) throw new Error('当前环境不支持 WebM/Opus 试录')
+      stream = await navigator.mediaDevices.getUserMedia({ audio: selectedMicrophoneId ? { deviceId: { exact: selectedMicrophoneId } } : true })
+      void refreshMicrophones()
+      context = new AudioContext()
+      const analyser = context.createAnalyser()
+      context.createMediaStreamSource(stream).connect(analyser)
+      const samples = new Uint8Array(analyser.fftSize)
+      meterTimer = setInterval(() => {
+        analyser.getByteTimeDomainData(samples)
+        let power = 0
+        for (const sample of samples) power += ((sample - 128) / 128) ** 2
+        setMicLevel(Math.min(100, Math.round(Math.sqrt(power / samples.length) * 280)))
+      }, 100)
+      const chunks: Blob[] = []
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' })
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data) }
+      const capturedStream = stream
+      const capturedContext = context
+      const cleanup = () => {
+        if (meterTimer) clearInterval(meterTimer)
+        if (stopTimer) clearTimeout(stopTimer)
+        capturedStream.getTracks().forEach((track) => track.stop())
+        void capturedContext.close()
+        micTestStopRef.current = null
+        setMicTesting(false)
+        setMicLevel(0)
+      }
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: recorder.mimeType })
+        if (blob.size) setMicPreviewUrl(URL.createObjectURL(blob))
+        cleanup()
+      }
+      recorder.onerror = () => { setMicError('麦克风试录中断'); cleanup() }
+      micTestStopRef.current = () => { if (recorder.state === 'recording') recorder.stop() }
+      micTestStartingRef.current = false
+      setMicError(null)
+      setMicPreviewUrl(null)
+      recorder.start(250)
+      stopTimer = setTimeout(() => micTestStopRef.current?.(), 5000)
+    } catch (error) {
+      if (meterTimer) clearInterval(meterTimer)
+      if (stopTimer) clearTimeout(stopTimer)
+      stream?.getTracks().forEach((track) => track.stop())
+      if (context) void context.close()
+      micTestStopRef.current = null
+      micTestStartingRef.current = false
+      setMicTesting(false)
+      setMicLevel(0)
+      setMicError(error instanceof Error ? error.message : String(error))
+    }
+  }, [refreshMicrophones, selectedMicrophoneId, state.status])
 
   const handleThemeChange = useCallback((newTheme: ThemeName) => {
     setTheme(newTheme)
@@ -199,37 +329,117 @@ export function App() {
     return () => clearInterval(timer)
   }, [refreshState])
 
-  // 开始录制
+  const waitForIdle = useCallback(async (bridge: UnifiedRecorderBridge, timeoutMs: number) => {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      const next = await bridge.readState()
+      setState(next)
+      if (next.status === 'idle') return
+      if (next.status === 'error') throw new Error(next.lastError ?? '录制保存失败')
+      await new Promise((resolve) => setTimeout(resolve, 300))
+    }
+    throw new Error('保存等待已超过设定时间')
+  }, [])
+
   const handleStart = useCallback(async () => {
     const bridge = getBridge()
-    if (!bridge || busy) return
+    if (!bridge || operationRef.current || micTestStopRef.current) return
+    operationRef.current = true
     setBusy(true)
+    let stream: MediaStream | null = null
+    let recorder: MediaRecorder | null = null
     try {
+      const chunks: Blob[] = []
+      if (audioEnabled) {
+        if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) throw new Error('当前环境不支持 WebM/Opus 声音录制')
+        stream = await navigator.mediaDevices.getUserMedia({ audio: selectedMicrophoneId ? { deviceId: { exact: selectedMicrophoneId } } : true })
+        void refreshMicrophones()
+        recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' })
+        recorder.ondataavailable = (event) => { if (event.data.size > 0) chunks.push(event.data) }
+      }
       const next = await bridge.start(undefined, activeSources)
       setState(next)
+      if (!next.sessionId || next.status !== 'recording') throw new Error(next.lastError ?? '录制启动失败')
+      if (recorder && stream) {
+        recorder.start(1000)
+        mediaRef.current = { recorder, stream, chunks, sessionId: next.sessionId, startedAt: new Date().toISOString() }
+      }
+      setSaveNotice(null)
+      rotationTimerRef.current = setTimeout(() => { void finishRef.current(true) }, Math.max(10, recordIntervalSec) * 1000)
     } catch (err: unknown) {
+      if (recorder?.state === 'recording') recorder.stop()
+      if (stream) stream.getTracks().forEach((track) => track.stop())
       const message = err instanceof Error ? err.message : String(err)
-      setState((prev) => ({ ...prev, lastError: message, status: 'error' }))
+      setSaveNotice({ title: '录制未能启动', detail: message })
     } finally {
+      operationRef.current = false
       setBusy(false)
     }
-  }, [busy, activeSources])
+  }, [activeSources, audioEnabled, recordIntervalSec, refreshMicrophones, selectedMicrophoneId])
+  startRef.current = handleStart
 
-  // 停止录制
-  const handleStop = useCallback(async () => {
+  const finishSegment = useCallback(async (automatic: boolean) => {
     const bridge = getBridge()
-    if (!bridge || busy) return
+    if (!bridge || operationRef.current) return
+    operationRef.current = true
+    if (rotationTimerRef.current) clearTimeout(rotationTimerRef.current)
+    rotationTimerRef.current = null
     setBusy(true)
+    setSaveNotice({ title: automatic ? '已到录制间隔，请暂停操作' : '正在保存录制', detail: '请等待操作记录与声音保存完成…' })
+    const deadline = Date.now() + saveTimeoutSec * 1000
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null
     try {
-      const next = await bridge.stop()
-      setState(next)
+      if (automatic) await bridge.pauseNotice()
+      const media = mediaRef.current
+      mediaRef.current = null
+      let audioTask: Promise<unknown> | null = null
+      if (media) {
+        const blobTask = new Promise<Blob>((resolve, reject) => {
+          if (media.recorder.state === 'inactive') {
+            resolve(new Blob(media.chunks, { type: media.recorder.mimeType }))
+            return
+          }
+          media.recorder.onstop = () => resolve(new Blob(media.chunks, { type: media.recorder.mimeType }))
+          media.recorder.onerror = () => reject(new Error('声音录制器停止失败'))
+          media.recorder.stop()
+        })
+        media.stream.getTracks().forEach((track) => track.stop())
+        audioTask = blobTask.then(async (blob) => {
+          const audio = { sessionId: media.sessionId, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: media.recorder.mimeType, startedAt: media.startedAt, durationMs: Date.now() - Date.parse(media.startedAt), timeoutMs: Math.max(1000, deadline - Date.now()) }
+          const result = await bridge.saveAudio(audio)
+          if (result.transcriptionError) throw new Error(result.transcriptionError)
+        })
+      }
+      const stopTask = bridge.stop().then(() => waitForIdle(bridge, Math.max(1, deadline - Date.now())))
+      const tasks: Promise<unknown>[] = [stopTask]
+      if (audioTask) tasks.push(audioTask)
+      await Promise.race([
+        Promise.all(tasks),
+        new Promise((_, reject) => { timeoutHandle = setTimeout(() => reject(new Error('保存等待已超过设定时间，已停止自动续录')), Math.max(1, deadline - Date.now())) }),
+      ])
+      await refreshState()
+      if (automatic) {
+        setSaveNotice({ title: '保存完成，正在开始下一段', detail: '请继续暂停操作，等待录制状态恢复…' })
+        setTimeout(() => { void startRef.current() }, 100)
+      } else setSaveNotice(null)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
-      setState((prev) => ({ ...prev, lastError: message, status: 'error' }))
+      setSaveNotice({ title: '保存或转写未完成，自动续录已停止', detail: message })
     } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+      operationRef.current = false
       setBusy(false)
     }
-  }, [busy])
+  }, [refreshState, saveTimeoutSec, waitForIdle])
+  finishRef.current = finishSegment
+  const handleStop = useCallback(async () => finishSegment(false), [finishSegment])
+
+  const handleCorrectSubtitle = useCallback(async (id: string, value: string) => {
+    const bridge = getBridge()
+    if (!bridge) return
+    await bridge.correctSubtitle(id, value)
+    await refreshState()
+  }, [refreshState])
 
   // 快捷打开专用浏览器 (9343)
   const handleLaunchBrowser = useCallback(async () => {
@@ -304,6 +514,22 @@ export function App() {
       browserBusy,
       activeSources,
       setActiveSources,
+      audioEnabled,
+      setAudioEnabled,
+      microphones,
+      selectedMicrophoneId,
+      setSelectedMicrophoneId,
+      micTesting,
+      micLevel,
+      micPreviewUrl,
+      micError,
+      handleTestMicrophone,
+      refreshMicrophones,
+      recordIntervalSec,
+      setRecordIntervalSec,
+      saveTimeoutSec,
+      setSaveTimeoutSec,
+      handleCorrectSubtitle,
       copied,
       handleStart,
       handleStop,
@@ -317,6 +543,17 @@ export function App() {
       busy,
       browserBusy,
       activeSources,
+      audioEnabled,
+      microphones,
+      selectedMicrophoneId,
+      micTesting,
+      micLevel,
+      micPreviewUrl,
+      micError,
+      handleTestMicrophone,
+      refreshMicrophones,
+      recordIntervalSec,
+      saveTimeoutSec,
       copied,
       handleStart,
       handleStop,
@@ -324,6 +561,7 @@ export function App() {
       handleOpenArtifact,
       handleOpenPath,
       handleCopy,
+      handleCorrectSubtitle,
     ],
   )
 
@@ -434,7 +672,7 @@ export function App() {
               会话: <code>{state.sessionId ?? 'IDLE'}</code>
             </span>
             <span className="footer-spacer" />
-            <span>控制中枢 · 截图证据</span>
+            <span>控制中枢 · 截图证据 · 声音字幕</span>
           </footer>
           {/* 全局偏好设置弹窗 */}
           <SettingsDialog
@@ -450,6 +688,16 @@ export function App() {
             onSaveWorkspaceDefault={handleSaveWorkspaceDefault}
             onResetWorkspaceDefault={handleResetWorkspaceDefault}
           />
+          {saveNotice && (
+            <div className="recording-pause-backdrop" role="alertdialog" aria-modal="true" aria-label={saveNotice.title}>
+              <div className="recording-pause-dialog">
+                <h2>{saveNotice.title}</h2>
+                <p>{saveNotice.detail}</p>
+                <p>请暂停演示操作，等待当前片段结算。</p>
+                {!busy && <button type="button" className="action-btn" onClick={() => setSaveNotice(null)}>关闭提示</button>}
+              </div>
+            </div>
+          )}
         </div>
       </WorkbenchHostContext.Provider>
     </RecorderContext.Provider>

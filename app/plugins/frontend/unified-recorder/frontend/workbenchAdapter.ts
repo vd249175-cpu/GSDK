@@ -120,6 +120,20 @@ export function createRecorderWorkbenchAdapter(panels: PanelDefinition[]): Recor
         panelInstanceIds: { 'recorder.screenshots': 'inst-screenshots-solo' },
       },
     },
+    narration: {
+      id: 'narration',
+      name: '声音字幕',
+      order: 2,
+      focusedAreaId: 'area-narration-solo',
+      maximizedAreaId: null,
+      layout: {
+        kind: 'area',
+        id: 'area-narration-solo',
+        activePanelId: 'recorder.narration',
+        panelHistory: ['recorder.narration'],
+        panelInstanceIds: { 'recorder.narration': 'inst-narration-solo' },
+      },
+    },
   }
 
   const store = new WorkspaceStore({
