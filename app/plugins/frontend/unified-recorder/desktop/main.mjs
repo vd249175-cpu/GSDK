@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { defaultValueCodec } from '@graphframework/sdk/protocol'
 import { serveRunControl, callRunControl } from '../../../../../packages/tooling/run/index.mjs'
 import { createNarrationStore, resolveOpenRouterApiKey } from './narration.mjs'
+import { mergeNarrationIntoRecording } from './recording-merge.mjs'
 import { createRecorderSnapshot } from './snapshot.mjs'
 import { createNarrationRestorer } from './restore.mjs'
 
@@ -16,7 +17,8 @@ const repositoryRoot = fileURLToPath(new URL('../../../../../', import.meta.url)
 
 const context = JSON.parse(readFileSync(process.argv[2], 'utf8'))
 const runtime = context.runtimeDirectory
-const narrationDirectory = join(dirname(runtime), 'data', 'recordings', 'narration')
+const recordingsDirectory = join(dirname(runtime), 'data', 'recordings')
+const narrationDirectory = join(recordingsDirectory, 'narration')
 const narrationStore = createNarrationStore({
   directory: narrationDirectory,
   apiKey: () => resolveOpenRouterApiKey({ credentialsPath: join(repositoryRoot, 'credentials.json') }),
@@ -129,11 +131,28 @@ async function startHost() {
     })
     return { ok: true, transcriptionError: result.transcriptionError }
   })
+  ipcMain.handle('recorder:finalize-recording', async (_event, sessionId) => {
+    const snapshot = await getSessionSnapshot()
+    if (snapshot.sessionId !== sessionId || snapshot.status !== 'idle' || !snapshot.sessionDir) {
+      throw new Error('Recording export is not ready for narration merge')
+    }
+    const index = await narrationStore.readIndex()
+    const result = await mergeNarrationIntoRecording({
+      sessionId, sessionDirectory: snapshot.sessionDir, recordingsDirectory, narrationDirectory, index,
+    })
+    if (result.merged) await narrationStore.linkRecording(sessionId, snapshot.sessionDir)
+    return result
+  })
   ipcMain.handle('recorder:correct-subtitle', async (_event, id, value) => {
-    await narrationStore.correct(id, value)
+    const index = await narrationStore.correct(id, value)
     await callRunControl(runtime, 'inject-renderer', {
       targetNodeId: `${context.instance.graph ?? 'recorder'}/session`,
       info: { type: 'CorrectSubtitleInfo', id, text: value },
+    })
+    const sessionId = index.subtitles.find((item) => item.id === id)?.sessionId
+    const sessionDirectory = index.recordingDirectories?.[sessionId]
+    if (sessionDirectory) await mergeNarrationIntoRecording({
+      sessionId, sessionDirectory, recordingsDirectory, narrationDirectory, index,
     })
     return { ok: true }
   })

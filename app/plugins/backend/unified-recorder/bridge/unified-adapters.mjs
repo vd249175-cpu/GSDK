@@ -813,7 +813,13 @@ export function createUnifiedAdapters({
     id: DESKTOP_OBSERVATION_ID,
     execute: async (request) => {
       if (request?.op !== 'observe') throw new Error(`Unknown unified desktop-observation request: ${JSON.stringify(request?.op)}`)
-      const sessionDirectory = request.sessionDir ?? dirname(request.artifactPath ?? recordingsDirectory)
+      const sessionDirectory = request.sessionDir ?? (request.artifactPath
+        ? dirname(request.artifactPath)
+        : recordingPath(recordingsDirectory, formatRecordingDirectoryName({
+            sessionId: request.sessionId,
+            startedAt: request.startedAt,
+            completedAt: request.completedAt,
+          })))
       const processed = await processRecordingExport({
         sessionId: request.sessionId,
         sessionDirectory,

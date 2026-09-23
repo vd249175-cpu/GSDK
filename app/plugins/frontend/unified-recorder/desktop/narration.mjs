@@ -104,6 +104,14 @@ export function createNarrationStore({ directory, apiKey = process.env.OPENROUTE
         item.text = text.trim()
       })
     },
+    linkRecording: async (sessionId, sessionDirectory) => {
+      assertSession(sessionId)
+      if (typeof sessionDirectory !== 'string' || !sessionDirectory) throw new Error('Invalid recording directory')
+      return updateIndex((index) => {
+        if (!index.audioClips.some((item) => item.sessionId === sessionId)) throw new Error('Audio clip not found')
+        index.recordingDirectories = { ...index.recordingDirectories, [sessionId]: sessionDirectory }
+      })
+    },
     save: async ({ sessionId, bytes, mimeType, startedAt, durationMs, timeoutMs, narrationStartedAt }) => {
       assertSession(sessionId)
       if (mimeType !== 'audio/webm' && mimeType !== 'audio/webm;codecs=opus') throw new Error('Only WebM/Opus audio is supported')

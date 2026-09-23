@@ -286,4 +286,19 @@ await page.getByRole('button', { name: 'Login' }).click();
     const stopped = await adapters.browserControl.execute({ op: 'stop', sessionId: 's-1' })
     expect(stopped.actions).toContain('page.goto')
   })
+
+  it('exports browser-only sessions to their own final recording directory', async () => {
+    const recordingsDirectory = await mkdtemp(join(tmpdir(), 'browser-only-recording-'))
+    try {
+      const adapters = createUnifiedAdapters({ recordingsDirectory, runCli: async () => '' })
+      const result = await adapters.desktopObservation.execute({
+        op: 'observe', sessionId: 'browser-only',
+        browserActions: "await page.goto('https://example.com');",
+        startedAt: '2026-09-23T00:00:00.000Z', completedAt: '2026-09-23T00:00:05.000Z',
+      })
+      expect(resolve(result.sessionDirectory)).not.toBe(resolve(recordingsDirectory))
+      expect(result.sessionDirectory).toContain('browser-only')
+      expect(JSON.parse(await readFile(join(result.sessionDirectory, 'unified-events.json'), 'utf8')).events).toHaveLength(1)
+    } finally { await rm(recordingsDirectory, { recursive: true, force: true }) }
+  })
 })

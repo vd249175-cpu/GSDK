@@ -84,6 +84,7 @@ export interface UnifiedRecorderBridge {
   copyToClipboard: (text: string) => Promise<{ ok: boolean }>
   readImage?: (targetPath: string) => Promise<{ ok: boolean; dataUrl?: string; error?: string }>
   saveAudio: (payload: { sessionId: string; bytes: Uint8Array; mimeType: string; startedAt: string; durationMs: number; timeoutMs: number }) => Promise<{ ok: boolean; transcriptionError?: string | null }>
+  finalizeRecording: (sessionId: string) => Promise<{ merged: boolean }>
   correctSubtitle: (id: string, text: string) => Promise<{ ok: boolean }>
   readAudio: (sessionId: string) => Promise<string>
   openNarration: () => Promise<{ ok: boolean; error?: string }>
@@ -472,7 +473,7 @@ export function App() {
       if (automatic) await bridge.pauseNotice()
       const media = mediaRef.current
       mediaRef.current = null
-      let audioTask: Promise<unknown> | null = null
+      let audioTask: Promise<{ ok: boolean; transcriptionError?: string | null }> | null = null
       if (media) {
         const blobTask = new Promise<Blob>((resolve, reject) => {
           if (media.recorder.state === 'inactive') {
@@ -486,15 +487,17 @@ export function App() {
         media.stream.getTracks().forEach((track) => track.stop())
         audioTask = blobTask.then(async (blob) => {
           const audio = { sessionId: media.sessionId, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: media.recorder.mimeType, startedAt: media.startedAt, durationMs: Date.now() - Date.parse(media.startedAt), timeoutMs: Math.max(1000, deadline - Date.now()) }
-          const result = await bridge.saveAudio(audio)
-          if (result.transcriptionError) throw new Error(result.transcriptionError)
+          return bridge.saveAudio(audio)
         })
       }
       const stopTask = bridge.stop().then(() => waitForIdle(bridge, Math.max(1, deadline - Date.now())))
-      const tasks: Promise<unknown>[] = [stopTask]
-      if (audioTask) tasks.push(audioTask)
+      const saveAndMerge = async () => {
+        const [, audioResult] = await Promise.all([stopTask, audioTask ?? Promise.resolve(null)])
+        if (media) await bridge.finalizeRecording(media.sessionId)
+        if (audioResult?.transcriptionError) throw new Error(audioResult.transcriptionError)
+      }
       await Promise.race([
-        Promise.all(tasks),
+        saveAndMerge(),
         new Promise((_, reject) => { timeoutHandle = setTimeout(() => reject(new Error('保存等待已超过设定时间，已停止自动续录')), Math.max(1, deadline - Date.now())) }),
       ])
       await refreshState()

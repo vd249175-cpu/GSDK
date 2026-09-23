@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('recorder', {
   copyToClipboard: (text) => ipcRenderer.invoke('recorder:copy-to-clipboard', text),
   readImage: (targetPath) => ipcRenderer.invoke('recorder:read-image', targetPath),
   saveAudio: (payload) => ipcRenderer.invoke('recorder:save-audio', payload),
+  finalizeRecording: (sessionId) => ipcRenderer.invoke('recorder:finalize-recording', sessionId),
   correctSubtitle: (id, text) => ipcRenderer.invoke('recorder:correct-subtitle', id, text),
   readAudio: (sessionId) => ipcRenderer.invoke('recorder:read-audio', sessionId),
   openNarration: () => ipcRenderer.invoke('recorder:open-narration'),
