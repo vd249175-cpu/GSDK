@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
 import { resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { loadApplication, runtimeRoot } from './application.mjs'
@@ -26,11 +27,12 @@ export default defineConfig({
       { find: /^react$/, replacement: resolve(runtimeRoot, 'node_modules/react/index.js') },
       { find: /^react-dom$/, replacement: resolve(runtimeRoot, 'node_modules/react-dom/index.js') },
       { find: /^react\/jsx-runtime$/, replacement: resolve(runtimeRoot, 'node_modules/react/jsx-runtime.js') },
+      { find: /^react\/jsx-dev-runtime$/, replacement: resolve(runtimeRoot, 'node_modules/react/jsx-dev-runtime.js') },
       { find: /^react-dom\/client$/, replacement: resolve(runtimeRoot, 'node_modules/react-dom/client.js') },
       { find: /^lucide-react$/, replacement: resolve(runtimeRoot, 'node_modules/lucide-react/dist/esm/lucide-react.mjs') },
     ],
   },
-  plugins: [{
+  plugins: [react(), {
     name: 'graphframework-test-elements',
     resolveId(id) { if (['virtual:graphframework-elements', 'virtual:graphframework-config'].includes(id)) return '\0' + id },
     load(id) {

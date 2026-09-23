@@ -129,6 +129,17 @@ const emptyState: RecorderState = {
   revision: 0,
 }
 
+const normalizeRecorderState = (next: Partial<RecorderState>): RecorderState => ({
+  ...emptyState,
+  ...next,
+  sources: Array.isArray(next.sources) ? next.sources : emptyState.sources,
+  events: Array.isArray(next.events) ? next.events : [],
+  applications: Array.isArray(next.applications) ? next.applications : [],
+  progressLog: Array.isArray(next.progressLog) ? next.progressLog : [],
+  subtitles: Array.isArray(next.subtitles) ? next.subtitles : [],
+  audioClips: Array.isArray(next.audioClips) ? next.audioClips : [],
+})
+
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform)
 const readSeconds = (key: string, fallback: number, min: number, max: number) => {
   try {
@@ -315,7 +326,7 @@ export function App() {
     if (!bridge) return
     try {
       const next = await bridge.readState()
-      setState(next)
+      setState(normalizeRecorderState(next))
     } catch {
       // 优雅降级
     }
@@ -333,7 +344,7 @@ export function App() {
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
       const next = await bridge.readState()
-      setState(next)
+      setState(normalizeRecorderState(next))
       if (next.status === 'idle') return
       if (next.status === 'error') throw new Error(next.lastError ?? '录制保存失败')
       await new Promise((resolve) => setTimeout(resolve, 300))
@@ -358,7 +369,7 @@ export function App() {
         recorder.ondataavailable = (event) => { if (event.data.size > 0) chunks.push(event.data) }
       }
       const next = await bridge.start(undefined, activeSources)
-      setState(next)
+      setState(normalizeRecorderState(next))
       if (!next.sessionId || next.status !== 'recording') throw new Error(next.lastError ?? '录制启动失败')
       if (recorder && stream) {
         recorder.start(1000)

@@ -31,19 +31,23 @@ let stopped = false
 async function getSessionSnapshot() {
   try {
     const graphPrefix = `${context.instance.graph ?? 'recorder'}/`
-    if (!narrationRestored) {
-      narrationRestored = true
-      const saved = await narrationStore.readIndex()
-      if (saved.subtitles.length || saved.audioClips.length) {
-        await callRunControl(runtime, 'inject-renderer', {
-          targetNodeId: `${graphPrefix}session`,
-          info: { type: 'RestoreSubtitlesInfo', ...saved },
-        })
-      }
-    }
     // 前端无状态：只读 projection。live 事件 tick 由后端宿主常驻时钟注入，
     // 此处不再发送 PollUnifiedEventsInfo（见 runs/main/host.mjs startPolling）。
-    const projection = await callRunControl(runtime, 'projection')
+    let projection = await callRunControl(runtime, 'projection')
+    if (!narrationRestored && projection.nodes?.[`${graphPrefix}session`]) {
+      const health = await callRunControl(runtime, 'health')
+      if (health.state === 'running') {
+        const saved = await narrationStore.readIndex()
+        if (saved.subtitles.length || saved.audioClips.length) {
+          await callRunControl(runtime, 'inject-renderer', {
+            targetNodeId: `${graphPrefix}session`,
+            info: { type: 'RestoreSubtitlesInfo', ...saved },
+          })
+          projection = await callRunControl(runtime, 'projection')
+        }
+        narrationRestored = true
+      }
+    }
     const nodeEntry = projection.nodes?.[`${graphPrefix}session`] ?? projection.nodes?.['example.unified-recorder/session']
     const state = defaultValueCodec.decode(nodeEntry?.state) ?? {}
     let browserAlive = false
@@ -78,6 +82,7 @@ async function getSessionSnapshot() {
       revision: projection.revision ?? 0,
     }
   } catch (error) {
+    console.error('[Recorder state snapshot failed]', error?.stack ?? error)
     return {
       status: 'error',
       sessionId: null,
@@ -96,9 +101,11 @@ async function getSessionSnapshot() {
       startedAt: null,
       completedAt: null,
       lastError: error?.message ?? 'Failed to read recorder state',
+      progressLog: [],
       narrationStartedAt: null,
       subtitles: [],
       audioClips: [],
+      browserAlive: false,
       revision: 0,
     }
   }
@@ -318,6 +325,12 @@ async function startHost() {
     },
   })
   mainWindow.setMenu(null)
+  mainWindow.webContents.on('console-message', (details) => {
+    if (details.level === 'error') console.error(`[Recorder renderer] ${details.message} (${details.sourceId}:${details.lineNumber})`)
+  })
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    console.error(`[Recorder renderer load failed] ${errorCode}: ${errorDescription}`)
+  })
   mainWindow.loadFile(context.rendererFile)
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
