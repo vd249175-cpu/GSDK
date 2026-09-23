@@ -28,6 +28,10 @@ status: stable
   - 跨文件重构或代码批量替换辅助使用 `node packages/tooling/refactor/refactor.mjs`。
 - **严格类型检查**：
   - 任何代码修改必须通过 `npm --prefix packages/desktop run typecheck` 与 `npm --prefix packages/sdk/javascript run typecheck`。
+- **单文件行数控制**：
+  - 单个源码文件的代码行数最好控制在 **300 行左右**；超过 300 行时应主动拆分为更小的模块或文件。
+  - 拆分原则：按职责单一性（Single Responsibility）分离，确保每个文件只负责一个清晰的关注点。
+  - 测试文件、生成文件及数据定义文件（如大型常量表、i18n 资源）可酌情放宽，但仍需有意识地控制体积。
 - **文档维护规范**：
   - 当前文档只描述已存在的源码，不写迁移史和未来假想架构；
   - 示例必须使用当前 `@graphframework/*` 公开 API，严禁引用已废弃或不存在的文件/方法；
@@ -101,6 +105,16 @@ status: stable
    - 每个子 Agent 独占分配的 `runs/<subagent-id>/` 沙箱，微内核端口、Vite 端口与生成产物严格正交隔离，严禁并发全量暂存 Git；
    - **UFO 物理桌面强占冲突红线**：操作系统前台焦点、鼠标光标与全屏窗口为单一硬件独占资源。**微软 UFO 计算机控制（`example.ufo-computer-control`）与 Windows 步骤记录器（`example.os-recorder`）绝对严禁多 Agent 并发执行真机物理自动化（严禁抢桌面）**；
    - 并行期涉及 UFO 研发必须使用 `MockUfoEffectAdapter` 模拟单测进行逻辑分流；真机物理交互与录制必须获取系统级独占锁并严格串行执行。详见 [子 Agent 并行开发契约与桌面排他守卫](REFERENCE/subagent-parallel-contract.md)。
+6. **工作流测试开发必须在 run 下实现，不支持第二套测试方案**：
+   - 任何工作流场景的业务逻辑、针对性单测与集成验证，**唯一合法的物理载体必须是 `runs/<name>/` 独立沙箱**；
+   - **严禁在 `runs/` 外建立独立测试目录（如根目录 `tests/`、散落的 `.mjs`/`.ps1` 裸跑脚本）的第二套测试方案**；全仓绝对不为裸脚本提供旁路支持；
+   - 所有的自动化逻辑必须封装为符合 GraphFramework 规范的图节点（`ExecutionWorldNode`/`ObservationWorldNode`），其测试无论是局部单测还是链路因果断言，必须就地在所属 run 下闭环（例如 `runs/<name>/tests/` 通过 `@graphframework/sdk/testing` 的 `createTestRuntime`），全系统运行必须且仅能通过 `bash ./run.sh start runs/<name>/run.config.json`。
+7. **自动化操作永远前端可监视，关键步骤从前端确认**：
+   - 任何自动化操作（Web 浏览器、Windows 桌面、外部系统交互）**绝对严禁做成后台静默盲跑的黑盒**；
+   - **必须永远具备前端可监视的监视窗口（Live Monitor / Observation Window）**：
+     - Web 自动化必须使用有头模式在前台窗口展示，或通过 CDP 实时快照面板投射到前端；
+     - 桌面与系统级自动化必须通过 `ObservationWorldNode` 将操作步骤、屏幕截图与控件树实时作为 Projection 投射到前端监视窗口；
+   - **关键步骤前端确认**：对于输入填充、点击提交、弹窗确认、放弃保存等因果推进关键步骤，必须能在前端监视窗口中清晰直观呈现，人机协同交互与关键判定统一从前端监视窗口确认。
 
 ---
 
@@ -143,6 +157,7 @@ status: stable
 用户说“我刚录制了电脑操作，按录制内容做自动化流程”时，先查找录制产物，再按 [从用户录制到健壮工作流](REFERENCE/workflow/recording-to-workflow.md) 提炼流程。
 
 - **主 run 默认位置**：仓库根目录下的 `runs/main/.generated/data/recordings/`。其他 run 先读其 `runs/<name>/run.config.json` 的 `resources.dataDirectory`，录制根目录是该数据目录下的 `recordings/`；不要把主 run 路径套用于其他 run。
-- **每次操作录制**：完成后的目录名为 `recordings/YYYY-MM-DD_HH-mm-ss__YYYY-MM-DD_HH-mm-ss_<sessionId>/`，前后分别是本地开始和结束时间，精确到秒；录制中暂为 `recordings/YYYY-MM-DD_HH-mm-ss_recording_<sessionId>/`。旧录制仍可能使用 `<sessionId>-<UTC开始时间>/`，不会自动改名。结合用户提供的会话 ID 和录制时间定位；未提供时查看该目录下最近完成的会话。录制停止并完成清洗导出后，优先阅读 `agent-transcript.md`（整理后的步骤）与 `unified-events.json`（结构化事件），再核对 `native/browser-playwright.js`、`native/desktop-psr.zip`、`screenshots/`；`raw-desktop-psr.zip` 是原始桌面归档，`replay.js` 是录制生成的回放草稿。PSR 文件可能因设备或录制源不可用而缺失。
+- **每次操作录制**：完成后的目录名为 `recordings/YYYY-MM-DD_HH-mm-ss__YYYY-MM-DD_HH-mm-ss_<sessionId>/`，前后分别是本地开始和结束时间，精确到秒；录制中暂为 `recordings/YYYY-MM-DD_HH-mm-ss_recording_<sessionId>/`。旧录制仍可能使用 `<sessionId>-<UTC开始时间>/`，不会自动改名。结合用户提供的会话 ID 和录制时间定位；未提供时查看该目录下最近完成的会话。录制停止并完成清洗导出后，优先阅读 `agent-transcript.md`（整理后的步骤）与 `unified-events.json`（结构化事件），再核对 `native/browser-playwright.js` 与 `native/desktop-psr.zip`；`raw-desktop-psr.zip` 是原始桌面归档，`replay.js` 是录制生成的回放草稿。PSR 文件可能因设备或录制源不可用而缺失。
+- **文字事实优先与极度克制读取截图铁律**：阅读录制产物时，必须充分依赖清洗后的结构化文字事实（`agent-transcript.md`、`unified-events.json`、`aligned-timeline.md`）理解用户意图；**严禁随意或批量读取 `screenshots/` 截图（避免消耗巨量上下文 Token）**。**除非遇到文字信息存在无法判定的严重歧义、关键控件完全缺失文字描述、或必须依赖视觉确认的特殊场景，严禁主动调阅图片，调阅时必须仅限于单张必须确认的截图**。
 - **解说声音与字幕**：完成后的会话目录另含 `audio/narration.webm`、`narration-transcript.md`、`aligned-timeline.md` 与 `subtitles.srt`。对照操作与解说时，先读按会话时间交错排列的 `aligned-timeline.md`，再分别核对 `agent-transcript.md` 和 `narration-transcript.md`；`unified-events.json` 的 `timeBase`、`timeline` 与 `narration` 字段关联两个轨道。全局原始声音与可修正字幕索引保存在 `recordings/narration/` 的 `<sessionId>.webm`、`subtitles.json` 和 `subtitles.srt`。
-- **转化入口**：将上述产物作为理解用户意图的证据，按 `REFERENCE/workflow/recording-to-workflow.md` 清理误操作、识别参数与结果，再在独立 run 中实现和验证自动化流程。不要直接把 `replay.js` 当作已经验收的工作流。
+- **转化入口**：将上述产物作为理解用户意图的证据，按 [从用户录制到健壮工作流](REFERENCE/workflow/recording-to-workflow.md) 清理误操作、识别参数与结果，**沉淀领域知识库与 SOP 并建立 `knowledge-index.json` 索引同步至远程 `/root/knowledgeroot`**，**必须且只能在独立 run（`runs/<workflow-name>/`）中实现和验证自动化流程**。**严禁在仓库根目录下另起 `tests/` 目录写裸跑脚本，全仓绝不支持第二套旁路测试方案**；同时，**自动化操作必须永远具备前端可监视的监视窗口，关键推进步骤（数据输入、点击操作、弹窗确认）统一在前端监视窗口中确认**。不要直接把 `replay.js` 当作已经验收的工作流。

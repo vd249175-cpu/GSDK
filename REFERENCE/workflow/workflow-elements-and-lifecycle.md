@@ -111,6 +111,9 @@ flowchart LR
    - **类载体**：继承自 `@graphframework/sdk/plugin` 的 `ExecutionWorldNode`；
    - **职能**：通过构造注入的 `EffectAdapter`（如 HTTP Client、Playwright 驱动、UFO 键鼠驱动、Shell 执行器）向外部物理世界下达确定的动作；
    - **对 Agent 暴露**：Agent 通过向其发送结构化的 Info 脉冲（如 `ExecuteActionInfo`）触发物理下发，执行完成立即结算单飞租约并返回句柄。
+3. **前端可监视原则与关键步骤确认 (Live Monitor & Confirmation Gate)**：
+   - **永远前端可监视**：任何自动化操作（浏览器渲染、桌面窗口操作等）**绝对严禁做成后台静默盲跑的黑盒**。必须永远具备前端可监视的监视窗口，通过有头窗口展示或由 `ObservationWorldNode` 产生的实时 Projection 投射到前端界面；
+   - **关键步骤前端确认**：输入文本填充、核心按钮点击、弹窗确认/放弃等因果推进关键步骤，必须在前端监视窗口中清晰展现，供用户与 Agent 随时审验与确认。
 
 ---
 
@@ -127,7 +130,7 @@ sequenceDiagram
 
     Note over Dev: 阶段 1：在独立 Run 内开发与单测
     Dev->>CI: 1. 执行针对性单元测试 (可观测事实断言)
-    CI-->>Dev: 单测通过
+    CI-->>Dev: 单测通过 (绝不支持第二套独立脚本测试方案)
     Dev->>CI: 2. 执行图健康度与耦合度分析 (bash ./run.sh analyze)
     CI-->>Dev: 无死循环、0 unresolved-info-type、耦合度健康
     Dev->>CI: 3. 双重严格类型检查 (desktop & sdk)
@@ -144,8 +147,8 @@ sequenceDiagram
 
 ### 2.1 准入四大门禁
 在并入 `runs/main` 之前，必须满足以下所有条件：
-1. **独立 Run 跑通**：在 `runs/<workflow-name>/` 下通过 `bash ./run.sh start` 正常运行，所有端到端流程无卡死；
-2. **针对性单元测试全绿**：断言了 State 变迁、下游 Info 交付与物理文件落盘三项事实；
+1. **独立 Run 闭环且无第二套测试方案**：工作流开发与测试必须且只能在 `runs/<workflow-name>/` 下实现，**严禁在仓库根目录下另起 `tests/` 目录写裸跑脚本（全仓绝不支持第二套旁路测试方案）**；通过 `bash ./run.sh start` 正常运行，所有端到端流程无卡死，具备前端可监视窗口且关键步骤可确认；
+2. **针对性单元测试全绿**：就地在 `runs/<workflow-name>/tests/` 跑通单测，断言了 State 变迁、下游 Info 交付与物理文件落盘三项事实；
 3. **因果图分析通过**：`cyclicNodeIds` 必须为空，`unresolvedInfoTypes` 为 0，节点耦合度度量在合理区间；
 4. **凭据解耦安全**：本地无明文 AppSecret、私钥或密码。
 
