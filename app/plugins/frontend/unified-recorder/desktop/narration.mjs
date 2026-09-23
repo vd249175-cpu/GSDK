@@ -27,32 +27,117 @@ export const subtitlesToSrt = (subtitles) => subtitles.map((item, index) => (
   `${index + 1}\n${srtTime(item.startMs)} --> ${srtTime(Math.max(item.startMs, item.endMs))}\n${item.text}\n`
 )).join('\n')
 
-export function normalizeTranscription(result, durationMs) {
-  const segments = Array.isArray(result?.segments) ? result.segments : []
-  if (segments.length > 0) return segments
-    .filter((part) => typeof part.text === 'string' && part.text.trim())
-    .map((part) => ({
-      startMs: Math.max(0, Math.round(Number(part.start) * 1000) || 0),
-      endMs: Math.max(0, Math.round(Number(part.end) * 1000) || 0),
-      text: part.text.trim(),
+const timedPart = (part, field = 'text') => ({
+  startMs: Math.max(0, Math.round(Number(part.start) * 1000) || 0),
+  endMs: Math.max(0, Math.round(Number(part.end) * 1000) || 0),
+  text: String(part[field] ?? '').trim(),
+})
+
+const sentences = (text) => (text.match(/[^。！？!?；;]+[。！？!?；;]?/gu) ?? [])
+  .map((part) => part.trim()).filter(Boolean)
+
+const joinAtLargestPauses = (parts, count) => {
+  if (parts.length < count || count < 2) return []
+  const gaps = parts.slice(1).map((part, index) => ({
+    after: index, duration: part.startMs - parts[index].endMs,
+  }))
+    .filter((gap) => gap.duration >= 450)
+    .sort((left, right) => right.duration - left.duration)
+    .slice(0, count - 1)
+  if (gaps.length !== count - 1) return []
+  const boundaries = new Set(gaps.map((gap) => gap.after))
+  const groups = []
+  let group = []
+  parts.forEach((part, index) => {
+    group.push(part)
+    if (boundaries.has(index) || index === parts.length - 1) {
+      groups.push(group)
+      group = []
+    }
+  })
+  return groups
+}
+
+const splitTimedWords = (words, sourceText) => {
+  const valid = words.filter((word) => typeof (word.word ?? word.text) === 'string')
+    .map((word) => timedPart(word, typeof word.word === 'string' ? 'word' : 'text'))
+    .filter((word) => word.text && word.endMs >= word.startMs)
+  if (!valid.length) return []
+  const originalSentences = sentences(sourceText)
+  if (originalSentences.length > 1) {
+    const markedBoundaries = valid.slice(0, -1).flatMap((word, index) =>
+      /[。！？!?；;]$/.test(word.text) ? [index] : [])
+    const groups = markedBoundaries.length === originalSentences.length - 1
+      ? valid.reduce((all, word, index) => {
+          if (index === 0 || markedBoundaries.includes(index - 1)) all.push([])
+          all.at(-1).push(word)
+          return all
+        }, [])
+      : joinAtLargestPauses(valid, originalSentences.length)
+    if (groups.length === originalSentences.length) return groups.map((group, index) => ({
+      startMs: group[0].startMs, endMs: group.at(-1).endMs, text: originalSentences[index],
     }))
+  }
+  const groups = []
+  for (const word of valid) {
+    const previous = groups.at(-1)
+    if (!previous || word.startMs - previous.endMs >= 500 || /[。！？!?；;]$/.test(previous.text)) {
+      groups.push({ ...word })
+    } else {
+      previous.endMs = Math.max(previous.endMs, word.endMs)
+      previous.text += /[A-Za-z0-9]$/.test(previous.text) && /^[A-Za-z0-9]/.test(word.text)
+        ? ` ${word.text}` : word.text
+    }
+  }
+  return groups
+}
+
+export function normalizeTranscription(result, durationMs, speechRanges = []) {
+  const segments = Array.isArray(result?.segments) ? result.segments : []
+  const normalized = segments
+    .filter((part) => typeof part.text === 'string' && part.text.trim())
+    .map((part) => timedPart(part))
+  if (normalized.length > 1) return normalized
   const text = typeof result?.text === 'string' ? result.text.trim() : ''
-  return text ? [{ startMs: 0, endMs: Math.max(0, durationMs), text }] : []
+  const combined = normalized[0] ?? (text ? { startMs: 0, endMs: Math.max(0, durationMs), text } : null)
+  const words = Array.isArray(result?.words) ? result.words : []
+  const wordParts = splitTimedWords(words, combined?.text ?? text)
+  if (wordParts.length > 1) return wordParts
+  if (!combined) return wordParts
+  const parts = sentences(combined.text)
+  const ranges = (Array.isArray(speechRanges) ? speechRanges : []).filter((range) =>
+    Number.isFinite(range?.startMs) && Number.isFinite(range?.endMs)
+      && range.endMs > range.startMs && range.endMs >= combined.startMs && range.startMs <= combined.endMs)
+    .sort((left, right) => left.startMs - right.startMs)
+  const groupedRanges = joinAtLargestPauses(ranges, parts.length)
+  if (parts.length > 1 && groupedRanges.length === parts.length) {
+    return groupedRanges.map((group, index) => ({
+      startMs: Math.max(combined.startMs, group[0].startMs),
+      endMs: Math.min(combined.endMs, group.at(-1).endMs),
+      text: parts[index],
+    }))
+  }
+  return [combined]
 }
 
 export async function transcribeAudio({ bytes, format, timeoutMs, apiKey, model = DEFAULT_STT_MODEL, fetchImpl = fetch }) {
   if (!apiKey) throw new Error('请配置 OPENROUTER_API_KEY 或本机 credentials.json 的 openrouter.apiKey；声音已保存在本机')
-  const response = await fetchImpl('https://openrouter.ai/api/v1/audio/transcriptions', {
+  const deadline = Date.now() + timeoutMs
+  const request = (granularities) => fetchImpl('https://openrouter.ai/api/v1/audio/transcriptions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model,
       input_audio: { data: Buffer.from(bytes).toString('base64'), format },
       response_format: 'verbose_json',
-      timestamp_granularities: ['segment'],
+      timestamp_granularities: granularities,
     }),
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
   })
+  let response = await request(['segment', 'word'])
+  if (!response.ok && (response.status === 400 || response.status === 422)) {
+    response = await request(['segment'])
+  }
   if (!response.ok) {
     const body = await response.text()
     throw new Error(`OpenRouter 转写失败 (${response.status}): ${body.slice(0, 300)}`)
@@ -112,7 +197,7 @@ export function createNarrationStore({ directory, apiKey = process.env.OPENROUTE
         index.recordingDirectories = { ...index.recordingDirectories, [sessionId]: sessionDirectory }
       })
     },
-    save: async ({ sessionId, bytes, mimeType, startedAt, durationMs, timeoutMs, narrationStartedAt }) => {
+    save: async ({ sessionId, bytes, mimeType, startedAt, durationMs, timeoutMs, narrationStartedAt, speechRanges = [] }) => {
       assertSession(sessionId)
       if (mimeType !== 'audio/webm' && mimeType !== 'audio/webm;codecs=opus') throw new Error('Only WebM/Opus audio is supported')
       if (!(bytes instanceof Uint8Array) || bytes.length === 0 || bytes.length > 100_000_000) throw new Error('Invalid audio data')
@@ -126,7 +211,7 @@ export function createNarrationStore({ directory, apiKey = process.env.OPENROUTE
       try {
         const resolvedApiKey = typeof apiKey === 'function' ? await apiKey() : apiKey
         const result = await transcribeAudio({ bytes, format: 'webm', timeoutMs: Math.max(1, deadline - Date.now()), apiKey: resolvedApiKey, model, fetchImpl })
-        segments = normalizeTranscription(result, durationMs)
+        segments = normalizeTranscription(result, durationMs, speechRanges)
       } catch (error) {
         transcriptionError = error instanceof Error ? error.message : String(error)
       }

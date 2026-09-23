@@ -250,7 +250,7 @@ UI 界面基于 `@graphframework/workbench` 与 `@graphframework/ui` 构建，�
 
 前端把 IPC 快照作为不可信运行时输入，在进入工作台前校验状态、事件、进度、字幕与声音片段。宿主用同一映射生成正常和错误快照；状态读取失败会显示错误并继续轮询。根组件有渲染错误边界，意外组件异常时显示错误和“重试界面”，同时把异常写入渲染日志。启动恢复会等 run 进入 `running` 且 session Node 已出现后再注入字幕，失败则在下次状态读取时重试。
 
-声音字幕页使用麦克风的 WebM/Opus 片段；控制中枢可选择输入设备、查看音量电平，并试录五秒后回放。桌面宿主将音频保存在运行数据目录的 `recordings/narration/`，优先读取宿主环境变量 `OPENROUTER_API_KEY`，否则只读取仓库根目录未纳入 Git 的 `credentials.json` 中 `openrouter.apiKey`。调用 OpenRouter `/api/v1/audio/transcriptions` 时默认使用 `qwen/qwen3-asr-1.7b`，可通过 `OPENROUTER_STT_MODEL` 覆盖。请求使用 `verbose_json` 片段时间戳。字幕时间相对于首次录制起点，允许直接在字幕行修正文字，修正同步保存为 `subtitles.json` 和 `subtitles.srt`。接口失败时原始 WebM 仍保留。OpenRouter 当前不提供中国区域的转写请求路由保证，Qwen 模型仅代表中文语音能力与模型来源，不保证音频在中国境内处理。
+声音字幕页使用麦克风的 WebM/Opus 片段；控制中枢可选择输入设备、查看音量电平，并试录五秒后回放。桌面宿主将音频保存在运行数据目录的 `recordings/narration/`，优先读取宿主环境变量 `OPENROUTER_API_KEY`，否则只读取仓库根目录未纳入 Git 的 `credentials.json` 中 `openrouter.apiKey`。调用 OpenRouter `/api/v1/audio/transcriptions` 时默认使用 `qwen/qwen3-asr-1.7b`，可通过 `OPENROUTER_STT_MODEL` 覆盖。请求 `verbose_json` 的片段与词级时间；若提供方不接受词级参数，会退回片段时间。录音会在本地检测静音间隔：当转写只返回一条包含多个句子的片段时，优先按词级时间拆分，否则按最长停顿与句子数对应拆分；没有足够时间依据时保留原片段。字幕时间相对于首次录制起点，允许直接在字幕行修正文字，修正同步保存为 `subtitles.json` 和 `subtitles.srt`。接口失败时原始 WebM 仍保留。OpenRouter 当前不提供中国区域的转写请求路由保证，Qwen 模型仅代表中文语音能力与模型来源，不保证音频在中国境内处理。
 
 字幕列表按数值时间倒序显示，最新解说位于最前；字幕行和截图步骤显示同一来源的本地钟表时间，精确到毫秒。供播放器使用的 SRT 仍按时间正序保存。
 
