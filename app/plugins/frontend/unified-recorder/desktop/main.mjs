@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { defaultValueCodec } from '@graphframework/sdk/protocol'
 import { serveRunControl, callRunControl } from '../../../../../packages/tooling/run/index.mjs'
 import { createNarrationStore, resolveOpenRouterApiKey } from './narration.mjs'
-import { mergeNarrationIntoRecording } from './recording-merge.mjs'
+import { backfillNarrationTranscripts, mergeNarrationIntoRecording } from './recording-merge.mjs'
 import { createRecorderSnapshot } from './snapshot.mjs'
 import { createNarrationRestorer } from './restore.mjs'
 
@@ -295,6 +295,10 @@ async function startHost() {
     console.error(`[Recorder renderer load failed] ${errorCode}: ${errorDescription}`)
   })
   mainWindow.loadFile(context.rendererFile)
+  void narrationStore.readIndex()
+    .then((index) => backfillNarrationTranscripts({ recordingsDirectory, narrationDirectory, index }))
+    .then(({ errors }) => { for (const error of errors) console.warn('[Recorder narration backfill]', error.sessionId, error.message) })
+    .catch((error) => console.warn('[Recorder narration backfill]', error))
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
     mainWindow?.focus()

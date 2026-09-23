@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createNarrationStore } from './narration.mjs'
-import { mergeNarrationIntoRecording } from './recording-merge.mjs'
+import { backfillNarrationTranscripts, mergeNarrationIntoRecording } from './recording-merge.mjs'
 
 describe('final recording merge', () => {
   it('includes the audio track and corrected timed subtitles in the final record', async () => {
@@ -14,7 +14,7 @@ describe('final recording merge', () => {
       const sessionDirectory = join(recordingsDirectory, '2026-09-23_09-00-00__2026-09-23_09-00-05_clip-1')
       await mkdir(sessionDirectory, { recursive: true })
       await writeFile(join(sessionDirectory, 'unified-events.json'), JSON.stringify({ sessionId: 'clip-1', startedAt: '2026-09-23T00:00:00.000Z', events: [{ index: 1, source: 'desktop', action: 'click' }] }))
-      await writeFile(join(sessionDirectory, 'agent-transcript.md'), '# Recording\n\n## Step-by-Step Operations\n\n### Step 01\n')
+      await writeFile(join(sessionDirectory, 'agent-transcript.md'), '# Recording\n\n## Step-by-Step Operations\n\n### Step 01\n\n<!-- voice-narration:start -->\n## Voice Narration\n旧版解说\n<!-- voice-narration:end -->\n')
       const store = createNarrationStore({
         directory: narrationDirectory, apiKey: 'test-key',
         fetchImpl: async () => ({ ok: true, json: async () => ({ segments: [{ start: 0.25, end: 1.5, text: '初始字幕' }] }) }),
@@ -28,18 +28,30 @@ describe('final recording merge', () => {
       expect(record.events).toHaveLength(1)
       expect(record.narration.audioClips).toEqual([{ audioFile: 'audio/narration.webm', startMs: 1000, durationMs: 2000 }])
       expect(record.narration.subtitles).toMatchObject([{ startMs: 1250, endMs: 2500, text: '初始字幕' }])
+      expect(record.narration.transcriptFile).toBe('narration-transcript.md')
       expect(await readFile(join(sessionDirectory, 'audio', 'narration.webm'))).toEqual(Buffer.from([1, 2, 3]))
       expect(await readFile(join(sessionDirectory, 'subtitles.srt'), 'utf8')).toContain('00:00:01,250 --> 00:00:02,500\n初始字幕')
+      expect(await readFile(join(sessionDirectory, 'narration-transcript.md'), 'utf8')).toContain('00:00:01–00:00:02 初始字幕')
 
       const corrected = await store.correct('clip-1:0', '修正字幕')
       expect(corrected.recordingDirectories['clip-1']).toBe(sessionDirectory)
       await mergeNarrationIntoRecording({ sessionId: 'clip-1', sessionDirectory, recordingsDirectory, narrationDirectory, index: corrected })
       const updated = JSON.parse(await readFile(join(sessionDirectory, 'unified-events.json'), 'utf8'))
       expect(updated.narration.subtitles[0].text).toBe('修正字幕')
-      const transcript = await readFile(join(sessionDirectory, 'agent-transcript.md'), 'utf8')
-      expect(transcript).toContain('修正字幕')
-      expect(transcript).not.toContain('初始字幕')
-      expect(transcript).toContain('audio/narration.webm')
+      const voiceTranscript = await readFile(join(sessionDirectory, 'narration-transcript.md'), 'utf8')
+      expect(voiceTranscript).toContain('修正字幕')
+      expect(voiceTranscript).not.toContain('初始字幕')
+      expect(voiceTranscript).toContain('audio/narration.webm')
+      const operationTranscript = await readFile(join(sessionDirectory, 'agent-transcript.md'), 'utf8')
+      expect(operationTranscript).toContain('### Step 01')
+      expect(operationTranscript).not.toContain('## Voice Narration')
+      expect(operationTranscript).not.toContain('旧版解说')
+      expect(operationTranscript).not.toContain('修正字幕')
+
+      await rm(join(sessionDirectory, 'narration-transcript.md'))
+      const backfill = await backfillNarrationTranscripts({ recordingsDirectory, narrationDirectory, index: corrected })
+      expect(backfill).toEqual({ updated: 1, errors: [] })
+      expect(await readFile(join(sessionDirectory, 'narration-transcript.md'), 'utf8')).toContain('修正字幕')
     } finally { await rm(root, { recursive: true, force: true }) }
   })
 

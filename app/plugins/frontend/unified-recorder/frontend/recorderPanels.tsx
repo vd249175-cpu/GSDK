@@ -16,6 +16,7 @@ import {
 import type { PanelDefinition, PanelProps } from '@graphframework/workbench'
 import { IndustrialChip, EmptyState } from '@graphframework/ui'
 import type { RecorderState, UnifiedEvent } from './app'
+import { newestSubtitlesFirst } from './subtitleOrder'
 
 /* ==========================================================================
    Recorder 状态与操作全局上下文
@@ -461,7 +462,8 @@ export function ScreenshotsPanel(_props: PanelProps) {
 
 const clock = (ms: number) => {
   const seconds = Math.max(0, Math.floor(ms / 1000))
-  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+  const minutesAndSeconds = `${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+  return seconds >= 3600 ? `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${minutesAndSeconds}` : minutesAndSeconds
 }
 
 export function NarrationPanel(_props: PanelProps) {
@@ -473,7 +475,9 @@ export function NarrationPanel(_props: PanelProps) {
   const [editError, setEditError] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const seekRef = useRef<number | null>(null)
-  const clip = state.audioClips.find((item) => item.sessionId === selectedSession) ?? state.audioClips[0]
+  const clip = state.audioClips.find((item) => item.sessionId === selectedSession)
+    ?? state.audioClips.reduce<(typeof state.audioClips)[number] | undefined>((latest, item) =>
+      !latest || item.startMs > latest.startMs ? item : latest, undefined)
   const totalMs = Math.max(1000, ...state.audioClips.map((item) => item.startMs + item.durationMs))
 
   useEffect(() => {
@@ -521,7 +525,7 @@ export function NarrationPanel(_props: PanelProps) {
         {editError && <div className="error-callout">{editError}</div>}
       </div>
       <div className="narration-subtitles">
-        {state.subtitles.length === 0 ? <EmptyState icon={Mic} title="暂无字幕" description="开始录制并用麦克风解说。每段保存后会生成带时间戳的字幕；识别文字可直接修改。" /> : state.subtitles.map((item) => (
+        {state.subtitles.length === 0 ? <EmptyState icon={Mic} title="暂无字幕" description="开始录制并用麦克风解说。每段保存后会生成带时间戳的字幕；识别文字可直接修改。" /> : newestSubtitlesFirst(state.subtitles).map((item) => (
           <div key={item.id} className={`subtitle-row ${currentMs >= item.startMs && currentMs <= item.endMs ? 'is-current' : ''}`}>
             <button type="button" className="subtitle-time" onClick={() => seek(item.startMs)} title="跳转并播放此处">{clock(item.startMs)}–{clock(item.endMs)}</button>
             <input aria-label={`${clock(item.startMs)} 字幕`} value={drafts[item.id] ?? item.text} onChange={(event) => setDrafts((previous) => ({ ...previous, [item.id]: event.target.value }))} onBlur={() => void correct(item.id, item.text)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} />
