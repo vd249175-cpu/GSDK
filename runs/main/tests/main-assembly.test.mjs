@@ -72,6 +72,7 @@ describe('runs/main integrated assembly', () => {
       expect(nodeIds).toContain('os-recorder/execution')
       expect(nodeIds).toContain('os-recorder/observation')
       expect(nodeIds).toContain('computer/session')
+      expect(nodeIds).toContain('computer/request')
       expect(nodeIds).toContain('computer/execution')
       expect(nodeIds).toContain('computer/observation')
       expect(nodeIds).toContain('browser/session')

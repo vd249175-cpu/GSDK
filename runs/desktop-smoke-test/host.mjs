@@ -70,10 +70,10 @@ export async function createRunHost({ parsed, chromium, ensureBrowser = startDed
   const readPending = async () => {
     if (!graphHooks) throw new Error('graph hooks are not available')
     const projection = await graphHooks.projection()
-    const encoded = projection.nodes?.['smoke/session']?.state
+    const encoded = projection.nodes?.['smoke/world-review']?.state
     const state = encoded ? defaultValueCodec.decode(encoded) : null
     const pending = state?.pendingConfirmation
-    return pending ? { nodeId: 'smoke/session', ...pending } : null
+    return pending ? { nodeId: 'smoke/world-review', ...pending } : null
   }
   const tools = createGraphToolPorts(createWorldSaveTools({
     showDecision: showWorldDecision ?? createWorldSaveDialog(join(dataDirectory, 'world-save-dialogs')),
@@ -105,7 +105,7 @@ export async function createRunHost({ parsed, chromium, ensureBrowser = startDed
         const review = resultState?.threads?.[`smoke:${pending.requestId}`]
         if (review?.requestId === pending.requestId && review.status === 'error') {
           if (failedReviews.has(pending.requestId)) return
-          await hooks.inject('smoke/session', { type: 'AgentReviewFailedInfo',
+          await hooks.inject('smoke/world-review', { type: 'AgentReviewFailedInfo',
             requestId: pending.requestId, message: review.error ?? 'agent review failed' })
           failedReviews.add(pending.requestId)
           return

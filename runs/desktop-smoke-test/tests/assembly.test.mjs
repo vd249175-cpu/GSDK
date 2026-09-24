@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import { loadRunConfig, resolveRunAssembly, loadRunNodes } from '../../../packages/tooling/run/index.mjs'
+import { buildCausalIndex, buildAllNodesView, validateCausalIndex, analyzeViewHealth } from '@graphframework/sdk/analysis'
 import { createRunHost } from '../host.mjs'
 
 describe('desktop workflow assembly', () => {
@@ -15,7 +16,7 @@ describe('desktop workflow assembly', () => {
     const injected = []
     try {
       host.startPolling({
-        projection: async () => ({ nodes: { 'smoke/session': { state: {
+        projection: async () => ({ nodes: { 'smoke/world-review': { state: {
           pendingConfirmation: { step: 'save-world', requestId: 'review-1',
             browserResult: { opened: true }, desktopActionResult: { command: 'focus_window' },
             observation: { windows: ['GraphFramework'] },
@@ -43,7 +44,7 @@ describe('desktop workflow assembly', () => {
     try {
       host.startPolling({
         projection: async () => ({ nodes: {
-          'smoke/session': { state: { pendingConfirmation: { step: 'save-world', requestId: 'review-2' } } },
+          'smoke/world-review': { state: { pendingConfirmation: { step: 'save-world', requestId: 'review-2' } } },
           'agent/result': { state: { threads: { 'smoke:review-2': {
             requestId: 'review-2', status: 'error', error: 'model API key is required',
           } } } },
@@ -51,7 +52,7 @@ describe('desktop workflow assembly', () => {
         inject: async (nodeId, info) => { injected.push({ nodeId, info }) },
       })
       await new Promise((resolve) => setTimeout(resolve, 350))
-      expect(injected).toEqual([{ nodeId: 'smoke/session', info: {
+      expect(injected).toEqual([{ nodeId: 'smoke/world-review', info: {
         type: 'AgentReviewFailedInfo', requestId: 'review-2', message: 'model API key is required',
       } }])
     } finally { await host.dispose() }
@@ -67,11 +68,17 @@ describe('desktop workflow assembly', () => {
     })
     try {
       const { nodes } = await loadRunNodes(parsed, host.dependenciesFor)
-      for (const nodeId of ['smoke/session', 'browser/session', 'computer/session', 'agent/session', 'monitor/session']) {
+      for (const nodeId of ['smoke/entry', 'smoke/session', 'smoke/world-review', 'browser/session',
+        'computer/request', 'computer/session', 'agent/session', 'monitor/session']) {
         expect(nodes.map((node) => node.id)).toContain(nodeId)
       }
-      expect(nodes.find((node) => node.id === 'smoke/execution').worldDocument.id).toBe('smoke/world-document')
-      expect(nodes.find((node) => node.id === 'smoke/execution').desktopControl.id).toBe('smoke/desktop-control')
+      expect(nodes.find((node) => node.id === 'smoke/world-document').worldDocument.id).toBe('smoke/world-document')
+      expect(nodes.find((node) => node.id === 'smoke/desktop-execution').desktopControl.id).toBe('smoke/desktop-control')
+      const index = buildCausalIndex({ nodeObjects: nodes })
+      expect(index.unresolvedInfoTypes).toEqual([])
+      expect(index.unresolvedSendTargets).toEqual([])
+      expect(validateCausalIndex(index).issues.filter((issue) => issue.severity === 'error')).toEqual([])
+      expect(analyzeViewHealth(buildAllNodesView(index)).cyclicNodeIds).toEqual([])
     } finally { await host.dispose() }
   })
 })

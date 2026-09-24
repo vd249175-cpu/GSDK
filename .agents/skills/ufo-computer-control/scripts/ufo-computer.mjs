@@ -260,7 +260,7 @@ async function main() {
       'agent/codex/ufo-computer-control',
       `UFO skill command: ${command}`,
       `ufo-skill/${requestId}`,
-      'computer/session',
+      'computer/request',
       info,
     )
     const result = await waitForObservation(client, requestId, afterCursor)

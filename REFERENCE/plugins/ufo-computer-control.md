@@ -15,10 +15,11 @@ tags: [plugin, ufo, computer-control, windows, effect-adapter, public-api]
 ```mermaid
 mindmap
   root((UFO 控制))
-    Session
-      State Owner
+    Request
       InspectComputerInfo
       ControlComputerInfo
+    Session
+      State Owner
     Execution
       ExecuteComputerActionInfo
       ufo/computer-execution
@@ -31,17 +32,17 @@ mindmap
       ComputerControlFailedInfo
 ```
 
-巡检：Session → Observation → `ComputerObservedInfo`。控制：Session → Execution → `ComputerActionExecutedInfo` → Observation → `ComputerObservedInfo`。WorldNode 捕获 Adapter 错误并发送 `ComputerControlFailedInfo`。Session 独占业务 State；另外两个节点只维护自身诊断 State。
+巡检：Request → Observation → Session。控制：Request → Execution → Observation → Session。`ComputerRequestStartedInfo`、`ComputerActionExecutedInfo`、`ComputerObservedInfo` 汇入 Session；WorldNode 捕获 Adapter 错误并发送 `ComputerControlFailedInfo`。Session 只接收事实，不向上游发送 Info，静态拓扑无环。
 
 | 根导出 | 契约 |
 | :--- | :--- |
-| 三个类 | `UfoComputerSessionNode`、`UfoComputerExecutionNode`、`UfoComputerObservationNode`。 |
-| `createUfoComputerControl(ctx)` | `{ session, execution, observation }`。 |
-| `createUfoComputerControlGraph(ctx)` | `Node[]`；`describe().localIds` 为三节点。 |
+| 四个类 | `UfoComputerRequestNode`、`UfoComputerSessionNode`、`UfoComputerExecutionNode`、`UfoComputerObservationNode`。 |
+| `createUfoComputerControl(ctx)` | `{ request, session, execution, observation }`。 |
+| `createUfoComputerControlGraph(ctx)` | `Node[]`；`describe().localIds` 为四节点。 |
 | Adapter ID | `UFO_EXECUTION_ADAPTER_ID = 'ufo/computer-execution'`，`UFO_OBSERVATION_ADAPTER_ID = 'ufo/computer-observation'`。 |
 | Bridge | `createUfoComputerBridge(options)`，也可从 `./bridge` 子路径导入。 |
 
-装配 `run.backendPlugin(...)`、`run.graph({ id: 'computer', plugin: 'example.ufo-computer-control', factory: 'createUfoComputerControlGraph' })`、`run.requireNode('computer/session')`。实例节点 ID 为 `computer/session`、`computer/execution`、`computer/observation`；无实例上下文时默认为 `example.ufo-computer-control/*`。
+装配 `run.backendPlugin(...)`、`run.graph({ id: 'computer', plugin: 'example.ufo-computer-control', factory: 'createUfoComputerControlGraph' })`、`run.requireNode('computer/request')` 和 `run.requireNode('computer/session')`。请求注入 `computer/request`，结果读取 `computer/session`；另有 `computer/execution`、`computer/observation`。无实例上下文时默认为 `example.ufo-computer-control/*`。
 
 ## 外部 Info 与 Action
 

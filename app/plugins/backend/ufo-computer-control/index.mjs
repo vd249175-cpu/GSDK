@@ -17,14 +17,41 @@ const missingAdapter = (id) => ({
 
 const errorMessage = (error) => error instanceof Error ? error.message : String(error)
 
-export class UfoComputerSessionNode extends Node {
+export class UfoComputerRequestNode extends Node {
   constructor(
-    id = 'example.ufo-computer-control/session',
+    id = 'example.ufo-computer-control/request',
     targets = {
+      session: 'example.ufo-computer-control/session',
       execution: 'example.ufo-computer-control/execution',
       observation: 'example.ufo-computer-control/observation',
     },
   ) {
+    super(id, 'UfoComputerRequest', { lastRequestId: null })
+    this.sessionId = targets.session
+    this.executionId = targets.execution
+    this.observationId = targets.observation
+  }
+
+  change(info, ctx) {
+    if (info.type === 'InspectComputerInfo') {
+      ctx.patchState({ lastRequestId: info.requestId })
+      ctx.send({ type: 'ComputerRequestStartedInfo', requestId: info.requestId,
+        operation: 'inspect' }, this.sessionId)
+      ctx.send({ type: 'ObserveComputerInfo', requestId: info.requestId,
+        observation: info.observation ?? { mode: 'desktop' } }, this.observationId)
+    } else if (info.type === 'ControlComputerInfo') {
+      ctx.patchState({ lastRequestId: info.requestId })
+      ctx.send({ type: 'ComputerRequestStartedInfo', requestId: info.requestId,
+        operation: info.action?.command ?? 'action' }, this.sessionId)
+      ctx.send({ type: 'ExecuteComputerActionInfo', requestId: info.requestId,
+        action: info.action,
+        observation: info.observation ?? { mode: 'selected-window' } }, this.executionId)
+    }
+  }
+}
+
+export class UfoComputerSessionNode extends Node {
+  constructor(id = 'example.ufo-computer-control/session') {
     super(id, 'UfoComputerSession', {
       status: 'idle',
       requestId: null,
@@ -39,62 +66,23 @@ export class UfoComputerSessionNode extends Node {
       completedAt: null,
       lastError: null,
     })
-    this.executionId = targets.execution
-    this.observationId = targets.observation
   }
 
   change(info, ctx) {
-    if (info.type === 'InspectComputerInfo') {
+    if (info.type === 'ComputerRequestStartedInfo') {
       ctx.patchState({
-        status: 'observing',
+        status: info.operation === 'inspect' ? 'observing' : 'executing',
         requestId: info.requestId,
-        operation: 'inspect',
+        operation: info.operation,
         actionResult: null,
         completedAt: null,
         lastError: null,
       })
-      ctx.send(
-        {
-          type: 'ObserveComputerInfo',
-          requestId: info.requestId,
-          observation: info.observation ?? { mode: 'desktop' },
-        },
-        this.observationId,
-      )
       return
     }
-
-    if (info.type === 'ControlComputerInfo') {
-      ctx.patchState({
-        status: 'executing',
-        requestId: info.requestId,
-        operation: info.action?.command ?? 'action',
-        actionResult: null,
-        completedAt: null,
-        lastError: null,
-      })
-      ctx.send(
-        {
-          type: 'ExecuteComputerActionInfo',
-          requestId: info.requestId,
-          action: info.action,
-          observation: info.observation ?? { mode: 'selected-window' },
-        },
-        this.executionId,
-      )
-      return
-    }
-
+    if (info.requestId !== ctx.read('requestId')) return
     if (info.type === 'ComputerActionExecutedInfo') {
       ctx.patchState({ status: 'observing', actionResult: info.result ?? null, lastError: null })
-      ctx.send(
-        {
-          type: 'ObserveComputerInfo',
-          requestId: info.requestId,
-          observation: info.observation ?? { mode: 'selected-window' },
-        },
-        this.observationId,
-      )
       return
     }
 
@@ -128,6 +116,7 @@ export class UfoComputerExecutionNode extends ExecutionWorldNode {
   constructor(
     id = 'example.ufo-computer-control/execution',
     sessionId = 'example.ufo-computer-control/session',
+    observationId = 'example.ufo-computer-control/observation',
     adapter = missingAdapter(UFO_EXECUTION_ADAPTER_ID),
   ) {
     super(id, 'UfoComputerExecution', {
@@ -137,6 +126,7 @@ export class UfoComputerExecutionNode extends ExecutionWorldNode {
       lastError: null,
     })
     this.sessionId = sessionId
+    this.observationId = observationId
     this.computerExecution = adapter
   }
 
@@ -162,6 +152,8 @@ export class UfoComputerExecutionNode extends ExecutionWorldNode {
         },
         this.sessionId,
       )
+      ctx.send({ type: 'ObserveComputerInfo', requestId: info.requestId,
+        observation: info.observation ?? { mode: 'selected-window' } }, this.observationId)
     } catch (error) {
       const message = errorMessage(error)
       ctx.patchState({
@@ -229,13 +221,16 @@ export function createUfoComputerControl(ctx) {
   }
   const dependencies = ctx?.dependencies ?? {}
   return {
-    session: new UfoComputerSessionNode(idFor('session'), {
+    request: new UfoComputerRequestNode(idFor('request'), {
+      session: idFor('session'),
       execution: idFor('execution'),
       observation: idFor('observation'),
     }),
+    session: new UfoComputerSessionNode(idFor('session')),
     execution: new UfoComputerExecutionNode(
       idFor('execution'),
       idFor('session'),
+      idFor('observation'),
       dependencies.ufoComputerExecution ?? missingAdapter(UFO_EXECUTION_ADAPTER_ID),
     ),
     observation: new UfoComputerObservationNode(
@@ -249,7 +244,7 @@ export function createUfoComputerControl(ctx) {
 export const createUfoComputerControlGraph = (ctx) => Object.values(createUfoComputerControl(ctx))
 createUfoComputerControlGraph.describe = () => ({
   kind: 'graph',
-  localIds: ['session', 'execution', 'observation'],
+  localIds: ['request', 'session', 'execution', 'observation'],
   requiredBindings: [],
   rendererRoots: [],
 })

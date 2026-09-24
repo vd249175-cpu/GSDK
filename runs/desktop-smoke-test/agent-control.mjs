@@ -16,6 +16,7 @@ export function readPendingFromProjection(projection) {
 
 export function validateDecision(pending, response) {
   if (!pending) throw new Error('图当前没有待处理断点')
+  if (pending.step !== 'edit-doc') throw new Error('save-world 断点只由 Agent 图工具处理')
   if (response?.cancelled) return null
   if (response?.requestId !== pending.requestId || response?.step !== pending.step || response?.nodeId !== pending.nodeId) {
     throw new Error('弹窗结果已过期或不属于当前断点')

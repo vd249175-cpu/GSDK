@@ -38,7 +38,7 @@ describe('desktop smoke run computer graph', () => {
     const runtime = createTestRuntime({ nodes: Object.values(nodes) })
     try {
       runtime.inject({
-        targetNodeId: 'computer/session',
+        targetNodeId: 'computer/request',
         info: {
           type: 'ControlComputerInfo',
           requestId: 'desktop-action-1',

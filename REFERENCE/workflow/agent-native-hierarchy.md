@@ -70,7 +70,7 @@ await page.getByRole('button', { name: '搜索' }).click()
 await page.waitForResponse((r) => r.url().includes('/api/search') && r.status() === 200)
 
 // Level 4：外部调用方经宿主控制入口注入，而非绕过节点修改 State
-control.inject('computer/session', { type: 'ControlComputerInfo', requestId: 'req-click-submit',
+control.inject('computer/request', { type: 'ControlComputerInfo', requestId: 'req-click-submit',
   action: { command: 'click', controlId: 'SaveButton', controlType: 'Button' } })
 ```
 

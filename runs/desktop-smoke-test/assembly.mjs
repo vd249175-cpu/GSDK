@@ -39,7 +39,10 @@ export default {
       graph: 'smoke',
     });
     run.requireNode('smoke/session');
+    run.requireNode('smoke/entry');
+    run.requireNode('smoke/world-review');
     run.requireNode('computer/session');
+    run.requireNode('computer/request');
     run.requireNode('browser/session');
     run.requireNode('agent/session');
     run.requireNode('monitor/session');

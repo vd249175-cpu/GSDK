@@ -65,6 +65,7 @@ export default {
     run.requireNode('browser-recorder/session');
     run.requireNode('os-recorder/session');
     run.requireNode('computer/session');
+    run.requireNode('computer/request');
     run.requireNode('browser/session');
     run.requireNode('agent/session');
     run.requireNode('monitor/session');

@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createTestRuntime } from '@graphframework/sdk/testing'
+import { buildCausalIndex, buildAllNodesView, validateCausalIndex, analyzeViewHealth } from '@graphframework/sdk/analysis'
 import { createUfoComputerControl } from '../index.mjs'
 
 const pluginDirectory = fileURLToPath(new URL('..', import.meta.url))
@@ -55,12 +56,21 @@ const assemble = ({ failExecution = false, failObservation = false } = {}) => {
 }
 
 describe('UFO computer control causal flow', () => {
+  it('keeps the request, execution, observation and state sink acyclic', () => {
+    const { nodes } = assemble()
+    const index = buildCausalIndex({ nodeObjects: nodes })
+    expect(index.unresolvedInfoTypes).toEqual([])
+    expect(index.unresolvedSendTargets).toEqual([])
+    expect(validateCausalIndex(index).issues.filter((issue) => issue.severity === 'error')).toEqual([])
+    expect(analyzeViewHealth(buildAllNodesView(index)).cyclicNodeIds).toEqual([])
+  })
+
   it('injects inspection intent and accepts only observation-node facts', async () => {
     const { calls, nodes, observation } = assemble()
     const runtime = createTestRuntime({ nodes })
 
     runtime.inject({
-      targetNodeId: 'computer/session',
+      targetNodeId: 'computer/request',
       info: { type: 'InspectComputerInfo', requestId: 'r-1', observation: { mode: 'desktop' } },
     })
     await runtime.waitForQuiescence()
@@ -81,7 +91,7 @@ describe('UFO computer control causal flow', () => {
     const runtime = createTestRuntime({ nodes })
 
     runtime.inject({
-      targetNodeId: 'computer/session',
+      targetNodeId: 'computer/request',
       info: {
         type: 'ControlComputerInfo',
         requestId: 'r-2',
@@ -107,7 +117,7 @@ describe('UFO computer control causal flow', () => {
     const runtime = createTestRuntime({ nodes })
 
     runtime.inject({
-      targetNodeId: 'computer/session',
+      targetNodeId: 'computer/request',
       info: { type: 'ControlComputerInfo', requestId: 'r-3', action: { command: 'focus_window' } },
     })
     await runtime.waitForQuiescence()

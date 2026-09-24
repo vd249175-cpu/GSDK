@@ -19,10 +19,11 @@ Every request must follow this route:
 ```text
 skill script
   -> agentInject(InspectComputerInfo | ControlComputerInfo)
-  -> computer/session
+  -> computer/request
   -> computer/execution (actions only)
   -> computer/observation (read-back only)
   -> ComputerObservedInfo
+  -> computer/session (result state)
   -> skill output + screenshotPath
 ```
 

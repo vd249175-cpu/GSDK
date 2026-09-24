@@ -1,7 +1,8 @@
 # Command reference
 
 All commands call `scripts/ufo-computer.mjs` and inject an Info into
-`computer/session`. Options shown as selectors come from the latest observation.
+`computer/request`. Result state remains on `computer/session`; options shown as
+selectors come from the latest observation.
 
 ## Observation
 

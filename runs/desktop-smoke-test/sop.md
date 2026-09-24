@@ -43,7 +43,9 @@ description: 录制 unified-1790148389684 提炼的桌面冒烟流程、参数�
 
 观察窗按 `plugins/frontend/workflow-observer/observer.watch.json` 的 `fields` 与 `infos` 两组规则显示指定的 Projection 字段和因果事件。字段使用 `nodeId` 加点分路径；Info 使用静态 `type` 过滤。观察窗只读，不负责确认或向图发送 Info。
 
-未跳过文档编辑时，`BrowserCheckedInfo` 使 `smoke/session` 进入 `awaiting-confirmation`；旧 `node agent-control.mjs wait|confirm` 入口仍处理该 `edit-doc` 断点。默认路径在浏览器检查后执行电脑动作并观察桌面，随后公开 `save-world` 断点。宿主把浏览器结果、电脑执行结果和观察事实送入 `agent/session`；Python `create_agent` 通过图内 `ask_world_save` 工具显示原生 Windows 决策框，观察真实选择后才可调用 `signal_world_save`。信号工具复核当前 `requestId` 与断点，将 `WorldSaveDecisionInfo` 注入 `smoke/session`。批准后 `smoke/world-document` EffectAdapter 把事实写入本 run 的 `.generated/data/worlds/`；拒绝则结束而不写文件。取消时保持等待。若 Agent 失败，`AgentReviewFailedInfo` 将原因回传给会话并结束等待。
+`TriggerSmokeTest` 从 `smoke/entry` 进入单向图。未跳过文档编辑时，浏览器结果使 `smoke/doc-edit-gate` 公开 `edit-doc` 断点；`node agent-control.mjs wait|confirm` 只处理这个断点。默认路径在浏览器检查后执行电脑动作并观察桌面，由 `smoke/world-review` 公开 `save-world` 断点。`smoke/session` 只汇入阶段结果，不向上游发送 Info，整套装配的静态拓扑无环。
+
+宿主把浏览器结果、电脑执行结果和观察事实送入 `agent/session`；Python `create_agent` 通过图内 `ask_world_save` 工具显示原生 Windows 决策框，观察真实选择后才可调用 `signal_world_save`。信号工具复核当前 `requestId` 与断点，将 `WorldSaveDecisionInfo` 注入 `smoke/world-review`。批准后 `smoke/world-document` EffectAdapter 把事实写入本 run 的 `.generated/data/worlds/`；拒绝则结束而不写文件。取消时保持等待。若 Agent 失败，`AgentReviewFailedInfo` 经 review 节点回传会话并结束等待。
 
 弹窗请求和结果放在本 run 的 `.generated/data/world-save-dialogs/`。浏览器检查由 `host.mjs` 注入核心 `browser/executor`。执行器通过 `playwright-core` 的 `chromium.connectOverCDP()` 接入专用 Chrome，在独立页面上运行宿主注册的原生 Playwright 任务函数；任务可直接使用 `Page`、`Locator`、响应等待与事件监听。`check-home` 任务使用 `page.goto()` 返回的 HTTP 状态判定结果；4xx/5xx 或挑战页会使会话进入 `error`，不会触发保存确认。
 

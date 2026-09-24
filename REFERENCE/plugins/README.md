@@ -96,6 +96,7 @@ export default {
     run.frontend({ id: 'main-ui', plugin: 'example.unified-recorder', graph: 'recorder' })
     run.requireNode('recorder/session')
     run.requireNode('computer/session')
+    run.requireNode('computer/request')
   },
 }
 ```

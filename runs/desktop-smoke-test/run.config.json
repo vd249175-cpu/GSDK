@@ -28,7 +28,7 @@
     "initInfos": [],
     "startInfos": [
       {
-        "targetNodeId": "smoke/session",
+        "targetNodeId": "smoke/entry",
         "info": {
           "type": "TriggerSmokeTest",
           "requestId": "smoke-1",

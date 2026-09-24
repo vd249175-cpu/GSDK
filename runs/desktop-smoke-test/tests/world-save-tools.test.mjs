@@ -6,7 +6,7 @@ describe('world save agent tools', () => {
     const injected = []
     const tools = createWorldSaveTools({
       showDecision: async () => ({ requestId: 'r-1', step: 'save-world', decision: 'approve', text: '保存原因' }),
-      readPending: async () => ({ requestId: 'r-1', step: 'save-world', nodeId: 'smoke/session' }),
+      readPending: async () => ({ requestId: 'r-1', step: 'save-world', nodeId: 'smoke/world-review' }),
       inject: async (nodeId, info) => injected.push({ nodeId, info }),
     })
     const ask = tools.find((tool) => tool.name === 'ask_world_save')
@@ -20,7 +20,7 @@ describe('world save agent tools', () => {
     expect(await signal.execute({ threadId: 't', requestId: 'r-1', toolCallId: 's-1', args: {} }))
       .toEqual(signaled)
     expect(await signal.observe({ handle: signaled.handle })).toMatchObject({ signaled: true })
-    expect(injected).toEqual([{ nodeId: 'smoke/session', info: {
+    expect(injected).toEqual([{ nodeId: 'smoke/world-review', info: {
       type: 'WorldSaveDecisionInfo', requestId: 'r-1', decision: 'approve', text: '保存原因',
     } }])
   })
