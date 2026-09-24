@@ -1,4 +1,5 @@
 import { Node, ExecutionWorldNode, ObservationWorldNode, defineBackendPlugin } from '@graphframework/sdk/plugin'
+import { parseAgentSeatCount } from './seat-config.mjs'
 
 const validId = (value) => typeof value === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(value)
 const failed = (error) => error instanceof Error ? error.message : String(error)
@@ -138,8 +139,8 @@ export class AgentGraphToolObservationNode extends ObservationWorldNode {
 
 export function createAgentExecutorGraph(ctx) {
   const idFor = (local) => ctx?.nodeIdFor?.(local) ?? `${ctx?.instanceId ?? 'agent'}/${local}`
-  const executionSeats = Math.max(1, Math.min(4, Number(ctx?.params?.executionSeats ?? 4)))
-  const toolSeats = Math.max(1, Math.min(32, Number(ctx?.params?.toolSeats ?? 8)))
+  const executionSeats = parseAgentSeatCount(ctx?.params?.executionSeats, 'executionSeats', 4, 4)
+  const toolSeats = parseAgentSeatCount(ctx?.params?.toolSeats, 'toolSeats', 32, 8)
   const dependencies = ctx?.dependencies ?? {}
   const sessionId = idFor('session')
   const resultId = idFor('result')

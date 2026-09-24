@@ -20,6 +20,7 @@ import { createUfoComputerBridge } from '../../app/plugins/backend/ufo-computer-
 import { createBrowserExecutor, checkHomeTask } from '../../app/plugins/backend/browser-executor/bridge/browser-executor.mjs'
 import { createPythonAgentBridge } from '../../app/plugins/backend/agent-executor/bridge/process-bridge.mjs'
 import { resolveAgentModelConfig } from '../../app/plugins/backend/agent-executor/bridge/model-config.mjs'
+import { agentToolSeatsFromRun } from '../../app/plugins/backend/agent-executor/seat-config.mjs'
 import { createGraphToolPorts, createNoteTool } from '../../app/plugins/backend/agent-executor/bridge/graph-tool.mjs'
 import {
   createRunCli,
@@ -87,6 +88,7 @@ export async function createRunHost({ runtimeDirectory, parsed } = {}) {
     pythonExecutable: parsed?.backend?.dependencies?.agentPythonExecutable ?? 'python',
     ...agentModelConfig,
     toolDefinitions: agentTools.definitions,
+    toolSeats: agentToolSeatsFromRun(parsed),
   })
 
   // 4. 统一全态录制 (Unified Recorder) 双源 Adapter

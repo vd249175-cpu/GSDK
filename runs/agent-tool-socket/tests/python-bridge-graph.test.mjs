@@ -21,6 +21,13 @@ describe('Python agent graph ports', () => {
     expect(limited.unresolvedSendTargets).toEqual([])
   })
 
+  it('rejects seat counts that cannot be routed to real nodes', () => {
+    expect(() => createAgentExecutorGraph({ instanceId: 'agent', params: { toolSeats: 0 } }))
+      .toThrow('toolSeats')
+    expect(() => createAgentExecutorGraph({ instanceId: 'agent', params: { executionSeats: 1.5 } }))
+      .toThrow('executionSeats')
+  })
+
   it('routes node prompts and media to an outside executor and publishes status', async () => {
     const requests = []
     const nodes = createAgentExecutorGraph({

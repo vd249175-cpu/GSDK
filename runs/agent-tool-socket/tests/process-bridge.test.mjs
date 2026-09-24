@@ -7,6 +7,7 @@ import { PassThrough, Writable } from 'node:stream'
 import { createPythonAgentBridge, readToolOutcome } from '../../../app/plugins/backend/agent-executor/bridge/process-bridge.mjs'
 import { createGraphToolPorts } from '../../../app/plugins/backend/agent-executor/bridge/graph-tool.mjs'
 import { resolveAgentModelConfig } from '../../../app/plugins/backend/agent-executor/bridge/model-config.mjs'
+import { agentToolSeatsFromRun } from '../../../app/plugins/backend/agent-executor/seat-config.mjs'
 
 describe('agent process bridge', () => {
   it('chooses a provider from the available key without storing the key in config', () => {
@@ -14,6 +15,13 @@ describe('agent process bridge', () => {
       .toEqual({ model: 'gpt-4.1-mini', baseUrl: null })
     expect(resolveAgentModelConfig({ environment: { OPENROUTER_API_KEY: 'test-only' } }))
       .toEqual({ model: 'qwen/qwen3.8-omni-flash', baseUrl: 'https://openrouter.ai/api/v1' })
+  })
+
+  it('uses the assembled agent tool seat count for worker routing', () => {
+    expect(agentToolSeatsFromRun({ graph: { instances: [{ id: 'agent', params: { toolSeats: 1 } }] } })).toBe(1)
+    expect(agentToolSeatsFromRun({ graph: { instances: [{ id: 'agent', params: {} }] } })).toBe(8)
+    expect(() => agentToolSeatsFromRun({ graph: { instances: [{ id: 'agent', params: { toolSeats: 0 } }] } }))
+      .toThrow('toolSeats')
   })
 
   it('rejects a tool without an observation port', () => {

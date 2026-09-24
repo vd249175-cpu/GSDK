@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { defaultValueCodec } from '@graphframework/sdk/protocol'
+import { parseAgentSeatCount } from '../seat-config.mjs'
 
 const hash = (value) => [...value].reduce((sum, char) => sum + char.codePointAt(0), 0)
 const validId = (value) => typeof value === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(value)
@@ -25,6 +26,7 @@ export function createPythonAgentBridge({
   toolSeats = 8, spawnWorker = spawn, toolTimeoutMs = 120_000,
 } = {}) {
   if (!workerScript || !sqliteDirectory) throw new Error('workerScript and sqliteDirectory are required')
+  toolSeats = parseAgentSeatCount(toolSeats, 'toolSeats', 32, 8)
   mkdirSync(sqliteDirectory, { recursive: true })
   const workers = new Map()
   let hooks = null

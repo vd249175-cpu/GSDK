@@ -45,7 +45,7 @@ description: 录制 unified-1790148389684 提炼的桌面冒烟流程、参数�
 
 `TriggerSmokeTest` 从 `smoke/entry` 进入单向图。未跳过文档编辑时，浏览器结果使 `smoke/doc-edit-gate` 公开 `edit-doc` 断点；`node agent-control.mjs wait|confirm` 只处理这个断点。默认路径在浏览器检查后执行电脑动作并观察桌面，由 `smoke/world-review` 公开 `save-world` 断点。`smoke/session` 只汇入阶段结果，不向上游发送 Info，整套装配的静态拓扑无环。
 
-宿主把浏览器结果、电脑执行结果和观察事实送入 `agent/session`；Python `create_agent` 通过图内 `ask_world_save` 工具显示原生 Windows 决策框，观察真实选择后才可调用 `signal_world_save`。信号工具复核当前 `requestId` 与断点，将 `WorldSaveDecisionInfo` 注入 `smoke/world-review`。批准后 `smoke/world-document` EffectAdapter 把事实写入本 run 的 `.generated/data/worlds/`；拒绝则结束而不写文件。取消时保持等待。若 Agent 失败，`AgentReviewFailedInfo` 经 review 节点回传会话并结束等待。
+宿主把浏览器结果、电脑执行结果和观察事实送入 `agent/session`；Python `create_agent` 通过图内 `ask_world_save` 工具显示原生 Windows 决策框。工具执行节点提交弹窗后立即返回 handle，观察节点等待真实选择；同一请求的并发询问共用一个弹窗。取得实际决定后才可调用 `signal_world_save`。信号工具复核当前 `requestId` 与断点，将 `WorldSaveDecisionInfo` 注入 `smoke/world-review`。批准后 `smoke/world-document` EffectAdapter 把事实写入本 run 的 `.generated/data/worlds/`；拒绝则结束而不写文件。取消时保持等待。若 Agent 失败，`AgentReviewFailedInfo` 经 review 节点回传会话并结束等待。
 
 弹窗请求和结果放在本 run 的 `.generated/data/world-save-dialogs/`。浏览器检查由 `host.mjs` 注入核心 `browser/executor`。执行器通过 `playwright-core` 的 `chromium.connectOverCDP()` 接入专用 Chrome，在独立页面上运行宿主注册的原生 Playwright 任务函数；任务可直接使用 `Page`、`Locator`、响应等待与事件监听。`check-home` 任务使用 `page.goto()` 返回的 HTTP 状态判定结果；4xx/5xx 或挑战页会使会话进入 `error`，不会触发保存确认。
 

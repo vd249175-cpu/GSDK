@@ -7,6 +7,7 @@ import { createUfoComputerBridge } from '../../app/plugins/backend/ufo-computer-
 import { createBrowserExecutor } from '../../app/plugins/backend/browser-executor/bridge/browser-executor.mjs'
 import { createPythonAgentBridge } from '../../app/plugins/backend/agent-executor/bridge/process-bridge.mjs'
 import { resolveAgentModelConfig } from '../../app/plugins/backend/agent-executor/bridge/model-config.mjs'
+import { agentToolSeatsFromRun } from '../../app/plugins/backend/agent-executor/seat-config.mjs'
 import { createGraphToolPorts } from '../../app/plugins/backend/agent-executor/bridge/graph-tool.mjs'
 import { createWorldSaveDialog } from './bridge/world-save-dialog.mjs'
 import { createWorldSaveTools } from './bridge/world-save-tools.mjs'
@@ -87,6 +88,7 @@ export async function createRunHost({ parsed, chromium, ensureBrowser = startDed
     ...resolveAgentModelConfig({ model: parsed?.backend?.dependencies?.agentModel,
       baseUrl: parsed?.backend?.dependencies?.agentBaseUrl }),
     toolDefinitions: tools.definitions,
+    toolSeats: agentToolSeatsFromRun(parsed),
     toolTimeoutMs: 600_000,
   })
   const startPolling = (hooks) => {

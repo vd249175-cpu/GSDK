@@ -2,6 +2,7 @@ import { defineGraphTool } from '../../../app/plugins/backend/agent-executor/bri
 
 export function createWorldSaveTools({ showDecision, readPending, inject }) {
   const observations = new Map()
+  const dialogs = new Map()
   const decisions = new Map()
   const receipts = new Map()
   const keyFor = (threadId, requestId) => `${threadId}:${requestId}`
@@ -17,20 +18,39 @@ export function createWorldSaveTools({ showDecision, readPending, inject }) {
       if (pending?.requestId !== requestId || pending?.step !== 'save-world') {
         throw new Error('world save request is no longer pending')
       }
-      const response = await showDecision(pending)
-      if (!response?.cancelled && (response?.nodeId !== undefined && response.nodeId !== pending.nodeId
-        || response?.requestId !== requestId || response?.step !== 'save-world'
-        || !['approve', 'reject'].includes(response?.decision))) {
-        throw new Error('popup returned a stale or invalid decision')
+      const dialogKey = keyFor(threadId, requestId)
+      let dialog = dialogs.get(dialogKey)
+      if (!dialog) {
+        dialog = { pending, outcome: Promise.resolve().then(() => showDecision(pending))
+          .then((response) => ({ response }), (error) => ({ error })) }
+        dialogs.set(dialogKey, dialog)
       }
-      observations.set(handle, response?.cancelled ? { cancelled: true } : {
-        decision: response.decision, text: typeof response.text === 'string' ? response.text : '',
-      })
+      observations.set(handle, { dialogKey, dialog })
       return { handle }
     },
     observe: async ({ handle, threadId, requestId }) => {
-      const result = observations.get(handle)
-      if (!result) throw new Error('world save decision is missing')
+      const stored = observations.get(handle)
+      if (!stored) throw new Error('world save decision is missing')
+      if (!stored.dialog) return stored
+      if (stored.dialogKey !== keyFor(threadId, requestId)
+        || stored.dialog.pending.requestId !== requestId) throw new Error('world save handle does not match request')
+      const { response, error } = await stored.dialog.outcome
+      if (error) {
+        dialogs.delete(stored.dialogKey)
+        throw error
+      }
+      const pending = stored.dialog.pending
+      if (!response?.cancelled && (response?.nodeId !== undefined && response.nodeId !== pending.nodeId
+        || response?.requestId !== requestId || response?.step !== 'save-world'
+        || !['approve', 'reject'].includes(response?.decision))) {
+        dialogs.delete(stored.dialogKey)
+        throw new Error('popup returned a stale or invalid decision')
+      }
+      const result = response?.cancelled ? { cancelled: true } : {
+        decision: response.decision, text: typeof response.text === 'string' ? response.text : '',
+      }
+      observations.set(handle, result)
+      if (result.cancelled) dialogs.delete(stored.dialogKey)
       if (!result.cancelled) decisions.set(keyFor(threadId, requestId), result)
       return result
     },
