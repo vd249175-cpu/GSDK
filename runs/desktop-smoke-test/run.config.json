@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "name": "desktop-smoke-test",
+  "assembly": {
+    "modules": ["assembly.mjs"]
+  },
+  "plugins": {
+    "backend": [],
+    "frontend": []
+  },
+  "kernel": {
+    "daemonPath": "../../packages/rust/target/debug/graphframework-kernel-daemon",
+    "bind": "127.0.0.1:0",
+    "startupTimeoutMs": 10000,
+    "shutdownTimeoutMs": 10000
+  },
+  "backend": {
+    "host": "host.mjs",
+    "dependencies": {}
+  },
+  "frontend": {
+    "instances": []
+  },
+  "graph": {
+    "instances": []
+  },
+  "lifecycle": {
+    "initInfos": [],
+    "startInfos": [
+      {
+        "targetNodeId": "smoke/session",
+        "info": {
+          "type": "TriggerSmokeTest",
+          "requestId": "smoke-1",
+          "npmUrl": "https://www.npmjs.com/",
+          "docName": "开发步骤.docx",
+          "docText": "",
+          "skipDocEdit": true
+        }
+      }
+    ],
+    "stopInfos": [],
+    "ready": null,
+    "timeouts": {
+      "initMs": 30000,
+      "startMs": 30000,
+      "stopMs": 30000,
+      "settleMs": 30000
+    }
+  },
+  "scenarios": null,
+  "resources": {
+    "generatedDirectory": ".generated",
+    "dataDirectory": ".generated/data",
+    "logsDirectory": ".generated/logs",
+    "runtimeDirectory": ".generated/runtime"
+  }
+}

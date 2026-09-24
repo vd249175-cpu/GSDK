@@ -1,0 +1,6 @@
+{
+  "name": "graphframework-agent-tool-socket-run",
+  "private": true,
+  "type": "module",
+  "dependencies": {}
+}

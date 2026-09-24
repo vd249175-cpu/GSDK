@@ -1,0 +1,13 @@
+{
+  "id": "test.workflow-observer",
+  "name": "Workflow Observer",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "kind": "frontend",
+  "contributes": {
+    "host": "desktop/main.mjs",
+    "frontend": "index.tsx",
+    "elements": [],
+    "workspaces": []
+  }
+}
