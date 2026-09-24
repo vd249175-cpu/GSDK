@@ -66,6 +66,7 @@ export async function createRunHost({ parsed, chromium, ensureBrowser = startDed
   let agentTimer = null
   let agentPollBusy = false
   const startedReviews = new Set()
+  const failedReviews = new Set()
   const readPending = async () => {
     if (!graphHooks) throw new Error('graph hooks are not available')
     const projection = await graphHooks.projection()
@@ -97,10 +98,23 @@ export async function createRunHost({ parsed, chromium, ensureBrowser = startDed
       agentPollBusy = true
       try {
         const pending = await readPending()
-        if (pending?.step !== 'save-world' || startedReviews.has(pending.requestId)) return
+        if (pending?.step !== 'save-world') return
+        const projection = await hooks.projection()
+        const encodedResult = projection.nodes?.['agent/result']?.state
+        const resultState = encodedResult ? defaultValueCodec.decode(encodedResult) : null
+        const review = resultState?.threads?.[`smoke:${pending.requestId}`]
+        if (review?.requestId === pending.requestId && review.status === 'error') {
+          if (failedReviews.has(pending.requestId)) return
+          await hooks.inject('smoke/session', { type: 'AgentReviewFailedInfo',
+            requestId: pending.requestId, message: review.error ?? 'agent review failed' })
+          failedReviews.add(pending.requestId)
+          return
+        }
+        if (startedReviews.has(pending.requestId)) return
         startedReviews.add(pending.requestId)
         const testFacts = {
           browserResult: pending.browserResult, docResult: pending.docResult,
+          desktopActionResult: pending.desktopActionResult,
           observation: pending.observation,
         }
         try {
@@ -129,6 +143,8 @@ export async function createRunHost({ parsed, chromium, ensureBrowser = startDed
   return {
     dependenciesFor: (instance) => {
       if (instance.id === 'smoke') return { browserNavigate: browser, worldDocument,
+        desktopControl: { id: 'smoke/desktop-control', execute: (request) =>
+          computer.executionAdapter.execute({ requestId: request.requestId, action: request.action }) },
         desktopObservation: { id: 'smoke/desktop-observation',
           execute: (request) => computer.observationAdapter.execute({
             requestId: request.requestId, observation: { mode: request.mode ?? 'desktop', includeScreenshot: false },

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createTestRuntime } from '@graphframework/sdk/testing'
+import { buildCausalIndex, validateCausalIndex } from '@graphframework/sdk/analysis'
 import { createDesktopSmokeTest } from '../plugins/backend/desktop-smoke-test/index.mjs'
 
-const assemble = ({ failDocEdit = false } = {}) => {
+const assemble = ({ failDocEdit = false, failDesktopFocus = false } = {}) => {
   const calls = []
   const nodes = createDesktopSmokeTest({
     instanceId: 'smoke',
@@ -18,6 +19,10 @@ const assemble = ({ failDocEdit = false } = {}) => {
         id: 'test/desktop-control',
         execute: async (request) => {
           calls.push({ adapter: 'desktopControl', request })
+          if (request.action?.command === 'focus_window') {
+            if (failDesktopFocus) throw new Error('target desktop window is unavailable')
+            return { command: 'focus_window', focused: true }
+          }
           if (failDocEdit) throw new Error('word save dialog stuck')
           return { docName: request.docName, edited: true, saved: true }
         },
@@ -43,7 +48,15 @@ const assemble = ({ failDocEdit = false } = {}) => {
 }
 
 describe('desktop-smoke-test workflow', () => {
-  it('browser and computer observation can reach world review without a document edit', async () => {
+  it('keeps the browser, computer and review Info routes statically resolved', () => {
+    const { nodes } = assemble()
+    const index = buildCausalIndex({ nodeObjects: nodes })
+    expect(index.unresolvedInfoTypes).toEqual([])
+    expect(index.unresolvedSendTargets).toEqual([])
+    expect(validateCausalIndex(index).issues.filter((issue) => issue.severity === 'error')).toEqual([])
+  })
+
+  it('browser and computer action plus observation reach world review without a document edit', async () => {
     const { nodes, calls } = assemble()
     const runtime = createTestRuntime({ nodes })
     runtime.inject({ targetNodeId: 'smoke/session', info: {
@@ -51,10 +64,27 @@ describe('desktop-smoke-test workflow', () => {
     } })
     await runtime.waitForQuiescence()
     expect(runtime.getState('smoke/session')).toMatchObject({
-      status: 'awaiting-world-save', pendingConfirmation: { step: 'save-world' },
+      status: 'awaiting-world-save', pendingConfirmation: { step: 'save-world',
+        desktopActionResult: { command: 'focus_window', focused: true } },
     })
-    expect(calls.map((call) => call.adapter)).toEqual(['browserNavigate', 'desktopObservation'])
+    expect(calls.map((call) => call.adapter)).toEqual(['browserNavigate', 'desktopControl', 'desktopObservation'])
+    expect(calls[1].request.action).toEqual({ command: 'focus_window', window: { titleContains: 'GraphFramework' } })
     runtime.dispose()
+  })
+
+  it('stops before agent review when the computer action fails', async () => {
+    const { nodes, calls } = assemble({ failDesktopFocus: true })
+    const runtime = createTestRuntime({ nodes })
+    try {
+      runtime.inject({ targetNodeId: 'smoke/session', info: {
+        type: 'TriggerSmokeTest', requestId: 'focus-failure', skipDocEdit: true,
+      } })
+      await runtime.waitForQuiescence()
+      expect(runtime.getState('smoke/session')).toMatchObject({
+        status: 'error', lastError: 'target desktop window is unavailable',
+      })
+      expect(calls.map((call) => call.adapter)).toEqual(['browserNavigate', 'desktopControl'])
+    } finally { runtime.dispose() }
   })
 
   it('TriggerSmokeTest 在浏览器检查后停住等待确认，批准后才跑通并结算 done', async () => {
@@ -127,6 +157,25 @@ describe('desktop-smoke-test workflow', () => {
     expect(runtime.getState('smoke/session')).toMatchObject({ status: 'done', worldDocument: null })
     expect(calls.some((call) => call.adapter === 'worldDocument')).toBe(false)
     runtime.dispose()
+  })
+
+  it('surfaces agent review failure instead of leaving the save breakpoint pending', async () => {
+    const { nodes, calls } = assemble()
+    const runtime = createTestRuntime({ nodes })
+    try {
+      runtime.inject({ targetNodeId: 'smoke/session', info: {
+        type: 'TriggerSmokeTest', requestId: 'agent-failure', skipDocEdit: true,
+      } })
+      await runtime.waitForQuiescence()
+      runtime.inject({ targetNodeId: 'smoke/session', info: {
+        type: 'AgentReviewFailedInfo', requestId: 'agent-failure', message: 'model API key is required',
+      } })
+      await runtime.waitForQuiescence()
+      expect(runtime.getState('smoke/session')).toMatchObject({
+        status: 'error', pendingConfirmation: null, lastError: 'model API key is required',
+      })
+      expect(calls.some((call) => call.adapter === 'worldDocument')).toBe(false)
+    } finally { runtime.dispose() }
   })
 
   it('拒绝关键步骤时会话进入 error 并记录原因', async () => {

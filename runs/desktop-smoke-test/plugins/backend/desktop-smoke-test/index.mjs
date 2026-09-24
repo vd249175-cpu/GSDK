@@ -37,8 +37,10 @@ export class DesktopSmokeSessionNode extends Node {
       docName: null,
       docText: '',
       skipDocEdit: false,
+      desktopWindowTitle: 'GraphFramework',
       browserResult: null,
       docResult: null,
+      desktopActionResult: null,
       observation: null,
       completedAt: null,
       lastError: null,
@@ -58,8 +60,11 @@ export class DesktopSmokeSessionNode extends Node {
         docName: info.docName ?? '开发步骤.docx',
         docText: typeof info.docText === 'string' ? info.docText : '',
         skipDocEdit: info.skipDocEdit === true,
+        desktopWindowTitle: typeof info.desktopWindowTitle === 'string' && info.desktopWindowTitle.trim()
+          ? info.desktopWindowTitle.trim() : 'GraphFramework',
         browserResult: null,
         docResult: null,
+        desktopActionResult: null,
         observation: null,
         completedAt: null,
         lastError: null,
@@ -79,8 +84,9 @@ export class DesktopSmokeSessionNode extends Node {
       const docName = ctx.read('docName') ?? '开发步骤.docx'
       const text = ctx.read('docText') ?? ''
       if (ctx.read('skipDocEdit')) {
-        ctx.patchState({ status: 'observing', browserResult: info.result ?? null })
-        ctx.send({ type: 'ObserveDesktopInfo', requestId, mode: 'desktop' }, this.observationId)
+        ctx.patchState({ status: 'focusing-desktop', browserResult: info.result ?? null })
+        ctx.send({ type: 'ExecuteDesktopFocusInfo', requestId,
+          titleContains: ctx.read('desktopWindowTitle') }, this.executionId)
         return
       }
       ctx.patchState({
@@ -94,6 +100,13 @@ export class DesktopSmokeSessionNode extends Node {
           prompt: `浏览器已就绪，确认后将编辑并保存文档 ${docName}`,
         },
       })
+      return
+    }
+
+    if (info.type === 'DesktopFocusedInfo') {
+      if (info.requestId !== ctx.read('requestId') || ctx.read('status') !== 'focusing-desktop') return
+      ctx.patchState({ status: 'observing', desktopActionResult: info.result ?? null })
+      ctx.send({ type: 'ObserveDesktopInfo', requestId: info.requestId, mode: 'desktop' }, this.observationId)
       return
     }
 
@@ -138,6 +151,7 @@ export class DesktopSmokeSessionNode extends Node {
           step: 'save-world', requestId: info.requestId,
           prompt: '本次浏览器与电脑操作测试已完成。是否保存 world 文档？',
           browserResult: ctx.read('browserResult'), docResult: ctx.read('docResult'),
+          desktopActionResult: ctx.read('desktopActionResult'),
           observation: info.observation ?? null,
         },
         lastError: null,
@@ -157,7 +171,15 @@ export class DesktopSmokeSessionNode extends Node {
       ctx.send({ type: 'SaveWorldDocumentInfo', requestId: info.requestId,
         text: typeof info.text === 'string' ? info.text : '',
         browserResult: ctx.read('browserResult'), docResult: ctx.read('docResult'),
+        desktopActionResult: ctx.read('desktopActionResult'),
         observation: ctx.read('observation') }, this.executionId)
+      return
+    }
+
+    if (info.type === 'AgentReviewFailedInfo') {
+      if (info.requestId !== ctx.read('requestId') || ctx.read('status') !== 'awaiting-world-save') return
+      ctx.patchState({ status: 'error', pendingConfirmation: null,
+        completedAt: null, lastError: info.message ?? 'agent review failed' })
       return
     }
 
@@ -205,9 +227,17 @@ export class DesktopSmokeExecutionNode extends ExecutionWorldNode {
       if (result !== undefined) ctx.send({ type: 'DocEditedInfo', requestId: info.requestId, result }, this.sessionId)
       return
     }
+    if (info.type === 'ExecuteDesktopFocusInfo') {
+      const result = await this.run(ctx, info, this.desktopControl,
+        { action: { command: 'focus_window', window: { titleContains: info.titleContains } } },
+        'focus-window')
+      if (result !== undefined) ctx.send({ type: 'DesktopFocusedInfo', requestId: info.requestId, result }, this.sessionId)
+      return
+    }
     if (info.type === 'SaveWorldDocumentInfo') {
       const result = await this.run(ctx, info, this.worldDocument, {
         text: info.text, browserResult: info.browserResult, docResult: info.docResult,
+        desktopActionResult: info.desktopActionResult,
         observation: info.observation,
       }, 'save-world')
       if (result !== undefined) ctx.send({ type: 'WorldDocumentSavedInfo', requestId: info.requestId, result }, this.sessionId)

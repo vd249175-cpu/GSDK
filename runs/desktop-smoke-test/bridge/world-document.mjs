@@ -13,7 +13,8 @@ export function createWorldDocumentAdapter(directory) {
       `请求：${request.requestId}`, '',
       `用户说明：${request.text ?? ''}`, '',
       '## 浏览器结果', '', '```json', JSON.stringify(request.browserResult ?? null, null, 2), '```', '',
-      '## 电脑操作结果', '', '```json', JSON.stringify(request.docResult ?? null, null, 2), '```', '',
+      '## 电脑操作结果', '', '```json', JSON.stringify(request.desktopActionResult ?? null, null, 2), '```', '',
+      '## 文档编辑结果', '', '```json', JSON.stringify(request.docResult ?? null, null, 2), '```', '',
       '## 最终观察', '', '```json', JSON.stringify(request.observation ?? null, null, 2), '```', '',
     ].join('\n')
     await mkdir(directory, { recursive: true })
