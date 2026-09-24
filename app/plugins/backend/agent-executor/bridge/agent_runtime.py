@@ -47,6 +47,17 @@ def normalize_content(text: str, attachments: list[dict[str, Any]] | None = None
             if not isinstance(part.get("url"), str) or not part["url"]:
                 raise ValueError("video requires a URL")
             parts.append({"type": "video_url", "video_url": {"url": part["url"]}})
+        elif part["type"] == "image":
+            if not isinstance(part.get("url"), str) or not part["url"]:
+                raise ValueError("image requires a URL or data URI")
+            parts.append({"type": "image_url", "image_url": {"url": part["url"]}})
+        elif part["type"] == "audio":
+            if not isinstance(part.get("data"), str) or not part["data"] \
+                    or not isinstance(part.get("format"), str) or not part["format"]:
+                raise ValueError("audio requires base64 data and format")
+            parts.append({"type": "input_audio", "input_audio": {
+                "data": part["data"], "format": part["format"],
+            }})
         else:
             parts.append(part)
     if not parts:

@@ -13,8 +13,8 @@ Python worker 使用 [`langchain.agents.create_agent`](https://reference.langcha
 
 工具用 `defineGraphTool({ name, description, parameters, execute, observe })` 注册。Python 只收到工具名称与 JSON Schema。工具请求通过宿主根注入 `AgentGraphToolInfo` 到图内 `tool-N` 执行节点，节点调用 `agent/tool-execution`，把 handle 发给 `tool-observation-N`；观察节点调用 `agent/tool-observation`，其 Projection 结果回传 worker。执行与观察分属不同 WorldNode。工具名称及参数模式由 run 宿主提供；未注册的名称无法执行。
 
-输入 `AgentInputInfo` 必含 `threadId`、`requestId`、`text`，可含 `attachments` 和 `promptSections`。媒体块透传给模型；简写 `{ "type": "video", "url": "https://…" }` 转为 OpenRouter 的 `video_url` 块。所选模型与提供者仍须支持对应模态。提示词只在当前模型调用使用，不写入持久消息；下一轮可重新拼接。
+输入 `AgentInputInfo` 必含 `threadId`、`requestId`、`text`，可含 `attachments` 和 `promptSections`。附件可使用提供方原生块；简写 `{ "type": "image", "url": "https://…" }`、`{ "type": "audio", "data": "<base64>", "format": "wav" }`、`{ "type": "video", "url": "https://…" }` 分别转为 `image_url`、`input_audio`、`video_url` 块。所选模型与提供者仍须支持对应模态。提示词只在当前模型调用使用，不写入持久消息；下一轮可重新拼接。
 
-安装 Python 依赖：`python -m pip install -r app/plugins/backend/agent-executor/requirements.txt`。模型名、base URL、Python 可执行文件由 run 的 `backend.dependencies` 配置；默认根据环境中的 `OPENROUTER_API_KEY` 或 `OPENAI_API_KEY` 选择对应提供者。自定义 base URL 只使用 `AGENT_API_KEY`。worker 与 SQLite 均留在 run 的 `.generated/data/`，不进图状态或前端。
+安装 Python 依赖：`python -m pip install -r app/plugins/backend/agent-executor/requirements.txt`。模型名、base URL、Python 可执行文件由 run 的 `backend.dependencies` 配置；默认根据环境中的 `OPENROUTER_API_KEY` 或 `OPENAI_API_KEY` 选择对应提供者。OpenRouter 默认模型为 [`qwen/qwen3.8-omni-flash`](https://openrouter.ai/qwen/qwen3.8-omni-flash)，其官方能力表包含视频输入与工具调用；选用其他模型时由调用方确认模态能力。自定义 base URL 只使用 `AGENT_API_KEY`。worker 与 SQLite 均留在 run 的 `.generated/data/`，不进图状态或前端。
 
 独立验证：`runs/agent-tool-socket/` 的装配和图端口测试，以及 `tests/test_python_agent.py` 的并行工具、SQLite 恢复和视频载荷测试。主 run 中也装配 `agent` 图；宿主默认提供 `record_note` 示例工具。

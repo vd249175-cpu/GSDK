@@ -41,7 +41,15 @@ def test_prompt_and_media_validation():
         {"type": "text", "text": "look"},
         {"type": "video_url", "video_url": {"url": "https://example.org/a.mp4"}},
     ]
-    model = ChatOpenAI(model="qwen/qwen3-vl-30b-a3b-instruct", api_key="test-only",
+    assert normalize_content("inspect", [
+        {"type": "image", "url": "https://example.org/a.png"},
+        {"type": "audio", "data": "UklGRg==", "format": "wav"},
+    ]) == [
+        {"type": "text", "text": "inspect"},
+        {"type": "image_url", "image_url": {"url": "https://example.org/a.png"}},
+        {"type": "input_audio", "input_audio": {"data": "UklGRg==", "format": "wav"}},
+    ]
+    model = ChatOpenAI(model="qwen/qwen3.8-omni-flash", api_key="test-only",
                        base_url="https://openrouter.ai/api/v1")
     payload = model._get_request_payload([HumanMessage(content=normalize_content(
         "look", [{"type": "video", "url": "https://example.org/a.mp4"}]))])

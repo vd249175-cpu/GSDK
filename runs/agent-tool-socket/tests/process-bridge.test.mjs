@@ -13,7 +13,7 @@ describe('agent process bridge', () => {
     expect(resolveAgentModelConfig({ environment: { OPENAI_API_KEY: 'test-only' } }))
       .toEqual({ model: 'gpt-4.1-mini', baseUrl: null })
     expect(resolveAgentModelConfig({ environment: { OPENROUTER_API_KEY: 'test-only' } }))
-      .toEqual({ model: 'qwen/qwen3-vl-30b-a3b-instruct', baseUrl: 'https://openrouter.ai/api/v1' })
+      .toEqual({ model: 'qwen/qwen3.8-omni-flash', baseUrl: 'https://openrouter.ai/api/v1' })
   })
 
   it('rejects a tool without an observation port', () => {
