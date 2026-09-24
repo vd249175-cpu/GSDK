@@ -1,0 +1,1 @@
+{"id":"example.agent-monitor","name":"Agent Monitor","version":"0.1.0","apiVersion":2,"kind":"backend","contributes":{"backend":"index.mjs","nodeFactories":[],"graphFactories":["createAgentMonitorGraph"]}}

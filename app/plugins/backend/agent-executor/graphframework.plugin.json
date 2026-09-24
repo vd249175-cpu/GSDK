@@ -1,0 +1,1 @@
+{"id":"example.agent-executor","name":"Agent Executor","version":"0.1.0","apiVersion":2,"kind":"backend","contributes":{"backend":"index.mjs","nodeFactories":[],"graphFactories":["createAgentExecutorGraph"]}}

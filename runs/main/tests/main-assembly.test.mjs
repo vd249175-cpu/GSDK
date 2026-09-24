@@ -18,6 +18,9 @@ describe('runs/main integrated assembly', () => {
       'example.browser-recorder',
       'example.os-recorder',
       'example.ufo-computer-control',
+      'example.browser-executor',
+      'example.agent-executor',
+      'example.agent-monitor',
     ])
     expect(parsed.plugins.frontend.map((p) => p.id)).toEqual([
       'example.unified-recorder',
@@ -27,6 +30,9 @@ describe('runs/main integrated assembly', () => {
       'browser-recorder',
       'os-recorder',
       'computer',
+      'browser',
+      'agent',
+      'monitor',
     ])
     expect(parsed.frontend.instances.map((f) => f.id)).toEqual([
       'main-ui',
@@ -68,6 +74,13 @@ describe('runs/main integrated assembly', () => {
       expect(nodeIds).toContain('computer/session')
       expect(nodeIds).toContain('computer/execution')
       expect(nodeIds).toContain('computer/observation')
+      expect(nodeIds).toContain('browser/session')
+      expect(nodeIds).toContain('browser/observation')
+      expect(nodeIds).toContain('browser/result')
+      expect(nodeIds).toContain('agent/session')
+      expect(nodeIds).toContain('agent/result')
+      expect(nodeIds).toContain('agent/tool-observation-7')
+      expect(nodeIds).toContain('monitor/session')
 
       // Check unified-recorder adapters
       const recorderExecution = assembled.nodes.find((n) => n.id === 'recorder/execution')
@@ -90,6 +103,8 @@ describe('runs/main integrated assembly', () => {
       // Check computer control adapters
       const computerExecution = assembled.nodes.find((n) => n.id === 'computer/execution')
       expect(computerExecution?.computerExecution?.id).toBe('ufo/computer-execution')
+      expect(assembled.nodes.find((n) => n.id === 'browser/execution')?.browserExecution?.id).toBe('browser/executor')
+      expect(assembled.nodes.find((n) => n.id === 'agent/execution-0')?.runAgent?.id).toBe('agent/run')
     } finally {
       rmSync(tempDir, { recursive: true, force: true })
     }

@@ -18,6 +18,9 @@ export default {
       id: 'example.ufo-computer-control',
       path: '../../app/plugins/backend/ufo-computer-control',
     });
+    run.backendPlugin({ id: 'example.browser-executor', path: '../../app/plugins/backend/browser-executor' });
+    run.backendPlugin({ id: 'example.agent-executor', path: '../../app/plugins/backend/agent-executor' });
+    run.backendPlugin({ id: 'example.agent-monitor', path: '../../app/plugins/backend/agent-monitor' });
 
     // Frontend plugins
     run.frontendPlugin({
@@ -46,6 +49,10 @@ export default {
       plugin: 'example.ufo-computer-control',
       factory: 'createUfoComputerControlGraph',
     });
+    run.graph({ id: 'browser', plugin: 'example.browser-executor', factory: 'createBrowserExecutorGraph' });
+    run.graph({ id: 'agent', plugin: 'example.agent-executor', factory: 'createAgentExecutorGraph',
+      params: { promptSections: ['You are a GraphFramework assistant. Use only registered graph tools.'] } });
+    run.graph({ id: 'monitor', plugin: 'example.agent-monitor', factory: 'createAgentMonitorGraph' });
 
     // Frontend instances — 统一录制主页面
     run.frontend({
@@ -58,5 +65,8 @@ export default {
     run.requireNode('browser-recorder/session');
     run.requireNode('os-recorder/session');
     run.requireNode('computer/session');
+    run.requireNode('browser/session');
+    run.requireNode('agent/session');
+    run.requireNode('monitor/session');
   },
 };

@@ -7,20 +7,28 @@
  * - 依据 instance.id / plugin 精准分发依赖，彻底避免 Adapter 命名冲突。
  */
 
+import { execFile } from 'node:child_process'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 import { createCdpRecorder } from '../../app/plugins/backend/browser-recorder/index.mjs'
 import {
   createWindowsInputEventSource,
   createWindowsStepRecorder,
 } from '../../app/plugins/backend/os-recorder/index.mjs'
 import { createUfoComputerBridge } from '../../app/plugins/backend/ufo-computer-control/index.mjs'
+import { createBrowserExecutor, checkHomeTask } from '../../app/plugins/backend/browser-executor/bridge/browser-executor.mjs'
+import { createPythonAgentBridge } from '../../app/plugins/backend/agent-executor/bridge/process-bridge.mjs'
+import { createGraphToolPorts, createNoteTool } from '../../app/plugins/backend/agent-executor/bridge/graph-tool.mjs'
 import {
   createRunCli,
   createUnifiedAdapters,
 } from '../../app/plugins/backend/unified-recorder/bridge/unified-adapters.mjs'
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
+const execFileAsync = promisify(execFile)
+const browserScript = join(repositoryRoot, '.agents', 'skills', 'browser-setup', 'scripts', 'browser.ps1')
+const agentWorkerScript = join(repositoryRoot, 'app', 'plugins', 'backend', 'agent-executor', 'bridge', 'worker.py')
 
 export async function createRunHost({ runtimeDirectory, parsed } = {}) {
   if (!runtimeDirectory) throw new Error('main host requires runtimeDirectory')
@@ -58,6 +66,25 @@ export async function createRunHost({ runtimeDirectory, parsed } = {}) {
     workerScript: join(repositoryRoot, 'app', 'plugins', 'backend', 'ufo-computer-control', 'bridge', 'ufo-computer-worker.py'),
     ufoDirectory,
     screenshotsDirectory: join(dataDirectory, 'ufo-observations'),
+  })
+
+  const browser = createBrowserExecutor({
+    cdpUrl,
+    ensureBrowser: async () => {
+      if (process.platform !== 'win32') throw new Error('dedicated browser requires Windows')
+      await execFileAsync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass',
+        '-File', browserScript, '-Action', 'Start'], { windowsHide: true, timeout: 30000 })
+    },
+    tasks: { 'check-home': checkHomeTask },
+  })
+  const agentTools = createGraphToolPorts([createNoteTool()])
+  const agentBridge = createPythonAgentBridge({
+    workerScript: agentWorkerScript,
+    sqliteDirectory: join(dataDirectory, 'agent-threads'),
+    pythonExecutable: parsed?.backend?.dependencies?.agentPythonExecutable ?? 'python',
+    model: parsed?.backend?.dependencies?.agentModel ?? 'qwen/qwen3-vl-30b-a3b-instruct',
+    baseUrl: parsed?.backend?.dependencies?.agentBaseUrl ?? 'https://openrouter.ai/api/v1',
+    toolDefinitions: agentTools.definitions,
   })
 
   // 4. 统一全态录制 (Unified Recorder) 双源 Adapter
@@ -102,12 +129,14 @@ export async function createRunHost({ runtimeDirectory, parsed } = {}) {
     }
   }
   const startPolling = (hooks) => {
+    agentBridge.setGraphHooks(hooks)
     if (pollTimer || !hooks || typeof hooks.inject !== 'function' || typeof hooks.projection !== 'function') return
     pollInject = hooks
     pollTimer = setInterval(() => { void tickPoll() }, pollInterval)
     pollTimer.unref?.()
   }
   const stopPolling = () => {
+    agentBridge.setGraphHooks(null)
     clearInterval(pollTimer)
     pollTimer = null
     pollInject = null
@@ -143,6 +172,11 @@ export async function createRunHost({ runtimeDirectory, parsed } = {}) {
           ufoComputerObservation: computer.observationAdapter,
         }
       }
+      if (instance.id === 'browser') return { browserExecution: browser,
+        browserObservation: { id: 'browser/observation', execute: () => browser.observe() } }
+      if (instance.id === 'agent') return { runAgent: agentBridge.runAgent,
+        graphToolExecution: agentTools.toolExecution,
+        graphToolObservation: agentTools.toolObservation }
       return {}
     },
     hostRoots: [
@@ -156,12 +190,15 @@ export async function createRunHost({ runtimeDirectory, parsed } = {}) {
       stopPolling()
       await osBridge.stopActive?.()
       await computer.stop?.()
+      await browser.dispose()
+      await agentBridge.dispose()
     },
     dispose: async () => {
       stopPolling()
+      await browser.dispose()
+      await agentBridge.dispose()
     },
     startPolling,
     stopPolling,
   }
 }
-

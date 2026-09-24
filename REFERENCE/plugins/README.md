@@ -1,7 +1,7 @@
 ---
 type: Reference Manual
 title: 核心插件索引与装配
-description: 六个核心插件、Manifest、工厂、Renderer 白名单与 Run 装配入口。
+description: 核心插件、Manifest、工厂、Renderer 白名单与 Run 装配入口。
 status: stable
 ---
 
@@ -58,7 +58,7 @@ mindmap
 | 前端 | `index.tsx` 挂载 `#root` 并具名导出 `App`；遵守[前端规范](frontend-specification.md)：设置、自由切分/浮窗、单页也保留的底部分页。 |
 | Run | `run.node/graph` 条目含 `id`, `plugin`, `factory`, 可选 `params/bindings`；图的 `localIds` 与实例命名空间精确对应。 |
 
-## 六个核心插件
+## 核心插件
 
 | 插件 | 工厂 | 定位 |
 | :--- | :--- | :--- |
@@ -68,6 +68,9 @@ mindmap
 | [UFO 控制](ufo-computer-control.md) `example.ufo-computer-control` | `createUfoComputerControl` / `createUfoComputerControlGraph` | `UfoComputerSession/Execution/ObservationNode`；Windows UIA 巡检与十类指令，纯后端。 |
 | [拓扑演示](demo-topology.md) `demo.topology` | `createDemoTopology` / `createDemoTopologyGraph` | 订单扇出扇入、Ledger 汇聚与动态 Fraud 节点，Electron/React。 |
 | [计数器](hello-counter.md) `example.hello-counter` | `createCounterNode` | `CounterNode`；最小单飞与离线因果诊断，纯后端。 |
+| [Agent 执行器](agent-executor.md) `example.agent-executor` | `createAgentExecutorGraph` | Python `create_agent` 图外进程、SQLite thread 恢复与图内工具执行/观察席位。 |
+| [Agent 监控](agent-monitor.md) `example.agent-monitor` | `createAgentMonitorGraph` | Middleware 事件以 `AgentMonitorInfo` 进入图内投影。 |
+| [浏览器执行器](browser-executor.md) `example.browser-executor` | `createBrowserExecutorGraph` | Playwright CDP 任务执行与独立页面观察。 |
 
 ## 三种装配
 
