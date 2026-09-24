@@ -17,6 +17,8 @@ describe('world save agent tools', () => {
     expect(await ask.observe({ handle: asked.handle, threadId: 't', requestId: 'r-1' }))
       .toMatchObject({ decision: 'approve' })
     const signaled = await signal.execute({ threadId: 't', requestId: 'r-1', toolCallId: 's-1', args: {} })
+    expect(await signal.execute({ threadId: 't', requestId: 'r-1', toolCallId: 's-1', args: {} }))
+      .toEqual(signaled)
     expect(await signal.observe({ handle: signaled.handle })).toMatchObject({ signaled: true })
     expect(injected).toEqual([{ nodeId: 'smoke/session', info: {
       type: 'WorldSaveDecisionInfo', requestId: 'r-1', decision: 'approve', text: '保存原因',

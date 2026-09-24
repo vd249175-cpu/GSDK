@@ -5,8 +5,15 @@ import { join } from 'node:path'
 import { EventEmitter } from 'node:events'
 import { PassThrough, Writable } from 'node:stream'
 import { createPythonAgentBridge, readToolOutcome } from '../../../app/plugins/backend/agent-executor/bridge/process-bridge.mjs'
+import { createGraphToolPorts } from '../../../app/plugins/backend/agent-executor/bridge/graph-tool.mjs'
 
 describe('agent process bridge', () => {
+  it('rejects a tool without an observation port', () => {
+    expect(() => createGraphToolPorts([{ name: 'broken', description: 'broken tool',
+      parameters: { type: 'object', properties: {} }, execute: async () => ({ handle: 'h' }) }]))
+      .toThrow('execute and observe')
+  })
+
   it('allocates one worker process per thread and reuses it for the next turn', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gf-agent-'))
     let spawned = 0

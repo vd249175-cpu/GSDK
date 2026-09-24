@@ -11,6 +11,8 @@ export function createWorldSaveTools({ showDecision, readPending, inject }) {
     description: 'Ask the user whether to save a world document for the completed test. Wait for the actual decision.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     execute: async ({ threadId, requestId, toolCallId }) => {
+      const handle = keyFor(threadId, toolCallId)
+      if (observations.has(handle)) return { handle }
       const pending = await readPending()
       if (pending?.requestId !== requestId || pending?.step !== 'save-world') {
         throw new Error('world save request is no longer pending')
@@ -21,7 +23,6 @@ export function createWorldSaveTools({ showDecision, readPending, inject }) {
         || !['approve', 'reject'].includes(response?.decision))) {
         throw new Error('popup returned a stale or invalid decision')
       }
-      const handle = keyFor(threadId, toolCallId)
       observations.set(handle, response?.cancelled ? { cancelled: true } : {
         decision: response.decision, text: typeof response.text === 'string' ? response.text : '',
       })
@@ -40,6 +41,8 @@ export function createWorldSaveTools({ showDecision, readPending, inject }) {
     description: 'Send the user’s observed world-save choice to the workflow. Call only after ask_world_save returns a decision.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     execute: async ({ threadId, requestId, toolCallId }) => {
+      const handle = keyFor(threadId, toolCallId)
+      if (receipts.has(handle)) return { handle }
       const decision = decisions.get(keyFor(threadId, requestId))
       if (!decision) throw new Error('user decision is required before world save signal')
       const pending = await readPending()
@@ -48,7 +51,6 @@ export function createWorldSaveTools({ showDecision, readPending, inject }) {
       }
       await inject(pending.nodeId, { type: 'WorldSaveDecisionInfo', requestId,
         decision: decision.decision, text: decision.text })
-      const handle = keyFor(threadId, toolCallId)
       receipts.set(handle, { signaled: true, decision: decision.decision })
       decisions.delete(keyFor(threadId, requestId))
       return { handle }

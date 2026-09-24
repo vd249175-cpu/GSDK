@@ -17,9 +17,7 @@ export function defineGraphTool({ name, description, parameters, execute, observ
 export function createGraphToolPorts(templates) {
   const registry = new Map()
   for (const template of templates) {
-    const tool = template?.name && typeof template.execute === 'function'
-      ? template
-      : defineGraphTool(template)
+    const tool = defineGraphTool(template)
     if (registry.has(tool.name)) throw new Error(`Duplicate tool: ${tool.name}`)
     registry.set(tool.name, tool)
   }
