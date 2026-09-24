@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import uuid
+from urllib.parse import urlparse
 
 from langchain_openai import ChatOpenAI
 
@@ -16,6 +17,7 @@ from agent_runtime import AgentEngine
 class Protocol:
     def __init__(self):
         self.pending_tools: dict[str, asyncio.Future] = {}
+        self.tool_timeout_s = 120
         self.engine: AgentEngine | None = None
         self.active: asyncio.Task | None = None
 
@@ -29,7 +31,7 @@ class Protocol:
         self.pending_tools[call_id] = future
         self.emit({"type": "tool_call", "id": call_id, "name": name, "args": args})
         try:
-            return await asyncio.wait_for(future, timeout=120)
+            return await asyncio.wait_for(future, timeout=self.tool_timeout_s)
         finally:
             self.pending_tools.pop(call_id, None)
 
@@ -47,11 +49,19 @@ class Protocol:
         if kind == "init":
             if self.engine is not None:
                 raise ValueError("worker is already initialized")
-            key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
+            base_url = command.get("baseUrl") or None
+            host = urlparse(base_url).hostname if base_url else None
+            if host == "openrouter.ai":
+                key = os.environ.get("OPENROUTER_API_KEY")
+            elif host is None or host == "api.openai.com":
+                key = os.environ.get("OPENAI_API_KEY")
+            else:
+                key = os.environ.get("AGENT_API_KEY")
             if not key:
-                raise ValueError("OPENROUTER_API_KEY or OPENAI_API_KEY is required")
+                raise ValueError("model API key is required in the process environment")
             model = ChatOpenAI(model=command["model"], api_key=key,
-                               base_url=command.get("baseUrl") or None)
+                               base_url=base_url)
+            self.tool_timeout_s = max(1, min(600, int(command.get("toolTimeoutMs", 120000)) / 1000))
             self.engine = await AgentEngine(
                 model=model, thread_id=command["threadId"], sqlite_path=command["sqlitePath"],
                 tools=command.get("tools", []), graph_tool=self.graph_tool,

@@ -15,6 +15,6 @@ Python worker 使用 [`langchain.agents.create_agent`](https://reference.langcha
 
 输入 `AgentInputInfo` 必含 `threadId`、`requestId`、`text`，可含 `attachments` 和 `promptSections`。媒体块透传给模型；简写 `{ "type": "video", "url": "https://…" }` 转为 OpenRouter 的 `video_url` 块。所选模型与提供者仍须支持对应模态。提示词只在当前模型调用使用，不写入持久消息；下一轮可重新拼接。
 
-安装 Python 依赖：`python -m pip install -r app/plugins/backend/agent-executor/requirements.txt`。模型名、base URL、Python 可执行文件由 run 的 `backend.dependencies` 配置；密钥只从进程环境 `OPENROUTER_API_KEY` 或 `OPENAI_API_KEY` 读取。worker 与 SQLite 均留在 run 的 `.generated/data/`，不进图状态或前端。
+安装 Python 依赖：`python -m pip install -r app/plugins/backend/agent-executor/requirements.txt`。模型名、base URL、Python 可执行文件由 run 的 `backend.dependencies` 配置；默认根据环境中的 `OPENROUTER_API_KEY` 或 `OPENAI_API_KEY` 选择对应提供者。自定义 base URL 只使用 `AGENT_API_KEY`。worker 与 SQLite 均留在 run 的 `.generated/data/`，不进图状态或前端。
 
 独立验证：`runs/agent-tool-socket/` 的装配和图端口测试，以及 `tests/test_python_agent.py` 的并行工具、SQLite 恢复和视频载荷测试。主 run 中也装配 `agent` 图；宿主默认提供 `record_note` 示例工具。

@@ -86,7 +86,9 @@ export function createBrowserExecutor({
     async observe() {
       if (closed) throw new Error('Browser executor is closed')
       return serialize(async () => {
-        await connect()
+        if (!page || browser?.isConnected?.() === false) {
+          throw new Error('Browser has no active execution page to observe')
+        }
         return { url: safeUrl(page.url()), title: await page.title() }
       })
     },

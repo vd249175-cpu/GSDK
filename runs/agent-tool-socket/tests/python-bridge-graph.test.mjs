@@ -15,6 +15,10 @@ describe('Python agent graph ports', () => {
     expect(index.unresolvedSendTargets).toEqual([])
     expect(validateCausalIndex(index).issues.filter((issue) => issue.severity === 'error')).toEqual([])
     expect(analyzeViewHealth(buildAllNodesView(index)).cyclicNodeIds).toEqual([])
+    const limited = buildCausalIndex({ nodeObjects: createAgentExecutorGraph({
+      instanceId: 'limited', params: { executionSeats: 1 },
+    }) })
+    expect(limited.unresolvedSendTargets).toEqual([])
   })
 
   it('routes node prompts and media to an outside executor and publishes status', async () => {

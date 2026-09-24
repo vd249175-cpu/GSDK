@@ -49,7 +49,7 @@ export function createPythonAgentBridge({
         return outcome.result
       }
       if (Date.now() >= deadline) throw new Error(`graph tool ${call.name} timed out`)
-      await delay(25)
+      await delay(100)
     }
   }
 
@@ -110,7 +110,7 @@ export function createPythonAgentBridge({
       }
     })
     send(worker, { type: 'init', threadId, sqlitePath: sqlitePathFor(threadId),
-      tools: toolDefinitions, model, baseUrl })
+      tools: toolDefinitions, model, baseUrl, toolTimeoutMs })
     return worker
   }
 

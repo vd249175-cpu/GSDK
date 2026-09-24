@@ -6,13 +6,13 @@ const absent = (id) => ({ id, execute: async () => { throw new Error(`Missing Ef
 const seatFor = (value, count) => [...value].reduce((sum, char) => sum + char.codePointAt(0), 0) % count
 
 export class AgentSessionNode extends Node {
-  constructor(id, executionIds, promptSections) {
+  constructor(id, executionIds, executionSeatCount, promptSections) {
     super(id, 'AgentSession', { threads: {} })
     this.execution0 = executionIds[0]
     this.execution1 = executionIds[1]
     this.execution2 = executionIds[2]
     this.execution3 = executionIds[3]
-    this.executionSeatCount = executionIds.length
+    this.executionSeatCount = executionSeatCount
     this.promptSections = promptSections
   }
 
@@ -143,9 +143,9 @@ export function createAgentExecutorGraph(ctx) {
   const dependencies = ctx?.dependencies ?? {}
   const sessionId = idFor('session')
   const resultId = idFor('result')
-  const executionIds = Array.from({ length: executionSeats }, (_, seat) => idFor(`execution-${seat}`))
+  const executionIds = Array.from({ length: 4 }, (_, seat) => idFor(`execution-${seat}`))
   return [
-    new AgentSessionNode(sessionId, executionIds, ctx?.params?.promptSections ?? []),
+    new AgentSessionNode(sessionId, executionIds, executionSeats, ctx?.params?.promptSections ?? []),
     new AgentResultNode(resultId),
     ...executionIds.map((id) => new AgentExecutionNode(id, resultId, dependencies.runAgent ?? absent('agent/run'))),
     ...Array.from({ length: toolSeats }, (_, seat) => [

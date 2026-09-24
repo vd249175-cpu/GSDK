@@ -30,6 +30,18 @@ function fakeBrowser() {
 }
 
 describe('Playwright SDK browser executor', () => {
+  it('observes only an existing execution page', async () => {
+    const { calls, chromium } = fakeBrowser()
+    const executor = createBrowserExecutor({ chromium, ensureBrowser: async () => calls.push(['ensure']),
+      tasks: { open: async ({ page }) => { await page.goto('https://example.com/'); return { opened: true } } } })
+    await expect(executor.observe()).rejects.toThrow('no active execution page')
+    expect(calls).toEqual([])
+    await executor.execute({ task: 'open' })
+    expect(await executor.observe()).toEqual({ url: 'https://example.com/', title: 'Example Domain' })
+    expect(calls.filter(([name]) => name === 'ensure')).toHaveLength(1)
+    await executor.dispose()
+  })
+
   it('runs a complex native Page task and captures operation events', async () => {
     const { calls, page, chromium } = fakeBrowser()
     const executor = createBrowserExecutor({

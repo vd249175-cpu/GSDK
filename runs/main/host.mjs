@@ -19,6 +19,7 @@ import {
 import { createUfoComputerBridge } from '../../app/plugins/backend/ufo-computer-control/index.mjs'
 import { createBrowserExecutor, checkHomeTask } from '../../app/plugins/backend/browser-executor/bridge/browser-executor.mjs'
 import { createPythonAgentBridge } from '../../app/plugins/backend/agent-executor/bridge/process-bridge.mjs'
+import { resolveAgentModelConfig } from '../../app/plugins/backend/agent-executor/bridge/model-config.mjs'
 import { createGraphToolPorts, createNoteTool } from '../../app/plugins/backend/agent-executor/bridge/graph-tool.mjs'
 import {
   createRunCli,
@@ -78,12 +79,13 @@ export async function createRunHost({ runtimeDirectory, parsed } = {}) {
     tasks: { 'check-home': checkHomeTask },
   })
   const agentTools = createGraphToolPorts([createNoteTool()])
+  const agentModelConfig = resolveAgentModelConfig({ model: parsed?.backend?.dependencies?.agentModel,
+    baseUrl: parsed?.backend?.dependencies?.agentBaseUrl })
   const agentBridge = createPythonAgentBridge({
     workerScript: agentWorkerScript,
     sqliteDirectory: join(dataDirectory, 'agent-threads'),
     pythonExecutable: parsed?.backend?.dependencies?.agentPythonExecutable ?? 'python',
-    model: parsed?.backend?.dependencies?.agentModel ?? 'qwen/qwen3-vl-30b-a3b-instruct',
-    baseUrl: parsed?.backend?.dependencies?.agentBaseUrl ?? 'https://openrouter.ai/api/v1',
+    ...agentModelConfig,
     toolDefinitions: agentTools.definitions,
   })
 

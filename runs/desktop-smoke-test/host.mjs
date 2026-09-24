@@ -6,6 +6,7 @@ import { defaultValueCodec } from '@graphframework/sdk/protocol'
 import { createUfoComputerBridge } from '../../app/plugins/backend/ufo-computer-control/index.mjs'
 import { createBrowserExecutor } from '../../app/plugins/backend/browser-executor/bridge/browser-executor.mjs'
 import { createPythonAgentBridge } from '../../app/plugins/backend/agent-executor/bridge/process-bridge.mjs'
+import { resolveAgentModelConfig } from '../../app/plugins/backend/agent-executor/bridge/model-config.mjs'
 import { createGraphToolPorts } from '../../app/plugins/backend/agent-executor/bridge/graph-tool.mjs'
 import { createWorldSaveDialog } from './bridge/world-save-dialog.mjs'
 import { createWorldSaveTools } from './bridge/world-save-tools.mjs'
@@ -82,9 +83,10 @@ export async function createRunHost({ parsed, chromium, ensureBrowser = startDed
     workerScript: agentWorkerScript,
     sqliteDirectory: join(dataDirectory, 'agent-threads'),
     pythonExecutable: parsed?.backend?.dependencies?.agentPythonExecutable ?? 'python',
-    model: parsed?.backend?.dependencies?.agentModel ?? 'qwen/qwen3-vl-30b-a3b-instruct',
-    baseUrl: parsed?.backend?.dependencies?.agentBaseUrl ?? 'https://openrouter.ai/api/v1',
+    ...resolveAgentModelConfig({ model: parsed?.backend?.dependencies?.agentModel,
+      baseUrl: parsed?.backend?.dependencies?.agentBaseUrl }),
     toolDefinitions: tools.definitions,
+    toolTimeoutMs: 600_000,
   })
   const startPolling = (hooks) => {
     graphHooks = hooks

@@ -6,8 +6,16 @@ import { EventEmitter } from 'node:events'
 import { PassThrough, Writable } from 'node:stream'
 import { createPythonAgentBridge, readToolOutcome } from '../../../app/plugins/backend/agent-executor/bridge/process-bridge.mjs'
 import { createGraphToolPorts } from '../../../app/plugins/backend/agent-executor/bridge/graph-tool.mjs'
+import { resolveAgentModelConfig } from '../../../app/plugins/backend/agent-executor/bridge/model-config.mjs'
 
 describe('agent process bridge', () => {
+  it('chooses a provider from the available key without storing the key in config', () => {
+    expect(resolveAgentModelConfig({ environment: { OPENAI_API_KEY: 'test-only' } }))
+      .toEqual({ model: 'gpt-4.1-mini', baseUrl: null })
+    expect(resolveAgentModelConfig({ environment: { OPENROUTER_API_KEY: 'test-only' } }))
+      .toEqual({ model: 'qwen/qwen3-vl-30b-a3b-instruct', baseUrl: 'https://openrouter.ai/api/v1' })
+  })
+
   it('rejects a tool without an observation port', () => {
     expect(() => createGraphToolPorts([{ name: 'broken', description: 'broken tool',
       parameters: { type: 'object', properties: {} }, execute: async () => ({ handle: 'h' }) }]))
