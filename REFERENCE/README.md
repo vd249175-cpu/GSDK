@@ -71,6 +71,6 @@ mindmap
 
 ## 插件与分发
 
-六个正式插件的工厂、节点与装配入口见[核心插件索引](plugins/README.md)：[统一录制](plugins/unified-recorder.md)、[浏览器录制](plugins/browser-recorder.md)、[桌面录制](plugins/os-recorder.md)、[UFO 控制](plugins/ufo-computer-control.md)、[拓扑演示](plugins/demo-topology.md)、[计数器](plugins/hello-counter.md)。
+正式插件的工厂、节点与装配入口见[核心插件索引](plugins/README.md)：[统一录制](plugins/unified-recorder.md)、[浏览器录制](plugins/browser-recorder.md)、[桌面录制](plugins/os-recorder.md)、[UFO 控制](plugins/ufo-computer-control.md)、[Agent 执行器](plugins/agent-executor.md)、[Agent 监控](plugins/agent-monitor.md)、[浏览器执行器](plugins/browser-executor.md)、[拓扑演示](plugins/demo-topology.md)、[计数器](plugins/hello-counter.md)。
 
 新环境与交付流程见[分发总览](distribution/README.md)：[冷启动](distribution/cold-start.md)、[能力包打包/校验/安装](distribution/capability-packaging.md)、[团队分发契约](distribution/distribution-contract.md)。
